@@ -1,0 +1,9 @@
+node_modules/
+*.log
+*.tgz
+.DS_Store
+.minecodex-test/
+coverage/
+dist/
+.playwright-cli/
+output/

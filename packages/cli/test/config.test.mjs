@@ -1,0 +1,42 @@
+import assert from "node:assert/strict";
+import { mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import test from "node:test";
+import { ensureControlToken, readConfig, updateFeature, writeConfig } from "../src/config.mjs";
+
+test("config defaults every known plugin on and preserves unknown fields", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "minecodex-config-"));
+  const configPath = path.join(root, "config.json");
+  await writeFile(configPath, JSON.stringify({
+    schemaVersion: 1,
+    future: { channel: "preview" },
+    features: { notes: false, "future-plugin": true },
+  }));
+
+  const config = await readConfig(configPath);
+  assert.deepEqual(config.features, {
+    notes: false,
+    "future-plugin": true,
+    "model-slider": true,
+    images: true,
+  });
+  assert.deepEqual(config.future, { channel: "preview" });
+
+  await updateFeature(configPath, "images", false);
+  const saved = JSON.parse(await readFile(configPath, "utf8"));
+  assert.equal(saved.features.images, false);
+  assert.equal(saved.features["future-plugin"], true);
+  assert.deepEqual(saved.future, { channel: "preview" });
+});
+
+test("config writes atomically and control token stays stable with private permissions", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "minecodex-token-"));
+  const configPath = path.join(root, "state", "config.json");
+  const tokenPath = path.join(root, "state", "control-token");
+  await writeConfig(configPath, { schemaVersion: 1, features: {} });
+  const token = await ensureControlToken(tokenPath);
+  assert.equal(await ensureControlToken(tokenPath), token);
+  assert.equal(token.length >= 40, true);
+  assert.equal((await stat(tokenPath)).mode & 0o777, 0o600);
+});

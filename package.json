@@ -1,0 +1,50 @@
+{
+  "name": "minecodex",
+  "version": "0.1.0",
+  "description": "Lightweight, local-first plugins for the Codex desktop app.",
+  "type": "module",
+  "bin": {
+    "mcx": "packages/cli/bin/mcx.mjs"
+  },
+  "workspaces": [
+    "packages/*",
+    "features/*",
+    "apps/*"
+  ],
+  "files": [
+    "packages/cli",
+    "packages/runtime-host/src",
+    "features/model-slider/assets",
+    "features/model-slider/codex-feature.json",
+    "features/notes/src",
+    "features/notes/web",
+    "features/notes/assets",
+    "features/notes/codex-feature.json",
+    "features/images/src",
+    "features/images/web",
+    "features/images/codex-feature.json",
+    "apps/dashboard",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "scripts": {
+    "start": "node packages/cli/bin/mcx.mjs serve",
+    "test": "node --test packages/cli/test/*.test.mjs packages/runtime-host/test/*.test.mjs features/model-slider/test/*.test.mjs features/notes/test/*.test.mjs features/images/test/*.test.mjs",
+    "test:cli": "node --test packages/cli/test/*.test.mjs",
+    "test:runtime": "node --test packages/runtime-host/test/*.test.mjs",
+    "check": "node --check packages/cli/bin/mcx.mjs && node --check packages/cli/src/*.mjs && node --check packages/runtime-host/src/*.mjs",
+    "pack:check": "npm pack --dry-run"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Vontean/MineCodex.git"
+  },
+  "keywords": [
+    "codex",
+    "minecodex",
+    "macos",
+    "plugins"
+  ]
+}
