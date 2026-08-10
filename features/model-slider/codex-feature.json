@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "id": "model-slider",
+  "version": "0.1.0",
+  "label": {
+    "en": "Model Slider",
+    "zh-CN": "模型滑条"
+  },
+  "description": {
+    "en": "A clearer, faster model picker with provider identity, favorites, search, and smoother interaction.",
+    "zh-CN": "让模型选择更清楚、更快，提供品牌识别、常用收藏、搜索和更顺畅的交互。"
+  },
+  "entry": {
+    "kind": "composer-model-selector"
+  },
+  "modelSelector": {
+    "maxVisibleItems": 6,
+    "favoriteStorageKey": "codex-model-slider:favorites:v1",
+    "providerAliases": {
+      "opencode-go": "OpenCode Go",
+      "xai": "xAI",
+      "zhipu": "Zhipu AI",
+      "google": "Google",
+      "anthropic": "Anthropic",
+      "openai": "OpenAI"
+    },
+    "strings": {
+      "star": {
+        "en": "Star {model}",
+        "zh-CN": "收藏 {model}"
+      },
+      "unstar": {
+        "en": "Unstar {model}",
+        "zh-CN": "取消收藏 {model}"
+      }
+    },
+    "icons": {
+      "fallback": { "resource": "assets/ui/sparkles.svg" },
+      "star": { "resource": "assets/ui/star.svg" },
+      "unstar": { "resource": "assets/ui/star-off.svg" }
+    },
+    "brands": [
+      { "id": "deepseek", "keywords": ["deepseek"], "icon": { "resource": "assets/providers/deepseek.svg" } },
+      { "id": "anthropic", "keywords": ["claude", "anthropic"], "icon": { "resource": "assets/providers/anthropic.svg" } },
+      { "id": "gemini", "keywords": ["gemini", "gemma"], "icon": { "resource": "assets/providers/gemini.svg" } },
+      { "id": "grok", "keywords": ["grok", "xai"], "icon": { "resource": "assets/providers/grok.svg" } },
+      { "id": "mimo", "keywords": ["mimo", "xiaomi"], "icon": { "resource": "assets/providers/xiaomimimo.svg" } },
+      { "id": "kimi", "keywords": ["kimi", "moonshot"], "icon": { "resource": "assets/providers/kimi.svg" } },
+      { "id": "minimax", "keywords": ["minimax"], "icon": { "resource": "assets/providers/minimax.svg" } },
+      { "id": "qwen", "keywords": ["qwen", "qwq"], "icon": { "resource": "assets/providers/qwen.svg" } },
+      { "id": "hunyuan", "keywords": ["hunyuan"], "icon": { "resource": "assets/providers/hunyuan.svg" } },
+      { "id": "zhipu", "keywords": ["zhipu", "chatglm", "glm"], "icon": { "resource": "assets/providers/zhipu.svg" } },
+      { "id": "openai", "keywords": ["openai", "gpt", "codex", "o1", "o3", "o4"], "icon": { "resource": "assets/providers/openai.svg" } }
+    ]
+  }
+}

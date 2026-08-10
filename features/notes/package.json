@@ -1,0 +1,15 @@
+{
+  "name": "@minecodex/notes",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Local-first Todo, Prompts, and Files surfaces for Codex.",
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "scripts": {
+    "start": "node src/main.mjs",
+    "test": "node --test",
+    "check": "node --check src/main.mjs && node --check src/product.mjs && node --check src/http-server.mjs && node --check web/app.js"
+  }
+}
