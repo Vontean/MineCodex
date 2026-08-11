@@ -39,14 +39,16 @@ export function responsiveSummaryContentShift({ displayMode, isPinned }, layout 
 export function createInjectionSource(features, {
   bindingName = HOST_BINDING_NAME,
   bindingToken = "test-binding-token",
+  runtimeSessionId = randomBytes(16).toString("hex"),
 } = {}) {
   function install(config) {
     if (window.top !== window) return;
-    if (window.__codexPersonalRuntime?.version === config.version) {
-      window.__codexPersonalRuntime.ensure();
+    const currentRuntime = window.__codexPersonalRuntime;
+    if (currentRuntime?.version === config.version && currentRuntime?.sessionId === config.sessionId) {
+      currentRuntime.ensure();
       return;
     }
-    window.__codexPersonalRuntime?.dispose?.();
+    currentRuntime?.dispose?.();
 
     const lifetime = new AbortController();
 
@@ -3441,6 +3443,7 @@ export function createInjectionSource(features, {
 
     const runtimeApi = {
       version: config.version,
+      sessionId: config.sessionId,
       ensure: queueEnsure,
       show: showPageSurface,
       hide: () => {
@@ -3497,11 +3500,46 @@ export function createInjectionSource(features, {
   }));
   return `(${install.toString()})(${JSON.stringify({
     version: RUNTIME_VERSION,
+    sessionId: runtimeSessionId,
     bindingName,
     bindingToken,
     summaryLayout: RESPONSIVE_SUMMARY_LAYOUT,
     features: runtimeFeatures,
   })})`;
+}
+
+export function createRuntimeReadyContract({
+  pid,
+  features = [],
+  plugins = [],
+  failures = [],
+  renderer = {},
+  runtimeSessionId,
+}) {
+  const discovered = Boolean(renderer.discovered);
+  const injectedTargets = Math.max(0, Number(renderer.injectedTargets) || 0);
+  const active = Boolean(renderer.active) && discovered && injectedTargets > 0;
+  return {
+    pid,
+    features: features.map((feature) => typeof feature === "string" ? feature : feature.id),
+    failures,
+    runtimeSessionId,
+    plugins: plugins.map((plugin) => ({
+      featureId: plugin.featureId,
+      state: active && (plugin.state === "configured" || plugin.state === "ready")
+        ? "injected"
+        : plugin.state,
+      owned: Boolean(plugin.owned),
+      health: plugin.health ?? null,
+      failure: plugin.failure ?? null,
+    })),
+    renderer: {
+      discovered,
+      injectedTargets,
+      active,
+      runtimeSessionId: renderer.runtimeSessionId ?? runtimeSessionId,
+    },
+  };
 }
 
 async function connect(url) {
@@ -3600,6 +3638,31 @@ function evaluationValue(result) {
   return result.result?.value;
 }
 
+function processChildHasExited(child) {
+  return child && (
+    (child.exitCode !== null && child.exitCode !== undefined)
+    || (child.signalCode !== null && child.signalCode !== undefined)
+  );
+}
+
+function waitForProcessChildExit(child, timeoutMs) {
+  if (processChildHasExited(child)) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    let settled = false;
+    let timer;
+    const finish = (exited) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      child.removeListener?.("exit", onExit);
+      resolve(exited || processChildHasExited(child));
+    };
+    const onExit = () => finish(true);
+    child.once?.("exit", onExit);
+    timer = setTimeout(() => finish(false), timeoutMs);
+  });
+}
+
 export class CodexRuntime {
   constructor({
     features,
@@ -3607,12 +3670,36 @@ export class CodexRuntime {
     appPath = "/Applications/ChatGPT.app/Contents/MacOS/ChatGPT",
     cdpPort = 9231,
     logger = console,
+    fetchImpl = globalThis.fetch,
+    spawnProcess = spawn,
+    connectClient = connect,
+    sleep = (timeoutMs) => new Promise((resolve) => setTimeout(resolve, timeoutMs)),
+    availabilityTimeoutMs = 20_000,
+    availabilityPollMs = 500,
+    relaunchBaseDelayMs = 250,
+    relaunchMaxDelayMs = 2_000,
+    monitorIntervalMs = 2_000,
+    runtimeSessionId = randomBytes(16).toString("hex"),
+    onStatusChange = null,
+    onManagedCodexPidChange = null,
   }) {
     this.features = features;
     this.profileDir = profileDir;
     this.appPath = appPath;
     this.cdpPort = cdpPort;
     this.logger = logger;
+    this.fetchImpl = fetchImpl;
+    this.spawnProcess = spawnProcess;
+    this.connectClient = connectClient;
+    this.sleep = sleep;
+    this.availabilityTimeoutMs = availabilityTimeoutMs;
+    this.availabilityPollMs = availabilityPollMs;
+    this.relaunchBaseDelayMs = relaunchBaseDelayMs;
+    this.relaunchMaxDelayMs = relaunchMaxDelayMs;
+    this.monitorIntervalMs = monitorIntervalMs;
+    this.runtimeSessionId = runtimeSessionId;
+    this.onStatusChange = onStatusChange;
+    this.onManagedCodexPidChange = onManagedCodexPidChange;
     this.injectedTargets = new Set();
     this.clients = new Map();
     this.scriptIds = new Map();
@@ -3624,31 +3711,210 @@ export class CodexRuntime {
     this.browserClient = null;
     this.targetRefreshQueued = false;
     this.appPid = null;
+    this.managedCodexChild = null;
+    this.recoveryPromise = null;
+    this.monitorTimer = null;
+    this.monitorWake = null;
+    this.stopPromise = null;
+    this.pidChangePromise = Promise.resolve();
+    this.pidChangeQueue = null;
+    this.rendererDiscovered = false;
+    this.lastRendererStatus = null;
+    this.codexLifecycleManaged = false;
   }
 
   async start() {
+    this.stopping = false;
     await mkdir(this.profileDir, { recursive: true });
+    this.codexLifecycleManaged = true;
     if (!(await this.isAvailable())) {
-      const child = spawn(
-        this.appPath,
-        [
-          `--user-data-dir=${this.profileDir}`,
-          "--remote-debugging-address=127.0.0.1",
-          `--remote-debugging-port=${this.cdpPort}`,
-          `--remote-allow-origins=http://127.0.0.1:${this.cdpPort}`,
-          "--no-first-run",
-        ],
-        { detached: true, stdio: "ignore" },
-      );
-      this.appPid = child.pid;
-      child.unref();
+      this.launchManagedCodex();
       await this.waitUntilAvailable();
     }
 
-    this.stopping = false;
     await this.startTargetDiscovery();
     await this.refresh();
+    await this.flushManagedCodexPidChange();
     this.monitorPromise = this.monitor();
+  }
+
+  getRendererStatus() {
+    const injectedTargets = this.injectedTargets.size;
+    return {
+      discovered: this.rendererDiscovered,
+      injectedTargets,
+      active: !this.stopping && this.rendererDiscovered && injectedTargets > 0,
+      runtimeSessionId: this.runtimeSessionId,
+    };
+  }
+
+  notifyStatusChange() {
+    const status = this.getRendererStatus();
+    const previous = this.lastRendererStatus;
+    if (
+      previous
+      && previous.discovered === status.discovered
+      && previous.injectedTargets === status.injectedTargets
+      && previous.active === status.active
+      && previous.runtimeSessionId === status.runtimeSessionId
+    ) return;
+    this.lastRendererStatus = status;
+    try {
+      this.onStatusChange?.(status);
+    } catch (error) {
+      this.logger.warn?.("Runtime status update failed", error.message);
+    }
+  }
+
+  notifyManagedCodexPidChange(pid) {
+    const invoke = () => {
+      try {
+        return this.onManagedCodexPidChange?.(pid);
+      } catch (error) {
+        this.logger.warn?.("Managed Codex PID update failed", error.message);
+        return null;
+      }
+    };
+    const next = this.pidChangeQueue
+      ? this.pidChangeQueue.catch(() => {}).then(invoke)
+      : invoke();
+    const tracked = Promise.resolve(next).catch((error) => {
+      this.logger.warn?.("Managed Codex PID update failed", error.message);
+    });
+    const settled = tracked.finally(() => {
+      if (this.pidChangeQueue === settled) this.pidChangeQueue = null;
+    });
+    this.pidChangeQueue = settled;
+    this.pidChangePromise = settled;
+  }
+
+  async flushManagedCodexPidChange() {
+    await this.pidChangePromise;
+  }
+
+  clearRendererState() {
+    for (const client of this.clients.values()) client.socket.close();
+    this.clients.clear();
+    this.scriptIds.clear();
+    this.bindingTokens.clear();
+    this.hostActionChains.clear();
+    this.injectedTargets.clear();
+    this.rendererDiscovered = false;
+    this.browserClient?.socket.close();
+    this.browserClient = null;
+    this.notifyStatusChange();
+  }
+
+  markCodexUnavailable(error) {
+    this.clearRendererState();
+    if (this.codexLifecycleManaged && !this.stopping) {
+      this.scheduleCodexRecovery();
+    }
+    return error;
+  }
+
+  launchManagedCodex() {
+    this.codexLifecycleManaged = true;
+    const child = this.spawnProcess(
+      this.appPath,
+      [
+        `--user-data-dir=${this.profileDir}`,
+        "--remote-debugging-address=127.0.0.1",
+        `--remote-debugging-port=${this.cdpPort}`,
+        `--remote-allow-origins=http://127.0.0.1:${this.cdpPort}`,
+        "--no-first-run",
+      ],
+      { detached: true, stdio: "ignore" },
+    );
+    this.managedCodexChild = child;
+    this.appPid = child.pid ?? null;
+    this.notifyManagedCodexPidChange(this.appPid);
+    let handled = false;
+    const onExit = () => {
+      if (handled) return;
+      handled = true;
+      if (this.managedCodexChild !== child) return;
+      this.managedCodexChild = null;
+      this.appPid = null;
+      this.notifyManagedCodexPidChange(null);
+      if (this.stopping) return;
+      this.clearRendererState();
+      this.scheduleCodexRecovery();
+    };
+    child.once?.("exit", onExit);
+    child.once?.("error", (error) => {
+      this.logger.warn?.("Managed Codex exited before CDP became available", error.message);
+      onExit();
+    });
+    child.unref?.();
+    return child;
+  }
+
+  scheduleCodexRecovery() {
+    if (this.stopping || this.recoveryPromise) return this.recoveryPromise;
+    const recovery = this.recoverManagedCodex();
+    let trackedRecovery;
+    trackedRecovery = recovery.finally(() => {
+      if (this.recoveryPromise === trackedRecovery) this.recoveryPromise = null;
+    });
+    this.recoveryPromise = trackedRecovery;
+    return trackedRecovery;
+  }
+
+  async recoverManagedCodex() {
+    let attempt = 0;
+    while (!this.stopping) {
+      if (this.managedCodexChild && !processChildHasExited(this.managedCodexChild)) {
+        await this.sleep(Math.max(1, Math.min(this.relaunchMaxDelayMs, this.relaunchBaseDelayMs || 1)));
+        continue;
+      }
+      if (await this.isAvailable()) {
+        try {
+          await this.startTargetDiscovery();
+          await this.refresh();
+          await this.flushManagedCodexPidChange();
+          return;
+        } catch (error) {
+          if (this.stopping) return;
+          if (await this.isAvailable()) {
+            this.logger.warn?.("Managed Codex CDP is still available; retrying discovery", error.message);
+            await this.sleep(Math.max(1, Math.min(this.relaunchMaxDelayMs, this.relaunchBaseDelayMs || 1)));
+            continue;
+          }
+        }
+      }
+      const delay = Math.min(
+        this.relaunchBaseDelayMs * (2 ** attempt),
+        this.relaunchMaxDelayMs,
+      );
+      if (delay > 0) await this.sleep(delay);
+      if (this.stopping) return;
+      let child;
+      try {
+        child = this.launchManagedCodex();
+        await this.waitUntilAvailable();
+        await this.startTargetDiscovery();
+        await this.refresh();
+        await this.flushManagedCodexPidChange();
+        return;
+      } catch (error) {
+        this.logger.warn?.("Managed Codex recovery retry failed", error.message);
+        if (
+          child
+          && this.managedCodexChild === child
+          && child.exitCode === null
+          && child.signalCode === null
+        ) {
+          child.kill?.("SIGTERM");
+          const exited = await waitForProcessChildExit(child, 500);
+          if (!exited && !processChildHasExited(child)) {
+            child.kill?.("SIGKILL");
+            await waitForProcessChildExit(child, 500);
+          }
+        }
+        attempt += 1;
+      }
+    }
   }
 
   queueTargetRefresh() {
@@ -3658,17 +3924,17 @@ export class CodexRuntime {
       this.targetRefreshQueued = false;
       if (this.stopping) return;
       this.refresh().catch((error) => {
-        this.logger.warn("Waiting for Codex renderer", error.message);
+        this.logger.warn?.("Waiting for Codex renderer", error.message);
       });
     });
   }
 
   async startTargetDiscovery() {
     try {
-      const response = await fetch(`http://127.0.0.1:${this.cdpPort}/json/version`);
+      const response = await this.fetchImpl(`http://127.0.0.1:${this.cdpPort}/json/version`);
       const version = await response.json();
       if (!version.webSocketDebuggerUrl) return;
-      const client = await connect(version.webSocketDebuggerUrl);
+      const client = await this.connectClient(version.webSocketDebuggerUrl);
       this.browserClient = client;
       for (const method of [
         "Target.targetCreated",
@@ -3681,44 +3947,62 @@ export class CodexRuntime {
     } catch (error) {
       this.browserClient?.socket.close();
       this.browserClient = null;
-      this.logger.warn("CDP target discovery unavailable; using polling", error.message);
+      this.logger.warn?.("CDP target discovery unavailable; using polling", error.message);
     }
   }
 
   refresh() {
     if (this.refreshPromise) return this.refreshPromise;
-    const refresh = this.refreshTargets().finally(() => {
-      if (this.refreshPromise === refresh) this.refreshPromise = null;
-    });
+    const refresh = this.refreshTargets()
+      .catch((error) => {
+        if (!this.rendererDiscovered) this.notifyStatusChange();
+        throw error;
+      })
+      .finally(() => {
+        if (this.refreshPromise === refresh) this.refreshPromise = null;
+      });
     this.refreshPromise = refresh;
     return refresh;
   }
 
   async monitor() {
     while (!this.stopping) {
-      await new Promise((resolve) => setTimeout(resolve, 2_000));
+      await new Promise((resolve) => {
+        this.monitorWake = () => {
+          this.monitorWake = null;
+          if (this.monitorTimer) clearTimeout(this.monitorTimer);
+          this.monitorTimer = null;
+          resolve();
+        };
+        this.monitorTimer = setTimeout(() => {
+          this.monitorTimer = null;
+          this.monitorWake = null;
+          resolve();
+        }, this.monitorIntervalMs);
+      });
       if (this.stopping) break;
       try {
         await this.refresh();
       } catch (error) {
-        this.logger.warn("Waiting for Codex renderer", error.message);
+        this.logger.warn?.("Waiting for Codex renderer", error.message);
       }
     }
   }
 
   async isAvailable() {
     try {
-      return (await fetch(`http://127.0.0.1:${this.cdpPort}/json/version`)).ok;
+      return (await this.fetchImpl(`http://127.0.0.1:${this.cdpPort}/json/version`)).ok;
     } catch {
       return false;
     }
   }
 
   async waitUntilAvailable() {
-    const deadline = Date.now() + 20_000;
+    const deadline = Date.now() + this.availabilityTimeoutMs;
     while (Date.now() < deadline) {
+      if (this.stopping) throw new Error("RuntimeHost is stopping");
       if (await this.isAvailable()) return;
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      await this.sleep(this.availabilityPollMs);
     }
     throw new Error(`Codex CDP did not become available on port ${this.cdpPort}`);
   }
@@ -3842,11 +4126,35 @@ export class CodexRuntime {
   }
 
   async refreshTargets() {
-    const response = await fetch(`http://127.0.0.1:${this.cdpPort}/json/list`);
-    const targets = await response.json();
-    const liveIds = new Set(targets.map((target) => target.id));
+    let response;
+    try {
+      response = await this.fetchImpl(`http://127.0.0.1:${this.cdpPort}/json/list`);
+    } catch (error) {
+      throw this.markCodexUnavailable(error);
+    }
+    if (!response?.ok) {
+      throw this.markCodexUnavailable(
+        new Error(`Codex target list returned HTTP ${response?.status ?? "error"}`),
+      );
+    }
+    let targets;
+    try {
+      targets = await response.json();
+    } catch (error) {
+      throw this.markCodexUnavailable(error);
+    }
+    if (!Array.isArray(targets)) {
+      throw this.markCodexUnavailable(new Error("Codex target list was not an array"));
+    }
+    const liveRendererIds = new Set(
+      targets
+        .filter((target) => target.type === "page" && target.url === "app://-/index.html")
+        .map((target) => target.id),
+    );
+    let removedTarget = false;
     for (const id of this.injectedTargets) {
-      if (liveIds.has(id)) continue;
+      if (liveRendererIds.has(id)) continue;
+      removedTarget = true;
       this.clients.get(id)?.socket.close();
       this.clients.delete(id);
       this.scriptIds.delete(id);
@@ -3854,12 +4162,16 @@ export class CodexRuntime {
       this.hostActionChains.delete(id);
       this.injectedTargets.delete(id);
     }
+    const rendererDiscovered = liveRendererIds.size > 0;
+    const rendererChanged = rendererDiscovered !== this.rendererDiscovered;
+    this.rendererDiscovered = rendererDiscovered;
+    if (removedTarget || rendererChanged) this.notifyStatusChange();
 
     for (const target of targets) {
       if (target.type !== "page" || target.url !== "app://-/index.html" || this.injectedTargets.has(target.id)) {
         continue;
       }
-      const client = await connect(target.webSocketDebuggerUrl);
+      const client = await this.connectClient(target.webSocketDebuggerUrl);
       try {
         await Promise.all([
           client.send("Page.enable"),
@@ -3867,26 +4179,34 @@ export class CodexRuntime {
           client.send("DOM.enable"),
         ]);
         await client.send("Page.setBypassCSP", { enabled: true });
+        await client.send("Runtime.removeBinding", { name: HOST_BINDING_NAME }).catch(() => {});
         await client.send("Runtime.addBinding", { name: HOST_BINDING_NAME });
         const bindingToken = randomBytes(24).toString("hex");
         this.bindingTokens.set(target.id, bindingToken);
-        client.on("Runtime.bindingCalled", (params) => {
+        client.on?.("Runtime.bindingCalled", (params) => {
           this.enqueueHostAction(target.id, () => this.handleBindingCalled(target.id, client, params))
-            .catch((error) => this.logger.warn("Codex Host action failed", error.message));
+            .catch((error) => this.logger.warn?.("Codex Host action failed", error.message));
         });
-        const source = createInjectionSource(this.features, { bindingToken });
+        const source = createInjectionSource(this.features, {
+          bindingToken,
+          runtimeSessionId: this.runtimeSessionId,
+        });
         const script = await client.send("Page.addScriptToEvaluateOnNewDocument", { source });
-        await client.send("Page.reload");
         await waitForExpression(
           client,
           `document.readyState === "interactive" || document.readyState === "complete"`,
         );
         await client.send("Page.setBypassCSP", { enabled: true });
         await client.send("Runtime.evaluate", { expression: source, awaitPromise: true });
-        await waitForExpression(client, `window.__codexPersonalRuntime?.version === ${RUNTIME_VERSION}`);
+        await waitForExpression(
+          client,
+          `window.__codexPersonalRuntime?.version === ${RUNTIME_VERSION}`
+            + ` && window.__codexPersonalRuntime?.sessionId === ${JSON.stringify(this.runtimeSessionId)}`,
+        );
         this.clients.set(target.id, client);
         this.scriptIds.set(target.id, script.identifier);
         this.injectedTargets.add(target.id);
+        this.notifyStatusChange();
       } catch (error) {
         this.bindingTokens.delete(target.id);
         client.socket.close();
@@ -3896,22 +4216,37 @@ export class CodexRuntime {
   }
 
   async stop() {
-    this.stopping = true;
-    this.browserClient?.socket.close();
-    this.browserClient = null;
-    this.targetRefreshQueued = false;
-    await Promise.all(Array.from(this.clients, async ([targetId, client]) => {
-      const identifier = this.scriptIds.get(targetId);
-      if (identifier) {
-        await client.send("Page.removeScriptToEvaluateOnNewDocument", { identifier }).catch(() => {});
-      }
-      client.socket.close();
-    }));
-    this.clients.clear();
-    this.scriptIds.clear();
-    this.bindingTokens.clear();
-    this.hostActionChains.clear();
-    this.injectedTargets.clear();
-    this.monitorPromise = null;
+    if (this.stopPromise) return this.stopPromise;
+    this.stopPromise = (async () => {
+      this.stopping = true;
+      this.targetRefreshQueued = false;
+      this.monitorWake?.();
+      await this.recoveryPromise?.catch(() => {});
+      await this.monitorPromise?.catch(() => {});
+      await Promise.all(Array.from(this.clients, async ([targetId, client]) => {
+        const identifier = this.scriptIds.get(targetId);
+        await client.send("Runtime.evaluate", {
+          expression: "window.__codexPersonalRuntime?.dispose?.()",
+          awaitPromise: true,
+          returnByValue: true,
+        }).catch(() => {});
+        if (identifier) {
+          await client.send("Page.removeScriptToEvaluateOnNewDocument", { identifier }).catch(() => {});
+        }
+        await client.send("Runtime.removeBinding", { name: HOST_BINDING_NAME }).catch(() => {});
+        client.socket.close();
+      }));
+      this.browserClient?.socket.close();
+      this.browserClient = null;
+      this.clients.clear();
+      this.scriptIds.clear();
+      this.bindingTokens.clear();
+      this.hostActionChains.clear();
+      this.injectedTargets.clear();
+      this.rendererDiscovered = false;
+      this.notifyStatusChange();
+      this.monitorPromise = null;
+    })();
+    return this.stopPromise;
   }
 }

@@ -1,15 +1,72 @@
 import assert from "node:assert/strict";
+import { EventEmitter } from "node:events";
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { discoverFeatures, loadConfiguredModelCatalog, selectEnabledFeatures } from "../src/feature-registry.mjs";
+import {
+  discoverFeatures,
+  loadConfiguredModelCatalog,
+  selectEnabledFeatures,
+  startFeatureProcesses,
+  validateFeatureHealth,
+} from "../src/feature-registry.mjs";
+
+function serviceFeature(id, command = ["/usr/bin/false", id]) {
+  return {
+    id,
+    label: id,
+    surfaceUrl: `http://127.0.0.1:47${id === "notes" ? "832" : "831"}/`,
+    healthUrl: `http://127.0.0.1:47${id === "notes" ? "832" : "831"}/api/health`,
+    command,
+    projectDir: "/tmp",
+  };
+}
+
+function fakeChild(pid, { exitsOnTerm = true } = {}) {
+  const child = new EventEmitter();
+  child.pid = pid;
+  child.exitCode = null;
+  child.signalCode = null;
+  child.kills = [];
+  child.unref = () => {};
+  child.kill = (signal) => {
+    child.kills.push(signal);
+    if (signal === "SIGTERM" && exitsOnTerm) {
+      queueMicrotask(() => {
+        child.exitCode = 0;
+        child.emit("exit", 0, null);
+      });
+    }
+    if (signal === "SIGKILL") {
+      queueMicrotask(() => {
+        child.signalCode = "SIGKILL";
+        child.emit("exit", null, "SIGKILL");
+      });
+    }
+    return true;
+  };
+  return child;
+}
 
 test("distinguishes an absent feature filter from an explicitly empty filter", () => {
   const features = [{ id: "model-slider" }, { id: "notes" }, { id: "images" }];
   assert.deepEqual(selectEnabledFeatures(features, undefined), features);
   assert.deepEqual(selectEnabledFeatures(features, ""), []);
   assert.deepEqual(selectEnabledFeatures(features, "notes,images").map((feature) => feature.id), ["notes", "images"]);
+});
+
+test("keeps service-free model-slider configured until the current renderer is injected", async () => {
+  const supervisor = await startFeatureProcesses([{
+    id: "model-slider",
+    label: "Model Slider",
+    surfaceUrl: null,
+  }], { instanceId: "runtime-instance-model", logger: { log() {}, warn() {} } });
+
+  assert.equal(supervisor.plugins[0].state, "configured");
+  assert.equal(supervisor.getStatuses({ rendererActive: false })[0].state, "configured");
+  assert.equal(supervisor.getStatuses({ rendererActive: true })[0].state, "injected");
+  await supervisor.stop();
 });
 
 test("does not hide missing resources behind manifest discovery", async () => {
@@ -271,4 +328,173 @@ test("rejects non-native pinned Summary presentation contracts", async () => {
   } finally {
     await rm(root, { recursive: true, force: true });
   }
+});
+
+test("rejects a foreign 2xx health service instead of accepting reachability", async () => {
+  const child = fakeChild(9101);
+  const supervisor = await startFeatureProcesses([serviceFeature("notes")], {
+    instanceId: "runtime-instance-1",
+    healthTimeoutMs: 30,
+    startupTimeoutMs: 40,
+    spawnProcess: () => child,
+    fetchImpl: async () => ({
+      ok: true,
+      async json() {
+        return { ok: true, service: "foreign-service", protocolVersion: 1, instanceId: "foreign" };
+      },
+    }),
+    logger: { log() {}, warn() {} },
+  });
+
+  assert.equal(supervisor.plugins[0].state, "failed");
+  assert.equal(supervisor.plugins[0].failure.code, "HEALTH_IDENTITY_MISMATCH");
+  assert.equal(supervisor.plugins[0].owned, true);
+  assert.deepEqual(child.kills, ["SIGTERM"]);
+  assert.equal(child.exitCode, 0);
+  await supervisor.stop();
+  assert.deepEqual(child.kills, ["SIGTERM"]);
+});
+
+test("requires protocol version 1 and the current feature instance", () => {
+  assert.equal(
+    validateFeatureHealth(
+      { service: "notes", protocolVersion: 2, instanceId: "runtime-instance-1" },
+      "notes",
+      "runtime-instance-1",
+    ).failure.code,
+    "HEALTH_PROTOCOL_MISMATCH",
+  );
+  assert.equal(
+    validateFeatureHealth(
+      { service: "notes", protocolVersion: 1, instanceId: "stale-instance" },
+      "notes",
+      "runtime-instance-1",
+    ).failure.code,
+    "HEALTH_INSTANCE_MISMATCH",
+  );
+});
+
+test("bounds a hung health endpoint and starts a healthy sibling independently", async () => {
+  const slowChild = fakeChild(9102);
+  const healthyChild = fakeChild(9103);
+  const children = [];
+  const attempts = new Map();
+  const startedAt = Date.now();
+  const supervisor = await startFeatureProcesses([
+    serviceFeature("notes"),
+    serviceFeature("images"),
+  ], {
+    instanceId: "runtime-instance-2",
+    healthTimeoutMs: 25,
+    startupTimeoutMs: 60,
+    pollIntervalMs: 5,
+    spawnProcess(command, args, options) {
+      children.push({ command, args, options });
+      return args[0] === "notes" ? slowChild : healthyChild;
+    },
+    fetchImpl(url, { signal }) {
+      if (url.includes("47832")) {
+        return new Promise((resolve, reject) => {
+          signal.addEventListener("abort", () => reject(Object.assign(new Error("aborted"), { name: "AbortError" })), { once: true });
+        });
+      }
+      const attempt = (attempts.get(url) ?? 0) + 1;
+      attempts.set(url, attempt);
+      if (attempt === 1) return Promise.reject(new Error("offline"));
+      return Promise.resolve({
+        ok: true,
+        async json() {
+          return { service: "images", protocolVersion: 1, instanceId: "runtime-instance-2" };
+        },
+      });
+    },
+    logger: { log() {}, warn() {} },
+  });
+
+  assert.ok(Date.now() - startedAt < 500);
+  assert.equal(supervisor.plugins.find((plugin) => plugin.featureId === "notes").state, "failed");
+  assert.equal(supervisor.plugins.find((plugin) => plugin.featureId === "notes").failure.code, "HEALTH_TIMEOUT");
+  assert.equal(supervisor.plugins.find((plugin) => plugin.featureId === "images").state, "ready");
+  assert.equal(children.length, 2);
+  assert.equal(children[0].options.env.MINECODEX_FEATURE_INSTANCE_ID, "runtime-instance-2");
+  assert.equal(children[1].options.env.MINECODEX_FEATURE_INSTANCE_ID, "runtime-instance-2");
+  await supervisor.stop();
+});
+
+test("waits for exact owned child exit and escalates only after the bounded timeout", async () => {
+  const stubbornChild = fakeChild(9104, { exitsOnTerm: false });
+  const supervisor = await startFeatureProcesses([serviceFeature("notes")], {
+    instanceId: "runtime-instance-3",
+    healthTimeoutMs: 20,
+    startupTimeoutMs: 25,
+    stopTimeoutMs: 20,
+    killTimeoutMs: 20,
+    spawnProcess: () => stubbornChild,
+    fetchImpl: async () => {
+      throw new Error("offline");
+    },
+    logger: { log() {}, warn() {} },
+  });
+
+  await supervisor.stop();
+  assert.deepEqual(stubbornChild.kills, ["SIGTERM", "SIGKILL"]);
+  assert.equal(supervisor.plugins[0].state, "failed");
+});
+
+test("a restart owns a new child instead of reusing a dying child", async () => {
+  const firstChild = fakeChild(9105, { exitsOnTerm: false });
+  const secondChild = fakeChild(9106);
+  let spawnCount = 0;
+  const options = {
+    instanceId: "runtime-instance-4",
+    healthTimeoutMs: 20,
+    startupTimeoutMs: 25,
+    spawnProcess: () => (++spawnCount === 1 ? firstChild : secondChild),
+    fetchImpl: async () => {
+      throw new Error("offline");
+    },
+    stopTimeoutMs: 20,
+    killTimeoutMs: 20,
+    logger: { log() {}, warn() {} },
+  };
+  const first = await startFeatureProcesses([serviceFeature("notes")], options);
+  const second = await startFeatureProcesses([serviceFeature("notes")], options);
+
+  assert.equal(spawnCount, 2);
+  assert.equal(first.plugins[0].owned, true);
+  assert.equal(second.plugins[0].owned, true);
+  assert.notEqual(first.plugins[0].child, second.plugins[0].child);
+  await first.stop();
+  await second.stop();
+});
+
+test("surfaces a bounded shutdown failure when an owned child never confirms exit", async () => {
+  const child = new EventEmitter();
+  child.pid = 9107;
+  child.exitCode = null;
+  child.signalCode = null;
+  child.kills = [];
+  child.unref = () => {};
+  child.kill = (signal) => {
+    child.kills.push(signal);
+    return true;
+  };
+  const supervisor = await startFeatureProcesses([serviceFeature("notes")], {
+    instanceId: "runtime-instance-5",
+    healthTimeoutMs: 10,
+    startupTimeoutMs: 20,
+    stopTimeoutMs: 10,
+    killTimeoutMs: 10,
+    spawnProcess: () => child,
+    fetchImpl: async () => {
+      throw new Error("offline");
+    },
+    logger: { log() {}, warn() {} },
+  });
+
+  assert.equal(supervisor.plugins[0].state, "failed");
+  assert.deepEqual(child.kills, ["SIGTERM", "SIGKILL"]);
+  assert.equal(supervisor.plugins[0].failure.cleanup.code, "FEATURE_CHILD_SHUTDOWN_TIMEOUT");
+  await assert.rejects(supervisor.stop(), /FEATURE_CHILD_SHUTDOWN_TIMEOUT/);
+  assert.equal(supervisor.plugins[0].state, "failed");
 });

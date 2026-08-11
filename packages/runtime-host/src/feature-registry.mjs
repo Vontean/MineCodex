@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import { readdir, readFile } from "node:fs/promises";
 import os from "node:os";
@@ -11,6 +12,13 @@ const HOST_ACTIONS = new Set([
   "open-editor-modal",
   "resolve-file-paths",
 ]);
+
+export const FEATURE_PROTOCOL_VERSION = 1;
+export const FEATURE_HEALTH_TIMEOUT_MS = 750;
+export const FEATURE_STARTUP_TIMEOUT_MS = 1_000;
+export const FEATURE_HEALTH_POLL_INTERVAL_MS = 50;
+export const FEATURE_STOP_TIMEOUT_MS = 1_000;
+export const FEATURE_KILL_TIMEOUT_MS = 500;
 
 function normalizeUrl(value, field) {
   const url = new URL(value);
@@ -289,61 +297,382 @@ export async function loadConfiguredModelCatalog(
   }
 }
 
-async function isReachable(url) {
-  try {
-    return (await fetch(url)).ok;
-  } catch {
-    return false;
-  }
+function sleep(timeoutMs) {
+  return new Promise((resolve) => setTimeout(resolve, timeoutMs));
 }
 
-async function waitUntilReachable(feature, child, timeoutMs = 20_000) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    if (await isReachable(feature.healthUrl)) return;
-    if (child?.exitCode !== null) {
-      throw new Error(`${feature.label} exited before ${feature.surfaceUrl} became available`);
-    }
-    await new Promise((resolve) => setTimeout(resolve, 250));
-  }
-  throw new Error(`Timed out waiting for ${feature.label} at ${feature.healthUrl}`);
+function failure(code, message, phase = "health") {
+  return { code, message, phase };
 }
 
-export async function startFeatureProcesses(features, logger = console) {
-  const children = [];
-  const failures = [];
+function childHasExited(child) {
+  return child && (
+    (child.exitCode !== null && child.exitCode !== undefined)
+    || (child.signalCode !== null && child.signalCode !== undefined)
+  );
+}
 
-  for (const feature of features) {
-    if (!feature.surfaceUrl) continue;
+function waitForChildExit(child, timeoutMs) {
+  if (childHasExited(child)) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    let settled = false;
+    let timer;
+    const finish = (exited) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      child.removeListener?.("exit", onExit);
+      resolve(exited || childHasExited(child));
+    };
+    const onExit = () => finish(true);
+    child.once?.("exit", onExit);
+    timer = setTimeout(() => finish(false), timeoutMs);
+  });
+}
+
+async function terminateOwnedChild(record, options, { preserveState = false } = {}) {
+  const child = record.child;
+  if (!record.owned || !child) return;
+  if (!childHasExited(child)) {
     try {
-      if (await isReachable(feature.healthUrl)) {
-        logger.log(`${feature.label}: using existing service at ${feature.healthUrl}`);
-        continue;
+      child.kill?.("SIGTERM");
+    } catch (error) {
+      error.code ??= "FEATURE_CHILD_TERMINATE_FAILED";
+      throw error;
+    }
+    let exited = await waitForChildExit(child, options.stopTimeoutMs ?? FEATURE_STOP_TIMEOUT_MS);
+    if (!exited && !childHasExited(child)) {
+      try {
+        child.kill?.("SIGKILL");
+      } catch (error) {
+        error.code ??= "FEATURE_CHILD_TERMINATE_FAILED";
+        throw error;
       }
-      if (!feature.command?.length) {
-        throw new Error(`${feature.label} is offline and has no command in ${MANIFEST_NAME}`);
-      }
+      exited = await waitForChildExit(child, options.killTimeoutMs ?? FEATURE_KILL_TIMEOUT_MS);
+    }
+    if (!exited && !childHasExited(child)) {
+      const error = new Error(
+        `${record.featureId} child did not confirm exit after bounded SIGTERM/SIGKILL shutdown`,
+      );
+      error.code = "FEATURE_CHILD_SHUTDOWN_TIMEOUT";
+      error.phase = "shutdown";
+      throw error;
+    }
+  }
+  if (!preserveState) record.state = "stopped";
+}
 
-      const child = spawn(feature.command[0], feature.command.slice(1), {
+export function validateFeatureHealth(payload, featureId, instanceId) {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return { ok: false, failure: failure("HEALTH_INVALID_RESPONSE", "Health response must be a JSON object") };
+  }
+  if (payload.service !== featureId) {
+    return {
+      ok: false,
+      failure: failure(
+        "HEALTH_IDENTITY_MISMATCH",
+        `Health service ${JSON.stringify(payload.service ?? null)} does not match ${JSON.stringify(featureId)}`,
+      ),
+    };
+  }
+  if (payload.protocolVersion !== FEATURE_PROTOCOL_VERSION) {
+    return {
+      ok: false,
+      failure: failure(
+        "HEALTH_PROTOCOL_MISMATCH",
+        `Health protocolVersion must be ${FEATURE_PROTOCOL_VERSION}`,
+      ),
+    };
+  }
+  if (typeof instanceId !== "string" || !instanceId || payload.instanceId !== instanceId) {
+    return {
+      ok: false,
+      failure: failure("HEALTH_INSTANCE_MISMATCH", "Health instanceId is not owned by this RuntimeHost"),
+    };
+  }
+  return { ok: true, health: payload };
+}
+
+export async function checkFeatureHealth(
+  feature,
+  {
+    instanceId,
+    fetchImpl = globalThis.fetch,
+    timeoutMs = FEATURE_HEALTH_TIMEOUT_MS,
+  } = {},
+) {
+  if (!feature.healthUrl) {
+    return {
+      ok: false,
+      failure: failure("HEALTH_NOT_CONFIGURED", `${feature.label ?? feature.id} has no healthUrl`),
+    };
+  }
+
+  const controller = new AbortController();
+  const boundedTimeoutMs = Math.max(1, Number(timeoutMs) || FEATURE_HEALTH_TIMEOUT_MS);
+  let timedOut = false;
+  let timer;
+  const request = (async () => {
+    const response = await fetchImpl(feature.healthUrl, { signal: controller.signal });
+    if (!response?.ok) {
+      return {
+        ok: false,
+        failure: failure("HEALTH_HTTP", `Health endpoint returned HTTP ${response?.status ?? "error"}`),
+      };
+    }
+    let payload;
+    try {
+      payload = await response.json();
+    } catch {
+      return { ok: false, failure: failure("HEALTH_INVALID_JSON", "Health endpoint returned invalid JSON") };
+    }
+    return validateFeatureHealth(payload, feature.id, instanceId);
+  })();
+  const timeout = new Promise((resolve) => {
+    timer = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+      resolve({
+        ok: false,
+        failure: failure("HEALTH_TIMEOUT", `Health check timed out after ${boundedTimeoutMs}ms`),
+      });
+    }, boundedTimeoutMs);
+  });
+
+  try {
+    const result = await Promise.race([request, timeout]);
+    if (timedOut) return result;
+    return result;
+  } catch (error) {
+    if (timedOut || error?.name === "AbortError") {
+      return {
+        ok: false,
+        failure: failure("HEALTH_TIMEOUT", `Health check timed out after ${boundedTimeoutMs}ms`),
+      };
+    }
+    return {
+      ok: false,
+      failure: failure("HEALTH_UNREACHABLE", error?.message ?? "Health endpoint was unreachable"),
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function waitForFeatureHealth(feature, child, options) {
+  const deadline = Date.now() + Math.max(1, Number(options.startupTimeoutMs) || FEATURE_STARTUP_TIMEOUT_MS);
+  let lastFailure = failure("HEALTH_TIMEOUT", `Timed out waiting for ${feature.label ?? feature.id}`);
+  while (Date.now() < deadline) {
+    if (options.childState?.failure) {
+      return { ok: false, failure: options.childState.failure };
+    }
+    if (childHasExited(child)) {
+      return {
+        ok: false,
+        failure: failure("CHILD_EXITED", `${feature.label ?? feature.id} exited before health became valid`, "startup"),
+      };
+    }
+    const remainingBeforeProbe = deadline - Date.now();
+    const result = await checkFeatureHealth(feature, {
+      ...options,
+      timeoutMs: Math.min(options.timeoutMs, Math.max(1, remainingBeforeProbe)),
+    });
+    if (result.ok) return result;
+    if (options.childState?.failure) {
+      return { ok: false, failure: options.childState.failure };
+    }
+    lastFailure = result.failure;
+    if (options.childState?.failure || childHasExited(child)) break;
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) break;
+    await options.sleep(Math.min(
+      Math.max(1, Number(options.pollIntervalMs) || FEATURE_HEALTH_POLL_INTERVAL_MS),
+      remaining,
+    ));
+  }
+  return { ok: false, failure: lastFailure };
+}
+
+function normalizeStartOptions(loggerOrOptions, maybeOptions) {
+  const looksLikeLogger = loggerOrOptions
+    && (typeof loggerOrOptions.log === "function" || typeof loggerOrOptions.warn === "function");
+  if (looksLikeLogger) {
+    return { ...maybeOptions, logger: loggerOrOptions };
+  }
+  const options = loggerOrOptions ?? {};
+  return { ...options, logger: options.logger ?? console };
+}
+
+function featureFailure(record) {
+  if (!record.failure) return null;
+  const result = {
+    featureId: record.featureId,
+    message: record.failure.message,
+    code: record.failure.code,
+    phase: record.failure.phase,
+  };
+  if (record.failure.cleanup) result.cleanup = record.failure.cleanup;
+  return result;
+}
+
+export async function startFeatureProcesses(features, loggerOrOptions = console, maybeOptions = {}) {
+  const options = normalizeStartOptions(loggerOrOptions, maybeOptions);
+  const instanceId = String(options.instanceId ?? randomUUID());
+  const fetchImpl = options.fetchImpl ?? globalThis.fetch;
+  const spawnProcess = options.spawnProcess ?? spawn;
+  const sleepImpl = options.sleep ?? sleep;
+  const records = features.map((feature) => ({
+    featureId: feature.id,
+    state: feature.surfaceUrl ? "launching" : "configured",
+    owned: false,
+    child: null,
+    health: null,
+    failure: null,
+  }));
+  async function startOne(feature, index) {
+    const record = records[index];
+    if (!feature.surfaceUrl) return;
+
+    const healthOptions = {
+      instanceId,
+      fetchImpl,
+      timeoutMs: options.healthTimeoutMs ?? FEATURE_HEALTH_TIMEOUT_MS,
+      startupTimeoutMs: options.startupTimeoutMs ?? FEATURE_STARTUP_TIMEOUT_MS,
+      pollIntervalMs: options.pollIntervalMs ?? FEATURE_HEALTH_POLL_INTERVAL_MS,
+      sleep: sleepImpl,
+    };
+    const existing = await checkFeatureHealth(feature, healthOptions);
+    if (existing.ok) {
+      record.state = "ready";
+      record.health = existing.health;
+      options.logger.log?.(`${feature.label}: using existing service at ${feature.healthUrl}`);
+      return;
+    }
+    if (!feature.command?.length) {
+      record.state = "failed";
+      record.failure = failure(
+        "FEATURE_COMMAND_MISSING",
+        `${feature.label} is offline and has no command in ${MANIFEST_NAME}`,
+        "startup",
+      );
+      options.logger.warn?.(`${feature.label}: unavailable (${record.failure.message})`);
+      return;
+    }
+
+    record.state = "launching";
+    let child;
+    const childState = { failure: null };
+    try {
+      child = spawnProcess(feature.command[0], feature.command.slice(1), {
         cwd: feature.projectDir,
-        env: { ...process.env, CODEX_RUNTIME_HOST: "1" },
+        env: {
+          ...process.env,
+          CODEX_RUNTIME_HOST: "1",
+          MINECODEX_FEATURE_INSTANCE_ID: instanceId,
+        },
         stdio: "inherit",
       });
-      children.push(child);
-      await waitUntilReachable(feature, child);
-      logger.log(`${feature.label}: started at ${feature.surfaceUrl}`);
+      record.child = child;
+      record.owned = true;
+      child.once?.("error", (error) => {
+        childState.failure = failure("CHILD_SPAWN_FAILED", error.message, "startup");
+      });
     } catch (error) {
-      failures.push({ featureId: feature.id, message: error.message });
-      logger.warn(`${feature.label}: unavailable (${error.message})`);
+      record.state = "failed";
+      record.failure = failure("CHILD_SPAWN_FAILED", error.message, "startup");
+      options.logger.warn?.(`${feature.label}: unavailable (${record.failure.message})`);
+      return;
     }
+
+    const result = await waitForFeatureHealth(feature, child, {
+      ...healthOptions,
+      childState,
+    });
+    if (result.ok) {
+      record.state = "ready";
+      record.health = result.health;
+      options.logger.log?.(`${feature.label}: started at ${feature.surfaceUrl}`);
+      return;
+    }
+    record.state = "failed";
+    record.failure = result.failure;
+    try {
+      await terminateOwnedChild(record, options, { preserveState: true });
+    } catch (error) {
+      record.failure = {
+        ...record.failure,
+        cleanup: {
+          code: error.code ?? "FEATURE_CHILD_TERMINATE_FAILED",
+          message: error.message,
+          phase: error.phase ?? "shutdown",
+        },
+      };
+      options.logger.warn?.(`${feature.label}: owned child cleanup failed (${error.message})`);
+    }
+    options.logger.warn?.(`${feature.label}: unavailable (${record.failure.message})`);
   }
 
-  return {
-    failures,
-    stop() {
-      for (const child of children) {
-        if (child.exitCode === null) child.kill("SIGTERM");
-      }
+  await Promise.all(features.map((feature, index) => startOne(feature, index)));
+
+  let stopPromise = null;
+  const supervisor = {
+    instanceId,
+    plugins: records,
+    getFailures() {
+      return records.map(featureFailure).filter(Boolean);
+    },
+    getStatuses({ rendererActive = false } = {}) {
+      return records.map((record) => {
+        let state = record.state;
+        if (rendererActive && (state === "configured" || state === "ready")) state = "injected";
+        return {
+          featureId: record.featureId,
+          state,
+          owned: record.owned,
+          health: record.health,
+          failure: record.failure,
+        };
+      });
+    },
+    async stop() {
+      if (stopPromise) return stopPromise;
+      stopPromise = (async () => {
+        const shutdownErrors = [];
+        for (const record of records) {
+          if (!record.owned || !record.child) continue;
+          try {
+            await terminateOwnedChild(record, options, { preserveState: record.state === "failed" });
+          } catch (error) {
+            record.failure ??= {
+              code: error.code ?? "FEATURE_CHILD_TERMINATE_FAILED",
+              message: error.message,
+              phase: error.phase ?? "shutdown",
+            };
+            record.failure.cleanup = {
+              code: error.code ?? "FEATURE_CHILD_TERMINATE_FAILED",
+              message: error.message,
+              phase: error.phase ?? "shutdown",
+            };
+            shutdownErrors.push(error);
+          }
+        }
+        if (shutdownErrors.length) {
+          const error = new Error(
+            `Feature child shutdown failed: ${shutdownErrors.map((failure) => failure.code ?? "UNKNOWN").join(", ")}`,
+          );
+          error.code = "FEATURE_CHILD_SHUTDOWN_FAILED";
+          error.failures = shutdownErrors;
+          throw error;
+        }
+      })();
+      return stopPromise;
     },
   };
+  Object.defineProperty(supervisor, "failures", {
+    enumerable: true,
+    get() {
+      return supervisor.getFailures();
+    },
+  });
+  return supervisor;
 }

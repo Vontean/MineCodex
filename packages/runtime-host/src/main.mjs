@@ -1,8 +1,10 @@
+import { randomUUID } from "node:crypto";
 import os from "node:os";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { CodexRuntime } from "./codex-runtime.mjs";
+import { CodexRuntime, createRuntimeReadyContract } from "./codex-runtime.mjs";
+import { createManagedPidFileWriter } from "./pid-file.mjs";
 import {
   discoverFeatures,
   loadConfiguredModelCatalog,
@@ -24,23 +26,43 @@ for (const feature of features) {
   if (feature.modelSelector) feature.modelSelector.models = modelCatalog;
 }
 
-const featureProcesses = await startFeatureProcesses(features);
-const runtime = new CodexRuntime({ features, profileDir, cdpPort });
+const featureInstanceId = randomUUID();
+const featureProcesses = await startFeatureProcesses(features, { instanceId: featureInstanceId });
+let readyWritePromise = Promise.resolve();
+let runtime;
+const updateCodexPidFile = createManagedPidFileWriter(process.env.MINECODEX_CODEX_PID_FILE);
+
+function writeReadyFile() {
+  if (!process.env.MINECODEX_RUNTIME_READY_FILE) return Promise.resolve();
+  const filePath = process.env.MINECODEX_RUNTIME_READY_FILE;
+  readyWritePromise = readyWritePromise.catch(() => {}).then(() => writeFile(filePath, `${JSON.stringify(
+    createRuntimeReadyContract({
+      pid: process.pid,
+      features,
+      plugins: featureProcesses.getStatuses({ rendererActive: runtime?.getRendererStatus().active }),
+      failures: featureProcesses.getFailures(),
+      renderer: runtime?.getRendererStatus(),
+      runtimeSessionId: runtime?.runtimeSessionId,
+    }),
+  )}\n`, { mode: 0o600 }));
+  return readyWritePromise;
+}
+
+runtime = new CodexRuntime({
+  features,
+  profileDir,
+  cdpPort,
+  onManagedCodexPidChange: updateCodexPidFile,
+  onStatusChange: () => {
+    writeReadyFile().catch((error) => console.warn("Runtime ready-file update failed", error.message));
+  },
+});
 
 try {
   await runtime.start();
-  if (runtime.appPid && process.env.MINECODEX_CODEX_PID_FILE) {
-    await writeFile(process.env.MINECODEX_CODEX_PID_FILE, `${runtime.appPid}\n`, { mode: 0o600 });
-  }
-  if (process.env.MINECODEX_RUNTIME_READY_FILE) {
-    await writeFile(process.env.MINECODEX_RUNTIME_READY_FILE, `${JSON.stringify({
-      pid: process.pid,
-      features: features.map((feature) => feature.id),
-      failures: featureProcesses.failures,
-    })}\n`, { mode: 0o600 });
-  }
+  await writeReadyFile();
 } catch (error) {
-  featureProcesses.stop();
+  await featureProcesses.stop();
   throw error;
 }
 
@@ -48,12 +70,17 @@ console.log(`Codex Runtime: ${features.map((feature) => feature.label).join(", "
 
 async function shutdown() {
   await runtime.stop();
-  featureProcesses.stop();
+  await featureProcesses.stop();
 }
 
 for (const signal of ["SIGINT", "SIGTERM"]) {
   process.once(signal, async () => {
-    await shutdown();
-    process.exit(0);
+    try {
+      await shutdown();
+      process.exit(0);
+    } catch (error) {
+      console.error(`Runtime shutdown failed: ${error.message}`);
+      process.exit(1);
+    }
   });
 }

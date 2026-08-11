@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { EventEmitter } from "node:events";
+import { createServer } from "node:http";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -11,6 +13,7 @@ import {
   responsiveSummaryDisplayMode,
   responsiveSummaryVisibleSurface,
 } from "../src/codex-runtime.mjs";
+import { createManagedPidFileWriter } from "../src/pid-file.mjs";
 
 test("matches Codex Summary responsive thresholds and content-shift behavior", () => {
   assert.equal(responsiveSummaryDisplayMode(1095), "overlay");
@@ -465,4 +468,479 @@ test("subscribes to CDP target changes so new App renderers are injected without
   assert.match(source, /Target\.targetInfoChanged/);
   assert.match(source, /Target\.targetDestroyed/);
   assert.match(source, /queueTargetRefresh\(\)/);
+});
+
+test("uses a RuntimeHost session nonce to replace a same-version document runtime", () => {
+  const source = createInjectionSource([], {
+    bindingToken: "new-binding-token",
+    runtimeSessionId: "runtime-session-new",
+  });
+
+  assert.match(source, /sessionId === config\.sessionId/);
+  assert.match(source, /currentRuntime\?\.dispose\?\.\(\)/);
+  assert.match(source, /sessionId: config\.sessionId/);
+  assert.match(source, /"sessionId":"runtime-session-new"/);
+  assert.doesNotMatch(source, /if \(window\.\__codexPersonalRuntime\?\.version === config\.version\)/);
+});
+
+function cdpResponse(jsonValue, ok = true) {
+  return {
+    ok,
+    async json() {
+      return jsonValue;
+    },
+  };
+}
+
+function browserClient() {
+  return {
+    socket: { close() {} },
+    on() {
+      return () => {};
+    },
+    async send() {
+      return {};
+    },
+  };
+}
+
+async function waitFor(predicate, timeoutMs = 250) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (predicate()) return;
+    await new Promise((resolve) => setTimeout(resolve, 2));
+  }
+  assert.fail("Timed out waiting for the lifecycle transition");
+}
+
+test("relaunches a managed Codex child after exit with bounded recovery", async () => {
+  let available = false;
+  let spawnCount = 0;
+  const children = [];
+  const statuses = [];
+  const pidChanges = [];
+  const runtime = new CodexRuntime({
+    features: [],
+    profileDir: "/tmp/codex-runtime-recovery-profile",
+    appPath: "/definitely/not-a-real-codex",
+    cdpPort: 9239,
+    fetchImpl: async (url) => {
+      if (url.endsWith("/json/version")) {
+        return cdpResponse({ webSocketDebuggerUrl: "ws://fake-browser" }, available);
+      }
+      if (url.endsWith("/json/list")) return cdpResponse([]);
+      throw new Error(`Unexpected URL ${url}`);
+    },
+    spawnProcess: () => {
+      const child = new EventEmitter();
+      child.pid = 9200 + spawnCount;
+      child.exitCode = null;
+      child.unref = () => {};
+      child.kill = () => true;
+      spawnCount += 1;
+      available = true;
+      children.push(child);
+      return child;
+    },
+    connectClient: async () => browserClient(),
+    sleep: async () => {},
+    availabilityTimeoutMs: 100,
+    availabilityPollMs: 1,
+    relaunchBaseDelayMs: 0,
+    relaunchMaxDelayMs: 0,
+    onStatusChange: (status) => statuses.push(status),
+    onManagedCodexPidChange: (pid) => pidChanges.push(pid),
+    logger: { log() {}, warn() {} },
+  });
+
+  runtime.launchManagedCodex();
+  assert.equal(spawnCount, 1);
+  assert.deepEqual(pidChanges, [9200]);
+  available = false;
+  children[0].exitCode = 1;
+  children[0].emit("exit", 1, null);
+  await waitFor(() => statuses.some((status) => status.active === false));
+  await waitFor(() => spawnCount === 2);
+  assert.equal(runtime.appPid, 9201);
+  assert.deepEqual(pidChanges, [9200, null, 9201]);
+  await runtime.stop();
+});
+
+test("recovers a CDP endpoint that was already available when RuntimeHost started", async () => {
+  let cdpAvailable = true;
+  let spawnCount = 0;
+  const children = [];
+  const discoveryUrls = [];
+  const server = createServer((request, response) => {
+    response.setHeader("Content-Type", "application/json");
+    if (request.url === "/json/version") {
+      response.statusCode = cdpAvailable ? 200 : 503;
+      response.end(JSON.stringify({
+        webSocketDebuggerUrl: spawnCount ? "ws://recovered-browser" : "ws://existing-browser",
+      }));
+      return;
+    }
+    if (request.url === "/json/list") {
+      response.statusCode = cdpAvailable ? 200 : 503;
+      response.end(JSON.stringify([]));
+      return;
+    }
+    response.statusCode = 404;
+    response.end(JSON.stringify({}));
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const cdpPort = server.address().port;
+  const runtime = new CodexRuntime({
+    features: [],
+    profileDir: "/tmp/codex-runtime-existing-cdp-profile",
+    appPath: "/definitely/not-a-real-codex",
+    cdpPort,
+    monitorIntervalMs: 10,
+    availabilityTimeoutMs: 100,
+    availabilityPollMs: 1,
+    relaunchBaseDelayMs: 0,
+    relaunchMaxDelayMs: 0,
+    spawnProcess: () => {
+      const child = new EventEmitter();
+      child.pid = 9250 + spawnCount;
+      child.exitCode = null;
+      child.signalCode = null;
+      child.unref = () => {};
+      child.kill = () => true;
+      spawnCount += 1;
+      children.push(child);
+      cdpAvailable = true;
+      return child;
+    },
+    connectClient: async (url) => {
+      discoveryUrls.push(url);
+      return browserClient();
+    },
+    logger: { log() {}, warn() {} },
+  });
+
+  try {
+    await runtime.start();
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    assert.equal(spawnCount, 0);
+    assert.deepEqual(discoveryUrls, ["ws://existing-browser"]);
+
+    cdpAvailable = false;
+    await waitFor(() => spawnCount === 1 && discoveryUrls.length === 2, 2_500);
+    assert.equal(runtime.appPid, 9250);
+    assert.equal(runtime.getRendererStatus().active, false);
+    assert.deepEqual(discoveryUrls, ["ws://existing-browser", "ws://recovered-browser"]);
+  } finally {
+    await runtime.stop();
+    await new Promise((resolve) => server.close(resolve));
+    for (const child of children) child.exitCode = 0;
+  }
+});
+
+test("reconciles an available CDP without relaunching during a target-list outage", async () => {
+  let targetListHealthy = true;
+  let spawnCount = 0;
+  let targetListCalls = 0;
+  const server = createServer((request, response) => {
+    response.setHeader("Content-Type", "application/json");
+    if (request.url === "/json/version") {
+      response.statusCode = 200;
+      response.end(JSON.stringify({}));
+      return;
+    }
+    if (request.url === "/json/list") {
+      targetListCalls += 1;
+      response.statusCode = targetListHealthy ? 200 : 503;
+      response.end(JSON.stringify(targetListHealthy ? [] : {}));
+      return;
+    }
+    response.statusCode = 404;
+    response.end(JSON.stringify({}));
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const runtime = new CodexRuntime({
+    features: [],
+    profileDir: "/tmp/codex-runtime-cdp-still-available-profile",
+    cdpPort: server.address().port,
+    monitorIntervalMs: 10,
+    relaunchBaseDelayMs: 0,
+    relaunchMaxDelayMs: 0,
+    spawnProcess: () => {
+      spawnCount += 1;
+      throw new Error("relaunch must not happen while /json/version remains available");
+    },
+    logger: { log() {}, warn() {} },
+  });
+
+  try {
+    await runtime.start();
+    targetListHealthy = false;
+    await waitFor(() => targetListCalls >= 2, 500);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    assert.equal(spawnCount, 0);
+    assert.equal(runtime.getRendererStatus().active, false);
+    targetListHealthy = true;
+  } finally {
+    await runtime.stop();
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test("replaces the current page runtime without reloading the Codex page", async () => {
+  const calls = [];
+  const statuses = [];
+  let targets = [{ id: "target-current", type: "page", url: "app://-/index.html", webSocketDebuggerUrl: "ws://target" }];
+  let injectedSource = "";
+  const client = {
+    socket: { close() {} },
+    on() {
+      return () => {};
+    },
+    async send(method, params = {}) {
+      calls.push(method);
+      if (method === "Page.addScriptToEvaluateOnNewDocument") {
+        injectedSource = params.source;
+        return { identifier: "script-current" };
+      }
+      if (method === "Runtime.evaluate" && params.expression?.includes("document.readyState")) {
+        return { result: { value: true } };
+      }
+      if (method === "Runtime.evaluate" && params.expression?.includes("sessionId ===")) {
+        return { result: { value: true } };
+      }
+      return {};
+    },
+  };
+  const runtime = new CodexRuntime({
+    features: [{ id: "notes", hostActions: [] }],
+    profileDir: "/tmp/codex-runtime-stale-profile",
+    cdpPort: 9240,
+    runtimeSessionId: "runtime-session-current",
+    onStatusChange: (status) => statuses.push(status),
+    fetchImpl: async (url) => {
+      if (url.endsWith("/json/list")) {
+        return cdpResponse(targets);
+      }
+      throw new Error(`Unexpected URL ${url}`);
+    },
+    connectClient: async () => client,
+    logger: { log() {}, warn() {} },
+  });
+
+  await runtime.refreshTargets();
+  assert.equal(runtime.getRendererStatus().active, true);
+  assert.equal(calls.includes("Page.reload"), false);
+  assert.match(injectedSource, /"sessionId":"runtime-session-current"/);
+  targets = [{ id: "target-current", type: "page", url: "about:blank", webSocketDebuggerUrl: "ws://target" }];
+  await runtime.refreshTargets();
+  assert.deepEqual(runtime.getRendererStatus(), {
+    discovered: false,
+    injectedTargets: 0,
+    active: false,
+    runtimeSessionId: "runtime-session-current",
+  });
+  targets = [];
+  await runtime.refreshTargets();
+  assert.deepEqual(runtime.getRendererStatus(), {
+    discovered: false,
+    injectedTargets: 0,
+    active: false,
+    runtimeSessionId: "runtime-session-current",
+  });
+  assert.equal(statuses.at(-1).active, false);
+});
+
+test("clears injected target state when the current target list disappears", async () => {
+  const closed = [];
+  const runtime = new CodexRuntime({
+    features: [],
+    profileDir: "/tmp/codex-runtime-stale-target-profile",
+    cdpPort: 9241,
+    fetchImpl: async () => {
+      throw new Error("CDP target list unavailable");
+    },
+    logger: { log() {}, warn() {} },
+  });
+  runtime.rendererDiscovered = true;
+  runtime.injectedTargets.add("target-stale");
+  runtime.clients.set("target-stale", {
+    socket: {
+      close() {
+        closed.push("target-stale");
+      },
+    },
+  });
+  runtime.scriptIds.set("target-stale", "script-stale");
+  runtime.bindingTokens.set("target-stale", "binding-stale");
+
+  await assert.rejects(runtime.refreshTargets(), /CDP target list unavailable/);
+  assert.deepEqual(runtime.getRendererStatus(), {
+    discovered: false,
+    injectedTargets: 0,
+    active: false,
+    runtimeSessionId: runtime.runtimeSessionId,
+  });
+  assert.deepEqual(closed, ["target-stale"]);
+  assert.equal(runtime.clients.size, 0);
+  assert.equal(runtime.injectedTargets.size, 0);
+});
+
+test("clears stale renderer state for non-OK and invalid target-list responses", async () => {
+  for (const scenario of [
+    {
+      name: "non-OK",
+      response: { ok: false, status: 503, async json() { return []; } },
+      error: /HTTP 503/,
+    },
+    {
+      name: "invalid-list",
+      response: { ok: true, async json() { return { targets: [] }; } },
+      error: /not an array/,
+    },
+  ]) {
+    const closed = [];
+    const runtime = new CodexRuntime({
+      features: [],
+      profileDir: `/tmp/codex-runtime-stale-${scenario.name}-profile`,
+      cdpPort: 9242,
+      fetchImpl: async () => scenario.response,
+      logger: { log() {}, warn() {} },
+    });
+    runtime.rendererDiscovered = true;
+    runtime.injectedTargets.add("target-stale");
+    runtime.clients.set("target-stale", {
+      socket: {
+        close() {
+          closed.push("target-stale");
+        },
+      },
+    });
+
+    await assert.rejects(runtime.refreshTargets(), scenario.error);
+    assert.deepEqual(runtime.getRendererStatus(), {
+      discovered: false,
+      injectedTargets: 0,
+      active: false,
+      runtimeSessionId: runtime.runtimeSessionId,
+    });
+    assert.deepEqual(closed, ["target-stale"]);
+    assert.equal(runtime.clients.size, 0);
+    assert.equal(runtime.injectedTargets.size, 0);
+  }
+});
+
+test("writes and clears managed Codex PID identity through an atomic file seam", async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "codex-runtime-pid-file-"));
+  const filePath = path.join(directory, "codex.pid");
+  try {
+    const writePid = createManagedPidFileWriter(filePath);
+    await writePid(9251);
+    assert.equal(await readFile(filePath, "utf8"), "9251\n");
+    await writePid(null);
+    await assert.rejects(readFile(filePath), { code: "ENOENT" });
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("serializes asynchronous managed Codex PID updates across relaunch boundaries", async () => {
+  const events = [];
+  let releaseFirst;
+  const firstUpdate = new Promise((resolve) => {
+    releaseFirst = resolve;
+  });
+  const runtime = new CodexRuntime({
+    features: [],
+    profileDir: "/tmp/codex-runtime-pid-queue-profile",
+    onManagedCodexPidChange: async (pid) => {
+      events.push(`start:${pid}`);
+      if (pid === 9252) await firstUpdate;
+      events.push(`done:${pid}`);
+    },
+  });
+
+  runtime.notifyManagedCodexPidChange(9252);
+  runtime.notifyManagedCodexPidChange(null);
+  assert.deepEqual(events, ["start:9252"]);
+
+  releaseFirst();
+  await runtime.flushManagedCodexPidChange();
+  assert.deepEqual(events, [
+    "start:9252",
+    "done:9252",
+    "start:null",
+    "done:null",
+  ]);
+});
+
+test("reports renderer absence as inactive and reconciles service-free plugins only after injection", async () => {
+  const runtime = new CodexRuntime({
+    features: [],
+    profileDir: "/tmp/codex-runtime-status-profile",
+  });
+  assert.deepEqual(runtime.getRendererStatus(), {
+    discovered: false,
+    injectedTargets: 0,
+    active: false,
+    runtimeSessionId: runtime.runtimeSessionId,
+  });
+
+  const { createRuntimeReadyContract } = await import("../src/codex-runtime.mjs");
+  const contract = createRuntimeReadyContract({
+    pid: 1,
+    features: [{ id: "model-slider" }, { id: "notes" }],
+    plugins: [
+      { featureId: "model-slider", state: "configured", owned: false, health: null, failure: null },
+      { featureId: "notes", state: "ready", owned: true, health: null, failure: null },
+      { featureId: "images", state: "failed", owned: true, health: null, failure: { code: "DOWN" } },
+    ],
+    failures: [{ featureId: "images", message: "down" }],
+    renderer: { discovered: true, injectedTargets: 1, active: true },
+    runtimeSessionId: "runtime-session-contract",
+  });
+  assert.equal(contract.plugins.find((plugin) => plugin.featureId === "model-slider").state, "injected");
+  assert.equal(contract.plugins.find((plugin) => plugin.featureId === "notes").state, "injected");
+  assert.equal(contract.plugins.find((plugin) => plugin.featureId === "images").state, "failed");
+  assert.equal(contract.renderer.active, true);
+
+  const inactiveContract = createRuntimeReadyContract({
+    pid: 1,
+    features: [{ id: "model-slider" }],
+    plugins: [{ featureId: "model-slider", state: "configured", owned: false }],
+    renderer: { discovered: false, injectedTargets: 0, active: true },
+    runtimeSessionId: "runtime-session-contract",
+  });
+  assert.equal(inactiveContract.renderer.active, false);
+  assert.equal(inactiveContract.plugins[0].state, "configured");
+});
+
+test("disposes the current document before removing future scripts and closing CDP", async () => {
+  const calls = [];
+  const client = {
+    socket: {
+      close() {
+        calls.push("socket.close");
+      },
+    },
+    async send(method) {
+      calls.push(method);
+      return {};
+    },
+  };
+  const runtime = new CodexRuntime({
+    features: [],
+    profileDir: "/tmp/codex-runtime-shutdown-profile",
+  });
+  runtime.clients.set("target-1", client);
+  runtime.scriptIds.set("target-1", "script-1");
+  runtime.bindingTokens.set("target-1", "binding-1");
+  runtime.injectedTargets.add("target-1");
+
+  await runtime.stop();
+  assert.deepEqual(calls, [
+    "Runtime.evaluate",
+    "Page.removeScriptToEvaluateOnNewDocument",
+    "Runtime.removeBinding",
+    "socket.close",
+  ]);
 });
