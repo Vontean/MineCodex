@@ -8,9 +8,11 @@ import {
 import { createHash } from "node:crypto";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { findImagePrompt } from "./prompt-index.mjs";
+import { ThreadPromptIndex } from "./prompt-index.mjs";
 
 const PNG_EXTENSION = ".png";
+const FALLBACK_RESCAN_INITIAL_DELAY_MS = 30_000;
+const FALLBACK_RESCAN_MAX_DELAY_MS = 5 * 60_000;
 
 function isPng(filePath) {
   return path.extname(filePath).toLowerCase() === PNG_EXTENSION;
@@ -112,16 +114,32 @@ function rowToImage(row) {
 }
 
 export class ImageLibrary {
-  constructor({ sourceRoot, dataDir, sessionRoots = [], threadMetadata = null, logger = console }) {
+  constructor({
+    sourceRoot,
+    dataDir,
+    sessionRoots = [],
+    threadMetadata = null,
+    logger = console,
+    watchSource = true,
+    promptIndexOptions = {},
+    watchFactory = watch,
+  }) {
     this.sourceRoot = path.resolve(sourceRoot);
     this.dataDir = path.resolve(dataDir);
     this.sessionRoots = sessionRoots.map((sessionRoot) => path.resolve(sessionRoot));
     this.threadMetadata = threadMetadata;
     this.databasePath = path.join(this.dataDir, "library.sqlite");
     this.logger = logger;
+    this.watchSource = watchSource;
+    this.watchFactory = watchFactory;
+    this.promptIndex = new ThreadPromptIndex({ sessionRoots: this.sessionRoots, ...promptIndexOptions });
     this.database = null;
     this.watcher = null;
     this.pendingImports = new Map();
+    this.pendingRescan = null;
+    this.fallbackRescanTimer = null;
+    this.fallbackRescanDelayMs = FALLBACK_RESCAN_INITIAL_DELAY_MS;
+    this.rescanPromise = null;
   }
 
   async start() {
@@ -170,12 +188,18 @@ export class ImageLibrary {
     `);
 
     const imported = await this.rescan();
-    this.watcher = watch(this.sourceRoot, { recursive: true }, (_eventType, filename) => {
-      if (!filename || !isPng(filename)) return;
-      const sourcePath = path.resolve(this.sourceRoot, filename);
-      this.scheduleImport(sourcePath);
-    });
-    this.watcher.on("error", (error) => this.logger.error("Image watcher failed", error));
+    if (this.watchSource) {
+      this.watcher = this.watchFactory(this.sourceRoot, { recursive: true }, (_eventType, filename) => {
+        if (!filename) return;
+        const sourcePath = path.resolve(this.sourceRoot, filename);
+        if (isPng(filename)) this.scheduleImport(sourcePath);
+        else if (!path.extname(sourcePath)) this.scheduleRescan();
+      });
+      this.watcher.on("error", (error) => {
+        this.logger.error("Image watcher failed", error);
+        this.startFallbackRescan();
+      });
+    }
     return { imported, total: this.count() };
   }
 
@@ -259,6 +283,32 @@ export class ImageLibrary {
       ${pagination}
     `).all(...parameters);
 
+    const previewsByThread = new Map();
+    if (rows.length && previewLimit > 0) {
+      const threadIds = rows.map((row) => row.thread_id);
+      const placeholders = threadIds.map(() => "?").join(", ");
+      const previewRows = this.database.prepare(`
+        SELECT * FROM (
+          SELECT images.*, thread_sources.source_kind, thread_sources.project_id,
+            thread_sources.project_name, thread_sources.thread_title, thread_sources.archived,
+            ROW_NUMBER() OVER (
+              PARTITION BY images.thread_id
+              ORDER BY images.created_at ASC, images.id ASC
+            ) AS preview_rank
+          FROM images
+          LEFT JOIN thread_sources ON thread_sources.thread_id = images.thread_id
+          WHERE images.thread_id IN (${placeholders})
+        )
+        WHERE preview_rank <= ?
+        ORDER BY thread_id ASC, created_at ASC, id ASC
+      `).all(...threadIds, previewLimit);
+      for (const previewRow of previewRows) {
+        const previews = previewsByThread.get(previewRow.thread_id) ?? [];
+        previews.push(rowToImage(previewRow));
+        previewsByThread.set(previewRow.thread_id, previews);
+      }
+    }
+
     return rows.map((row) => ({
       threadId: row.thread_id,
       sourceKind: row.source_kind ?? null,
@@ -269,7 +319,7 @@ export class ImageLibrary {
       imageCount: row.image_count,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
-      previews: this.list({ threadId: row.thread_id, sort: "asc", limit: previewLimit }),
+      previews: previewsByThread.get(row.thread_id) ?? [],
     }));
   }
 
@@ -322,17 +372,27 @@ export class ImageLibrary {
   async hydratePrompt(id) {
     const image = this.get(id);
     if (!image || image.prompt || this.sessionRoots.length === 0) return image;
-    const prompt = await findImagePrompt({
-      sessionRoots: this.sessionRoots,
-      threadId: image.threadId,
-      imageGenerationItemId: image.imageGenerationItemId,
-    });
+    const prompt = await this.promptIndex.find(image.threadId, image.imageGenerationItemId);
     if (!prompt) return image;
     this.database.prepare("UPDATE images SET prompt = ? WHERE id = ?").run(prompt, id);
     return this.get(id);
   }
 
-  async rescan() {
+  rescan() {
+    if (this.rescanPromise) return this.rescanPromise;
+    const scan = this.performRescan();
+    const shared = scan.finally(() => {
+      if (this.rescanPromise === shared) this.rescanPromise = null;
+    });
+    this.rescanPromise = shared;
+    return shared;
+  }
+
+  rescanStatus() {
+    return { inProgress: Boolean(this.rescanPromise) };
+  }
+
+  async performRescan() {
     await this.threadMetadata?.refresh();
     const files = await collectPngFiles(this.sourceRoot);
     let imported = 0;
@@ -354,6 +414,31 @@ export class ImageLibrary {
         });
     }, 400);
     this.pendingImports.set(sourcePath, timer);
+  }
+
+  scheduleRescan() {
+    clearTimeout(this.pendingRescan);
+    this.pendingRescan = setTimeout(() => {
+      this.pendingRescan = null;
+      this.rescan().catch((error) => this.logger.warn("Could not rescan Images", error.message));
+    }, 400);
+  }
+
+  startFallbackRescan() {
+    if (this.fallbackRescanTimer !== null) return;
+    const tick = () => {
+      this.fallbackRescanTimer = null;
+      if (!this.database) return;
+      const delay = this.fallbackRescanDelayMs;
+      this.rescan()
+        .catch((error) => this.logger.warn("Could not rescan Images", error.message))
+        .finally(() => {
+          if (!this.database) return;
+          this.fallbackRescanDelayMs = Math.min(delay * 2, FALLBACK_RESCAN_MAX_DELAY_MS);
+          this.fallbackRescanTimer = setTimeout(tick, this.fallbackRescanDelayMs);
+        });
+    };
+    this.fallbackRescanTimer = setTimeout(tick, this.fallbackRescanDelayMs);
   }
 
   async importImage(sourcePath) {
@@ -419,6 +504,7 @@ export class ImageLibrary {
         createdAt,
         now,
       );
+    this.promptIndex.invalidate(threadId);
     await this.syncThreadMetadata([threadId]);
     return true;
   }
@@ -427,6 +513,12 @@ export class ImageLibrary {
     this.watcher?.close();
     for (const timer of this.pendingImports.values()) clearTimeout(timer);
     this.pendingImports.clear();
+    clearTimeout(this.pendingRescan);
+    this.pendingRescan = null;
+    clearTimeout(this.fallbackRescanTimer);
+    this.fallbackRescanTimer = null;
+    this.fallbackRescanDelayMs = FALLBACK_RESCAN_INITIAL_DELAY_MS;
+    this.promptIndex.close();
     this.threadMetadata?.close();
     this.database?.close();
     this.database = null;

@@ -9,6 +9,7 @@ const DEFAULT_FILE_CLEANUP_INTERVAL_MS = 5_000;
 const DEFAULT_FILE_CLEANUP_CONCURRENCY = 8;
 const DEFAULT_FILE_STAT_TIMEOUT_MS = 1_500;
 const DEFAULT_FILE_ADD_CONCURRENCY = 8;
+const SUMMARY_ITEM_LIMIT = 5;
 const TODO_CHANGE_FIELDS = new Set(["body", "completed"]);
 const PROMPT_CHANGE_FIELDS = new Set(["title", "body", "starred"]);
 
@@ -176,6 +177,14 @@ function isConfirmedMissing(error) {
   return error?.code === "ENOENT" || error?.code === "ENOTDIR";
 }
 
+function surfacesForReason(reason) {
+  const domain = String(reason).split(":", 1)[0];
+  if (domain === "todo") return ["summary", "todo", "editor:todo"];
+  if (domain === "prompt") return ["summary", "prompts", "editor:prompt"];
+  if (domain === "file" || domain === "files") return ["summary", "files"];
+  return ["summary", "todo", "prompts", "files"];
+}
+
 export class CodexNotesProduct extends EventEmitter {
   constructor({
     databasePath,
@@ -320,7 +329,11 @@ export class CodexNotesProduct extends EventEmitter {
       this.db.exec("ROLLBACK");
       throw error;
     }
-    queueMicrotask(() => this.emit("change", { revision, reason }));
+    queueMicrotask(() => this.emit("change", {
+      revision,
+      reason,
+      surfaces: surfacesForReason(reason),
+    }));
     return { result, revision };
   }
 
@@ -371,29 +384,68 @@ export class CodexNotesProduct extends EventEmitter {
     return { revision, removed: result > 0 };
   }
 
-  async getState() {
+  async getState({ surface = "all", kind = null, id = null } = {}) {
     void this.cleanupMissingFiles().catch(() => {});
     this.ensureOpen();
-    const activeTodos = this.db.prepare(`
-      SELECT * FROM todos WHERE completed_at IS NULL
-      ORDER BY sort_order ASC, created_at DESC
-    `).all().map(mapTodo);
-    const completedTodos = this.db.prepare(`
-      SELECT * FROM todos WHERE completed_at IS NOT NULL
-      ORDER BY completed_at DESC, updated_at DESC
-    `).all().map(mapTodo);
-    const prompts = this.db.prepare(`
-      SELECT * FROM prompts ORDER BY starred DESC, last_used_at DESC, created_at DESC
-    `).all().map(mapPrompt);
-    const files = this.db.prepare(`
-      SELECT * FROM files ORDER BY last_called_at DESC, added_at DESC
-    `).all().map(mapFile);
-    return {
+    if (!new Set(["all", "summary", "todo", "prompts", "files", "editor"]).has(surface)) {
+      throw new ProductError("surface is not supported", { code: "INVALID_SURFACE" });
+    }
+
+    const state = {
       revision: this.revision,
-      todos: { active: activeTodos, completed: completedTodos },
-      prompts,
-      files,
+      todos: { active: [], completed: [] },
+      prompts: [],
+      files: [],
     };
+
+    if (surface === "all" || surface === "summary" || surface === "todo") {
+      const todoLimit = surface === "summary" ? `LIMIT ${SUMMARY_ITEM_LIMIT}` : "";
+      state.todos.active = this.db.prepare(`
+        SELECT * FROM todos WHERE completed_at IS NULL
+        ORDER BY sort_order ASC, created_at DESC ${todoLimit}
+      `).all().map(mapTodo);
+      state.todos.completed = this.db.prepare(`
+        SELECT * FROM todos WHERE completed_at IS NOT NULL
+        ORDER BY completed_at DESC, updated_at DESC ${todoLimit}
+      `).all().map(mapTodo);
+    }
+    if (surface === "all" || surface === "summary" || surface === "prompts") {
+      const promptLimit = surface === "summary" ? `LIMIT ${SUMMARY_ITEM_LIMIT}` : "";
+      state.prompts = this.db.prepare(`
+        SELECT * FROM prompts ORDER BY starred DESC, last_used_at DESC, created_at DESC ${promptLimit}
+      `).all().map(mapPrompt);
+    }
+    if (surface === "all" || surface === "summary" || surface === "files") {
+      const fileLimit = surface === "summary" ? `LIMIT ${SUMMARY_ITEM_LIMIT}` : "";
+      state.files = this.db.prepare(`
+        SELECT * FROM files ORDER BY last_called_at DESC, added_at DESC ${fileLimit}
+      `).all().map(mapFile);
+    }
+    if (surface === "editor" && id) {
+      if (kind === "todo") {
+        const todo = this.db.prepare("SELECT * FROM todos WHERE id = ?").get(id);
+        if (todo) {
+          if (todo.completed_at == null) state.todos.active = [mapTodo(todo)];
+          else state.todos.completed = [mapTodo(todo)];
+        }
+      } else if (kind === "prompt") {
+        const prompt = this.db.prepare("SELECT * FROM prompts WHERE id = ?").get(id);
+        if (prompt) state.prompts = [mapPrompt(prompt)];
+      }
+    }
+
+    if (surface !== "all") state.surface = surface;
+    if (surface === "summary") {
+      state.counts = {
+        todos: {
+          active: this.db.prepare("SELECT COUNT(*) AS count FROM todos WHERE completed_at IS NULL").get().count,
+          completed: this.db.prepare("SELECT COUNT(*) AS count FROM todos WHERE completed_at IS NOT NULL").get().count,
+        },
+        prompts: this.db.prepare("SELECT COUNT(*) AS count FROM prompts").get().count,
+        files: this.db.prepare("SELECT COUNT(*) AS count FROM files").get().count,
+      };
+    }
+    return state;
   }
 
   getFile(id) {

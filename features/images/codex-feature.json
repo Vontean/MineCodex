@@ -11,6 +11,7 @@
     "zh-CN": "集中浏览生成图片，查看提示词和来源任务，并保存原图或返回原任务。"
   },
   "surfaceUrl": "http://127.0.0.1:47831/",
+  "healthUrl": "http://127.0.0.1:47831/api/health",
   "placement": {
     "after": "sites",
     "order": 10

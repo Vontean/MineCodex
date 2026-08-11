@@ -229,7 +229,21 @@ export async function revealFileInSystemManager(filePath, {
   }
 }
 
+function formatHost(host) {
+  return host.includes(":") && !host.startsWith("[") ? `[${host}]` : host;
+}
+
 function validateMutationOrigin(request, address, host) {
+  const expectedHost = formatHost(host);
+  const expectedOrigin = `http://${expectedHost}:${address.port}`;
+  const expectedHostHeader = new URL(expectedOrigin).host;
+  if (request.headers.host !== expectedHostHeader) {
+    throw new ProductError("Mutation requests are restricted to the exact bound loopback Host", {
+      code: "HOST_NOT_ALLOWED",
+      status: 403,
+    });
+  }
+
   const origin = request.headers.origin;
   if (!origin) return;
   let parsed;
@@ -238,11 +252,7 @@ function validateMutationOrigin(request, address, host) {
   } catch {
     throw new ProductError("Request origin is invalid", { code: "INVALID_ORIGIN", status: 403 });
   }
-  const expectedHost = host.startsWith("[") && host.endsWith("]") ? host.slice(1, -1) : host;
-  const originHost = parsed.hostname.startsWith("[") && parsed.hostname.endsWith("]")
-    ? parsed.hostname.slice(1, -1)
-    : parsed.hostname;
-  if (parsed.protocol !== "http:" || originHost !== expectedHost || Number(parsed.port) !== address.port) {
+  if (parsed.origin !== expectedOrigin) {
     throw new ProductError("Mutation requests are restricted to this local CodexNotes origin", {
       code: "ORIGIN_NOT_ALLOWED",
       status: 403,
@@ -257,6 +267,7 @@ export function createCodexNotesServer({
   webRoot = DEFAULT_WEB_ROOT,
   filePicker = chooseFiles,
   fileRevealer = revealFileInSystemManager,
+  instanceId = process.env.MINECODEX_FEATURE_INSTANCE_ID ?? "unconfigured",
 } = {}) {
   if (!product) throw new Error("product is required");
   if (!LOOPBACK_HOSTS.has(host)) {
@@ -274,7 +285,7 @@ export function createCodexNotesServer({
 
   const server = createServer(async (request, response) => {
     try {
-      const url = new URL(request.url ?? "/", `http://${host}:${port}`);
+      const url = new URL(request.url ?? "/", `http://${formatHost(host)}:${port}`);
       const { pathname } = url;
       const method = request.method ?? "GET";
       if (!["GET", "HEAD"].includes(method)) {
@@ -293,12 +304,23 @@ export function createCodexNotesServer({
       }
 
       if (method === "GET" && pathname === "/api/health") {
-        sendJson(response, 200, { ok: true, service: "codex-notes", revision: product.revision });
+        sendJson(response, 200, {
+          ok: true,
+          service: "notes",
+          protocolVersion: 1,
+          instanceId,
+          revision: product.revision,
+        });
         return;
       }
 
       if (method === "GET" && pathname === "/api/state") {
-        sendJson(response, 200, await product.getState());
+        const surface = url.searchParams.get("surface") ?? "all";
+        sendJson(response, 200, await product.getState({
+          surface,
+          kind: url.searchParams.get("kind"),
+          id: url.searchParams.get("id"),
+        }));
         return;
       }
 
@@ -491,8 +513,7 @@ export function createCodexNotesServer({
     get origin() {
       const address = server.address();
       if (!address || typeof address === "string") return null;
-      const originHost = host.includes(":") && !host.startsWith("[") ? `[${host}]` : host;
-      return `http://${originHost}:${address.port}`;
+      return `http://${formatHost(host)}:${address.port}`;
     },
     async listen() {
       await new Promise((resolve, reject) => {

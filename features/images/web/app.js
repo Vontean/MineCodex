@@ -31,6 +31,7 @@ const sourceAction = drawer.querySelector(".source-action");
 const sourceTooltip = drawer.querySelector(".source-tooltip");
 const sourceButton = drawer.querySelector(".source-button");
 const saveButton = drawer.querySelector(".save-button");
+const statusAnnouncer = document.querySelector(".status-announcer");
 const root = document.documentElement;
 
 const PAGE_SIZE = 36;
@@ -65,6 +66,17 @@ let pendingScrollTop = null;
 let appliedHostTokens = new Set();
 let densityColumns = null;
 let copyFeedbackTimer = null;
+let updateCheckTimer = null;
+let hostSurfaceActive = true;
+let documentVisible = document.visibilityState !== "hidden";
+let windowFocused = typeof document.hasFocus !== "function" || document.hasFocus();
+let shellIntersecting = true;
+let drawerOrigin = null;
+let drawerOriginImageId = null;
+let drawerOriginThreadId = null;
+let groupOrigin = null;
+let groupOriginImageId = null;
+let groupOriginThreadId = null;
 
 try {
   const storedDensity = Number.parseInt(localStorage.getItem(DENSITY_STORAGE_KEY) ?? "", 10);
@@ -89,9 +101,20 @@ function applyHostTheme(payload) {
   }
 }
 
+function announce(message) {
+  if (!statusAnnouncer) return;
+  statusAnnouncer.textContent = "";
+  requestAnimationFrame(() => {
+    statusAnnouncer.textContent = message;
+  });
+}
+
 window.addEventListener("message", (event) => {
   if (event.source !== window.parent) return;
   if (event.data?.type === "codex-personal:theme") applyHostTheme(event.data);
+  if (["codex-personal:surface-active", "codex-personal:surface-visibility"].includes(event.data?.type)) {
+    setHostSurfaceActive(event.data.active ?? event.data.visible);
+  }
 });
 
 if (window.parent !== window) {
@@ -167,6 +190,8 @@ function createSourceOption({ scope, label, count, kind }) {
   option.type = "button";
   option.setAttribute("role", "option");
   option.setAttribute("aria-selected", String(scope === selectedScope));
+  option.tabIndex = scope === selectedScope ? 0 : -1;
+  option.dataset.scope = scope;
 
   const icon = document.createElement("span");
   icon.className = "source-option-icon";
@@ -196,6 +221,35 @@ function renderSourceMenu() {
   }));
   sourceMenu.replaceChildren(all, chats, ...(projects.length ? [divider, ...projects] : []));
   updateFilterTrigger();
+}
+
+function sourceOptions() {
+  return [...sourceMenu.querySelectorAll('[role="option"]')];
+}
+
+function setSourceOptionFocus(index, { focus = true } = {}) {
+  const options = sourceOptions();
+  if (!options.length) return;
+  const activeIndex = Math.max(0, Math.min(index, options.length - 1));
+  options.forEach((option, optionIndex) => {
+    option.tabIndex = optionIndex === activeIndex ? 0 : -1;
+    option.setAttribute("aria-selected", String(option.dataset.scope === selectedScope));
+  });
+  if (focus) options[activeIndex].focus();
+}
+
+function moveSourceOption(delta) {
+  const options = sourceOptions();
+  const currentIndex = Math.max(0, options.indexOf(document.activeElement));
+  setSourceOptionFocus((currentIndex + delta + options.length) % options.length);
+}
+
+function openSourceMenu() {
+  sourceMenu.hidden = false;
+  filterButton.setAttribute("aria-expanded", "true");
+  const options = sourceOptions();
+  const selectedIndex = options.findIndex((option) => option.dataset.scope === selectedScope);
+  setSourceOptionFocus(selectedIndex < 0 ? 0 : selectedIndex);
 }
 
 async function loadFacets() {
@@ -231,13 +285,14 @@ function applyDensity() {
   scheduleMasonry();
 }
 
-function closeSourceMenu() {
+function closeSourceMenu({ restoreFocus = false } = {}) {
   sourceMenu.hidden = true;
   filterButton.setAttribute("aria-expanded", "false");
+  if (restoreFocus) filterButton.focus();
 }
 
-function closeToolbarPopups() {
-  closeSourceMenu();
+function closeToolbarPopups(options = {}) {
+  closeSourceMenu(options);
 }
 
 function layoutMasonry() {
@@ -298,7 +353,7 @@ function createCard(image) {
   caption.append(sourceValue, time);
 
   button.append(preview, caption);
-  button.addEventListener("click", () => openImage(image));
+  button.addEventListener("click", () => openImage(image, button));
   return button;
 }
 
@@ -320,6 +375,10 @@ function createThreadBoard(group) {
     thumbnail.alt = "";
     thumbnail.loading = "lazy";
     thumbnail.decoding = "async";
+    if (image.width && image.height) {
+      thumbnail.width = image.width;
+      thumbnail.height = image.height;
+    }
     thumbnail.addEventListener("load", scheduleMasonry, { once: true });
     preview.append(thumbnail);
   }
@@ -347,7 +406,7 @@ function createThreadBoard(group) {
   caption.append(title, meta);
 
   button.append(preview, caption);
-  button.addEventListener("click", () => openThreadGroup(group));
+  button.addEventListener("click", () => openThreadGroup(group, button));
   return button;
 }
 
@@ -440,7 +499,7 @@ async function loadPage({ reset = false, preserveScroll = false } = {}) {
 }
 
 async function selectSource(scope) {
-  closeSourceMenu();
+  closeSourceMenu({ restoreFocus: true });
   if (scope === selectedScope) return;
   if (shell.classList.contains("drawer-open")) closeDrawer();
   selectedScope = scope;
@@ -458,7 +517,7 @@ async function toggleThreadGrouping() {
 }
 
 async function checkForUpdates() {
-  if (viewContext === "thread" || shell.classList.contains("drawer-open")) return;
+  if (!canPollForUpdates()) return;
   const response = await fetch(pageUrl({ offset: 0, limit: 1 }));
   if (!response.ok) throw new Error("Could not check for new images");
   const payload = await response.json();
@@ -474,6 +533,66 @@ async function checkForUpdates() {
   if (changed) {
     await Promise.all([loadFacets(), loadPage({ reset: true, preserveScroll: true })]);
   }
+}
+
+function canPollForUpdates() {
+  return hostSurfaceActive
+    && documentVisible
+    && windowFocused
+    && shellIntersecting
+    && viewContext === "browse"
+    && !shell.classList.contains("drawer-open");
+}
+
+function refreshUpdatePolling({ immediate = false } = {}) {
+  clearUpdateCheckTimer();
+  if (canPollForUpdates()) scheduleUpdateCheck(immediate ? 0 : 3000);
+}
+
+function clearUpdateCheckTimer() {
+  if (updateCheckTimer === null) return;
+  clearTimeout(updateCheckTimer);
+  updateCheckTimer = null;
+}
+
+function scheduleUpdateCheck(delay = 3000) {
+  clearUpdateCheckTimer();
+  if (!canPollForUpdates()) return;
+  updateCheckTimer = setTimeout(async () => {
+    updateCheckTimer = null;
+    if (!canPollForUpdates()) return;
+    try {
+      await checkForUpdates();
+    } catch (error) {
+      console.error(error);
+    } finally {
+      scheduleUpdateCheck();
+    }
+  }, delay);
+}
+
+function setHostSurfaceActive(active) {
+  const changed = hostSurfaceActive !== Boolean(active);
+  hostSurfaceActive = Boolean(active);
+  refreshUpdatePolling({ immediate: changed && hostSurfaceActive });
+}
+
+function setDocumentVisible(visible) {
+  const changed = documentVisible !== Boolean(visible);
+  documentVisible = Boolean(visible);
+  refreshUpdatePolling({ immediate: changed && documentVisible });
+}
+
+function setWindowFocused(focused) {
+  const changed = windowFocused !== Boolean(focused);
+  windowFocused = Boolean(focused);
+  refreshUpdatePolling({ immediate: changed && windowFocused });
+}
+
+function setShellIntersecting(intersecting) {
+  const changed = shellIntersecting !== Boolean(intersecting);
+  shellIntersecting = Boolean(intersecting);
+  refreshUpdatePolling({ immediate: changed && shellIntersecting });
 }
 
 function resetCopyFeedback() {
@@ -522,6 +641,81 @@ async function copyText(text) {
   }
 }
 
+function rememberGroupOrigin(element) {
+  const origin = element?.closest?.(".image-card, .thread-board") ?? element;
+  if (!origin) return;
+  groupOrigin = origin;
+  groupOriginImageId = origin.dataset.imageId ?? null;
+  groupOriginThreadId = origin.dataset.threadId ?? null;
+}
+
+function rememberDrawerOrigin(element) {
+  if (viewContext === "thread" && groupOrigin) return;
+  const origin = element?.closest?.(".image-card, .thread-board") ?? element;
+  if (!origin) return;
+  drawerOrigin = origin;
+  drawerOriginImageId = origin.dataset.imageId ?? null;
+  drawerOriginThreadId = origin.dataset.threadId ?? null;
+}
+
+function clearGroupOrigin() {
+  groupOrigin = null;
+  groupOriginImageId = null;
+  groupOriginThreadId = null;
+}
+
+function clearDrawerOrigin() {
+  drawerOrigin = null;
+  drawerOriginImageId = null;
+  drawerOriginThreadId = null;
+}
+
+function restoreDrawerFocus() {
+  const origin = groupOrigin ?? drawerOrigin;
+  const originImageId = groupOrigin ? groupOriginImageId : drawerOriginImageId;
+  const originThreadId = groupOrigin ? groupOriginThreadId : drawerOriginThreadId;
+  if (origin?.isConnected) {
+    origin.focus({ preventScroll: true });
+    clearGroupOrigin();
+    clearDrawerOrigin();
+    return;
+  }
+  const fallback = originImageId
+    ? grid.querySelector(`[data-image-id="${originImageId}"]`)
+    : originThreadId
+      ? grid.querySelector(`[data-thread-id="${originThreadId}"]`)
+      : null;
+  clearGroupOrigin();
+  clearDrawerOrigin();
+  fallback?.focus({ preventScroll: true });
+}
+
+function detailContextFocusableElements() {
+  const visible = (element) => !element.hidden && element.getClientRects().length;
+  const imageSelectors = [...grid.querySelectorAll("button.image-card, button.thread-board")].filter(visible);
+  const detailControls = [...drawer.querySelectorAll(
+    'button:not([disabled]), a[href], input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
+  )].filter(visible);
+  return [...imageSelectors, ...detailControls];
+}
+
+function trapDetailContextFocus(event) {
+  if (!shell.classList.contains("drawer-open") || event.key !== "Tab") return;
+  const focusable = detailContextFocusableElements();
+  if (!focusable.length) {
+    event.preventDefault();
+    drawer.focus();
+    return;
+  }
+  const currentIndex = focusable.indexOf(document.activeElement);
+  const baseIndex = currentIndex < 0 ? (event.shiftKey ? 0 : -1) : currentIndex;
+  const nextIndex = event.shiftKey
+    ? (baseIndex - 1 + focusable.length) % focusable.length
+    : (baseIndex + 1) % focusable.length;
+  event.preventDefault();
+  focusable[nextIndex].focus();
+}
+
 function showImageDetails(image) {
   activeImage = image;
   const isProject = image.sourceKind === "project";
@@ -531,6 +725,13 @@ function showImageDetails(image) {
   drawerThread.textContent = image.threadTitle || (isProject ? "Untitled task" : "Untitled chat");
   drawerImage.src = image.fileUrl;
   drawerImage.alt = image.prompt || "Generated image";
+  if (image.width && image.height) {
+    drawerImage.width = image.width;
+    drawerImage.height = image.height;
+  } else {
+    drawerImage.removeAttribute("width");
+    drawerImage.removeAttribute("height");
+  }
   drawerDate.textContent = dateFormatter.format(new Date(image.createdAt));
   drawerSize.textContent = image.width && image.height ? `${image.width} × ${image.height}` : "Original";
   drawerFileSize.textContent = formatBytes(image.byteLength);
@@ -541,7 +742,8 @@ function showImageDetails(image) {
   resetCopyFeedback();
 }
 
-async function openImage(image) {
+async function openImage(image, originatingElement = null) {
+  if (originatingElement) rememberDrawerOrigin(originatingElement);
   const request = ++detailRequest;
   showImageDetails(image);
   drawerPrompt.textContent = "Loading generation prompt…";
@@ -552,6 +754,7 @@ async function openImage(image) {
   scheduleMasonry();
   drawer.setAttribute("aria-hidden", "false");
   drawer.inert = false;
+  drawer.querySelector(".drawer-close")?.focus({ preventScroll: true });
   grid.querySelectorAll(".is-selected").forEach((card) => card.classList.remove("is-selected"));
   grid.querySelector(`[data-image-id="${image.id}"]`)?.classList.add("is-selected");
 
@@ -565,13 +768,16 @@ async function openImage(image) {
     if (request !== detailRequest) return;
     drawerPrompt.textContent = "Prompt could not be loaded.";
     drawerPrompt.classList.add("is-missing");
+    announce("Prompt could not be loaded.");
     console.error(error);
   } finally {
     if (request === detailRequest) drawerPrompt.classList.remove("is-loading");
   }
 }
 
-async function openThreadGroup(group) {
+async function openThreadGroup(group, originatingElement = null) {
+  clearGroupOrigin();
+  if (originatingElement) rememberGroupOrigin(originatingElement);
   savedBrowseState = {
     items: items.slice(),
     totalItems,
@@ -613,9 +819,11 @@ function leaveThreadGroup() {
     grid.classList.toggle("is-grouped", groupByThread);
     updateLibrarySummary();
     scheduleMasonry();
+    scheduleUpdateCheck(0);
   } else {
     loadPage({ reset: true }).catch(console.error);
   }
+  restoreDrawerFocus();
 }
 
 function closeDrawer() {
@@ -631,6 +839,8 @@ function closeDrawer() {
   resetCopyFeedback();
   grid.querySelectorAll(".is-selected").forEach((card) => card.classList.remove("is-selected"));
   scheduleMasonry();
+  scheduleUpdateCheck(0);
+  restoreDrawerFocus();
 }
 
 function openSourceThread(threadId) {
@@ -642,10 +852,56 @@ function openSourceThread(threadId) {
 }
 
 filterButton.addEventListener("click", () => {
-  const opening = sourceMenu.hidden;
-  sourceMenu.hidden = !opening;
-  filterButton.setAttribute("aria-expanded", String(opening));
-  if (opening) sourceMenu.querySelector('[aria-selected="true"]')?.focus();
+  if (sourceMenu.hidden) openSourceMenu();
+  else closeSourceMenu({ restoreFocus: true });
+});
+
+filterButton.addEventListener("keydown", (event) => {
+  if (event.key === "ArrowDown") {
+    event.preventDefault();
+    if (sourceMenu.hidden) openSourceMenu();
+    else moveSourceOption(1);
+  } else if (event.key === "ArrowUp") {
+    event.preventDefault();
+    if (sourceMenu.hidden) openSourceMenu();
+    else moveSourceOption(-1);
+  } else if (event.key === "Home") {
+    event.preventDefault();
+    if (sourceMenu.hidden) openSourceMenu();
+    else setSourceOptionFocus(0);
+  } else if (event.key === "End") {
+    event.preventDefault();
+    if (sourceMenu.hidden) openSourceMenu();
+    else setSourceOptionFocus(sourceOptions().length - 1);
+  } else if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault();
+    if (sourceMenu.hidden) openSourceMenu();
+  } else if (event.key === "Escape" && !sourceMenu.hidden) {
+    event.preventDefault();
+    closeSourceMenu({ restoreFocus: true });
+  }
+});
+
+sourceMenu.addEventListener("keydown", (event) => {
+  if (event.key === "ArrowDown") {
+    event.preventDefault();
+    moveSourceOption(1);
+  } else if (event.key === "ArrowUp") {
+    event.preventDefault();
+    moveSourceOption(-1);
+  } else if (event.key === "Home") {
+    event.preventDefault();
+    setSourceOptionFocus(0);
+  } else if (event.key === "End") {
+    event.preventDefault();
+    setSourceOptionFocus(sourceOptions().length - 1);
+  } else if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault();
+    document.activeElement?.closest?.('[role="option"]')?.click();
+  } else if (event.key === "Escape") {
+    event.preventDefault();
+    closeSourceMenu({ restoreFocus: true });
+  }
 });
 
 densitySlider.addEventListener("input", () => {
@@ -673,6 +929,8 @@ rescan.addEventListener("click", async () => {
       (async () => {
         const response = await fetch("/api/rescan", { method: "POST" });
         if (!response.ok) throw new Error("Could not refresh images");
+        const result = await response.json();
+        announce(result.inProgress ? "Image refresh is already in progress." : "Images refreshed.");
         await loadFacets();
         if (shell.classList.contains("drawer-open") && activeImage) {
           const detailResponse = await fetch(`/api/images/${activeImage.id}`);
@@ -687,6 +945,9 @@ rescan.addEventListener("click", async () => {
       })(),
       new Promise((resolve) => setTimeout(resolve, 1000)),
     ]);
+  } catch (error) {
+    announce(error.message);
+    console.error(error);
   } finally {
     rescan.disabled = false;
     rescan.classList.remove("is-loading");
@@ -701,13 +962,18 @@ sourceButton.addEventListener("click", () => {
 
 promptCopyButton.addEventListener("click", async () => {
   const prompt = activeImage?.prompt;
-  if (!prompt || !(await copyText(prompt))) return;
+  if (!prompt) return;
+  if (!(await copyText(prompt))) {
+    announce("Prompt could not be copied.");
+    return;
+  }
   resetCopyFeedback();
   promptCopyIcon.setAttribute("hidden", "");
   promptCheckIcon.removeAttribute("hidden");
   promptCopyButton.classList.add("is-copied");
   promptCopyButton.setAttribute("aria-label", "Prompt copied");
   promptCopyButton.title = "Copied";
+  announce("Prompt copied.");
   copyFeedbackTimer = setTimeout(resetCopyFeedback, 2000);
 });
 
@@ -722,9 +988,11 @@ saveButton.addEventListener("click", async () => {
     const result = await response.json();
     if (result.saved) {
       saveButton.textContent = "Saved";
+      announce("Image saved.");
       await new Promise((resolve) => setTimeout(resolve, 1200));
     }
   } catch (error) {
+    announce(error.message);
     console.error(error);
   } finally {
     saveButton.disabled = false;
@@ -733,10 +1001,15 @@ saveButton.addEventListener("click", async () => {
 });
 
 document.addEventListener("keydown", (event) => {
+  if (shell.classList.contains("drawer-open")) {
+    trapDetailContextFocus(event);
+  }
   if (event.key !== "Escape") return;
   if (!sourceMenu.hidden) {
-    closeToolbarPopups();
+    event.preventDefault();
+    closeSourceMenu({ restoreFocus: true });
   } else if (shell.classList.contains("drawer-open")) {
+    event.preventDefault();
     closeDrawer();
   }
 });
@@ -757,4 +1030,14 @@ new IntersectionObserver(
   { root: scrollArea, rootMargin: "600px 0px" },
 ).observe(pageSentinel);
 
-setInterval(() => checkForUpdates().catch(console.error), 3000);
+document.addEventListener("visibilitychange", () => {
+  setDocumentVisible(document.visibilityState !== "hidden");
+});
+window.addEventListener("focus", () => setWindowFocused(true));
+window.addEventListener("blur", () => setWindowFocused(false));
+if (typeof IntersectionObserver === "function") {
+  new IntersectionObserver((entries) => {
+    setShellIntersecting(entries.some((entry) => entry.isIntersecting));
+  }).observe(shell);
+}
+scheduleUpdateCheck();

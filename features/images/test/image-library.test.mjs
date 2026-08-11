@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
+import { EventEmitter } from "node:events";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -62,6 +63,9 @@ test("imports ImageGen files across Thread directories and remains idempotent", 
     get(id) { return metadataByThread.get(id) ?? null; },
     close() {},
   };
+  const watcher = new EventEmitter();
+  watcher.close = () => {};
+  let notifyFileChange;
 
   const library = new ImageLibrary({
     sourceRoot,
@@ -69,6 +73,10 @@ test("imports ImageGen files across Thread directories and remains idempotent", 
     sessionRoots: [sessionRoot],
     threadMetadata,
     logger: { error() {}, warn() {} },
+    watchFactory(_sourceRoot, _options, listener) {
+      notifyFileChange = listener;
+      return watcher;
+    },
   });
   context.after(() => library.close());
   const startup = await library.start();
@@ -103,7 +111,9 @@ test("imports ImageGen files across Thread directories and remains idempotent", 
   });
   const secondThreadDir = path.join(sourceRoot, secondThreadId);
   await mkdir(secondThreadDir, { recursive: true });
-  await writeFile(path.join(secondThreadDir, "exec-second.png"), ONE_PIXEL_PNG);
+  const secondImagePath = path.join(secondThreadDir, "exec-second.png");
+  await writeFile(secondImagePath, ONE_PIXEL_PNG);
+  notifyFileChange("rename", path.relative(sourceRoot, secondImagePath));
   await waitFor(() => library.count() === 2);
 
   assert.deepEqual(new Set(library.list().map((item) => item.threadId)), new Set([threadId, secondThreadId]));

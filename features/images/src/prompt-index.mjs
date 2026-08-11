@@ -1,7 +1,9 @@
 import { createReadStream } from "node:fs";
-import { readdir } from "node:fs/promises";
+import { readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { createInterface } from "node:readline";
+
+const DEFAULT_NEGATIVE_CACHE_TTL_MS = 5_000;
 
 async function findThreadLogs(directory, threadId, output = []) {
   let entries;
@@ -20,32 +22,161 @@ async function findThreadLogs(directory, threadId, output = []) {
   return output;
 }
 
-function promptFromEventLine(line, imageGenerationItemId) {
-  if (!line.includes('"image_generation_end"') || !line.includes(imageGenerationItemId)) return null;
-  const callId = line.match(/"call_id"\s*:\s*"([^"]+)"/)?.[1];
-  if (callId !== imageGenerationItemId) return null;
-  const promptLiteral = line.match(/"revised_prompt"\s*:\s*("(?:\\.|[^"\\])*")/)?.[1];
-  if (!promptLiteral) return null;
-  return JSON.parse(promptLiteral);
+function promptFromEventLine(line) {
+  if (!line.includes('"image_generation_end"')) return null;
+  try {
+    const event = JSON.parse(line);
+    const payload = event?.payload ?? event;
+    if (payload?.type !== "image_generation_end") return null;
+    if (typeof payload.call_id !== "string" || typeof payload.revised_prompt !== "string") return null;
+    return { imageGenerationItemId: payload.call_id, prompt: payload.revised_prompt };
+  } catch {
+    return null;
+  }
 }
 
-async function readPrompt(logPath, imageGenerationItemId) {
+async function readPrompts(logPath, prompts) {
   const input = createReadStream(logPath, { encoding: "utf8" });
   const lines = createInterface({ input, crlfDelay: Infinity });
   for await (const line of lines) {
-    const prompt = promptFromEventLine(line, imageGenerationItemId);
-    if (prompt) return prompt;
+    const entry = promptFromEventLine(line);
+    if (entry && !prompts.has(entry.imageGenerationItemId)) {
+      prompts.set(entry.imageGenerationItemId, entry.prompt);
+    }
   }
-  return null;
+}
+
+function cacheKey(threadId, imageGenerationItemId) {
+  return `${threadId}\u0000${imageGenerationItemId}`;
+}
+
+async function fileSignature(logPath) {
+  try {
+    const info = await stat(logPath);
+    return { mtimeMs: info.mtimeMs, size: info.size };
+  } catch (error) {
+    if (error.code === "ENOENT" || error.code === "ENOTDIR") return null;
+    throw error;
+  }
+}
+
+function sameSignature(left, right) {
+  return left?.mtimeMs === right?.mtimeMs && left?.size === right?.size;
+}
+
+export class ThreadPromptIndex {
+  constructor({ sessionRoots = [], negativeTtlMs = DEFAULT_NEGATIVE_CACHE_TTL_MS, now = Date.now } = {}) {
+    if (!Number.isFinite(negativeTtlMs) || negativeTtlMs < 0) {
+      throw new Error("negativeTtlMs must be a non-negative number");
+    }
+    if (typeof now !== "function") throw new Error("now must be a function");
+    this.sessionRoots = sessionRoots.map((sessionRoot) => path.resolve(sessionRoot));
+    this.negativeTtlMs = negativeTtlMs;
+    this.now = now;
+    this.threadPrompts = new Map();
+    this.threadLogPaths = new Map();
+    this.threadLogSignatures = new Map();
+    this.scanPromises = new Map();
+    this.negativeCache = new Map();
+    this.scanCount = 0;
+  }
+
+  async scanThread(threadId, { refreshPaths = false } = {}) {
+    this.scanCount += 1;
+    if (refreshPaths || !this.threadLogPaths.has(threadId)) {
+      const logPaths = [];
+      for (const sessionRoot of this.sessionRoots) {
+        await findThreadLogs(sessionRoot, threadId, logPaths);
+      }
+      this.threadLogPaths.set(threadId, logPaths);
+    }
+    const logPaths = this.threadLogPaths.get(threadId) ?? [];
+    const prompts = new Map();
+    const signatures = new Map();
+    for (const logPath of logPaths) {
+      await readPrompts(logPath, prompts);
+      const signature = await fileSignature(logPath);
+      if (signature) signatures.set(logPath, signature);
+    }
+    this.threadPrompts.set(threadId, prompts);
+    this.threadLogSignatures.set(threadId, signatures);
+    return prompts;
+  }
+
+  async threadLogsChanged(threadId) {
+    const logPaths = this.threadLogPaths.get(threadId) ?? [];
+    const signatures = this.threadLogSignatures.get(threadId) ?? new Map();
+    for (const logPath of logPaths) {
+      const current = await fileSignature(logPath);
+      if (!current || !sameSignature(current, signatures.get(logPath))) return true;
+    }
+    return false;
+  }
+
+  clearNegative(threadId) {
+    for (const key of this.negativeCache.keys()) {
+      if (key.startsWith(`${threadId}\u0000`)) this.negativeCache.delete(key);
+    }
+  }
+
+  async find(threadId, imageGenerationItemId) {
+    const key = cacheKey(threadId, imageGenerationItemId);
+    const cached = this.threadPrompts.get(threadId);
+    if (cached?.has(imageGenerationItemId)) return cached.get(imageGenerationItemId);
+
+    const negative = this.negativeCache.get(key);
+    if (negative) {
+      const expired = this.now() >= negative.expiresAt;
+      const changed = expired || await this.threadLogsChanged(threadId);
+      if (!changed) return null;
+      this.negativeCache.delete(key);
+      this.threadPrompts.delete(threadId);
+      this.threadLogSignatures.delete(threadId);
+      this.clearNegative(threadId);
+      if (expired) this.threadLogPaths.delete(threadId);
+    }
+
+    let scan = this.scanPromises.get(threadId);
+    if (!scan) {
+      scan = this.scanThread(threadId, { refreshPaths: !this.threadLogPaths.has(threadId) });
+      this.scanPromises.set(threadId, scan);
+      const clearScan = () => {
+        if (this.scanPromises.get(threadId) === scan) this.scanPromises.delete(threadId);
+      };
+      scan.then(clearScan, clearScan);
+    }
+    const prompts = await scan;
+    const prompt = prompts.get(imageGenerationItemId) ?? null;
+    if (!prompt) {
+      this.negativeCache.set(key, { expiresAt: this.now() + this.negativeTtlMs });
+    }
+    return prompt;
+  }
+
+  invalidate(threadId = null) {
+    if (threadId == null) {
+      this.threadPrompts.clear();
+      this.threadLogPaths.clear();
+      this.threadLogSignatures.clear();
+      this.negativeCache.clear();
+      return;
+    }
+    this.threadPrompts.delete(threadId);
+    this.threadLogPaths.delete(threadId);
+    this.threadLogSignatures.delete(threadId);
+    this.clearNegative(threadId);
+  }
+
+  close() {
+    this.threadPrompts.clear();
+    this.threadLogPaths.clear();
+    this.threadLogSignatures.clear();
+    this.scanPromises.clear();
+    this.negativeCache.clear();
+  }
 }
 
 export async function findImagePrompt({ sessionRoots, threadId, imageGenerationItemId }) {
-  for (const sessionRoot of sessionRoots) {
-    const logPaths = await findThreadLogs(sessionRoot, threadId);
-    for (const logPath of logPaths) {
-      const prompt = await readPrompt(logPath, imageGenerationItemId);
-      if (prompt) return prompt;
-    }
-  }
-  return null;
+  const index = new ThreadPromptIndex({ sessionRoots });
+  return index.find(threadId, imageGenerationItemId);
 }

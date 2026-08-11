@@ -188,6 +188,7 @@ const ERROR_MESSAGE_KEYS = Object.freeze({
   FILE_MISSING: "fileMissing",
   FILE_UNAVAILABLE: "fileUnavailable",
   HOST_ACTION_FAILED: "hostActionFailed",
+  HOST_NOT_ALLOWED: "actionNotAllowed",
   HOST_TIMEOUT: "hostTimeout",
   HOST_UNAVAILABLE: "hostUnavailable",
   INTERNAL_ERROR: "internalError",
@@ -200,6 +201,7 @@ const ERROR_MESSAGE_KEYS = Object.freeze({
   INVALID_ORDER: "invalidOrder",
   INVALID_PATHS: "invalidRequest",
   INVALID_REQUEST: "invalidRequest",
+  INVALID_SURFACE: "invalidRequest",
   INVALID_ORIGIN: "actionNotAllowed",
   INVALID_STAR: "invalidRequest",
   INVALID_TITLE: "invalidRequest",
@@ -369,12 +371,32 @@ function syncEditorMissingState() {
   return changed;
 }
 
+function stateRequest() {
+  const query = `surface=${encodeURIComponent(surface)}`;
+  if (surface === "editor") {
+    return `/api/state?${query}&kind=${encodeURIComponent(editorKind)}&id=${encodeURIComponent(editorId ?? "")}`;
+  }
+  return `/api/state?${query}`;
+}
+
+function changeAffectsSurface(change) {
+  if (!change?.reason) return true;
+  if (Array.isArray(change.surfaces)) {
+    const target = surface === "editor" ? `editor:${editorKind}` : surface;
+    if (change.surfaces.includes(target)) return true;
+  }
+  const domain = String(change.reason).split(":", 1)[0];
+  if (surface === "summary") return ["todo", "prompt", "file", "files"].includes(domain);
+  if (surface === "editor") return domain === editorKind;
+  return domain === (surface === "prompts" ? "prompt" : surface);
+}
+
 async function performRefresh() {
   const previousRevision = ui.state?.revision ?? -1;
   const hadState = Boolean(ui.state);
   const hadError = Boolean(ui.error);
   try {
-    const next = await api("/api/state");
+    const next = await api(stateRequest());
     const stateChanged = !ui.state || next.revision > ui.state.revision;
     if (stateChanged) {
       ui.state = next;
@@ -420,6 +442,10 @@ function connectEvents() {
       return;
     }
     if (!ui.state || change.revision > ui.state.revision) {
+      if (!changeAffectsSurface(change)) {
+        ui.pendingRevision = Math.max(ui.pendingRevision, change.revision);
+        return;
+      }
       refreshState({ quiet: true, revision: change.revision });
     }
   };
@@ -712,7 +738,11 @@ function emptyRow(label) {
 
 function summarySection({ key, title, items, addLabel, rows, emptyLabel, totalCount = items.length }) {
   const visible = items.slice(0, SUMMARY_ITEM_LIMIT);
-  const hasOverflow = totalCount > SUMMARY_ITEM_LIMIT;
+  const summaryCounts = ui.state?.counts;
+  const inferredCount = key === "todo"
+    ? (summaryCounts ? summaryCounts.todos.active + summaryCounts.todos.completed : items.length)
+    : (summaryCounts?.[key] ?? items.length);
+  const hasOverflow = totalCount > SUMMARY_ITEM_LIMIT || inferredCount > SUMMARY_ITEM_LIMIT;
   return `<section class="summary-section" data-section="${key}">
     <header class="section-header">
       <span>${title}</span>
@@ -731,6 +761,11 @@ function renderSummary() {
   const completed = ui.state.todos.completed;
   const prompts = ui.state.prompts;
   const files = ui.state.files;
+  const counts = ui.state.counts ?? {
+    todos: { active: active.length, completed: completed.length },
+    prompts: prompts.length,
+    files: files.length,
+  };
   const visibleTodos = active.length >= SUMMARY_ITEM_LIMIT
     ? active.slice(0, SUMMARY_ITEM_LIMIT)
     : [...active, ...completed.slice(0, SUMMARY_ITEM_LIMIT - active.length)];

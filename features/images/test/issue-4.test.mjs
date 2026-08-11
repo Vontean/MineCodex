@@ -1,0 +1,308 @@
+import assert from "node:assert/strict";
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { request as httpRequest } from "node:http";
+import os from "node:os";
+import path from "node:path";
+import test from "node:test";
+import { fileURLToPath } from "node:url";
+
+import { createHttpServer } from "../src/http-server.mjs";
+import { ImageLibrary } from "../src/image-library.mjs";
+
+const ONE_PIXEL_PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+  "base64",
+);
+const WEB_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../web");
+
+async function rawRequest(origin, route, { method = "GET", headers = {}, body = "" } = {}) {
+  const target = new URL(route, origin);
+  return new Promise((resolve, reject) => {
+    const request = httpRequest({
+      hostname: target.hostname,
+      port: target.port,
+      path: `${target.pathname}${target.search}`,
+      method,
+      headers,
+    }, (response) => {
+      const chunks = [];
+      response.on("data", (chunk) => chunks.push(chunk));
+      response.on("end", () => {
+        const text = Buffer.concat(chunks).toString("utf8");
+        resolve({ status: response.statusCode, payload: text ? JSON.parse(text) : null });
+      });
+    });
+    request.on("error", reject);
+    request.end(body);
+  });
+}
+
+async function createImageFixture({ threadCount = 1, sessionRoots = [], promptIndexOptions = {} } = {}) {
+  const root = await mkdtemp(path.join(os.tmpdir(), "minecodex-images-issue4-"));
+  const sourceRoot = path.join(root, "generated_images");
+  const dataDir = path.join(root, "library");
+  const threadIds = [];
+  for (let index = 0; index < threadCount; index += 1) {
+    const threadId = `thread-${index}`;
+    threadIds.push(threadId);
+    const threadDir = path.join(sourceRoot, threadId);
+    await mkdir(threadDir, { recursive: true });
+    await writeFile(path.join(threadDir, `image-${index}.png`), ONE_PIXEL_PNG);
+  }
+  const library = new ImageLibrary({ sourceRoot, dataDir, sessionRoots, watchSource: false, promptIndexOptions });
+  await library.start();
+  return {
+    root,
+    library,
+    threadIds,
+    async close() {
+      library.close();
+      await rm(root, { recursive: true, force: true });
+    },
+  };
+}
+
+test("Images health and mutation routes require the exact bound loopback origin", async () => {
+  const fixture = await createImageFixture();
+  const server = await createHttpServer({
+    library: fixture.library,
+    webDir: WEB_ROOT,
+    port: 0,
+    instanceId: "images-issue4-test-instance",
+  });
+  try {
+    const health = await fetch(`${server.origin}/api/health`);
+    assert.equal(health.status, 200);
+    assert.deepEqual(await health.json(), {
+      ok: true,
+      service: "images",
+      protocolVersion: 1,
+      instanceId: "images-issue4-test-instance",
+      images: 1,
+    });
+
+    const port = Number(new URL(server.origin).port);
+    const unexpectedHost = await rawRequest(server.origin, "/api/rescan", {
+      method: "POST",
+      headers: { host: `127.0.0.1:${port + 1}` },
+    });
+    assert.equal(unexpectedHost.status, 403);
+    assert.equal(unexpectedHost.payload.error.code, "HOST_NOT_ALLOWED");
+
+    const unexpectedOrigin = await fetch(`${server.origin}/api/rescan`, {
+      method: "POST",
+      headers: { origin: `http://localhost:${port}` },
+    });
+    assert.equal(unexpectedOrigin.status, 403);
+    assert.equal((await unexpectedOrigin.json()).error.code, "ORIGIN_NOT_ALLOWED");
+
+    const allowed = await fetch(`${server.origin}/api/rescan`, {
+      method: "POST",
+      headers: { origin: server.origin },
+    });
+    assert.equal(allowed.status, 200);
+    assert.deepEqual(await allowed.json(), { imported: 0, total: 1, inProgress: false });
+
+    const missingOrigin = await rawRequest(server.origin, "/api/rescan", { method: "POST" });
+    assert.equal(missingOrigin.status, 403);
+    assert.equal(missingOrigin.payload.error.code, "ORIGIN_NOT_ALLOWED");
+
+    const malformedOrigin = await rawRequest(server.origin, "/api/rescan", {
+      method: "POST",
+      headers: { origin: "not-an-origin" },
+    });
+    assert.equal(malformedOrigin.status, 403);
+    assert.equal(malformedOrigin.payload.error.code, "INVALID_ORIGIN");
+  } finally {
+    await server.close();
+    await fixture.close();
+  }
+});
+
+test("full ImageLibrary rescans share one in-flight operation", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "minecodex-images-rescan-"));
+  const sourceRoot = path.join(root, "generated_images");
+  const dataDir = path.join(root, "library");
+  await mkdir(path.join(sourceRoot, "thread"), { recursive: true });
+  await writeFile(path.join(sourceRoot, "thread", "image.png"), ONE_PIXEL_PNG);
+
+  let refreshCalls = 0;
+  let blockNextRefresh = false;
+  let releaseRefresh;
+  const threadMetadata = {
+    async refresh() {
+      refreshCalls += 1;
+      if (blockNextRefresh) await new Promise((resolve) => { releaseRefresh = resolve; });
+    },
+    async get() { return null; },
+    close() {},
+  };
+  const library = new ImageLibrary({ sourceRoot, dataDir, threadMetadata, watchSource: false });
+  await library.start();
+  blockNextRefresh = true;
+  try {
+    const first = library.rescan();
+    while (refreshCalls < 2) await new Promise((resolve) => setTimeout(resolve, 0));
+    const second = library.rescan();
+    assert.strictEqual(second, first);
+    assert.deepEqual(library.rescanStatus(), { inProgress: true });
+    releaseRefresh();
+    assert.equal(await second, 0);
+    assert.deepEqual(library.rescanStatus(), { inProgress: false });
+    assert.equal(refreshCalls, 2, "startup and one shared rescan only");
+  } finally {
+    library.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("Images HTTP rescan reports an existing in-flight scan without starting another", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "minecodex-images-http-rescan-"));
+  const sourceRoot = path.join(root, "generated_images");
+  const dataDir = path.join(root, "library");
+  await mkdir(path.join(sourceRoot, "thread"), { recursive: true });
+  await writeFile(path.join(sourceRoot, "thread", "image.png"), ONE_PIXEL_PNG);
+
+  let refreshCalls = 0;
+  let blockNextRefresh = false;
+  let releaseRefresh;
+  const threadMetadata = {
+    async refresh() {
+      refreshCalls += 1;
+      if (blockNextRefresh) await new Promise((resolve) => { releaseRefresh = resolve; });
+    },
+    async get() { return null; },
+    close() {},
+  };
+  const library = new ImageLibrary({ sourceRoot, dataDir, threadMetadata, watchSource: false });
+  await library.start();
+  const server = await createHttpServer({ library, webDir: WEB_ROOT, port: 0 });
+  try {
+    blockNextRefresh = true;
+    const inFlight = library.rescan();
+    while (refreshCalls < 2) await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const response = await rawRequest(server.origin, "/api/rescan", {
+      method: "POST",
+      headers: { origin: server.origin },
+    });
+    assert.equal(response.status, 202);
+    assert.deepEqual(response.payload, { imported: 0, total: 1, inProgress: true });
+
+    releaseRefresh();
+    await inFlight;
+  } finally {
+    await server.close();
+    library.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("group previews use one batch query and prompt bodies hydrate only in detail", async () => {
+  const sessionRoot = await mkdtemp(path.join(os.tmpdir(), "minecodex-images-sessions-"));
+  const fixture = await createImageFixture({ threadCount: 6, sessionRoots: [sessionRoot] });
+  try {
+    const [storedPromptImage] = fixture.library.list({ threadId: fixture.threadIds[0] });
+    const secretPrompt = "This body must not appear in list or group responses.";
+    fixture.library.database.prepare("UPDATE images SET prompt = ? WHERE id = ?").run(secretPrompt, storedPromptImage.id);
+
+    const originalPrepare = fixture.library.database.prepare.bind(fixture.library.database);
+    const statements = [];
+    fixture.library.database.prepare = (sql) => {
+      statements.push(sql);
+      return originalPrepare(sql);
+    };
+    const groups = fixture.library.groups({ previewLimit: 2 });
+    assert.equal(groups.length, 6);
+    assert.equal(statements.length, 2, "one group summary query and one batch preview query");
+
+    const server = await createHttpServer({
+      library: fixture.library,
+      webDir: WEB_ROOT,
+      port: 0,
+      instanceId: "images-issue4-test-instance",
+    });
+    try {
+      const listPayload = await fetch(`${server.origin}/api/images`).then((response) => response.json());
+      assert.equal(Object.hasOwn(listPayload.images[0], "prompt"), false);
+
+      const groupPayload = await fetch(`${server.origin}/api/image-groups`).then((response) => response.json());
+      assert.equal(Object.hasOwn(groupPayload.groups[0].previews[0], "prompt"), false);
+
+      const detailPayload = await fetch(`${server.origin}/api/images/${storedPromptImage.id}`)
+        .then((response) => response.json());
+      assert.equal(detailPayload.image.prompt, secretPrompt);
+    } finally {
+      await server.close();
+    }
+
+    const missingImage = fixture.library.list({ threadId: fixture.threadIds[1] })[0];
+    const firstMissing = await fixture.library.hydratePrompt(missingImage.id);
+    const secondMissing = await fixture.library.hydratePrompt(missingImage.id);
+    assert.equal(firstMissing.prompt, null);
+    assert.equal(secondMissing.prompt, null);
+    assert.equal(fixture.library.promptIndex.scanCount, 1, "a missing prompt is negatively cached");
+  } finally {
+    await fixture.close();
+    await rm(sessionRoot, { recursive: true, force: true });
+  }
+});
+
+test("late ImageGen prompt events become visible after a bounded negative-cache expiry", async () => {
+  const sessionRoot = await mkdtemp(path.join(os.tmpdir(), "minecodex-images-late-prompt-"));
+  let now = 0;
+  const fixture = await createImageFixture({
+    sessionRoots: [sessionRoot],
+    promptIndexOptions: { negativeTtlMs: 10, now: () => now },
+  });
+  try {
+    const image = fixture.library.list()[0];
+    assert.equal((await fixture.library.hydratePrompt(image.id)).prompt, null);
+
+    const logDirectory = path.join(sessionRoot, "2026", "08");
+    await mkdir(logDirectory, { recursive: true });
+    const prompt = "A prompt appended after the first detail request.";
+    await writeFile(
+      path.join(logDirectory, `rollout-${fixture.threadIds[0]}.jsonl`),
+      `${JSON.stringify({
+        payload: {
+          type: "image_generation_end",
+          call_id: image.imageGenerationItemId,
+          revised_prompt: prompt,
+        },
+      })}\n`,
+    );
+
+    now = 11;
+    assert.equal((await fixture.library.hydratePrompt(image.id)).prompt, prompt);
+  } finally {
+    await fixture.close();
+    await rm(sessionRoot, { recursive: true, force: true });
+  }
+});
+
+test("Images update checks follow the active surface instead of a permanent interval", async () => {
+  const [app, librarySource] = await Promise.all([
+    readFile(new URL("../web/app.js", import.meta.url), "utf8"),
+    readFile(new URL("../src/image-library.mjs", import.meta.url), "utf8"),
+  ]);
+  assert.match(app, /let hostSurfaceActive = true/);
+  assert.match(app, /let documentVisible/);
+  assert.match(app, /let windowFocused/);
+  assert.match(app, /let shellIntersecting/);
+  assert.match(app, /function setHostSurfaceActive\(/);
+  assert.match(app, /function setDocumentVisible\(/);
+  assert.match(app, /function setWindowFocused\(/);
+  assert.match(app, /function setShellIntersecting\(/);
+  const pollFunction = app.match(/function canPollForUpdates\(\) \{[\s\S]*?\n\}/)?.[0] ?? "";
+  for (const gate of ["hostSurfaceActive", "documentVisible", "windowFocused", "shellIntersecting"]) {
+    assert.match(pollFunction, new RegExp(gate));
+  }
+  assert.doesNotMatch(app, /let surfaceActive/);
+  assert.match(app, /document\.visibilityState/);
+  assert.match(app, /await checkForUpdates\(\)/);
+  assert.doesNotMatch(app, /setInterval\(\(\) => checkForUpdates/);
+  assert.match(librarySource, /FALLBACK_RESCAN_INITIAL_DELAY_MS = 30_000/);
+  assert.match(librarySource, /fallbackRescanDelayMs/);
+  assert.doesNotMatch(librarySource, /setTimeout\(tick, 1000\)/);
+});

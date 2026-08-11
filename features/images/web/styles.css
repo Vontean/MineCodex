@@ -727,6 +727,18 @@ h1,
 .empty-state h2 { font-size: var(--text-base); font-weight: 600; }
 .empty-state p { margin-top: 6px; color: var(--color-text-foreground-secondary); font-size: var(--text-sm); }
 
+.status-announcer {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .detail-drawer {
   position: absolute;
   z-index: 4;
@@ -742,6 +754,7 @@ h1,
   visibility: hidden;
   pointer-events: none;
   contain: layout paint;
+  overscroll-behavior: contain;
   will-change: transform, opacity;
   transition:
     transform 160ms cubic-bezier(0.23, 1, 0.32, 1),
@@ -784,6 +797,7 @@ h1,
   min-height: 0;
   flex: 1 1 auto;
   overflow: auto;
+  overscroll-behavior: contain;
 }
 
 .drawer-figure {

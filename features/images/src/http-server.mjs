@@ -4,6 +4,8 @@ import { createServer as createNodeServer } from "node:http";
 import path from "node:path";
 import { saveImageAs } from "./save-as.mjs";
 
+const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
+
 const STATIC_FILES = new Map([
   ["/", ["index.html", "text/html; charset=utf-8"]],
   ["/app.js", ["app.js", "text/javascript; charset=utf-8"]],
@@ -18,12 +20,11 @@ function json(response, statusCode, body) {
   response.end(JSON.stringify(body));
 }
 
-function publicImage(image) {
-  return {
+function publicImage(image, { includePrompt = false } = {}) {
+  const result = {
     id: image.id,
     threadId: image.threadId,
     imageGenerationItemId: image.imageGenerationItemId,
-    prompt: image.prompt,
     width: image.width,
     height: image.height,
     byteLength: image.byteLength,
@@ -38,6 +39,8 @@ function publicImage(image) {
     downloadUrl: `/api/images/${image.id}/download`,
     sourceUrl: `codex://threads/${image.threadId}`,
   };
+  if (includePrompt) result.prompt = image.prompt;
+  return result;
 }
 
 function publicGroup(group) {
@@ -51,17 +54,69 @@ function publicGroup(group) {
     imageCount: group.imageCount,
     createdAt: group.createdAt,
     updatedAt: group.updatedAt,
-    previews: group.previews.map(publicImage),
+    previews: group.previews.map((image) => publicImage(image)),
   };
 }
 
-export async function createHttpServer({ library, webDir, host = "127.0.0.1", port = 47831 }) {
+function formatHost(host) {
+  return host.includes(":") && !host.startsWith("[") ? `[${host}]` : host;
+}
+
+function mutationError(message, code) {
+  return Object.assign(new Error(message), { status: 403, code });
+}
+
+function validateMutationOrigin(request, address, host) {
+  const expectedOrigin = `http://${formatHost(host)}:${address.port}`;
+  const expectedHost = new URL(expectedOrigin).host;
+  if (request.headers.host !== expectedHost) {
+    throw mutationError("Mutation requests are restricted to the exact bound loopback Host", "HOST_NOT_ALLOWED");
+  }
+
+  const origin = request.headers.origin;
+  if (!origin) {
+    throw mutationError("Mutation requests require the exact bound loopback Origin", "ORIGIN_NOT_ALLOWED");
+  }
+  let parsed;
+  try {
+    parsed = new URL(origin);
+  } catch {
+    throw mutationError("Request origin is invalid", "INVALID_ORIGIN");
+  }
+  if (parsed.origin !== expectedOrigin) {
+    throw mutationError("Mutation requests are restricted to this exact local Images origin", "ORIGIN_NOT_ALLOWED");
+  }
+}
+
+export async function createHttpServer({
+  library,
+  webDir,
+  host = "127.0.0.1",
+  port = 47831,
+  instanceId = process.env.MINECODEX_FEATURE_INSTANCE_ID ?? "unconfigured",
+}) {
+  if (!library) throw new Error("library is required");
+  if (!LOOPBACK_HOSTS.has(host)) throw new Error("Images only supports loopback hosts");
   const server = createNodeServer(async (request, response) => {
     try {
-      const url = new URL(request.url, `http://${request.headers.host ?? `${host}:${port}`}`);
+      const address = server.address();
+      const boundOrigin = address && typeof address !== "string"
+        ? `http://${formatHost(host)}:${address.port}`
+        : `http://${formatHost(host)}:${port}`;
+      const url = new URL(request.url ?? "/", boundOrigin);
 
-      if (request.method === "GET" && url.pathname === "/health") {
-        json(response, 200, { ok: true, images: library.count() });
+      if (!["GET", "HEAD", "OPTIONS"].includes(request.method)) {
+        validateMutationOrigin(request, address, host);
+      }
+
+      if (request.method === "GET" && (url.pathname === "/api/health" || url.pathname === "/health")) {
+        json(response, 200, {
+          ok: true,
+          service: "images",
+          protocolVersion: 1,
+          instanceId,
+          images: library.count(),
+        });
         return;
       }
 
@@ -116,8 +171,12 @@ export async function createHttpServer({ library, webDir, host = "127.0.0.1", po
       }
 
       if (request.method === "POST" && url.pathname === "/api/rescan") {
+        if (library.rescanStatus().inProgress) {
+          json(response, 202, { imported: 0, total: library.count(), inProgress: true });
+          return;
+        }
         const imported = await library.rescan();
-        json(response, 200, { imported, total: library.count() });
+        json(response, 200, { imported, total: library.count(), inProgress: false });
         return;
       }
 
@@ -139,7 +198,7 @@ export async function createHttpServer({ library, webDir, host = "127.0.0.1", po
           json(response, 404, { error: "Image not found" });
           return;
         }
-        json(response, 200, { image: publicImage(image) });
+        json(response, 200, { image: publicImage(image, { includePrompt: true }) });
         return;
       }
 
@@ -179,7 +238,13 @@ export async function createHttpServer({ library, webDir, host = "127.0.0.1", po
 
       json(response, 404, { error: "Not found" });
     } catch (error) {
-      json(response, 500, { error: error.message });
+      const status = Number.isInteger(error.status) ? error.status : 500;
+      json(response, status, {
+        error: {
+          code: error.code ?? "INTERNAL_ERROR",
+          message: error.message,
+        },
+      });
     }
   });
 
@@ -188,10 +253,14 @@ export async function createHttpServer({ library, webDir, host = "127.0.0.1", po
     server.listen(port, host, resolve);
   });
 
+  const address = server.address();
+  const boundPort = address && typeof address !== "string" ? address.port : port;
+  const origin = `http://${formatHost(host)}:${boundPort}`;
   return {
     host,
-    port,
-    url: `http://${host}:${port}`,
+    port: boundPort,
+    origin,
+    url: origin,
     close: () => new Promise((resolve, reject) => server.close((error) => (error ? reject(error) : resolve()))),
   };
 }
