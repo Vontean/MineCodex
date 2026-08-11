@@ -8,8 +8,9 @@ MineCodex 给 Codex Desktop 增加三个轻量、本地优先的插件：
 
 ## 安装
 
-MineCodex v1 仅支持 macOS，需要 Node.js 22.5 或更高版本，并要求 Codex Desktop
-安装在 `/Applications/ChatGPT.app`。
+MineCodex v1 仅支持 macOS，需要 Node.js 22.5 或更高版本。安装时会从
+`/Applications/ChatGPT.app` 或 `~/Applications/ChatGPT.app` 查找 Codex Desktop；
+如果两处都找不到，安装会停止并给出提示。
 
 ```bash
 npm install -g minecodex
@@ -44,7 +45,12 @@ npm install
 npm test
 npm run check
 npm run pack:check
+npm run pack:audit
 ```
 
 MineCodex 是唯一发布仓库。三个插件继续拥有各自的数据和页面；RuntimeHost 只负责
 Codex 中的入口、主题与交互适配。
+
+MineCodex 是非官方独立项目，与 OpenAI 无关联。项目自有代码以 MIT License 授权；
+第三方图标、品牌和兼容资产遵循各自的权利说明，见
+[`features/model-slider/THIRD_PARTY_NOTICES.md`](features/model-slider/THIRD_PARTY_NOTICES.md)。

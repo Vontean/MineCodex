@@ -2,6 +2,7 @@
   "name": "minecodex",
   "version": "0.1.0",
   "description": "Lightweight, local-first plugins for the Codex desktop app.",
+  "license": "MIT",
   "type": "module",
   "bin": {
     "mcx": "packages/cli/bin/mcx.mjs"
@@ -12,10 +13,14 @@
     "apps/*"
   ],
   "files": [
-    "packages/cli",
+    "LICENSE",
+    "packages/cli/bin",
+    "packages/cli/src",
     "packages/runtime-host/src",
     "features/model-slider/assets",
     "features/model-slider/codex-feature.json",
+    "features/model-slider/THIRD_PARTY_NOTICES.md",
+    "features/model-slider/vendor",
     "features/notes/src",
     "features/notes/web",
     "features/notes/assets",
@@ -23,7 +28,10 @@
     "features/images/src",
     "features/images/web",
     "features/images/codex-feature.json",
-    "apps/dashboard",
+    "apps/dashboard/app.js",
+    "apps/dashboard/favicon.svg",
+    "apps/dashboard/index.html",
+    "apps/dashboard/styles.css",
     "README.md"
   ],
   "engines": {
@@ -35,16 +43,25 @@
     "test:cli": "node --test packages/cli/test/*.test.mjs",
     "test:runtime": "node --test packages/runtime-host/test/*.test.mjs",
     "check": "node --check packages/cli/bin/mcx.mjs && node --check packages/cli/src/*.mjs && node --check packages/runtime-host/src/*.mjs",
-    "pack:check": "npm pack --dry-run"
+    "pack:check": "npm pack --dry-run",
+    "pack:audit": "node scripts/audit-package.mjs",
+    "prepublishOnly": "npm test && npm run check && npm run pack:audit"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Vontean/MineCodex.git"
   },
+  "bugs": {
+    "url": "https://github.com/Vontean/MineCodex/issues"
+  },
+  "homepage": "https://github.com/Vontean/MineCodex#readme",
   "keywords": [
     "codex",
     "minecodex",
     "macos",
     "plugins"
+  ],
+  "os": [
+    "darwin"
   ]
 }

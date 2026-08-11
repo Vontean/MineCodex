@@ -10,6 +10,15 @@ The upstream license text is preserved in `vendor/cc-switch-LICENSE`.
 
 ## Lucide
 
-The Star, Star Off, and Sparkles icons under `assets/ui/` come from `lucide-static`,
-used by the sibling CodexNotes project. They retain Lucide's ISC license and are rendered
-at Codex's native 16px / 1.5-stroke visual weight.
+Lucide icons distributed by MineCodex include the Model Slider UI icons, Notes action and
+domain icons, the Images feature icon, and the Dashboard favicon. They come from
+`lucide-static` v1.30.0 and v1.31.0 and retain Lucide's ISC license. The upstream
+license text, including the Feather-derived icon notice, is preserved in
+`vendor/lucide-LICENSE`.
+
+## Codex compatibility assets
+
+File-type and action glyphs under `features/notes/web/codex-*.svg` mirror the Codex
+Desktop visual language for compatibility. Codex, ChatGPT, OpenAI, and related marks
+and assets remain the property of OpenAI and their respective rights holders. These
+assets are not relicensed by MineCodex's MIT License.

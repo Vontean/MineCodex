@@ -1,0 +1,92 @@
+import { execFile } from "node:child_process";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import { promisify } from "node:util";
+import { fileURLToPath } from "node:url";
+
+const execFileAsync = promisify(execFile);
+const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+const { stdout } = await execFileAsync(
+  "npm",
+  ["pack", "--dry-run", "--json", "--ignore-scripts"],
+  {
+    cwd: root,
+    env: {
+      ...process.env,
+      npm_config_cache: process.env.MINECODEX_NPM_CACHE ?? "/tmp/minecodex-npm-cache",
+    },
+    maxBuffer: 16 * 1024 * 1024,
+  },
+);
+
+const [report] = JSON.parse(stdout);
+if (!report || report.name !== "minecodex") {
+  throw new Error("npm pack did not return the MineCodex package report");
+}
+
+const packageMetadata = JSON.parse(await readFile(path.join(root, "package.json"), "utf8"));
+if (packageMetadata.license !== "MIT") {
+  throw new Error("package.json must declare the approved MIT license");
+}
+
+const files = report.files.map(({ path: filePath }) => filePath).sort();
+const requiredFiles = [
+  "LICENSE",
+  "README.md",
+  "apps/dashboard/index.html",
+  "features/images/codex-feature.json",
+  "features/model-slider/THIRD_PARTY_NOTICES.md",
+  "features/model-slider/codex-feature.json",
+  "features/model-slider/vendor/cc-switch-LICENSE",
+  "features/model-slider/vendor/lucide-LICENSE",
+  "features/notes/codex-feature.json",
+  "package.json",
+  "packages/cli/bin/mcx.mjs",
+  "packages/runtime-host/src/main.mjs",
+];
+
+const forbiddenPaths = [
+  [/(^|\/)(?:test|tests|__tests__|fixtures|coverage)(\/|$)/i, "test or coverage content"],
+  [/(^|\/)(?:node_modules|\.git|\.github|\.codex|\.agents|\.claude|\.cursor|\.idea|\.vscode)(\/|$)/i, "development or personal configuration"],
+  [/(^|\/)(?:\.impeccable|\.playwright-cli|output|dist)(\/|$)/i, "build or tool output"],
+  [/(^|\/)(?:config|settings|preferences)\.(?:json|toml|ya?ml)$/i, "personal settings"],
+  [/(^|\/)\.env(?:\.|$)/i, "environment configuration"],
+  [/\.(?:log|sqlite3?|db|pem|key|p12|mobileprovision|tgz)$/i, "logs, local data, credentials, or archives"],
+  [/(^|\/)\.DS_Store$/i, "macOS metadata"],
+];
+
+const sensitiveContent = [
+  [/\/Users\/[A-Za-z0-9._-]+\//, "absolute macOS user path"],
+  [/\/home\/[A-Za-z0-9._-]+\//, "absolute Unix user path"],
+  [/-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/, "private key"],
+  [/\bnpm_[A-Za-z0-9]{20,}\b/, "npm access token"],
+  [/\bgh[pousr]_[A-Za-z0-9]{20,}\b/, "GitHub access token"],
+  [/\bsk-[A-Za-z0-9_-]{20,}\b/, "API key"],
+  [/\bAKIA[0-9A-Z]{16}\b/, "AWS access key"],
+];
+
+const failures = [];
+for (const required of requiredFiles) {
+  if (!files.includes(required)) failures.push(`missing required file: ${required}`);
+}
+
+for (const filePath of files) {
+  for (const [pattern, reason] of forbiddenPaths) {
+    if (pattern.test(filePath)) failures.push(`${reason}: ${filePath}`);
+  }
+
+  const contents = await readFile(path.join(root, filePath));
+  if (contents.includes(0)) continue;
+  const text = contents.toString("utf8");
+  for (const [pattern, reason] of sensitiveContent) {
+    if (pattern.test(text)) failures.push(`${reason}: ${filePath}`);
+  }
+}
+
+if (failures.length) {
+  throw new Error(`Package audit failed:\n- ${[...new Set(failures)].join("\n- ")}`);
+}
+
+console.log(
+  `Package audit passed: ${report.id}, ${files.length} files, ${report.size} bytes, no tests, personal settings, private paths, credentials, logs, or local data.`,
+);
