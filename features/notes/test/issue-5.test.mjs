@@ -30,11 +30,12 @@ async function rawRequest(origin, route, { method = "GET", headers = {}, body = 
   });
 }
 
-async function openProduct() {
+async function openProduct(productOptions = {}) {
   const directory = await mkdtemp(path.join(os.tmpdir(), "minecodex-notes-issue5-"));
   const product = await new CodexNotesProduct({
     databasePath: path.join(directory, "notes.sqlite"),
     fileCleanupIntervalMs: 60_000,
+    ...productOptions,
   }).open();
   return {
     directory,
@@ -45,6 +46,41 @@ async function openProduct() {
     },
   };
 }
+
+test("Notes state completes before deferred missing-file cleanup work is released", async () => {
+  const scheduledCleanups = [];
+  let statCalls = 0;
+  const fixture = await openProduct({
+    fileCleanupIntervalMs: 0,
+    cleanupScheduler(callback) {
+      scheduledCleanups.push(callback);
+    },
+    async fileStat() {
+      statCalls += 1;
+      return { isFile: () => true };
+    },
+  });
+  try {
+    const filePath = path.join(fixture.directory, "deferred-cleanup.txt");
+    await writeFile(filePath, "cleanup later");
+    const added = await fixture.product.addFiles({ paths: [filePath] });
+
+    const state = await fixture.product.getState({ surface: "files" });
+    assert.equal(state.files.some((file) => file.id === added.added[0].id), true);
+    assert.equal(scheduledCleanups.length, 1);
+    assert.equal(statCalls, 0, "the cleanup SELECT/stat turn has not been released");
+    const cleanup = fixture.product.fileCleanupPromise;
+    assert.ok(cleanup, "the background cleanup remains single-flight while scheduled");
+
+    scheduledCleanups.shift()();
+    await cleanup;
+    assert.equal(statCalls, 1);
+  } finally {
+    fixture.product.fileCleanupPromise?.catch(() => {});
+    for (const release of scheduledCleanups) release();
+    await fixture.close();
+  }
+});
 
 test("Notes state responses are bounded and surface-appropriate for a large dataset", async () => {
   const fixture = await openProduct();

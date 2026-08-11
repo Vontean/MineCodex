@@ -21,14 +21,14 @@ const threadMetadata = new ThreadMetadataIndex({
 });
 
 const library = new ImageLibrary({ sourceRoot, dataDir, sessionRoots, threadMetadata });
-const startup = await library.start();
+const startup = await library.start({ deferInitialScan: true });
 const server = await createHttpServer({
   library,
   webDir: path.join(projectRoot, "web"),
   port,
 });
 
-console.log(`Images: ${startup.total} total, ${startup.imported} imported`);
+console.log(`Images: ${startup.total} indexed; initial scan running in background`);
 console.log(`Library: ${server.url}`);
 
 async function shutdown() {
@@ -42,3 +42,11 @@ for (const signal of ["SIGINT", "SIGTERM"]) {
     process.exit(0);
   });
 }
+
+void startup.initialScan()
+  .then(({ total, imported }) => {
+    console.log(`Images: ${total} total, ${imported} imported by initial scan`);
+  })
+  .catch((error) => {
+    console.error("Images initial scan failed", error);
+  });

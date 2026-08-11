@@ -140,11 +140,20 @@ export class ImageLibrary {
     this.fallbackRescanTimer = null;
     this.fallbackRescanDelayMs = FALLBACK_RESCAN_INITIAL_DELAY_MS;
     this.rescanPromise = null;
+    this.initialScanPromise = null;
+    this.lifecycleVersion = 0;
+    this.closed = true;
   }
 
-  async start() {
+  async start({ deferInitialScan = false } = {}) {
+    const lifecycleVersion = ++this.lifecycleVersion;
+    this.closed = false;
+    this.initialScanPromise = null;
     await mkdir(this.dataDir, { recursive: true });
     await mkdir(this.sourceRoot, { recursive: true });
+    if (!this.isLifecycleActive(lifecycleVersion, { requireDatabase: false })) {
+      return { imported: 0, total: 0 };
+    }
 
     this.database = new DatabaseSync(this.databasePath);
     this.database.exec(`
@@ -187,20 +196,51 @@ export class ImageLibrary {
       CREATE INDEX IF NOT EXISTS thread_sources_project_id_idx ON thread_sources(project_id);
     `);
 
-    const imported = await this.rescan();
-    if (this.watchSource) {
-      this.watcher = this.watchFactory(this.sourceRoot, { recursive: true }, (_eventType, filename) => {
-        if (!filename) return;
-        const sourcePath = path.resolve(this.sourceRoot, filename);
-        if (isPng(filename)) this.scheduleImport(sourcePath);
-        else if (!path.extname(sourcePath)) this.scheduleRescan();
-      });
-      this.watcher.on("error", (error) => {
-        this.logger.error("Image watcher failed", error);
-        this.startFallbackRescan();
-      });
+    const initialScan = () => this.completeInitialScan(lifecycleVersion);
+    if (deferInitialScan) {
+      return { imported: 0, total: this.count(), initialScan };
     }
-    return { imported, total: this.count() };
+    return initialScan();
+  }
+
+  isLifecycleActive(lifecycleVersion = this.lifecycleVersion, { requireDatabase = true } = {}) {
+    return !this.closed
+      && lifecycleVersion === this.lifecycleVersion
+      && (!requireDatabase || this.database !== null);
+  }
+
+  completeInitialScan(lifecycleVersion) {
+    if (!this.isLifecycleActive(lifecycleVersion)) {
+      return Promise.resolve({ imported: 0, total: 0 });
+    }
+    if (this.initialScanPromise) return this.initialScanPromise;
+    this.initialScanPromise = (async () => {
+      const imported = await this.rescan();
+      if (!this.isLifecycleActive(lifecycleVersion)) return { imported: 0, total: 0 };
+      this.startWatching(lifecycleVersion);
+      return { imported, total: this.count() };
+    })();
+    return this.initialScanPromise;
+  }
+
+  startWatching(lifecycleVersion = this.lifecycleVersion) {
+    if (!this.watchSource || this.watcher || !this.isLifecycleActive(lifecycleVersion)) return;
+    const watcher = this.watchFactory(this.sourceRoot, { recursive: true }, (_eventType, filename) => {
+      if (!filename || !this.isLifecycleActive(lifecycleVersion)) return;
+      const sourcePath = path.resolve(this.sourceRoot, filename);
+      if (isPng(filename)) this.scheduleImport(sourcePath);
+      else if (!path.extname(sourcePath)) this.scheduleRescan();
+    });
+    if (!this.isLifecycleActive(lifecycleVersion)) {
+      watcher.close();
+      return;
+    }
+    this.watcher = watcher;
+    watcher.on("error", (error) => {
+      if (!this.isLifecycleActive(lifecycleVersion)) return;
+      this.logger.error("Image watcher failed", error);
+      this.startFallbackRescan();
+    });
   }
 
   count(options = {}) {
@@ -335,7 +375,7 @@ export class ImageLibrary {
   }
 
   async syncThreadMetadata(threadIds = null) {
-    if (!this.threadMetadata) return;
+    if (!this.threadMetadata || !this.isLifecycleActive()) return;
     const ids = threadIds ?? this.database
       .prepare("SELECT DISTINCT thread_id FROM images")
       .all()
@@ -356,6 +396,7 @@ export class ImageLibrary {
     const now = new Date().toISOString();
     for (const threadId of ids) {
       const metadata = await this.threadMetadata.get(threadId);
+      if (!this.isLifecycleActive()) return;
       if (!metadata) continue;
       upsert.run(
         threadId,
@@ -394,19 +435,24 @@ export class ImageLibrary {
 
   async performRescan() {
     await this.threadMetadata?.refresh();
+    if (!this.isLifecycleActive()) return 0;
     const files = await collectPngFiles(this.sourceRoot);
+    if (!this.isLifecycleActive()) return 0;
     let imported = 0;
     for (const filePath of files) {
+      if (!this.isLifecycleActive()) return imported;
       if (await this.importImage(filePath)) imported += 1;
     }
-    await this.syncThreadMetadata();
+    if (this.isLifecycleActive()) await this.syncThreadMetadata();
     return imported;
   }
 
   scheduleImport(sourcePath) {
+    if (!this.isLifecycleActive()) return;
     clearTimeout(this.pendingImports.get(sourcePath));
     const timer = setTimeout(() => {
       this.pendingImports.delete(sourcePath);
+      if (!this.isLifecycleActive()) return;
       Promise.resolve(this.threadMetadata?.refresh())
         .then(() => this.importImage(sourcePath))
         .catch((error) => {
@@ -417,9 +463,11 @@ export class ImageLibrary {
   }
 
   scheduleRescan() {
+    if (!this.isLifecycleActive()) return;
     clearTimeout(this.pendingRescan);
     this.pendingRescan = setTimeout(() => {
       this.pendingRescan = null;
+      if (!this.isLifecycleActive()) return;
       this.rescan().catch((error) => this.logger.warn("Could not rescan Images", error.message));
     }, 400);
   }
@@ -428,12 +476,12 @@ export class ImageLibrary {
     if (this.fallbackRescanTimer !== null) return;
     const tick = () => {
       this.fallbackRescanTimer = null;
-      if (!this.database) return;
+      if (!this.isLifecycleActive()) return;
       const delay = this.fallbackRescanDelayMs;
       this.rescan()
         .catch((error) => this.logger.warn("Could not rescan Images", error.message))
         .finally(() => {
-          if (!this.database) return;
+          if (!this.isLifecycleActive()) return;
           this.fallbackRescanDelayMs = Math.min(delay * 2, FALLBACK_RESCAN_MAX_DELAY_MS);
           this.fallbackRescanTimer = setTimeout(tick, this.fallbackRescanDelayMs);
         });
@@ -442,7 +490,7 @@ export class ImageLibrary {
   }
 
   async importImage(sourcePath) {
-    if (!isPng(sourcePath)) return false;
+    if (!isPng(sourcePath) || !this.isLifecycleActive()) return false;
 
     let sourceStat;
     try {
@@ -454,6 +502,7 @@ export class ImageLibrary {
       }
       throw error;
     }
+    if (!this.isLifecycleActive()) return false;
     if (!sourceStat.isFile()) return false;
 
     const relativePath = path.relative(this.sourceRoot, sourcePath);
@@ -475,6 +524,7 @@ export class ImageLibrary {
     ) return false;
 
     const { width, height } = await readPngSize(sourcePath);
+    if (!this.isLifecycleActive()) return false;
     const now = new Date().toISOString();
     const createdAt = new Date(sourceStat.birthtimeMs || sourceStat.mtimeMs).toISOString();
 
@@ -510,7 +560,10 @@ export class ImageLibrary {
   }
 
   close() {
+    this.closed = true;
+    this.lifecycleVersion += 1;
     this.watcher?.close();
+    this.watcher = null;
     for (const timer of this.pendingImports.values()) clearTimeout(timer);
     this.pendingImports.clear();
     clearTimeout(this.pendingRescan);

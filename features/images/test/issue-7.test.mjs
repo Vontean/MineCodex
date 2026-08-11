@@ -45,7 +45,7 @@ test("Images source selector implements the complete listbox keyboard model", as
   assert.match(html, /aria-controls="source-menu"/);
   assert.match(html, /class="source-menu" id="source-menu" role="listbox"/);
   assert.match(app, /function moveSourceOption\(/);
-  for (const key of ["ArrowDown", "ArrowUp", "Home", "End", "Escape", "Enter"]) {
+  for (const key of ["ArrowDown", "ArrowUp", "Home", "End", "Escape", "Enter", "Tab"]) {
     assert.match(app, new RegExp(`event\\.key === "${key}"`));
   }
   assert.match(app, /aria-selected/);
@@ -54,4 +54,15 @@ test("Images source selector implements the complete listbox keyboard model", as
   assert.match(focusFunction, /option\.dataset\.scope === selectedScope/);
   assert.doesNotMatch(focusFunction, /String\(optionIndex === activeIndex\)/);
   assert.match(app, /filterButton\.focus\(\)/);
+
+  const triggerKeydown = app.match(/filterButton\.addEventListener\("keydown",[\s\S]*?\n\}\);/)?.[0] ?? "";
+  assert.match(triggerKeydown, /event\.key === "Home"[\s\S]*openSourceMenu\(\{ focusIndex: 0 \}\)/);
+  assert.match(triggerKeydown, /event\.key === "End"[\s\S]*openSourceMenu\(\{ focusIndex: sourceOptions\(\)\.length - 1 \}\)/);
+
+  const menuKeydown = app.match(/sourceMenu\.addEventListener\("keydown",[\s\S]*?\n\}\);/)?.[0] ?? "";
+  const tabBranch = menuKeydown.match(/event\.key === "Tab"\) \{[\s\S]*?\n  \}/)?.[0] ?? "";
+  assert.match(tabBranch, /closeSourceMenu\(\)/);
+  assert.doesNotMatch(tabBranch, /preventDefault/);
+  const detailTabModel = app.match(/function trapDetailContextFocus\(event\) \{[\s\S]*?\n\}/)?.[0] ?? "";
+  assert.match(detailTabModel, /!sourceMenu\.hidden/);
 });

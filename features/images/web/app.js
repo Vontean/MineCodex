@@ -244,12 +244,12 @@ function moveSourceOption(delta) {
   setSourceOptionFocus((currentIndex + delta + options.length) % options.length);
 }
 
-function openSourceMenu() {
+function openSourceMenu({ focusIndex = null } = {}) {
   sourceMenu.hidden = false;
   filterButton.setAttribute("aria-expanded", "true");
   const options = sourceOptions();
   const selectedIndex = options.findIndex((option) => option.dataset.scope === selectedScope);
-  setSourceOptionFocus(selectedIndex < 0 ? 0 : selectedIndex);
+  setSourceOptionFocus(focusIndex ?? (selectedIndex < 0 ? 0 : selectedIndex));
 }
 
 async function loadFacets() {
@@ -700,7 +700,7 @@ function detailContextFocusableElements() {
 }
 
 function trapDetailContextFocus(event) {
-  if (!shell.classList.contains("drawer-open") || event.key !== "Tab") return;
+  if (!sourceMenu.hidden || !shell.classList.contains("drawer-open") || event.key !== "Tab") return;
   const focusable = detailContextFocusableElements();
   if (!focusable.length) {
     event.preventDefault();
@@ -867,11 +867,11 @@ filterButton.addEventListener("keydown", (event) => {
     else moveSourceOption(-1);
   } else if (event.key === "Home") {
     event.preventDefault();
-    if (sourceMenu.hidden) openSourceMenu();
+    if (sourceMenu.hidden) openSourceMenu({ focusIndex: 0 });
     else setSourceOptionFocus(0);
   } else if (event.key === "End") {
     event.preventDefault();
-    if (sourceMenu.hidden) openSourceMenu();
+    if (sourceMenu.hidden) openSourceMenu({ focusIndex: sourceOptions().length - 1 });
     else setSourceOptionFocus(sourceOptions().length - 1);
   } else if (event.key === "Enter" || event.key === " ") {
     event.preventDefault();
@@ -883,7 +883,9 @@ filterButton.addEventListener("keydown", (event) => {
 });
 
 sourceMenu.addEventListener("keydown", (event) => {
-  if (event.key === "ArrowDown") {
+  if (event.key === "Tab") {
+    setTimeout(() => closeSourceMenu(), 0);
+  } else if (event.key === "ArrowDown") {
     event.preventDefault();
     moveSourceOption(1);
   } else if (event.key === "ArrowUp") {

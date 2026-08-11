@@ -13,6 +13,10 @@ const SUMMARY_ITEM_LIMIT = 5;
 const TODO_CHANGE_FIELDS = new Set(["body", "completed"]);
 const PROMPT_CHANGE_FIELDS = new Set(["title", "body", "starred"]);
 
+function scheduleCleanupOnNextTurn(callback) {
+  setImmediate(callback);
+}
+
 const MIME_TYPES = new Map([
   [".avif", "image/avif"],
   [".css", "text/css"],
@@ -194,6 +198,7 @@ export class CodexNotesProduct extends EventEmitter {
     fileCleanupConcurrency = DEFAULT_FILE_CLEANUP_CONCURRENCY,
     fileStatTimeoutMs = DEFAULT_FILE_STAT_TIMEOUT_MS,
     fileStat = stat,
+    cleanupScheduler = scheduleCleanupOnNextTurn,
   }) {
     super();
     if (!databasePath) throw new Error("databasePath is required");
@@ -204,6 +209,7 @@ export class CodexNotesProduct extends EventEmitter {
     this.fileCleanupConcurrency = fileCleanupConcurrency;
     this.fileStatTimeoutMs = fileStatTimeoutMs;
     this.fileStat = fileStat;
+    this.cleanupScheduler = cleanupScheduler;
     if (!Number.isFinite(fileCleanupIntervalMs) || fileCleanupIntervalMs < 0) {
       throw new Error("fileCleanupIntervalMs must be a non-negative number");
     }
@@ -214,6 +220,7 @@ export class CodexNotesProduct extends EventEmitter {
       throw new Error("fileStatTimeoutMs must be a positive number");
     }
     if (typeof fileStat !== "function") throw new Error("fileStat must be a function");
+    if (typeof cleanupScheduler !== "function") throw new Error("cleanupScheduler must be a function");
     this.fileCleanupPromise = null;
     this.lastFileCleanupAt = Number.NEGATIVE_INFINITY;
     this.db = null;
@@ -343,35 +350,45 @@ export class CodexNotesProduct extends EventEmitter {
     const now = this.cleanupClock();
     if (!force && now - this.lastFileCleanupAt < this.fileCleanupIntervalMs) return [];
     this.lastFileCleanupAt = now;
-    this.fileCleanupPromise = (async () => {
-      const rows = this.db.prepare("SELECT id, canonical_path FROM files").all();
-      const checks = await mapWithConcurrency(rows, this.fileCleanupConcurrency, async (row) => {
-        try {
-          const info = await statWithin(this.fileStat, row.canonical_path, this.fileStatTimeoutMs);
-          if (!info) return null;
-          return info.isFile() ? null : row.id;
-        } catch (error) {
-          return isConfirmedMissing(error) ? row.id : null;
-        }
-      });
-      const missing = checks.filter(Boolean);
-      if (missing.length === 0) return [];
-      const stillPresent = this.db.prepare("SELECT 1 FROM files WHERE id = ?");
-      const removable = missing.filter((id) => stillPresent.get(id));
-      if (removable.length === 0) return [];
-      const { result } = this.mutate("files:missing-removed", () => {
-        const remove = this.db.prepare("DELETE FROM files WHERE id = ?");
-        let removed = 0;
-        for (const id of removable) removed += remove.run(id).changes;
-        return removed;
-      });
-      return result > 0 ? removable : [];
-    })();
+    this.fileCleanupPromise = new Promise((resolve, reject) => {
+      try {
+        this.cleanupScheduler(() => {
+          this.performMissingFileCleanup().then(resolve, reject);
+        });
+      } catch (error) {
+        reject(error);
+      }
+    });
     try {
       return await this.fileCleanupPromise;
     } finally {
       this.fileCleanupPromise = null;
     }
+  }
+
+  async performMissingFileCleanup() {
+    const rows = this.db.prepare("SELECT id, canonical_path FROM files").all();
+    const checks = await mapWithConcurrency(rows, this.fileCleanupConcurrency, async (row) => {
+      try {
+        const info = await statWithin(this.fileStat, row.canonical_path, this.fileStatTimeoutMs);
+        if (!info) return null;
+        return info.isFile() ? null : row.id;
+      } catch (error) {
+        return isConfirmedMissing(error) ? row.id : null;
+      }
+    });
+    const missing = checks.filter(Boolean);
+    if (missing.length === 0) return [];
+    const stillPresent = this.db.prepare("SELECT 1 FROM files WHERE id = ?");
+    const removable = missing.filter((id) => stillPresent.get(id));
+    if (removable.length === 0) return [];
+    const { result } = this.mutate("files:missing-removed", () => {
+      const remove = this.db.prepare("DELETE FROM files WHERE id = ?");
+      let removed = 0;
+      for (const id of removable) removed += remove.run(id).changes;
+      return removed;
+    });
+    return result > 0 ? removable : [];
   }
 
   removeMissingFile(id) {

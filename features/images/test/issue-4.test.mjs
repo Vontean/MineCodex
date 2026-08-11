@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { EventEmitter } from "node:events";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { request as httpRequest } from "node:http";
 import os from "node:os";
@@ -61,6 +62,138 @@ async function createImageFixture({ threadCount = 1, sessionRoots = [], promptIn
     },
   };
 }
+
+test("deferred Images startup exposes health before scanning and watches only after the scan", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "minecodex-images-startup-"));
+  const sourceRoot = path.join(root, "generated_images");
+  const dataDir = path.join(root, "library");
+  const threadDir = path.join(sourceRoot, "thread-startup");
+  await mkdir(threadDir, { recursive: true });
+  await writeFile(path.join(threadDir, "image-startup.png"), ONE_PIXEL_PNG);
+
+  let markScanStarted;
+  let releaseScan;
+  const scanStarted = new Promise((resolve) => { markScanStarted = resolve; });
+  const scanReleased = new Promise((resolve) => { releaseScan = resolve; });
+  let refreshCalls = 0;
+  const threadMetadata = {
+    async refresh() {
+      refreshCalls += 1;
+      markScanStarted();
+      await scanReleased;
+    },
+    get() { return null; },
+    close() {},
+  };
+  const watcher = new EventEmitter();
+  watcher.close = () => {};
+  let watcherCreates = 0;
+  const library = new ImageLibrary({
+    sourceRoot,
+    dataDir,
+    threadMetadata,
+    watchFactory(_root, _options, _listener) {
+      watcherCreates += 1;
+      return watcher;
+    },
+  });
+  let server = null;
+  try {
+    const startAttempt = library.start({ deferInitialScan: true });
+    const deferred = await Promise.race([
+      startAttempt,
+      new Promise((resolve) => setTimeout(() => resolve(null), 25)),
+    ]);
+    if (!deferred) {
+      releaseScan();
+      await startAttempt;
+      assert.fail("deferred start waited for the initial recursive scan");
+    }
+
+    assert.equal(refreshCalls, 0, "deferred start initializes storage without beginning the scan");
+    assert.equal(watcherCreates, 0);
+    server = await createHttpServer({
+      library,
+      webDir: WEB_ROOT,
+      port: 0,
+      instanceId: "images-startup-test-instance",
+    });
+
+    const initialScan = deferred.initialScan();
+    await scanStarted;
+    const health = await fetch(`${server.origin}/api/health`);
+    assert.equal(health.status, 200);
+    assert.deepEqual(await health.json(), {
+      ok: true,
+      service: "images",
+      protocolVersion: 1,
+      instanceId: "images-startup-test-instance",
+      images: 0,
+    });
+    assert.equal(watcherCreates, 0, "watching begins only after the initial scan completes");
+
+    releaseScan();
+    assert.deepEqual(await initialScan, { imported: 1, total: 1 });
+    assert.equal(watcherCreates, 1);
+
+    const main = await readFile(new URL("../src/main.mjs", import.meta.url), "utf8");
+    const initializeAt = main.indexOf("library.start({ deferInitialScan: true })");
+    const httpAt = main.indexOf("createHttpServer(");
+    const scanAt = main.indexOf("startup.initialScan()");
+    assert.ok(initializeAt >= 0 && initializeAt < httpAt && httpAt < scanAt,
+      "main initializes the database, starts HTTP, then launches the background scan");
+  } finally {
+    releaseScan?.();
+    if (server) await server.close();
+    library.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("closing Images during its initial scan cannot create a watcher afterward", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "minecodex-images-startup-close-"));
+  const sourceRoot = path.join(root, "generated_images");
+  const dataDir = path.join(root, "library");
+  await mkdir(sourceRoot, { recursive: true });
+
+  let markScanStarted;
+  let releaseScan;
+  const scanStarted = new Promise((resolve) => { markScanStarted = resolve; });
+  const scanReleased = new Promise((resolve) => { releaseScan = resolve; });
+  const threadMetadata = {
+    async refresh() {
+      markScanStarted();
+      await scanReleased;
+    },
+    get() { return null; },
+    close() {},
+  };
+  let watcherCreates = 0;
+  const library = new ImageLibrary({
+    sourceRoot,
+    dataDir,
+    threadMetadata,
+    watchFactory() {
+      watcherCreates += 1;
+      const watcher = new EventEmitter();
+      watcher.close = () => {};
+      return watcher;
+    },
+  });
+  try {
+    const startup = await library.start({ deferInitialScan: true });
+    const initialScan = startup.initialScan();
+    await scanStarted;
+    library.close();
+    releaseScan();
+    assert.deepEqual(await initialScan, { imported: 0, total: 0 });
+    assert.equal(watcherCreates, 0);
+  } finally {
+    releaseScan?.();
+    library.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});
 
 test("Images health and mutation routes require the exact bound loopback origin", async () => {
   const fixture = await createImageFixture();
