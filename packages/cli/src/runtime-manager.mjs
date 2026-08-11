@@ -148,6 +148,11 @@ export class RuntimeManager {
     this.stopping = false;
     const config = await readConfig(this.paths.configPath);
     const features = enabledFeatureIds(config);
+    const codexInstallation = typeof this.platform?.codex === "function"
+      ? await this.platform.codex()
+      : null;
+    const codexExecutable = codexInstallation?.executable
+      ?? process.env.MINECODEX_CODEX_EXECUTABLE;
     await mkdir(this.paths.supportDir, { recursive: true, mode: 0o700 });
     await unlink(this.paths.runtimeReadyPath).catch((error) => {
       if (error.code !== "ENOENT") throw error;
@@ -164,6 +169,7 @@ export class RuntimeManager {
         MINECODEX_ENABLED_FEATURES: features.join(","),
         MINECODEX_CODEX_PID_FILE: this.paths.codexPidPath,
         MINECODEX_RUNTIME_READY_FILE: this.paths.runtimeReadyPath,
+        ...(codexExecutable ? { MINECODEX_CODEX_EXECUTABLE: codexExecutable } : {}),
       },
       stdio: "inherit",
     });

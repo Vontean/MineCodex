@@ -337,7 +337,7 @@ test("uninstall does not purge when managed Codex shutdown fails and restores se
   assert.equal(await readFile(path.join(imagesDataDir, "keep-check"), "utf8"), "data");
 });
 
-test("mcx open never places the long-lived control token in the browser URL", async () => {
+test("mcx open starts an installed stopped service and uses a fresh exchange URL each time", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "minecodex-open-exchange-"));
   const tokenPath = path.join(root, "control-token");
   await writeFile(tokenPath, "long-lived-secret\n", { mode: 0o600 });
@@ -361,16 +361,34 @@ test("mcx open never places the long-lived control token in the browser URL", as
   const launchAgentPath = path.join(root, "LaunchAgents", "minecodex.plist");
   await mkdir(path.dirname(launchAgentPath), { recursive: true });
   await writeFile(launchAgentPath, "plist");
-  const platform = { openBrowser: async (url) => opened.push(url) };
+  const openPaths = { tokenPath, launchAgentPath };
+  let startServiceCalls = 0;
+  let startedWith = null;
+  const platform = {
+    startService: async (paths) => { startServiceCalls += 1; startedWith = paths; },
+    openBrowser: async (url) => opened.push(url),
+  };
+  const serviceResults = [false, true, true];
   try {
     await runCli(["open"], {
-      paths: { tokenPath, launchAgentPath },
+      paths: openPaths,
       platform,
-      serviceProbe: { waitForService: async () => true },
+      serviceProbe: { waitForService: async () => serviceResults.shift() },
     });
-    assert.equal(opened.length, 1);
-    assert.match(opened[0], /\/auth\?exchange=/);
-    assert.doesNotMatch(opened[0], /long-lived-secret|[?&]token=/);
+    await runCli(["open"], {
+      paths: openPaths,
+      platform,
+      serviceProbe: { waitForService: async () => serviceResults.shift() },
+    });
+    assert.equal(startServiceCalls, 1);
+    assert.equal(startedWith, openPaths);
+    assert.equal(opened.length, 2);
+    assert.notEqual(opened[0], opened[1]);
+    for (const url of opened) {
+      assert.match(url, /\/auth\?exchange=/);
+      assert.doesNotMatch(url, /long-lived-secret|[?&]token=/);
+    }
+    assert.deepEqual(serviceResults, []);
   } finally {
     if (previousPort === undefined) delete process.env.MINECODEX_CONTROL_PORT;
     else process.env.MINECODEX_CONTROL_PORT = previousPort;

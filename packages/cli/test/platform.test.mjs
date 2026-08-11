@@ -107,3 +107,50 @@ test("MacPlatformAdapter snapshots and restores launchd state through injected f
   assert.ok(calls.some(([command]) => command === "bootstrap"));
   assert.ok(calls.every((args) => args.at(-1) !== "/Applications/ChatGPT.app"));
 });
+
+test("MacPlatformAdapter bootstraps an absent installed job before kickstarting its exact target", async () => {
+  const launchAgentPath = "/Users/example/Library/LaunchAgents/com.vontean.minecodex.plist";
+  const calls = [];
+  let loaded = false;
+  const adapter = new MacPlatformAdapter({
+    uid: 501,
+    platform: "darwin",
+    execFile: async (file, args) => {
+      calls.push([file, args]);
+      if (args[0] === "print" && !loaded) {
+        throw Object.assign(new Error("service not found"), { stderr: "Could not find service" });
+      }
+      if (args[0] === "bootstrap") loaded = true;
+      if (args[0] === "kickstart" && !loaded) {
+        throw Object.assign(new Error("service not found"), { stderr: "Could not find service" });
+      }
+      return { stdout: "" };
+    },
+  });
+
+  await adapter.startService({ launchAgentPath });
+
+  assert.deepEqual(calls, [
+    ["/bin/launchctl", ["print", `gui/501/${SERVICE_LABEL}`]],
+    ["/bin/launchctl", ["bootstrap", "gui/501", launchAgentPath]],
+    ["/bin/launchctl", ["kickstart", "-k", `gui/501/${SERVICE_LABEL}`]],
+  ]);
+});
+
+test("MacPlatformAdapter only kickstarts the exact target when the job is already loaded", async () => {
+  const calls = [];
+  const adapter = new MacPlatformAdapter({
+    uid: 501,
+    platform: "darwin",
+    execFile: async (file, args) => { calls.push([file, args]); return { stdout: "" }; },
+  });
+
+  await adapter.startService({
+    launchAgentPath: "/Users/example/Library/LaunchAgents/com.vontean.minecodex.plist",
+  });
+
+  assert.deepEqual(calls, [
+    ["/bin/launchctl", ["print", `gui/501/${SERVICE_LABEL}`]],
+    ["/bin/launchctl", ["kickstart", "-k", `gui/501/${SERVICE_LABEL}`]],
+  ]);
+});

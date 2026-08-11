@@ -252,6 +252,13 @@ export class MacPlatformAdapter {
     }
   }
 
+  async startService(paths) {
+    if (!(await this.isServiceRunning())) {
+      await this.execFile("/bin/launchctl", ["bootstrap", `gui/${this.uid}`, paths.launchAgentPath]);
+    }
+    await this.execFile("/bin/launchctl", ["kickstart", "-k", serviceTarget(this.uid)]);
+  }
+
   async assertServiceStopped() {
     if (await this.isServiceRunning()) throw new Error("MineCodex launchd service is still running.");
   }

@@ -19,6 +19,9 @@ test("Dashboard has a per-card DOM update seam and all truthful runtime states",
   assert.match(app, /runtimeNotInjected/);
   assert.match(app, /updatePluginCard\(card, previousFeature\)/);
   assert.match(app, /saved|launching|injected|healthy|failed|stopped|restart-required/);
+  assert.match(app, /injected: "Active in Codex"/);
+  assert.match(app, /injected: "已在 Codex 中生效"/);
+  assert.doesNotMatch(app, /Injected in Codex|已注入 Codex/);
   assert.doesNotMatch(app, /pluginList\.innerHTML/);
   assert.doesNotMatch(app, /state\.features = result\.features/);
   assert.match(app, /data-feature-id/);

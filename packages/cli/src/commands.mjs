@@ -152,7 +152,7 @@ async function openCommand({ paths, platform, serviceProbe, fetchImpl }) {
   const waitForServiceImpl = serviceProbe?.waitForService ?? waitForService;
   if (!(await waitForServiceImpl(DEFAULT_CONTROL_PORT, { fetchImpl, timeoutMs: 750 }))) {
     if (!(await exists(paths.launchAgentPath))) throw new Error("MineCodex is not installed. Run `mcx install` first.");
-    await platform.startService();
+    await platform.startService(paths);
     if (!(await waitForServiceImpl(DEFAULT_CONTROL_PORT, { fetchImpl }))) throw new Error("MineCodex service could not be started.");
   }
   const exchangeResponse = await authorizedFetch(paths, "/api/auth/exchange", {
