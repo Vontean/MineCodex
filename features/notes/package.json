@@ -1,6 +1,6 @@
 {
   "name": "@minecodex/notes",
-  "version": "0.1.6",
+  "version": "0.1.8",
   "private": true,
   "type": "module",
   "description": "Local-first Todo, Prompts, and Files surfaces for Codex.",

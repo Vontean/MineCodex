@@ -277,7 +277,7 @@ test("emits an isolated conversation-toolbar Adapter with strict Surface and Hos
   assert.match(source, /\{ type: "codex-personal:theme", theme: mode, mode, locale, tokens: surfaceTokens \}/);
   assert.match(source, /data-codex-personal-pinned-summary/);
   assert.match(source, /data-codex-personal-summary-presentation/);
-  assert.match(source, /data-codex-personal-tab-host/);
+  assert.doesNotMatch(source, /data-codex-personal-tab-host/);
   assert.match(source, /Toggle summary/);
   assert.match(source, /Toggle pinned summary/);
   assert.match(source, /function nativeBottomPanelButton\(\)/);
@@ -325,7 +325,6 @@ test("emits an isolated conversation-toolbar Adapter with strict Surface and Hos
   assert.match(source, /function showPromptPreview\(record, payload = \{\}\)/);
   assert.match(source, /preview\.setAttribute\("role", "tooltip"\)/);
   assert.match(source, /preview\.setAttribute\("aria-label", locale === "zh-CN" \? "提示词预览" : "Prompt preview"\)/);
-  assert.match(source, /host\.setAttribute\("aria-label", locale === "zh-CN" \? "CodexNotes 工作区标签页" : "CodexNotes workspace tabs"\)/);
   assert.match(source, /const title = String\(payload\.prompt\?\.title \?\? ""\)\.trim\(\)/);
   assert.match(source, /if \(title\) \{[\s\S]*?preview\.append\(heading\)/s);
   assert.doesNotMatch(source, /\.trim\(\) \|\| "Prompt"/);
@@ -360,7 +359,7 @@ test("emits an isolated conversation-toolbar Adapter with strict Surface and Hos
   assert.match(source, /record\.ready = true/);
 });
 
-test("prefers Codex native Task tabs and keeps the custom tab host as fallback", () => {
+test("opens detail views only in Codex native right-panel tabs", () => {
   const source = createInjectionSource([{
     id: "notes",
     label: "Notes",
@@ -384,6 +383,7 @@ test("prefers Codex native Task tabs and keeps the custom tab host as fallback",
 
   assert.match(source, /function nativeTabModuleUrl\(\)/);
   assert.match(source, /async function loadNativeTabCapability\(\)/);
+  assert.match(source, /async function waitForCurrentTaskScope\(\)/);
   assert.match(source, /const controller = appModule\.Gtt\("right"\)/);
   assert.match(source, /const jsx = appModule\.hkt\(\)/);
   assert.match(source, /const React = appModule\.Skt\(\)/);
@@ -392,18 +392,16 @@ test("prefers Codex native Task tabs and keeps the custom tab host as fallback",
   assert.match(source, /function nativeDetailIcon\(feature, detail, jsx\)/);
   assert.match(source, /const icon = detail\.icon \?\? feature\.icon/);
   assert.match(source, /icon: nativeDetailIcon\(feature, detail, jsx\)/);
-  assert.match(source, /createMarkupIcon\(detail\.icon \?\? feature\.icon, "icon-xs", 16\)/);
   assert.match(source, /React\.useLayoutEffect\(\(\) => \{/);
   assert.match(source, /registerSurface\(recordKey, feature, "detail", detail\.surfaceUrl, element, frame, detail\.id\)/);
   assert.match(source, /controller\.openTab\(scope, nativeDetailComponent\(feature, detail, capability\)/);
   assert.match(source, /id: tabId,[\s\S]*?isClosable: true,[\s\S]*?onClose:/s);
   assert.match(source, /presentation: "native"/);
-  assert.match(source, /function openFallbackDetailTab\(feature, detail\)/);
-  assert.match(source, /presentation: "fallback"/);
-  assert.match(
-    source,
-    /return await openNativeDetailTab\(feature, detail\)[\s\S]*?\?\? openFallbackDetailTab\(feature, detail\)/s,
-  );
+  assert.doesNotMatch(source, /function openFallbackDetailTab\(feature, detail\)/);
+  assert.doesNotMatch(source, /presentation: "fallback"/);
+  assert.doesNotMatch(source, /data-codex-personal-tab-host/);
+  assert.match(source, /const result = await openNativeDetailTab\(feature, detail\)/);
+  assert.match(source, /if \(!result\) throw nativeTabCapabilityError/);
   assert.match(source, /result: await openDetailTab\(feature\.id, payload\.surface\)/);
   assert.match(source, /detailTabCapability/);
   assert.match(source, /closeNativeDetailTabs\(\)/);

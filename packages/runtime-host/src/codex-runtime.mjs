@@ -248,15 +248,12 @@ export function createInjectionSource(features, {
     const pageSurfaces = new Map();
     const pinnedSurfaces = new Map();
     const surfaceRecords = new Map();
-    const openTabs = new Map();
     const nativeDetailComponents = new Map();
     const nativeDetailSurfaceKeys = new Map();
     const nativeOpenTabSessions = new Set();
     const summaryStates = new Map();
     let activePageFeatureId = null;
     let activePinnedFeatureId = null;
-    let activeTabKey = null;
-    let tabHost = null;
     let ensureQueued = false;
     let ensureFrame = null;
     let ensureTimer = null;
@@ -2772,12 +2769,32 @@ export function createInjectionSource(features, {
       return null;
     }
 
+    async function waitForCurrentTaskScope() {
+      const deadline = performance.now() + 2_000;
+      do {
+        const scope = currentTaskScope();
+        if (scope) return scope;
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      } while (performance.now() < deadline);
+      return null;
+    }
+
+    async function waitForNativeTabModuleUrl() {
+      const deadline = performance.now() + 2_000;
+      do {
+        const moduleUrl = nativeTabModuleUrl();
+        if (moduleUrl) return moduleUrl;
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      } while (performance.now() < deadline);
+      return null;
+    }
+
     async function loadNativeTabCapability() {
       if (nativeTabCapability) return nativeTabCapability;
       if (nativeTabCapabilityPromise) return nativeTabCapabilityPromise;
       nativeTabCapabilityPromise = (async () => {
         try {
-          const moduleUrl = nativeTabModuleUrl();
+          const moduleUrl = await waitForNativeTabModuleUrl();
           if (!moduleUrl) throw new Error("Codex app-initial modulepreload was not found");
           const appModule = await import(moduleUrl);
           if (typeof appModule.Gtt !== "function") {
@@ -2810,7 +2827,9 @@ export function createInjectionSource(features, {
           return null;
         }
       })();
-      return nativeTabCapabilityPromise;
+      const capability = await nativeTabCapabilityPromise;
+      if (!capability) nativeTabCapabilityPromise = null;
+      return capability;
     }
 
     function nativeDetailIcon(feature, detail, jsx) {
@@ -2907,7 +2926,7 @@ export function createInjectionSource(features, {
     async function openNativeDetailTab(feature, detail) {
       const capability = await loadNativeTabCapability();
       if (!capability) return null;
-      const scope = currentTaskScope();
+      const scope = await waitForCurrentTaskScope();
       if (!scope) {
         nativeTabCapabilityError = new Error("The current Codex Task scope was not found");
         return null;
@@ -2949,14 +2968,12 @@ export function createInjectionSource(features, {
 
       nativeTabCapabilityError = null;
       if (focusedExisting) reloadNativeDetailIfUnready(feature, detail);
-      const fallbackKey = `${feature.id}:${detail.id}`;
-      if (openTabs.has(fallbackKey)) closeDetailTab(fallbackKey);
       return { tabId, focusedExisting, presentation: "native" };
     }
 
     function detailTabCapability() {
       return {
-        presentation: nativeTabCapability ? "native" : "fallback",
+        presentation: nativeTabCapability ? "native" : "unavailable",
         moduleAsset: nativeTabCapability?.moduleAsset ?? null,
         error: nativeTabCapabilityError?.message ?? null,
         openNativeTabs: nativeOpenTabSessions.size,
@@ -2974,185 +2991,14 @@ export function createInjectionSource(features, {
       nativeDetailSurfaceKeys.clear();
     }
 
-    function updateTabHostGeometry() {
-      if (!tabHost?.isConnected) return;
-      const width = Math.min(620, Math.max(360, innerWidth * 0.44));
-      tabHost.style.width = `${Math.min(width, Math.max(300, innerWidth - 72))}px`;
-    }
-
-    function createTabHost() {
-      const host = document.createElement("aside");
-      host.setAttribute("data-codex-personal-tab-host", "right");
-      host.setAttribute("aria-label", locale === "zh-CN" ? "CodexNotes 工作区标签页" : "CodexNotes workspace tabs");
-      host.style.cssText = [
-        "position:fixed",
-        "top:46px",
-        "bottom:0",
-        "right:0",
-        "z-index:42",
-        "display:flex",
-        "flex-direction:column",
-        "min-width:300px",
-        "background:var(--color-token-main-surface-primary)",
-        "border-left:0.5px solid var(--color-border)",
-        "box-shadow:-8px 0 16px -12px rgba(0,0,0,.24)",
-      ].join(";");
-      const header = document.createElement("div");
-      header.style.cssText = [
-        "height:46px",
-        "display:flex",
-        "align-items:center",
-        "padding:0 8px",
-        "flex:0 0 auto",
-        "background:var(--color-token-main-surface-primary)",
-      ].join(";");
-      const strip = document.createElement("div");
-      strip.setAttribute("data-app-shell-tab-strip-controller", "right");
-      strip.setAttribute("data-codex-personal-tab-strip", "true");
-      strip.setAttribute("role", "tablist");
-      strip.style.cssText = "display:flex;align-items:center;gap:4px;min-width:0;flex:1;overflow-x:auto;height:100%";
-      header.append(strip);
-      const panels = document.createElement("div");
-      panels.setAttribute("data-codex-personal-tab-panels", "true");
-      panels.style.cssText = "position:relative;min-height:0;flex:1;background:var(--color-token-main-surface-primary)";
-      host.append(header, panels);
-      document.body.append(host);
-      tabHost = host;
-      updateTabHostGeometry();
-      return host;
-    }
-
-    function activateTab(key) {
-      const record = openTabs.get(key);
-      if (!record) return;
-      activeTabKey = key;
-      for (const [candidateKey, candidate] of openTabs) {
-        const active = candidateKey === key;
-        candidate.tabButton.setAttribute("aria-selected", String(active));
-        candidate.tab.style.setProperty(
-          "--app-shell-tab-background",
-          active
-            ? "color-mix(in srgb, var(--color-text-foreground) 5%, var(--color-token-main-surface-primary))"
-            : "transparent",
-        );
-        candidate.panel.hidden = !active;
-      }
-      record.tabButton.focus({ preventScroll: true });
-      queueTheme();
-    }
-
-    function closeDetailTab(key) {
-      const record = openTabs.get(key);
-      if (!record) return;
-      const keys = Array.from(openTabs.keys());
-      const index = keys.indexOf(key);
-      record.tab.remove();
-      record.panel.remove();
-      removeSurfaceRecord(record.surfaceRecordKey);
-      openTabs.delete(key);
-      if (openTabs.size === 0) {
-        tabHost?.remove();
-        tabHost = null;
-        activeTabKey = null;
-        updateResponsiveSummaryPresentation();
-        return;
-      }
-      if (activeTabKey === key) {
-        const remainingKeys = Array.from(openTabs.keys());
-        activateTab(remainingKeys[Math.min(index, remainingKeys.length - 1)]);
-      }
-      updateResponsiveSummaryPresentation();
-    }
-
-    function createDetailTab(feature, detail) {
-      const host = tabHost?.isConnected ? tabHost : createTabHost();
-      const strip = host.querySelector("[data-codex-personal-tab-strip]");
-      const panels = host.querySelector("[data-codex-personal-tab-panels]");
-      const key = `${feature.id}:${detail.id}`;
-      const stableId = `${feature.id}-${detail.id}`;
-
-      const tab = document.createElement("div");
-      tab.setAttribute("data-app-shell-tab-controller", "right");
-      tab.setAttribute("data-tab-id", stableId);
-      tab.style.cssText = [
-        "position:relative",
-        "display:flex",
-        "align-items:center",
-        "min-width:90px",
-        "max-width:160px",
-        "height:28px",
-        "padding:0 4px 0 8px",
-        "border-radius:8px",
-        "background:var(--app-shell-tab-background,transparent)",
-        "flex:1 0 110px",
-      ].join(";");
-      const tabButton = document.createElement("button");
-      tabButton.type = "button";
-      tabButton.setAttribute("role", "tab");
-      tabButton.setAttribute("aria-selected", "false");
-      tabButton.style.cssText = "display:flex;align-items:center;gap:7px;min-width:0;flex:1;height:100%;padding:0;background:transparent;border:0;color:var(--color-text-foreground);cursor:pointer";
-      const icon = createMarkupIcon(detail.icon ?? feature.icon, "icon-xs", 16);
-      if (icon) tabButton.append(icon);
-      const label = document.createElement("span");
-      label.textContent = detail.label;
-      label.style.cssText = "min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap";
-      tabButton.append(label);
-      tabButton.addEventListener("click", () => activateTab(key));
-      const close = document.createElement("button");
-      close.type = "button";
-      close.textContent = "×";
-      close.setAttribute("data-app-shell-tab-close-button", "true");
-      close.setAttribute(
-        "aria-label",
-        locale === "zh-CN" ? `关闭${detail.label}标签页` : `Close ${detail.label} tab`,
-      );
-      close.style.cssText = "width:20px;height:20px;border:0;border-radius:6px;padding:0;background:transparent;color:var(--color-text-foreground-tertiary);font-size:18px;line-height:18px;cursor:pointer";
-      close.addEventListener("click", (event) => {
-        event.stopPropagation();
-        closeDetailTab(key);
-      });
-      tab.append(tabButton, close);
-
-      const panel = document.createElement("div");
-      panel.setAttribute("role", "tabpanel");
-      panel.setAttribute("aria-label", detail.label);
-      panel.setAttribute("data-app-shell-tab-panel-controller", "right");
-      panel.setAttribute("data-tab-id", stableId);
-      panel.style.cssText = "position:absolute;inset:0;min-height:0;background:var(--color-token-main-surface-primary)";
-      const frame = createFrame(feature.id, detail.label);
-      panel.append(frame);
-      strip.append(tab);
-      panels.append(panel);
-      const recordKey = surfaceKey(feature.id, "detail", detail.id);
-      registerSurface(recordKey, feature, "detail", detail.surfaceUrl, panel, frame, detail.id);
-      const record = { key, feature, detail, tab, tabButton, close, panel, frame, surfaceRecordKey: recordKey };
-      openTabs.set(key, record);
-      return record;
-    }
-
-    function openFallbackDetailTab(feature, detail) {
-      const key = `${feature.id}:${detail.id}`;
-      const existing = openTabs.has(key);
-      if (!existing) createDetailTab(feature, detail);
-      else reloadSurfaceIfUnready(
-        surfaceKey(feature.id, "detail", detail.id),
-        detail.surfaceUrl,
-      );
-      activateTab(key);
-      updateResponsiveSummaryPresentation();
-      return {
-        tabId: `${feature.id}-${detail.id}`,
-        focusedExisting: existing,
-        presentation: "fallback",
-      };
-    }
-
     async function openDetailTab(featureId, detailId) {
       const feature = featureById.get(featureId);
       const detail = feature?.detailTabs?.find((candidate) => candidate.id === detailId);
       if (!feature || !detail) throw new Error("The requested detail Tab is not registered");
-      return await openNativeDetailTab(feature, detail)
-        ?? openFallbackDetailTab(feature, detail);
+      const result = await openNativeDetailTab(feature, detail);
+      if (!result) throw nativeTabCapabilityError
+        ?? new Error("Codex native right-panel tabs are unavailable");
+      return result;
     }
 
     function openThread(threadId) {
@@ -3308,7 +3154,6 @@ export function createInjectionSource(features, {
       checkThreadChange();
       updateSidebarSelectedState();
       updatePageSurfacePositions();
-      updateTabHostGeometry();
       ensureMainContentObserver();
       updateResponsiveSummaryPresentation();
       const nativeToggle = nativeSummaryButton();
@@ -3449,8 +3294,7 @@ export function createInjectionSource(features, {
           const ownEntry = event.target.closest?.(`[${entryMarker}="${activePinnedFeatureId}"]`);
           const rightWorkspaceInteraction = event.target.closest?.(
             '[data-app-shell-tab-strip-controller="right"],'
-            + '[data-app-shell-tab-panel-controller="right"],'
-            + '[data-codex-personal-tab-host="right"]',
+              + '[data-app-shell-tab-panel-controller="right"]',
           );
           const promptPreviewInteraction = event.target.closest?.(`[${promptPreviewMarker}]`);
           if (
@@ -3538,7 +3382,6 @@ export function createInjectionSource(features, {
     window.addEventListener("resize", () => {
       closePromptPreview({ immediate: true });
       updatePageSurfacePositions();
-      updateTabHostGeometry();
       updateResponsiveSummaryPresentation();
     }, { signal: lifetime.signal });
     const ensureObserver = new MutationObserver(queueEnsure);
@@ -3594,9 +3437,7 @@ export function createInjectionSource(features, {
         closeModalSurface();
         closeNativeDetailTabs();
         restoreModelSelectorEnhancements();
-        tabHost?.remove();
         surfaceRecords.clear();
-        openTabs.clear();
         if (window.__codexPersonalRuntime === runtimeApi) delete window.__codexPersonalRuntime;
       },
     };

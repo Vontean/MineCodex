@@ -383,7 +383,8 @@ test("Summary launches a Commit-level editor dialog with role-specific native su
   }
   assert.match(styles, /\.summary-shell\s*\{[^}]*--codex-summary-panel-radius[^}]*--codex-summary-panel-corner-shape/s);
   assert.match(styles, /\.editor-modal-shell\s*\{[^}]*--codex-dialog-radius[^}]*--codex-dialog-corner-shape/s);
-  assert.match(styles, /\.modal-editor-fields input:focus-visible,[\s\S]*?\.modal-editor-fields textarea:focus-visible\s*\{[^}]*box-shadow: inset 0 0 0 2px var\(--notes-focus\)/s);
+  assert.match(styles, /\.modal-editor-fields input:focus-visible,[\s\S]*?\.modal-editor-fields textarea:focus-visible\s*\{[^}]*outline: none[^}]*box-shadow: none/s);
+  assert.doesNotMatch(styles, /\.modal-editor-fields input:focus-visible,[\s\S]*?\.modal-editor-fields textarea:focus-visible\s*\{[^}]*var\(--notes-focus\)/s);
   assert.match(styles, /\.modal-command:focus-visible\s*\{[^}]*outline: 2px solid var\(--notes-focus\)/s);
   assert.match(styles, /\.check-control input:focus-visible \+ \.todo-check-icon\s*\{[^}]*outline: 2px solid var\(--notes-focus\)/s);
   assert.match(app, /if \(ui\.editorSubmitting \|\| ui\.editorMissing\) return/);
