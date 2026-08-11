@@ -1,6 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildLaunchAgent, SERVICE_LABEL } from "../src/platform.mjs";
+import {
+  assertNodeSupported,
+  buildLaunchAgent,
+  CODEX_EXECUTABLE,
+  isExactCodexProcess,
+  MacPlatformAdapter,
+  resolveCodexInstallation,
+  SERVICE_LABEL,
+} from "../src/platform.mjs";
 
 test("launch agent uses the exact installed Node and CLI paths without touching the app bundle", () => {
   const plist = buildLaunchAgent({
@@ -16,4 +24,86 @@ test("launch agent uses the exact installed Node and CLI paths without touching 
   assert.match(plist, /<string>serve<\/string>/);
   assert.match(plist, /<key>RunAtLoad<\/key>\s*<true\/>/);
   assert.doesNotMatch(plist, /ChatGPT\.app|Dock|Info\.plist/);
+});
+
+test("install validates Node 22.5 and resolves only supported system or user Codex paths", async () => {
+  assert.throws(() => assertNodeSupported("22.4.9"), /Node\.js 22\.5\.0 or newer/);
+  assert.doesNotThrow(() => assertNodeSupported("22.5.0"));
+  assert.doesNotThrow(() => assertNodeSupported("23.0.0"));
+
+  const installation = await resolveCodexInstallation({
+    homeDir: "/Users/example",
+    fileExists: async (filePath) => filePath === "/Users/example/Applications/ChatGPT.app/Contents/Info.plist",
+  });
+  assert.deepEqual(installation, {
+    appPath: "/Users/example/Applications/ChatGPT.app",
+    executable: "/Users/example/Applications/ChatGPT.app/Contents/MacOS/ChatGPT",
+  });
+});
+
+test("Codex process matching requires the exact executable and managed profile identity", () => {
+  const installation = {
+    appPath: "/Applications/ChatGPT.app",
+    executable: "/Applications/ChatGPT.app/Contents/MacOS/ChatGPT",
+  };
+  assert.equal(isExactCodexProcess(
+    "/Applications/ChatGPT.app/Contents/MacOS/ChatGPT --user-data-dir=/tmp/minecodex-profile",
+    installation,
+  ), true);
+  assert.equal(isExactCodexProcess(
+    "/Applications/ChatGPT.app/Contents/MacOS/ChatGPT-helper --user-data-dir=/tmp/minecodex-profile",
+    installation,
+  ), false);
+});
+
+test("MacPlatformAdapter snapshots and restores launchd state through injected fakes", async () => {
+  const launchAgentPath = "/tmp/minecodex-platform-fake/agent.plist";
+  const files = new Map([[launchAgentPath, "previous plist"]]);
+  const calls = [];
+  let loaded = true;
+  const fileSystem = {
+    mkdir: async () => {},
+    readFile: async (filePath) => {
+      if (!files.has(filePath)) throw Object.assign(new Error("missing"), { code: "ENOENT" });
+      return files.get(filePath);
+    },
+    stat: async () => ({ mode: 0o600 }),
+    writeFile: async (filePath, content) => { files.set(filePath, content); },
+    unlink: async (filePath) => {
+      if (!files.delete(filePath)) throw Object.assign(new Error("missing"), { code: "ENOENT" });
+    },
+  };
+  const execFile = async (_file, args) => {
+    calls.push(args);
+    if (args[0] === "print" && !loaded) throw Object.assign(new Error("service not found"), { stderr: "Could not find service" });
+    if (args[0] === "bootout") {
+      if (!loaded) throw Object.assign(new Error("service not found"), { stderr: "Could not find service" });
+      loaded = false;
+    }
+    if (args[0] === "bootstrap") loaded = true;
+    if (args[0] === "kickstart") loaded = true;
+    return { stdout: "" };
+  };
+  const adapter = new MacPlatformAdapter({
+    uid: 501,
+    platform: "darwin",
+    execFile,
+    fileSystem,
+    codexInstallation: { appPath: "/Applications/ChatGPT.app", executable: CODEX_EXECUTABLE },
+  });
+  const paths = {
+    launchAgentPath,
+    logsDir: "/tmp/minecodex-platform-fake/logs",
+    serviceLogPath: "/tmp/minecodex-platform-fake/runtime.log",
+    serviceErrorLogPath: "/tmp/minecodex-platform-fake/runtime-error.log",
+  };
+  const snapshot = await adapter.snapshotServiceState(paths);
+  await adapter.installService({ cliPath: "/tmp/mcx.mjs", paths, start: false });
+  assert.equal(loaded, false);
+  assert.notEqual(files.get(launchAgentPath), "previous plist");
+  await adapter.restoreServiceState(snapshot, { paths });
+  assert.equal(loaded, true);
+  assert.equal(files.get(launchAgentPath), "previous plist");
+  assert.ok(calls.some(([command]) => command === "bootstrap"));
+  assert.ok(calls.every((args) => args.at(-1) !== "/Applications/ChatGPT.app"));
 });

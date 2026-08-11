@@ -107,6 +107,8 @@ h2 { font-size: 14px; font-weight: 620; }
 
 .status-dot.is-active { background: var(--success); box-shadow: 0 0 0 3px color-mix(in oklch, var(--success) 14%, transparent); }
 .status-dot.is-warning { background: var(--warning); box-shadow: 0 0 0 3px color-mix(in oklch, var(--warning) 14%, transparent); }
+.status-dot.is-failed { background: var(--danger); box-shadow: 0 0 0 3px color-mix(in oklch, var(--danger) 14%, transparent); }
+.status-dot.is-stopped { background: var(--ink-tertiary); box-shadow: 0 0 0 3px color-mix(in oklch, var(--ink-tertiary) 12%, transparent); }
 
 .restart-notice {
   justify-content: space-between;
@@ -283,7 +285,10 @@ h2 { font-size: 14px; font-weight: 620; }
   .restart-notice .button { width: 100%; }
   .plugin-card { align-items: flex-start; flex-wrap: wrap; }
   .plugin-copy { flex-basis: calc(100% - 48px); }
-  .plugin-control { width: 100%; min-width: 0; flex: 1 0 100%; flex-direction: row-reverse; justify-content: space-between; align-items: center; padding-left: 48px; }
+  .plugin-control { width: 100%; min-width: 0; flex: 1 0 100%; flex-direction: row-reverse; justify-content: space-between; align-items: flex-start; padding-left: 48px; }
+  .plugin-control .switch { flex: 0 0 auto; }
+  .plugin-control .plugin-state { min-width: 0; align-items: flex-start; white-space: normal; line-height: 1.4; }
+  .plugin-control .plugin-state .status-dot { flex: 0 0 auto; margin-top: 5px; }
   .diagnostics .button { align-self: flex-start; }
 }
 

@@ -1,15 +1,12 @@
-import { execFile as execFileCallback } from "node:child_process";
-import { access, mkdtemp, readFile, rm } from "node:fs/promises";
-import os from "node:os";
+import { access, readFile, rm } from "node:fs/promises";
 import path from "node:path";
-import { promisify } from "node:util";
+import { assertNodeSupported, MacPlatformAdapter } from "./platform.mjs";
 import { ensureConfig, ensureControlToken, readConfig } from "./config.mjs";
 import { createControlServer } from "./control-server.mjs";
-import { MacPlatformAdapter } from "./platform.mjs";
+import { createNpmAdapter } from "./npm-adapter.mjs";
 import { resolvePaths } from "./paths.mjs";
 import { RuntimeManager, writeServicePid } from "./runtime-manager.mjs";
 
-const execFile = promisify(execFileCallback);
 const packageMetadata = JSON.parse(await readFile(new URL("../../../package.json", import.meta.url), "utf8"));
 const DEFAULT_CONTROL_PORT = 47830;
 
@@ -26,11 +23,11 @@ async function exists(filePath) {
   }
 }
 
-async function waitForService(port, timeoutMs = 20_000) {
+async function waitForService(port, { fetchImpl = fetch, timeoutMs = 20_000 } = {}) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     try {
-      const response = await fetch(`${controlOrigin(port)}/healthz`, { signal: AbortSignal.timeout(750) });
+      const response = await fetchImpl(`${controlOrigin(port)}/healthz`, { signal: AbortSignal.timeout(750) });
       if (response.ok) {
         const identity = await response.json().catch(() => null);
         if (identity?.service === "minecodex" && identity?.ok === true) return true;
@@ -41,11 +38,11 @@ async function waitForService(port, timeoutMs = 20_000) {
   return false;
 }
 
-async function waitForManagedReady(paths, timeoutMs = 30_000) {
+async function waitForManagedReady(paths, { fetchImpl = fetch, timeoutMs = 30_000 } = {}) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     try {
-      const response = await authorizedFetch(paths, "/api/status");
+      const response = await authorizedFetch(paths, "/api/status", {}, { fetchImpl });
       if (response.ok) {
         const status = await response.json();
         if (status.runtime?.running && !status.pendingRestart) return status;
@@ -56,10 +53,10 @@ async function waitForManagedReady(paths, timeoutMs = 30_000) {
   return null;
 }
 
-async function authorizedFetch(paths, pathname, options = {}) {
+async function authorizedFetch(paths, pathname, options = {}, { fetchImpl = fetch } = {}) {
   const token = await ensureControlToken(paths.tokenPath);
   const origin = controlOrigin();
-  return fetch(`${origin}${pathname}`, {
+  return fetchImpl(`${origin}${pathname}`, {
     ...options,
     headers: {
       Authorization: `Bearer ${token}`,
@@ -86,40 +83,108 @@ Commands:
   mcx --help                Show this help`);
 }
 
-async function installCommand({ paths, platform, cliPath, output }) {
+function serviceSnapshot(platform, paths) {
+  return platform.snapshotServiceState?.(paths) ?? null;
+}
+
+async function restoreService(platform, snapshot, { cliPath, paths }) {
+  if (!snapshot || !platform.restoreServiceState) return null;
+  return platform.restoreServiceState(snapshot, { cliPath, paths });
+}
+
+async function nativeSnapshot(platform) {
+  if (platform.snapshotNativeCodexState) return platform.snapshotNativeCodexState();
+  return { count: 0 };
+}
+
+async function restoreNative(platform, snapshot) {
+  if (!snapshot?.count) return;
+  if (platform.restoreNativeCodexState) {
+    await platform.restoreNativeCodexState(snapshot);
+    return;
+  }
+  await platform.openNativeCodex?.();
+}
+
+function appendRollbackError(error, rollbackError) {
+  if (!rollbackError) return error;
+  return new Error(`${error.message} Automatic rollback also failed: ${rollbackError.message}`, { cause: error });
+}
+
+async function installCommand({ paths, platform, cliPath, output, serviceProbe, fetchImpl, nodeVersion = process.versions.node }) {
+  assertNodeSupported(nodeVersion);
   platform.assertInstallSupported();
   await platform.assertCodexInstalled();
+  const previousService = await serviceSnapshot(platform, paths);
+  const previousNative = await nativeSnapshot(platform);
   await ensureConfig(paths.configPath);
   await ensureControlToken(paths.tokenPath);
-  const nativeCount = await platform.terminateNativeCodex();
-  if (nativeCount) output(`Restarting ${nativeCount} running Codex instance${nativeCount === 1 ? "" : "s"} with MineCodex enabled…`);
+  let nativeCount = 0;
   try {
-    await platform.installService({ cliPath, paths });
-    if (!(await waitForService(DEFAULT_CONTROL_PORT)) || !(await waitForManagedReady(paths))) {
+    nativeCount = await platform.terminateNativeCodex();
+    if (nativeCount) output(`Restarting ${nativeCount} running Codex instance${nativeCount === 1 ? "" : "s"} with MineCodex enabled…`);
+    await platform.installService({ cliPath, paths, start: true });
+    const waitForServiceImpl = serviceProbe?.waitForService ?? waitForService;
+    const waitForManagedReadyImpl = serviceProbe?.waitForManagedReady ?? waitForManagedReady;
+    if (!(await waitForServiceImpl(DEFAULT_CONTROL_PORT, { fetchImpl }))
+      || !(await waitForManagedReadyImpl(paths, { fetchImpl }))) {
       throw new Error(`MineCodex service did not become ready. Check ${paths.serviceErrorLogPath}`);
     }
   } catch (error) {
-    if (nativeCount) await platform.openNativeCodex().catch(() => {});
-    throw error;
+    let rollbackError = null;
+    try {
+      await restoreService(platform, previousService, { cliPath, paths });
+    } catch (failure) {
+      rollbackError = failure;
+    }
+    try {
+      await restoreNative(platform, previousNative?.count ? previousNative : { count: nativeCount });
+    } catch (failure) {
+      rollbackError = rollbackError ?? failure;
+    }
+    throw appendRollbackError(error, rollbackError);
   }
   output("MineCodex installed. Model Slider, Notes, and Images are enabled by default.");
   output("Run `mcx open` to manage plugins.");
 }
 
-async function openCommand({ paths, platform }) {
-  if (!(await waitForService(DEFAULT_CONTROL_PORT, 750))) {
+async function openCommand({ paths, platform, serviceProbe, fetchImpl }) {
+  const waitForServiceImpl = serviceProbe?.waitForService ?? waitForService;
+  if (!(await waitForServiceImpl(DEFAULT_CONTROL_PORT, { fetchImpl, timeoutMs: 750 }))) {
     if (!(await exists(paths.launchAgentPath))) throw new Error("MineCodex is not installed. Run `mcx install` first.");
     await platform.startService();
-    if (!(await waitForService(DEFAULT_CONTROL_PORT))) throw new Error("MineCodex service could not be started.");
+    if (!(await waitForServiceImpl(DEFAULT_CONTROL_PORT, { fetchImpl }))) throw new Error("MineCodex service could not be started.");
   }
-  const token = await ensureControlToken(paths.tokenPath);
-  await platform.openBrowser(`${controlOrigin()}/auth?token=${encodeURIComponent(token)}`);
+  const exchangeResponse = await authorizedFetch(paths, "/api/auth/exchange", {
+    method: "POST",
+    body: "{}",
+  }, { fetchImpl });
+  if (!exchangeResponse.ok) throw new Error(`MineCodex browser exchange failed: HTTP ${exchangeResponse.status}`);
+  const { exchange } = await exchangeResponse.json();
+  if (!exchange) throw new Error("MineCodex browser exchange did not return a short-lived value.");
+  await platform.openBrowser(`${controlOrigin()}/auth?exchange=${encodeURIComponent(exchange)}`);
 }
 
-async function statusCommand({ paths, jsonOutput, output }) {
+function featureStatusText(feature) {
+  const state = feature.state ?? (!feature.enabled ? "stopped" : feature.healthy ? "healthy" : feature.applied ? "launching" : "restart-required");
+  const failure = feature.failure?.message ? `: ${feature.failure.message}` : "";
+  const copy = {
+    saved: "saved; restart required",
+    configured: "configured; launching",
+    launching: "launching",
+    injected: "injected into Codex",
+    healthy: "healthy in Codex",
+    failed: "failed; run `mcx restart`",
+    stopped: "stopped",
+    "restart-required": "saved; run `mcx restart`",
+  };
+  return `${copy[state] ?? state}${failure}`;
+}
+
+async function statusCommand({ paths, jsonOutput, output, fetchImpl }) {
   let status;
   try {
-    const response = await authorizedFetch(paths, "/api/status");
+    const response = await authorizedFetch(paths, "/api/status", {}, { fetchImpl });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     status = { installed: await exists(paths.launchAgentPath), service: { running: true }, ...await response.json() };
   } catch {
@@ -130,7 +195,15 @@ async function statusCommand({ paths, jsonOutput, output }) {
       service: { running: false },
       runtime: { running: false },
       pendingRestart: false,
-      features: Object.entries(config?.features ?? {}).map(([id, enabled]) => ({ id, enabled, applied: false, healthy: false })),
+      features: Object.entries(config?.features ?? {}).map(([id, enabled]) => ({
+        id,
+        enabled,
+        applied: false,
+        injected: false,
+        healthy: false,
+        state: "stopped",
+        failure: null,
+      })),
     };
   }
   if (jsonOutput) {
@@ -141,74 +214,111 @@ async function statusCommand({ paths, jsonOutput, output }) {
   output(`Installed: ${status.installed ? "yes" : "no"}`);
   output(`Service: ${status.service.running ? "running" : "stopped"}`);
   output(`RuntimeHost: ${status.runtime?.running ? "running" : "stopped"}`);
-  for (const feature of status.features ?? []) {
-    const state = !feature.enabled ? "off" : feature.healthy ? "active" : feature.applied ? "starting" : "restart required";
-    output(`- ${feature.id}: ${state}`);
-  }
-  if (status.pendingRestart) output("Saved plugin changes require `mcx restart`.");
+  for (const feature of status.features ?? []) output(`- ${feature.id}: ${featureStatusText(feature)}`);
+  if (status.pendingRestart) output("Saved plugin changes require `mcx restart`; the current Codex session is unchanged.");
   return status;
 }
 
-async function restartCommand({ paths, output }) {
-  const response = await authorizedFetch(paths, "/api/restart", { method: "POST", body: "{}" });
+async function restartCommand({ paths, output, fetchImpl }) {
+  const response = await authorizedFetch(paths, "/api/restart", { method: "POST", body: "{}" }, { fetchImpl });
   if (!response.ok) throw new Error(`MineCodex restart failed: HTTP ${response.status}`);
   output("MineCodex restarted and saved plugin switches are now applied.");
 }
 
-async function uninstallCommand({ paths, platform, purge, output }) {
+async function uninstallCommand({ paths, platform, purge, output, cliPath }) {
   platform.assertInstallSupported();
-  await platform.removeService(paths);
-  const wasManaged = await platform.terminateOwnedCodex(paths);
-  if (purge) {
-    const targets = [paths.supportDir, paths.notesDataDir, paths.imagesDataDir];
-    for (const target of targets) {
-      if (!path.isAbsolute(target) || target === paths.homeDir || target.length <= paths.homeDir.length + 2) {
-        throw new Error(`Refusing unsafe purge target: ${target}`);
+  const previousService = await serviceSnapshot(platform, paths);
+  let wasManaged = false;
+  try {
+    await platform.removeService(paths);
+    wasManaged = await platform.terminateOwnedCodex(paths);
+    await platform.assertServiceStopped?.();
+    await platform.assertOwnedCodexStopped?.(paths);
+    if (purge) {
+      const targets = [paths.supportDir, paths.notesDataDir, paths.imagesDataDir];
+      for (const target of targets) {
+        if (!path.isAbsolute(target) || target === paths.homeDir || target.length <= paths.homeDir.length + 2) {
+          throw new Error(`Refusing unsafe purge target: ${target}`);
+        }
       }
-      await rm(target, { recursive: true, force: true });
+      for (const target of targets) await rm(target, { recursive: true, force: true });
+      output("MineCodex integration and MineCodex-owned data were removed.");
+    } else {
+      output("MineCodex integration was removed. Plugin data was preserved.");
     }
-    output("MineCodex integration and MineCodex-owned data were removed.");
-  } else {
-    output("MineCodex integration was removed. Plugin data was preserved.");
+  } catch (error) {
+    let rollbackError = null;
+    try {
+      await restoreService(platform, previousService, { cliPath, paths });
+    } catch (failure) {
+      rollbackError = failure;
+    }
+    throw appendRollbackError(error, rollbackError);
   }
   if (wasManaged) await platform.openNativeCodex();
   output("Codex generated images and files referenced by Notes were not modified.");
 }
 
-async function updateCommand({ paths, platform, cliPath, output }) {
+async function updateCommand({ paths, platform, cliPath, output, npm = createNpmAdapter(), serviceProbe, fetchImpl }) {
   platform.assertInstallSupported();
-  const { stdout } = await execFile("npm", ["view", "minecodex", "version"]);
-  const latest = stdout.trim();
+  const latest = await npm.viewLatestVersion();
   if (!latest) throw new Error("Could not resolve the latest MineCodex version.");
   if (latest === packageMetadata.version) {
     output(`MineCodex ${packageMetadata.version} is already up to date.`);
     return;
   }
   const wasInstalled = await exists(paths.launchAgentPath);
-  const backupDir = await mkdtemp(path.join(os.tmpdir(), "minecodex-update-"));
-  const packed = await execFile("npm", ["pack", paths.packageRoot, "--pack-destination", backupDir]);
-  const archiveName = packed.stdout.trim().split("\n").filter(Boolean).at(-1);
-  if (!archiveName) throw new Error("Could not create a rollback archive for the installed MineCodex version.");
-  const rollbackArchive = path.join(backupDir, archiveName);
-  if (wasInstalled) await platform.stopService({ ignoreErrors: true });
+  const previousService = wasInstalled
+    ? (await serviceSnapshot(platform, paths) ?? { running: true, plist: { exists: true } })
+    : null;
+  const rollback = await npm.createRollbackArchive(paths.packageRoot);
+  const rollbackPath = typeof rollback === "string" ? rollback : rollback.archivePath;
+  if (!rollbackPath) throw new Error("Could not create a rollback archive for the installed MineCodex version.");
   try {
-    await execFile("npm", ["install", "-g", "minecodex@latest"]);
-    if (wasInstalled) await execFile(process.execPath, [cliPath, "install"]);
+    if (wasInstalled && previousService?.running) {
+      await platform.stopService({ ignoreErrors: false });
+      await platform.assertServiceStopped?.();
+    }
+    await npm.installGlobal("minecodex@latest");
+    if (wasInstalled) {
+      await platform.installService({ cliPath, paths, start: previousService.running });
+      if (previousService.running) {
+        const waitForServiceImpl = serviceProbe?.waitForService ?? waitForService;
+        const waitForManagedReadyImpl = serviceProbe?.waitForManagedReady ?? waitForManagedReady;
+        if (!(await waitForServiceImpl(DEFAULT_CONTROL_PORT, { fetchImpl }))
+          || !(await waitForManagedReadyImpl(paths, { fetchImpl }))) {
+          throw new Error("MineCodex service did not become ready after update.");
+        }
+      } else {
+        await platform.assertServiceStopped?.();
+      }
+    }
     output(`MineCodex updated from ${packageMetadata.version} to ${latest}.`);
   } catch (error) {
     let rollbackError = null;
     try {
-      await execFile("npm", ["install", "-g", rollbackArchive]);
-      if (wasInstalled) await platform.installService({ cliPath, paths });
+      await npm.installGlobal(rollbackPath);
+      await restoreService(platform, previousService, { cliPath, paths });
+      if (wasInstalled && previousService?.running) {
+        const waitForServiceImpl = serviceProbe?.waitForService ?? waitForService;
+        const waitForManagedReadyImpl = serviceProbe?.waitForManagedReady ?? waitForManagedReady;
+        if (!(await waitForServiceImpl(DEFAULT_CONTROL_PORT, { fetchImpl }))
+          || !(await waitForManagedReadyImpl(paths, { fetchImpl }))) {
+          throw new Error("Rolled-back MineCodex service did not become ready.");
+        }
+      } else if (wasInstalled && !previousService?.running) {
+        await platform.assertServiceStopped?.();
+      }
     } catch (failure) {
       rollbackError = failure;
     }
-    const suffix = rollbackError
-      ? ` Automatic rollback also failed: ${rollbackError.message}`
-      : " The previous MineCodex version was restored.";
-    throw new Error(`MineCodex update failed; settings and data were preserved. ${error.message}${suffix}`);
+    const restored = rollbackError ? "" : " The previous MineCodex version was restored.";
+    throw appendRollbackError(new Error(
+      `MineCodex update failed; settings and data were preserved. ${error.message}${restored}`,
+      { cause: error },
+    ), rollbackError);
   } finally {
-    await rm(backupDir, { recursive: true, force: true });
+    if (npm.cleanup) await npm.cleanup(rollback).catch(() => {});
   }
 }
 
@@ -258,18 +368,22 @@ export async function runCli(argv, {
   cliPath = process.argv[1],
   output = console.log,
   logger = console,
+  npm = createNpmAdapter(),
+  serviceProbe,
+  fetchImpl = fetch,
+  nodeVersion = process.versions.node,
 } = {}) {
   const [command = "--help", ...args] = argv;
   if (["--help", "-h", "help"].includes(command)) return printHelp(output);
   if (["--version", "-v"].includes(command)) return output(packageMetadata.version);
-  if (command === "install") return installCommand({ paths, platform, cliPath, output });
-  if (command === "open" || command === "gui") return openCommand({ paths, platform });
-  if (command === "status") return statusCommand({ paths, jsonOutput: args.includes("--json"), output });
-  if (command === "restart") return restartCommand({ paths, output });
+  if (command === "install") return installCommand({ paths, platform, cliPath, output, serviceProbe, fetchImpl, nodeVersion });
+  if (command === "open" || command === "gui") return openCommand({ paths, platform, serviceProbe, fetchImpl });
+  if (command === "status") return statusCommand({ paths, jsonOutput: args.includes("--json"), output, fetchImpl });
+  if (command === "restart") return restartCommand({ paths, output, fetchImpl });
   if (command === "uninstall" || command === "remove") {
-    return uninstallCommand({ paths, platform, purge: args.includes("--purge"), output });
+    return uninstallCommand({ paths, platform, purge: args.includes("--purge"), output, cliPath });
   }
-  if (command === "update") return updateCommand({ paths, platform, cliPath, output });
+  if (command === "update") return updateCommand({ paths, platform, cliPath, output, npm, serviceProbe, fetchImpl });
   if (command === "serve") return serveCommand({ paths, platform, logger });
   throw new Error(`Unknown MineCodex command: ${command}. Run \`mcx --help\`.`);
 }

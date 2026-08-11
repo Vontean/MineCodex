@@ -3,7 +3,7 @@ import { mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { ensureControlToken, readConfig, updateFeature, writeConfig } from "../src/config.mjs";
+import { ensureControlToken, normalizeConfig, readConfig, updateFeature, writeConfig } from "../src/config.mjs";
 
 test("config defaults every known plugin on and preserves unknown fields", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "minecodex-config-"));
@@ -39,4 +39,26 @@ test("config writes atomically and control token stays stable with private permi
   assert.equal(await ensureControlToken(tokenPath), token);
   assert.equal(token.length >= 40, true);
   assert.equal((await stat(tokenPath)).mode & 0o777, 0o600);
+});
+
+test("concurrent feature updates serialize the read-modify-write seam", async () => {
+  const configPath = "/fake/minecodex-config.json";
+  let value = normalizeConfig({ schemaVersion: 1, features: {} });
+  const read = async () => {
+    await new Promise((resolve) => setTimeout(resolve, 2));
+    return structuredClone(value);
+  };
+  const write = async (_path, next) => {
+    await new Promise((resolve) => setTimeout(resolve, 2));
+    value = structuredClone(next);
+    return next;
+  };
+
+  await Promise.all([
+    updateFeature(configPath, "notes", false, { read, write }),
+    updateFeature(configPath, "images", false, { read, write }),
+  ]);
+
+  assert.equal(value.features.notes, false);
+  assert.equal(value.features.images, false);
 });

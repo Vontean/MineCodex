@@ -4,6 +4,9 @@ import { access, mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { writeConfig } from "../src/config.mjs";
+import { createControlServer } from "../src/control-server.mjs";
+import { PACKAGE_ROOT } from "../src/paths.mjs";
 import { runCli } from "../src/commands.mjs";
 
 test("help exposes the stable MineCodex command surface", async () => {
@@ -66,5 +69,311 @@ test("a control-port collision fails before a service PID or RuntimeHost child i
     if (previousPort === undefined) delete process.env.MINECODEX_CONTROL_PORT;
     else process.env.MINECODEX_CONTROL_PORT = previousPort;
     await new Promise((resolve) => blocker.close(resolve));
+  }
+});
+
+test("install restores the prior service and native Codex state when readiness fails", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "minecodex-install-rollback-"));
+  const paths = {
+    homeDir: root,
+    supportDir: path.join(root, "support"),
+    configPath: path.join(root, "support", "config.json"),
+    tokenPath: path.join(root, "support", "control-token"),
+    launchAgentPath: path.join(root, "LaunchAgents", "minecodex.plist"),
+    serviceErrorLogPath: path.join(root, "runtime-error.log"),
+  };
+  const events = [];
+  const snapshot = { plist: { exists: true, content: "previous plist" }, running: true };
+  const platform = {
+    assertInstallSupported() { events.push("platform"); },
+    assertCodexInstalled: async () => { events.push("codex-check"); },
+    snapshotServiceState: async () => { events.push("snapshot-service"); return snapshot; },
+    snapshotNativeCodexState: async () => { events.push("snapshot-native"); return { count: 1 }; },
+    terminateNativeCodex: async () => { events.push("terminate-native"); return 1; },
+    installService: async () => { events.push("install-service"); },
+    restoreServiceState: async (previous) => { events.push(["restore-service", previous]); },
+    restoreNativeCodexState: async (previous) => { events.push(["restore-native", previous]); },
+  };
+
+  await assert.rejects(runCli(["install"], {
+    paths,
+    platform,
+    cliPath: "/tmp/mcx.mjs",
+    output() {},
+    serviceProbe: {
+      waitForService: async () => false,
+      waitForManagedReady: async () => null,
+    },
+  }), /did not become ready/);
+
+  assert.deepEqual(events.map((event) => Array.isArray(event) ? event[0] : event), [
+    "platform",
+    "codex-check",
+    "snapshot-service",
+    "snapshot-native",
+    "terminate-native",
+    "install-service",
+    "restore-service",
+    "restore-native",
+  ]);
+  assert.deepEqual(events.at(-2)[1], snapshot);
+  assert.deepEqual(events.at(-1)[1], { count: 1 });
+});
+
+test("mcx install rejects an unsupported Node before touching the platform seam", async () => {
+  let touched = false;
+  await assert.rejects(runCli(["install"], {
+    nodeVersion: "22.4.9",
+    platform: {
+      assertInstallSupported() { touched = true; },
+      assertCodexInstalled: async () => { touched = true; },
+    },
+    paths: { configPath: "/tmp/unused/config.json", tokenPath: "/tmp/unused/token" },
+  }), /Node\.js 22\.5\.0 or newer/);
+  assert.equal(touched, false);
+});
+
+test("update rolls back the package and leaves a previously stopped service stopped", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "minecodex-update-rollback-"));
+  const paths = {
+    homeDir: root,
+    supportDir: path.join(root, "support"),
+    launchAgentPath: path.join(root, "LaunchAgents", "minecodex.plist"),
+    packageRoot: root,
+  };
+  await mkdir(path.dirname(paths.launchAgentPath), { recursive: true });
+  await writeFile(paths.launchAgentPath, "old plist");
+  const calls = [];
+  const previous = { plist: { exists: true, content: "old plist" }, running: false };
+  const platform = {
+    assertInstallSupported() {},
+    snapshotServiceState: async () => previous,
+    stopService: async () => { calls.push("stop-service"); },
+    restoreServiceState: async (snapshot) => { calls.push(["restore-service", snapshot]); },
+    installService: async () => { calls.push("install-service"); },
+  };
+  const npm = {
+    viewLatestVersion: async () => "9.9.9",
+    createRollbackArchive: async () => { calls.push("pack"); return "/tmp/minecodex-old.tgz"; },
+    installGlobal: async (spec) => {
+      calls.push(["install", spec]);
+      if (spec === "minecodex@latest") throw new Error("registry install failed");
+    },
+    cleanup: async () => { calls.push("cleanup"); },
+  };
+  const serviceProbe = {
+    waitForService: async () => false,
+    waitForManagedReady: async () => null,
+  };
+
+  await assert.rejects(runCli(["update"], { paths, platform, npm, cliPath: "/tmp/mcx.mjs", output() {}, serviceProbe }), /previous MineCodex version was restored/);
+  assert.deepEqual(calls, [
+    "pack",
+    ["install", "minecodex@latest"],
+    ["install", "/tmp/minecodex-old.tgz"],
+    ["restore-service", previous],
+    "cleanup",
+  ]);
+});
+
+test("update rollback surfaces a readiness failure after restoring the previous service", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "minecodex-update-rollback-ready-"));
+  const launchAgentPath = path.join(root, "LaunchAgents", "minecodex.plist");
+  await mkdir(path.dirname(launchAgentPath), { recursive: true });
+  await writeFile(launchAgentPath, "old plist");
+  const paths = { homeDir: root, packageRoot: root, launchAgentPath };
+  const calls = [];
+  const previous = { plist: { exists: true, content: "old plist" }, running: true };
+  const platform = {
+    assertInstallSupported() {},
+    snapshotServiceState: async () => previous,
+    stopService: async () => { calls.push("stop-service"); },
+    assertServiceStopped: async () => { calls.push("assert-stopped"); },
+    installService: async ({ start }) => { calls.push(["install-service", start]); },
+    restoreServiceState: async (snapshot) => { calls.push(["restore-service", snapshot]); },
+  };
+  const npm = {
+    viewLatestVersion: async () => "9.9.9",
+    createRollbackArchive: async () => "/tmp/minecodex-old-ready.tgz",
+    installGlobal: async (spec) => {
+      calls.push(["install", spec]);
+      if (spec === "minecodex@latest") throw new Error("registry install failed");
+    },
+    cleanup: async () => { calls.push("cleanup"); },
+  };
+  let readyCalls = 0;
+  const readyResults = [true, false];
+  const serviceProbe = {
+    waitForService: async () => { readyCalls += 1; return readyResults[readyCalls - 1]; },
+    waitForManagedReady: async () => { readyCalls += 1; return readyResults[readyCalls - 1]; },
+  };
+
+  await assert.rejects(runCli(["update"], {
+    paths,
+    platform,
+    npm,
+    cliPath: "/tmp/mcx.mjs",
+    output() {},
+    serviceProbe,
+  }), /Rolled-back MineCodex service did not become ready/);
+  assert.deepEqual(calls, [
+    "stop-service",
+    "assert-stopped",
+    ["install", "minecodex@latest"],
+    ["install", "/tmp/minecodex-old-ready.tgz"],
+    ["restore-service", previous],
+    "cleanup",
+  ]);
+  assert.equal(readyCalls, 2);
+});
+
+test("update rollback keeps a previously stopped service stopped", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "minecodex-update-rollback-stopped-"));
+  const launchAgentPath = path.join(root, "LaunchAgents", "minecodex.plist");
+  await mkdir(path.dirname(launchAgentPath), { recursive: true });
+  await writeFile(launchAgentPath, "old plist");
+  const paths = { homeDir: root, packageRoot: root, launchAgentPath };
+  const calls = [];
+  const previous = { plist: { exists: true, content: "old plist" }, running: false };
+  const platform = {
+    assertInstallSupported() {},
+    snapshotServiceState: async () => previous,
+    installService: async ({ start }) => { calls.push(["install-service", start]); },
+    restoreServiceState: async (snapshot) => { calls.push(["restore-service", snapshot]); },
+    assertServiceStopped: async () => { calls.push("assert-stopped"); },
+  };
+  const npm = {
+    viewLatestVersion: async () => "9.9.9",
+    createRollbackArchive: async () => "/tmp/minecodex-old-stopped.tgz",
+    installGlobal: async (spec) => {
+      calls.push(["install", spec]);
+      if (spec === "minecodex@latest") throw new Error("registry install failed");
+    },
+    cleanup: async () => { calls.push("cleanup"); },
+  };
+
+  await assert.rejects(runCli(["update"], {
+    paths,
+    platform,
+    npm,
+    cliPath: "/tmp/mcx.mjs",
+    output() {},
+    serviceProbe: { waitForService: async () => false },
+  }), /previous MineCodex version was restored/);
+  assert.deepEqual(calls, [
+    ["install", "minecodex@latest"],
+    ["install", "/tmp/minecodex-old-stopped.tgz"],
+    ["restore-service", previous],
+    "assert-stopped",
+    "cleanup",
+  ]);
+});
+
+test("successful update restores a previously running service and waits for managed readiness", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "minecodex-update-running-"));
+  const launchAgentPath = path.join(root, "LaunchAgents", "minecodex.plist");
+  await mkdir(path.dirname(launchAgentPath), { recursive: true });
+  await writeFile(launchAgentPath, "old plist");
+  const paths = { homeDir: root, packageRoot: root, launchAgentPath };
+  const calls = [];
+  const platform = {
+    assertInstallSupported() {},
+    snapshotServiceState: async () => ({ plist: { exists: true, content: "old plist" }, running: true }),
+    stopService: async () => { calls.push("stop-service"); },
+    assertServiceStopped: async () => { calls.push("assert-stopped"); },
+    installService: async ({ start }) => { calls.push(["install-service", start]); },
+  };
+  const npm = {
+    viewLatestVersion: async () => "9.9.9",
+    createRollbackArchive: async () => "/tmp/minecodex-old-running.tgz",
+    installGlobal: async (spec) => { calls.push(["install", spec]); },
+    cleanup: async () => { calls.push("cleanup"); },
+  };
+
+  await runCli(["update"], {
+    paths,
+    platform,
+    npm,
+    cliPath: "/tmp/mcx.mjs",
+    output() {},
+    serviceProbe: {
+      waitForService: async () => true,
+      waitForManagedReady: async () => ({ runtime: { running: true } }),
+    },
+  });
+  assert.deepEqual(calls, [
+    "stop-service",
+    "assert-stopped",
+    ["install", "minecodex@latest"],
+    ["install-service", true],
+    "cleanup",
+  ]);
+});
+
+test("uninstall does not purge when managed Codex shutdown fails and restores service state", async () => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), "minecodex-uninstall-rollback-"));
+  const supportDir = path.join(homeDir, "Library", "Application Support", "MineCodex");
+  const notesDataDir = path.join(homeDir, "Library", "Application Support", "CodexNotes");
+  const imagesDataDir = path.join(homeDir, ".codex-image-host");
+  for (const target of [supportDir, notesDataDir, imagesDataDir]) {
+    await mkdir(target, { recursive: true });
+    await writeFile(path.join(target, "keep-check"), "data");
+  }
+  const paths = { homeDir, supportDir, notesDataDir, imagesDataDir };
+  const calls = [];
+  const previous = { plist: { exists: true, content: "running plist" }, running: true };
+  const platform = {
+    assertInstallSupported() {},
+    snapshotServiceState: async () => previous,
+    removeService: async () => { calls.push("remove-service"); },
+    terminateOwnedCodex: async () => { calls.push("terminate-owned"); throw new Error("managed Codex did not exit"); },
+    restoreServiceState: async (snapshot) => { calls.push(["restore-service", snapshot]); },
+  };
+
+  await assert.rejects(runCli(["uninstall", "--purge"], { paths, platform, output() {} }), /managed Codex did not exit/);
+  assert.deepEqual(calls, ["remove-service", "terminate-owned", ["restore-service", previous]]);
+  assert.equal(await readFile(path.join(supportDir, "keep-check"), "utf8"), "data");
+  assert.equal(await readFile(path.join(notesDataDir, "keep-check"), "utf8"), "data");
+  assert.equal(await readFile(path.join(imagesDataDir, "keep-check"), "utf8"), "data");
+});
+
+test("mcx open never places the long-lived control token in the browser URL", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "minecodex-open-exchange-"));
+  const tokenPath = path.join(root, "control-token");
+  await writeFile(tokenPath, "long-lived-secret\n", { mode: 0o600 });
+  const configPath = path.join(root, "config.json");
+  await writeConfig(configPath, { schemaVersion: 1, features: {} });
+  const control = await createControlServer({
+    paths: {
+      packageRoot: PACKAGE_ROOT,
+      configPath,
+      featuresRoot: path.join(PACKAGE_ROOT, "features"),
+      dashboardDir: path.join(PACKAGE_ROOT, "apps", "dashboard"),
+    },
+    token: "long-lived-secret",
+    runtimeManager: { status: () => ({ running: true, appliedFeatures: [], plugins: [] }) },
+    port: 0,
+    logger: { error() {} },
+  });
+  const previousPort = process.env.MINECODEX_CONTROL_PORT;
+  process.env.MINECODEX_CONTROL_PORT = String(control.port);
+  const opened = [];
+  const launchAgentPath = path.join(root, "LaunchAgents", "minecodex.plist");
+  await mkdir(path.dirname(launchAgentPath), { recursive: true });
+  await writeFile(launchAgentPath, "plist");
+  const platform = { openBrowser: async (url) => opened.push(url) };
+  try {
+    await runCli(["open"], {
+      paths: { tokenPath, launchAgentPath },
+      platform,
+      serviceProbe: { waitForService: async () => true },
+    });
+    assert.equal(opened.length, 1);
+    assert.match(opened[0], /\/auth\?exchange=/);
+    assert.doesNotMatch(opened[0], /long-lived-secret|[?&]token=/);
+  } finally {
+    if (previousPort === undefined) delete process.env.MINECODEX_CONTROL_PORT;
+    else process.env.MINECODEX_CONTROL_PORT = previousPort;
+    await control.close();
   }
 });

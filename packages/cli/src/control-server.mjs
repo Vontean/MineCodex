@@ -5,7 +5,9 @@ import { createServer } from "node:http";
 import path from "node:path";
 import { pipeline } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
+import { BrowserExchangeStore } from "./browser-exchange.mjs";
 import { FEATURE_IDS, readConfig, updateFeature } from "./config.mjs";
+import { normalizeRuntimeReady } from "./runtime-manager.mjs";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const packageMetadata = JSON.parse(await readFile(path.join(packageRoot, "package.json"), "utf8"));
@@ -73,6 +75,19 @@ function localized(value, locale) {
   return value?.[locale] ?? value?.en ?? Object.values(value ?? {})[0] ?? "";
 }
 
+function acceptedHealth(featureId, health) {
+  if (health === true || typeof health !== "object" || health === null || Array.isArray(health)) return false;
+  const identity = health.identity ?? health;
+  return Boolean(
+    identity
+      && identity.service === featureId
+      && identity.protocolVersion === 1
+      && typeof identity.instanceId === "string"
+      && identity.instanceId.length > 0
+      && health.ok !== false
+  );
+}
+
 async function loadFeatureDefinitions(paths, locale = "en") {
   return Promise.all(FEATURE_IDS.map(async (id) => {
     const manifestPath = path.join(paths.featuresRoot, id, "codex-feature.json");
@@ -88,26 +103,84 @@ async function loadFeatureDefinitions(paths, locale = "en") {
   }));
 }
 
-async function featureStatuses(paths, runtimeManager, locale) {
+async function featureStatuses(paths, runtimeManager, locale, runtimeState = null) {
   const config = await readConfig(paths.configPath);
-  const runtime = runtimeManager.status();
+  const runtime = runtimeState ?? await (runtimeManager.refreshStatus?.() ?? runtimeManager.status());
   const definitions = await loadFeatureDefinitions(paths, locale);
-  return Promise.all(definitions.map(async (feature) => {
-    let healthy = runtime.running && runtime.appliedFeatures.includes(feature.id);
-    if (healthy && feature.healthUrl) {
-      try {
-        healthy = (await fetch(feature.healthUrl, { signal: AbortSignal.timeout(700) })).ok;
-      } catch {
-        healthy = false;
-      }
+  const plugins = runtime.plugins ?? runtime.pluginStates ?? [];
+  const appliedFeatures = Array.isArray(runtime.appliedFeatures) ? runtime.appliedFeatures : [];
+  const ready = normalizeRuntimeReady(runtime.ready ?? {
+    runtimeSessionId: runtime.runtimeSessionId,
+    features: appliedFeatures,
+    plugins,
+    renderer: runtime.renderer,
+    failures: runtime.failures,
+  });
+  const renderer = ready.renderer;
+  const rendererCurrent = Boolean(
+    renderer?.discovered
+      && renderer.runtimeSessionId
+      && renderer.runtimeSessionId === ready.runtimeSessionId
+      && renderer.active
+      && Number(renderer.injectedTargets) > 0,
+  );
+  return definitions.map((feature) => {
+    const plugin = ready.plugins.find((candidate) => candidate.featureId === feature.id) ?? null;
+    const pluginState = plugin?.state ?? null;
+    const applied = appliedFeatures.includes(feature.id)
+      || ["configured", "launching", "ready", "injected"].includes(pluginState);
+    const injected = Boolean(
+      pluginState === "injected" && rendererCurrent,
+    );
+    const healthy = Boolean(
+      injected
+        && acceptedHealth(feature.id, plugin?.health),
+    );
+    let state;
+    const pluginFailed = Boolean(
+      pluginState === "failed"
+        || plugin?.failure,
+    );
+    if (!config.features[feature.id] && applied) {
+      state = "restart-required";
+    } else if (!config.features[feature.id] || pluginState === "stopped") {
+      state = "stopped";
+    } else if (pluginFailed) {
+      state = "failed";
+    } else if (config.features[feature.id] !== applied) {
+      state = "restart-required";
+    } else if (!runtime.running) {
+      state = "stopped";
+    } else if (pluginState === "configured" || pluginState === "launching" || pluginState === "ready") {
+      state = "launching";
+    } else if (injected && healthy) {
+      state = "healthy";
+    } else if (injected) {
+      state = "injected";
+    } else if (pluginState === "injected") {
+      state = feature.healthUrl ? "launching" : "failed";
+    } else {
+      state = "launching";
     }
+    const failure = plugin?.failure
+      ?? (state === "failed" && pluginState === "injected" && !rendererCurrent
+        ? {
+          code: "CODEX_RENDERER_UNAVAILABLE",
+          message: "The matching Codex renderer is unavailable; restart Codex.",
+          phase: "renderer",
+        }
+        : null);
     return {
       ...feature,
       enabled: config.features[feature.id],
-      applied: runtime.appliedFeatures.includes(feature.id),
+      applied,
+      injected,
       healthy,
+      state,
+      health: plugin?.health ?? null,
+      failure,
     };
-  }));
+  });
 }
 
 function requireMutationOrigin(request, host, port) {
@@ -170,6 +243,7 @@ export async function createControlServer({
   host = "127.0.0.1",
   port = 47830,
   logger = console,
+  exchangeStore = new BrowserExchangeStore(),
 }) {
   let boundPort = port;
   const server = createServer(async (request, response) => {
@@ -180,13 +254,16 @@ export async function createControlServer({
         return;
       }
       if (request.method === "GET" && url.pathname === "/auth") {
-        if (!tokenMatches(url.searchParams.get("token"), token)) {
-          json(response, 403, { error: "INVALID_TOKEN" });
+        let sessionToken;
+        try {
+          sessionToken = exchangeStore.consume(url.searchParams.get("exchange"));
+        } catch {
+          json(response, 403, { error: "INVALID_EXCHANGE" });
           return;
         }
         response.writeHead(303, {
           Location: "/",
-          "Set-Cookie": `mcx_session=${encodeURIComponent(token)}; HttpOnly; SameSite=Strict; Path=/`,
+          "Set-Cookie": `mcx_session=${encodeURIComponent(sessionToken)}; HttpOnly; SameSite=Strict; Path=/`,
           "Referrer-Policy": "no-referrer",
           "Cache-Control": "no-store",
         });
@@ -199,12 +276,23 @@ export async function createControlServer({
       }
       const locale = String(request.headers["accept-language"] ?? "").toLowerCase().startsWith("zh") ? "zh-CN" : "en";
       if (request.method === "GET" && url.pathname === "/api/status") {
-        const features = await featureStatuses(paths, runtimeManager, locale);
-        const runtime = runtimeManager.status();
+        const runtime = await (runtimeManager.refreshStatus?.() ?? runtimeManager.status());
+        const features = await featureStatuses(paths, runtimeManager, locale, runtime);
         json(response, 200, {
           version: packageMetadata.version,
-          runtime: { running: runtime.running },
-          pendingRestart: features.some((feature) => feature.enabled !== feature.applied),
+          service: { running: true },
+          runtime: {
+            running: runtime.running,
+            pid: runtime.pid ?? null,
+            runtimeSessionId: runtime.runtimeSessionId ?? null,
+            ready: runtime.ready ?? null,
+            plugins: runtime.plugins ?? runtime.pluginStates ?? [],
+            renderer: runtime.renderer ?? null,
+            failures: runtime.failures ?? [],
+          },
+          runtimeSessionId: runtime.runtimeSessionId ?? null,
+          renderer: runtime.renderer ?? null,
+          pendingRestart: features.some((feature) => feature.state === "restart-required"),
           features,
         });
         return;
@@ -226,6 +314,12 @@ export async function createControlServer({
         });
         return;
       }
+      if (request.method === "POST" && url.pathname === "/api/auth/exchange") {
+        requireMutationOrigin(request, host, boundPort);
+        await readJson(request);
+        json(response, 200, { exchange: exchangeStore.issue(token), expiresInMs: exchangeStore.ttlMs });
+        return;
+      }
       const featureMatch = url.pathname.match(/^\/api\/features\/([a-z-]+)$/);
       if (request.method === "PATCH" && featureMatch) {
         requireMutationOrigin(request, host, boundPort);
@@ -234,7 +328,7 @@ export async function createControlServer({
         const features = await featureStatuses(paths, runtimeManager, locale);
         json(response, 200, {
           saved: true,
-          pendingRestart: features.some((feature) => feature.enabled !== feature.applied),
+          pendingRestart: features.some((feature) => feature.state === "restart-required"),
           features,
         });
         return;

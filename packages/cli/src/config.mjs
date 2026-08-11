@@ -12,6 +12,8 @@ export const DEFAULT_CONFIG = Object.freeze({
   }),
 });
 
+const configQueues = new Map();
+
 function normalizeFeatures(features) {
   return Object.fromEntries(FEATURE_IDS.map((id) => [
     id,
@@ -61,12 +63,27 @@ export async function ensureConfig(configPath) {
   return config;
 }
 
-export async function updateFeature(configPath, id, enabled) {
+function withConfigLock(configPath, operation) {
+  const previous = configQueues.get(configPath) ?? Promise.resolve();
+  const operationPromise = previous.catch(() => {}).then(operation);
+  const settled = operationPromise.finally(() => {
+    if (configQueues.get(configPath) === settled) configQueues.delete(configPath);
+  });
+  configQueues.set(configPath, settled);
+  return settled;
+}
+
+export async function updateFeature(configPath, id, enabled, {
+  read = readConfig,
+  write = writeConfig,
+} = {}) {
   if (!FEATURE_IDS.includes(id)) throw new Error(`Unknown MineCodex plugin: ${id}`);
   if (typeof enabled !== "boolean") throw new Error("enabled must be a boolean");
-  const config = await readConfig(configPath);
-  config.features[id] = enabled;
-  return writeConfig(configPath, config);
+  return withConfigLock(configPath, async () => {
+    const config = await read(configPath);
+    config.features[id] = enabled;
+    return write(configPath, config);
+  });
 }
 
 export async function ensureControlToken(tokenPath) {
