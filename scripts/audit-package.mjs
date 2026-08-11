@@ -42,6 +42,10 @@ const requiredFiles = [
   "features/notes/codex-feature.json",
   "package.json",
   "packages/cli/bin/mcx.mjs",
+  "packages/cli/native/MineCodex.app/Contents/Info.plist",
+  "packages/cli/native/MineCodex.app/Contents/Library/LaunchAgents/com.vontean.minecodex.background.plist",
+  "packages/cli/native/MineCodex.app/Contents/MacOS/MineCodexServiceManager",
+  "packages/cli/native/MineCodex.app/Contents/Resources/MineCodexServiceHost",
   "packages/runtime-host/src/main.mjs",
 ];
 
@@ -80,6 +84,37 @@ for (const filePath of files) {
   const text = contents.toString("utf8");
   for (const [pattern, reason] of sensitiveContent) {
     if (pattern.test(text)) failures.push(`${reason}: ${filePath}`);
+  }
+}
+
+const infoPlist = await readFile(path.join(
+  root,
+  "packages/cli/native/MineCodex.app/Contents/Info.plist",
+), "utf8");
+if (!/<key>CFBundleDisplayName<\/key>\s*<string>MineCodex<\/string>/.test(infoPlist)) {
+  failures.push("native background service must be displayed as MineCodex");
+}
+
+const launchAgent = await readFile(path.join(
+  root,
+  "packages/cli/native/MineCodex.app/Contents/Library/LaunchAgents/com.vontean.minecodex.background.plist",
+), "utf8");
+if (!/<key>BundleProgram<\/key>\s*<string>Contents\/Resources\/MineCodexServiceHost<\/string>/.test(launchAgent)) {
+  failures.push("native background service must launch the MineCodex-owned host");
+}
+if (/ProgramArguments|node/i.test(launchAgent)) {
+  failures.push("native background item must not be attributed to Node.js");
+}
+
+for (const binaryPath of [
+  "packages/cli/native/MineCodex.app/Contents/MacOS/MineCodexServiceManager",
+  "packages/cli/native/MineCodex.app/Contents/Resources/MineCodexServiceHost",
+]) {
+  const { stdout: stringsOutput } = await execFileAsync("/usr/bin/strings", [path.join(root, binaryPath)], {
+    maxBuffer: 4 * 1024 * 1024,
+  });
+  for (const [pattern, reason] of sensitiveContent) {
+    if (pattern.test(stringsOutput)) failures.push(`${reason}: ${binaryPath}`);
   }
 }
 

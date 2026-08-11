@@ -1,16 +1,18 @@
 import { execFile as execFileCallback } from "node:child_process";
-import { mkdir, readFile, stat, unlink, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, rm, stat, unlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 
 const defaultExecFile = promisify(execFileCallback);
-const defaultFileSystem = Object.freeze({ mkdir, readFile, stat, unlink, writeFile });
+const defaultFileSystem = Object.freeze({ mkdir, readFile, rename, rm, stat, unlink, writeFile });
 
-export const SERVICE_LABEL = "com.vontean.minecodex";
+export const SERVICE_LABEL = "com.vontean.minecodex.background";
+export const LEGACY_SERVICE_LABEL = "com.vontean.minecodex";
 export const CODEX_APP_PATH = "/Applications/ChatGPT.app";
 export const CODEX_EXECUTABLE = `${CODEX_APP_PATH}/Contents/MacOS/ChatGPT`;
 export const MIN_NODE_VERSION = Object.freeze({ major: 22, minor: 5, patch: 0 });
+export const MIN_MACOS_VERSION = Object.freeze({ major: 13, darwinMajor: 22 });
 
 function xml(value) {
   return String(value)
@@ -21,38 +23,21 @@ function xml(value) {
     .replaceAll("'", "&apos;");
 }
 
-export function buildLaunchAgent({ nodePath, cliPath, paths }) {
+export function buildServiceRuntimeConfig({ nodePath, cliPath, paths }) {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>Label</key>
-  <string>${SERVICE_LABEL}</string>
-  <key>ProgramArguments</key>
-  <array>
-    <string>${xml(nodePath)}</string>
-    <string>${xml(cliPath)}</string>
-    <string>serve</string>
-    <string>--service</string>
-  </array>
-  <key>RunAtLoad</key>
-  <true/>
-  <key>KeepAlive</key>
-  <dict>
-    <key>SuccessfulExit</key>
-    <false/>
-  </dict>
-  <key>ProcessType</key>
-  <string>Interactive</string>
-  <key>StandardOutPath</key>
+  <key>NodePath</key>
+  <string>${xml(nodePath)}</string>
+  <key>CLIPath</key>
+  <string>${xml(cliPath)}</string>
+  <key>StandardOutputPath</key>
   <string>${xml(paths.serviceLogPath)}</string>
   <key>StandardErrorPath</key>
   <string>${xml(paths.serviceErrorLogPath)}</string>
-  <key>EnvironmentVariables</key>
-  <dict>
-    <key>PATH</key>
-    <string>${xml(path.dirname(nodePath))}:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
-  </dict>
+  <key>Path</key>
+  <string>${xml(path.dirname(nodePath))}:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
 </dict>
 </plist>
 `;
@@ -155,10 +140,31 @@ function serviceTarget(uid) {
   return `gui/${uid}/${SERVICE_LABEL}`;
 }
 
+function legacyServiceTarget(uid) {
+  return `gui/${uid}/${LEGACY_SERVICE_LABEL}`;
+}
+
+function appServiceStatus(output) {
+  const match = String(output).match(/(?:^|\n)status=([a-z-]+)(?:\n|$)/);
+  return match?.[1] ?? "unknown";
+}
+
+function assertOwnedServicePaths(paths) {
+  const root = path.parse(paths.serviceDir ?? "").root;
+  if (!path.isAbsolute(paths.serviceDir)
+      || paths.serviceDir === root
+      || path.dirname(paths.serviceDir) === root
+      || path.basename(paths.serviceDir) !== "service"
+      || paths.serviceAppPath !== path.join(paths.serviceDir, "MineCodex.app")) {
+    throw new Error(`Refusing unsafe MineCodex service path: ${paths.serviceAppPath}`);
+  }
+}
+
 export class MacPlatformAdapter {
   constructor({
     uid = process.getuid?.() ?? os.userInfo().uid,
     platform = process.platform,
+    osRelease = os.release(),
     homeDir = os.homedir(),
     execFile = defaultExecFile,
     fileSystem = defaultFileSystem,
@@ -168,6 +174,7 @@ export class MacPlatformAdapter {
   } = {}) {
     this.uid = uid;
     this.platform = platform;
+    this.osRelease = osRelease;
     this.homeDir = homeDir;
     this.execFile = execFile;
     this.fileSystem = fileSystem;
@@ -179,6 +186,10 @@ export class MacPlatformAdapter {
   assertInstallSupported() {
     if (this.platform !== "darwin") {
       throw new Error("MineCodex v1 installation currently supports macOS only.");
+    }
+    const darwinMajor = Number.parseInt(this.osRelease.split(".")[0], 10);
+    if (!Number.isInteger(darwinMajor) || darwinMajor < MIN_MACOS_VERSION.darwinMajor) {
+      throw new Error(`MineCodex requires macOS ${MIN_MACOS_VERSION.major} or newer.`);
     }
   }
 
@@ -202,14 +213,49 @@ export class MacPlatformAdapter {
     return this.codexInstallation ?? this.assertCodexInstalled();
   }
 
-  async isServiceRunning() {
+  async isLaunchdServiceRunning(target) {
     try {
-      await this.execFile("/bin/launchctl", ["print", serviceTarget(this.uid)]);
+      await this.execFile("/bin/launchctl", ["print", target]);
       return true;
     } catch (error) {
       if (serviceIsAbsent(error)) return false;
       throw error;
     }
+  }
+
+  async isServiceRunning() {
+    return this.isLaunchdServiceRunning(serviceTarget(this.uid));
+  }
+
+  async pathExists(filePath) {
+    try {
+      if (this.fileSystem.stat) await this.fileSystem.stat(filePath);
+      else await this.fileSystem.readFile(filePath);
+      return true;
+    } catch (error) {
+      if (error.code === "ENOENT") return false;
+      throw error;
+    }
+  }
+
+  async serviceManagerStatus(paths) {
+    if (!(await this.pathExists(paths.serviceManagerPath))) return "not-found";
+    const { stdout } = await this.execFile(paths.serviceManagerPath, ["status"]);
+    return appServiceStatus(stdout);
+  }
+
+  async isServiceInstalled(paths) {
+    return (await this.pathExists(paths.serviceManagerPath))
+      || (await this.pathExists(paths.launchAgentPath));
+  }
+
+  async writeServiceRuntimeConfig(paths, content, mode = 0o600) {
+    const temporaryPath = `${paths.serviceRuntimeConfigPath}.installing`;
+    await this.fileSystem.unlink(temporaryPath).catch((error) => {
+      if (error.code !== "ENOENT") throw error;
+    });
+    await this.fileSystem.writeFile(temporaryPath, content, { mode });
+    await this.fileSystem.rename(temporaryPath, paths.serviceRuntimeConfigPath);
   }
 
   async snapshotServiceState(paths) {
@@ -227,45 +273,123 @@ export class MacPlatformAdapter {
       if (error.code !== "ENOENT") throw error;
       plist = { exists: false, content: null, mode: null };
     }
-    return { plist, running: await this.isServiceRunning() };
+    const appExists = await this.pathExists(paths.serviceManagerPath);
+    let runtimeConfig = { exists: false, content: null, mode: null };
+    if (appExists && paths.serviceRuntimeConfigPath) {
+      try {
+        const metadataPromise = this.fileSystem.stat
+          ? this.fileSystem.stat(paths.serviceRuntimeConfigPath).catch(() => null)
+          : Promise.resolve(null);
+        const [content, metadata] = await Promise.all([
+          this.fileSystem.readFile(paths.serviceRuntimeConfigPath, "utf8"),
+          metadataPromise,
+        ]);
+        runtimeConfig = { exists: true, content, mode: metadata?.mode };
+      } catch (error) {
+        if (error.code !== "ENOENT") throw error;
+      }
+    }
+    const running = await this.isServiceRunning()
+      || (plist.exists && await this.isLaunchdServiceRunning(legacyServiceTarget(this.uid)));
+    return {
+      app: {
+        exists: appExists,
+        status: appExists ? await this.serviceManagerStatus(paths) : "not-found",
+        runtimeConfig,
+      },
+      plist,
+      running,
+    };
   }
 
   async installService({ cliPath, paths, start = true }) {
-    await this.fileSystem.mkdir(path.dirname(paths.launchAgentPath), { recursive: true });
+    const stagingAppPath = path.join(paths.serviceDir, ".MineCodex.app.installing");
+    assertOwnedServicePaths(paths);
+    await this.stopService(paths, { ignoreErrors: false });
+    await this.fileSystem.mkdir(paths.serviceDir, { recursive: true, mode: 0o700 });
     await this.fileSystem.mkdir(paths.logsDir, { recursive: true, mode: 0o700 });
-    const plist = buildLaunchAgent({ nodePath: process.execPath, cliPath, paths });
-    await this.fileSystem.writeFile(paths.launchAgentPath, plist, { mode: 0o600 });
-    await this.stopService({ ignoreErrors: true });
-    await this.execFile("/bin/launchctl", ["bootstrap", `gui/${this.uid}`, paths.launchAgentPath]);
-    if (start) {
-      await this.execFile("/bin/launchctl", ["kickstart", "-k", serviceTarget(this.uid)]);
-    } else {
-      await this.stopService({ ignoreErrors: true });
+    await this.writeServiceRuntimeConfig(
+      paths,
+      buildServiceRuntimeConfig({ nodePath: process.execPath, cliPath, paths }),
+    );
+    await this.fileSystem.rm(stagingAppPath, { recursive: true, force: true });
+    try {
+      await this.execFile("/usr/bin/ditto", [paths.serviceBundleSource, stagingAppPath]);
+      await this.execFile("/usr/bin/codesign", ["--verify", "--deep", "--strict", stagingAppPath]);
+      await this.fileSystem.rm(paths.serviceAppPath, { recursive: true, force: true });
+      await this.fileSystem.rename(stagingAppPath, paths.serviceAppPath);
+    } catch (error) {
+      await this.fileSystem.rm(stagingAppPath, { recursive: true, force: true }).catch(() => {});
+      throw error;
     }
+    await this.fileSystem.unlink(paths.launchAgentPath).catch((error) => {
+      if (error.code !== "ENOENT") throw error;
+    });
+    if (start) await this.startService(paths);
   }
 
-  async stopService({ ignoreErrors = false } = {}) {
+  async stopService(paths, { ignoreErrors = false } = {}) {
+    let managerError = null;
+    if (paths?.serviceManagerPath && await this.pathExists(paths.serviceManagerPath)) {
+      try {
+        await this.execFile(paths.serviceManagerPath, ["unregister"]);
+      } catch (error) {
+        managerError = error;
+      }
+    }
     try {
       await this.execFile("/bin/launchctl", ["bootout", serviceTarget(this.uid)]);
     } catch (error) {
-      if (!ignoreErrors || !serviceIsAbsent(error)) throw error;
+      if (!serviceIsAbsent(error)) throw error;
     }
+    try {
+      await this.execFile("/bin/launchctl", ["bootout", legacyServiceTarget(this.uid)]);
+    } catch (error) {
+      if (!serviceIsAbsent(error)) throw error;
+    }
+    if (managerError && !ignoreErrors) throw managerError;
   }
 
   async startService(paths) {
-    if (!(await this.isServiceRunning())) {
-      await this.execFile("/bin/launchctl", ["bootstrap", `gui/${this.uid}`, paths.launchAgentPath]);
+    const status = await this.serviceManagerStatus(paths);
+    if (status === "requires-approval") {
+      throw new Error(
+        "MineCodex background service is disabled. Enable MineCodex in System Settings > General > Login Items & Extensions, then run `mcx install` again.",
+      );
+    }
+    if (status !== "enabled") {
+      const { stdout } = await this.execFile(paths.serviceManagerPath, ["register"]);
+      const registeredStatus = appServiceStatus(stdout);
+      if (registeredStatus !== "enabled") {
+        throw new Error(`MineCodex background service registration requires attention: ${registeredStatus}`);
+      }
     }
     await this.execFile("/bin/launchctl", ["kickstart", "-k", serviceTarget(this.uid)]);
   }
 
   async assertServiceStopped() {
-    if (await this.isServiceRunning()) throw new Error("MineCodex launchd service is still running.");
+    const [current, legacy] = await Promise.all([
+      this.isServiceRunning(),
+      this.isLaunchdServiceRunning(legacyServiceTarget(this.uid)),
+    ]);
+    if (current || legacy) throw new Error("MineCodex launchd service is still running.");
   }
 
   async restoreServiceState(snapshot, { cliPath, paths } = {}) {
-    await this.stopService({ ignoreErrors: true });
+    await this.removeService(paths);
     await this.assertServiceStopped();
+    if (snapshot?.app?.exists) {
+      await this.installService({ cliPath, paths, start: false });
+      if (snapshot.app.runtimeConfig?.exists) {
+        await this.writeServiceRuntimeConfig(
+          paths,
+          snapshot.app.runtimeConfig.content,
+          snapshot.app.runtimeConfig.mode ? snapshot.app.runtimeConfig.mode & 0o777 : 0o600,
+        );
+      }
+      if (snapshot.app.status === "enabled") await this.startService(paths);
+      return snapshot;
+    }
     if (snapshot?.plist?.exists) {
       await this.fileSystem.mkdir(path.dirname(paths.launchAgentPath), { recursive: true });
       await this.fileSystem.writeFile(paths.launchAgentPath, snapshot.plist.content, {
@@ -276,20 +400,29 @@ export class MacPlatformAdapter {
         if (error.code !== "ENOENT") throw error;
       });
     }
-    if (snapshot?.running) {
-      if (!snapshot?.plist?.exists) throw new Error("Cannot restore a running service without its plist.");
+    if (snapshot?.running && snapshot?.plist?.exists) {
       await this.execFile("/bin/launchctl", ["bootstrap", `gui/${this.uid}`, paths.launchAgentPath]);
-      await this.execFile("/bin/launchctl", ["kickstart", "-k", serviceTarget(this.uid)]);
+      await this.execFile("/bin/launchctl", ["kickstart", "-k", legacyServiceTarget(this.uid)]);
     }
     return snapshot;
   }
 
   async removeService(paths) {
-    await this.stopService({ ignoreErrors: true });
+    assertOwnedServicePaths(paths);
+    await this.stopService(paths, { ignoreErrors: false });
     await this.assertServiceStopped();
     await this.fileSystem.unlink(paths.launchAgentPath).catch((error) => {
       if (error.code !== "ENOENT") throw error;
     });
+    if (paths.serviceRuntimeConfigPath) {
+      await this.fileSystem.unlink(paths.serviceRuntimeConfigPath).catch((error) => {
+        if (error.code !== "ENOENT") throw error;
+      });
+      await this.fileSystem.unlink(`${paths.serviceRuntimeConfigPath}.installing`).catch((error) => {
+        if (error.code !== "ENOENT") throw error;
+      });
+    }
+    await this.fileSystem.rm(paths.serviceDir, { recursive: true, force: true });
   }
 
   async listCodexProcesses() {

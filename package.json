@@ -1,6 +1,6 @@
 {
   "name": "minecodex",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Lightweight, local-first plugins for the Codex desktop app.",
   "license": "MIT",
   "type": "module",
@@ -16,6 +16,7 @@
     "LICENSE",
     "packages/cli/bin",
     "packages/cli/src",
+    "packages/cli/native/MineCodex.app",
     "packages/runtime-host/src",
     "features/model-slider/assets",
     "features/model-slider/codex-feature.json",
@@ -39,10 +40,11 @@
   },
   "scripts": {
     "start": "node packages/cli/bin/mcx.mjs serve",
-    "test": "node --test packages/cli/test/*.test.mjs packages/runtime-host/test/*.test.mjs features/model-slider/test/*.test.mjs features/notes/test/*.test.mjs features/images/test/*.test.mjs",
+    "test": "node --test packages/cli/test/*.test.mjs packages/runtime-host/test/*.test.mjs features/model-slider/test/*.test.mjs features/notes/test/*.test.mjs features/images/test/*.test.mjs apps/dashboard/test/*.test.mjs",
     "test:cli": "node --test packages/cli/test/*.test.mjs",
     "test:runtime": "node --test packages/runtime-host/test/*.test.mjs",
     "check": "node --check packages/cli/bin/mcx.mjs && node --check packages/cli/src/*.mjs && node --check packages/runtime-host/src/*.mjs",
+    "build:service": "scripts/build-service-app.zsh",
     "pack:check": "npm pack --dry-run",
     "pack:audit": "node scripts/audit-package.mjs",
     "prepublishOnly": "npm test && npm run check && npm run pack:audit"

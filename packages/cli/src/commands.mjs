@@ -23,6 +23,12 @@ async function exists(filePath) {
   }
 }
 
+async function serviceInstalled(platform, paths) {
+  if (platform.isServiceInstalled) return platform.isServiceInstalled(paths);
+  return (paths.serviceManagerPath ? exists(paths.serviceManagerPath) : false)
+    || (paths.launchAgentPath ? exists(paths.launchAgentPath) : false);
+}
+
 async function waitForService(port, { fetchImpl = fetch, timeoutMs = 20_000 } = {}) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
@@ -151,7 +157,7 @@ async function installCommand({ paths, platform, cliPath, output, serviceProbe, 
 async function openCommand({ paths, platform, serviceProbe, fetchImpl }) {
   const waitForServiceImpl = serviceProbe?.waitForService ?? waitForService;
   if (!(await waitForServiceImpl(DEFAULT_CONTROL_PORT, { fetchImpl, timeoutMs: 750 }))) {
-    if (!(await exists(paths.launchAgentPath))) throw new Error("MineCodex is not installed. Run `mcx install` first.");
+    if (!(await serviceInstalled(platform, paths))) throw new Error("MineCodex is not installed. Run `mcx install` first.");
     await platform.startService(paths);
     if (!(await waitForServiceImpl(DEFAULT_CONTROL_PORT, { fetchImpl }))) throw new Error("MineCodex service could not be started.");
   }
@@ -181,16 +187,16 @@ function featureStatusText(feature) {
   return `${copy[state] ?? state}${failure}`;
 }
 
-async function statusCommand({ paths, jsonOutput, output, fetchImpl }) {
+async function statusCommand({ paths, platform, jsonOutput, output, fetchImpl }) {
   let status;
   try {
     const response = await authorizedFetch(paths, "/api/status", {}, { fetchImpl });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    status = { installed: await exists(paths.launchAgentPath), service: { running: true }, ...await response.json() };
+    status = { installed: await serviceInstalled(platform, paths), service: { running: true }, ...await response.json() };
   } catch {
     const config = await readConfig(paths.configPath).catch(() => null);
     status = {
-      installed: await exists(paths.launchAgentPath),
+      installed: await serviceInstalled(platform, paths),
       version: packageMetadata.version,
       service: { running: false },
       runtime: { running: false },
@@ -267,7 +273,7 @@ async function updateCommand({ paths, platform, cliPath, output, npm = createNpm
     output(`MineCodex ${packageMetadata.version} is already up to date.`);
     return;
   }
-  const wasInstalled = await exists(paths.launchAgentPath);
+  const wasInstalled = await serviceInstalled(platform, paths);
   const previousService = wasInstalled
     ? (await serviceSnapshot(platform, paths) ?? { running: true, plist: { exists: true } })
     : null;
@@ -276,7 +282,7 @@ async function updateCommand({ paths, platform, cliPath, output, npm = createNpm
   if (!rollbackPath) throw new Error("Could not create a rollback archive for the installed MineCodex version.");
   try {
     if (wasInstalled && previousService?.running) {
-      await platform.stopService({ ignoreErrors: false });
+      await platform.stopService(paths, { ignoreErrors: false });
       await platform.assertServiceStopped?.();
     }
     await npm.installGlobal("minecodex@latest");
@@ -378,7 +384,7 @@ export async function runCli(argv, {
   if (["--version", "-v"].includes(command)) return output(packageMetadata.version);
   if (command === "install") return installCommand({ paths, platform, cliPath, output, serviceProbe, fetchImpl, nodeVersion });
   if (command === "open" || command === "gui") return openCommand({ paths, platform, serviceProbe, fetchImpl });
-  if (command === "status") return statusCommand({ paths, jsonOutput: args.includes("--json"), output, fetchImpl });
+  if (command === "status") return statusCommand({ paths, platform, jsonOutput: args.includes("--json"), output, fetchImpl });
   if (command === "restart") return restartCommand({ paths, output, fetchImpl });
   if (command === "uninstall" || command === "remove") {
     return uninstallCommand({ paths, platform, purge: args.includes("--purge"), output, cliPath });

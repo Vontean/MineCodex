@@ -17,6 +17,10 @@ npm install -g minecodex
 mcx install
 ```
 
+`mcx install` 会关闭当前正在运行的 Codex 窗口，再以 MineCodex 托管方式重新打开；
+请先保存正在编辑的内容，并让安装命令完整运行到成功提示。安装后，macOS 的
+“登录项与扩展”中会显示名为 **MineCodex** 的后台项目，用于在登录后恢复插件。
+
 安装后三个插件默认开启。打开本地控制台：
 
 ```bash
@@ -34,7 +38,8 @@ mcx status [--json]
 mcx restart
 ```
 
-关闭插件只会停止注册，不会删除数据。`mcx uninstall` 默认保留 MineCodex 设置、
+关闭插件只会停用对应功能，不会删除数据；保存开关后运行 `mcx restart` 应用变更。
+`mcx uninstall` 会移除名为 MineCodex 的后台项目，并默认保留 MineCodex 设置、
 Notes 数据和 Images 索引；只有显式传入 `--purge` 才会删除 MineCodex 自有数据。
 MineCodex 永远不会删除 `~/.codex/generated_images` 中的原图或 Notes 引用的源文件。
 
