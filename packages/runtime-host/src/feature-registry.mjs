@@ -399,6 +399,7 @@ export async function checkFeatureHealth(
     instanceId,
     fetchImpl = globalThis.fetch,
     timeoutMs = FEATURE_HEALTH_TIMEOUT_MS,
+    signal,
   } = {},
 ) {
   if (!feature.healthUrl) {
@@ -412,6 +413,7 @@ export async function checkFeatureHealth(
   const boundedTimeoutMs = Math.max(1, Number(timeoutMs) || FEATURE_HEALTH_TIMEOUT_MS);
   let timedOut = false;
   let timer;
+  let cancelFromParent;
   const request = (async () => {
     const response = await fetchImpl(feature.healthUrl, { signal: controller.signal });
     if (!response?.ok) {
@@ -438,12 +440,39 @@ export async function checkFeatureHealth(
       });
     }, boundedTimeoutMs);
   });
+  const cancellation = signal
+    ? new Promise((resolve) => {
+      cancelFromParent = () => {
+        controller.abort();
+        resolve({
+          ok: false,
+          failure: failure(
+            "HEALTH_ABORTED",
+            `Health check for ${feature.label ?? feature.id} was cancelled`,
+            "startup",
+          ),
+        });
+      };
+      if (signal.aborted) cancelFromParent();
+      else signal.addEventListener("abort", cancelFromParent, { once: true });
+    })
+    : new Promise(() => {});
 
   try {
-    const result = await Promise.race([request, timeout]);
+    const result = await Promise.race([request, timeout, cancellation]);
     if (timedOut) return result;
     return result;
   } catch (error) {
+    if (signal?.aborted) {
+      return {
+        ok: false,
+        failure: failure(
+          "HEALTH_ABORTED",
+          `Health check for ${feature.label ?? feature.id} was cancelled`,
+          "startup",
+        ),
+      };
+    }
     if (timedOut || error?.name === "AbortError") {
       return {
         ok: false,
@@ -456,6 +485,7 @@ export async function checkFeatureHealth(
     };
   } finally {
     clearTimeout(timer);
+    if (cancelFromParent) signal.removeEventListener("abort", cancelFromParent);
   }
 }
 
@@ -463,6 +493,12 @@ async function waitForFeatureHealth(feature, child, options) {
   const deadline = Date.now() + Math.max(1, Number(options.startupTimeoutMs) || FEATURE_STARTUP_TIMEOUT_MS);
   let lastFailure = failure("HEALTH_TIMEOUT", `Timed out waiting for ${feature.label ?? feature.id}`);
   while (Date.now() < deadline) {
+    if (options.signal?.aborted) {
+      return {
+        ok: false,
+        failure: failure("HEALTH_ABORTED", `Startup for ${feature.label ?? feature.id} was cancelled`, "startup"),
+      };
+    }
     if (options.childState?.failure) {
       return { ok: false, failure: options.childState.failure };
     }
@@ -478,6 +514,7 @@ async function waitForFeatureHealth(feature, child, options) {
       timeoutMs: Math.min(options.timeoutMs, Math.max(1, remainingBeforeProbe)),
     });
     if (result.ok) return result;
+    if (options.signal?.aborted || result.failure?.code === "HEALTH_ABORTED") return result;
     if (options.childState?.failure) {
       return { ok: false, failure: options.childState.failure };
     }
@@ -505,14 +542,7 @@ function normalizeStartOptions(loggerOrOptions, maybeOptions) {
 
 function featureFailure(record) {
   if (!record.failure) return null;
-  const result = {
-    featureId: record.featureId,
-    message: record.failure.message,
-    code: record.failure.code,
-    phase: record.failure.phase,
-  };
-  if (record.failure.cleanup) result.cleanup = record.failure.cleanup;
-  return result;
+  return { featureId: record.featureId, ...record.failure };
 }
 
 export async function startFeatureProcesses(features, loggerOrOptions = console, maybeOptions = {}) {
@@ -521,6 +551,9 @@ export async function startFeatureProcesses(features, loggerOrOptions = console,
   const fetchImpl = options.fetchImpl ?? globalThis.fetch;
   const spawnProcess = options.spawnProcess ?? spawn;
   const sleepImpl = options.sleep ?? sleep;
+  const startupController = new AbortController();
+  const terminationPromises = new WeakMap();
+  let stopping = false;
   const records = features.map((feature) => ({
     featureId: feature.id,
     state: feature.surfaceUrl ? "launching" : "configured",
@@ -529,6 +562,92 @@ export async function startFeatureProcesses(features, loggerOrOptions = console,
     health: null,
     failure: null,
   }));
+
+  function notifyStatusChange() {
+    try {
+      const result = options.onStatusChange?.();
+      if (result && typeof result.then === "function") {
+        Promise.resolve(result).catch((error) => {
+          options.logger.warn?.("Feature status update failed", error.message);
+        });
+      }
+    } catch (error) {
+      options.logger.warn?.("Feature status update failed", error.message);
+    }
+  }
+
+  function markFailed(record, nextFailure) {
+    record.state = "failed";
+    record.health = null;
+    record.failure = nextFailure;
+    notifyStatusChange();
+  }
+
+  function childExitFailure(feature, code, signal, phase) {
+    const reason = signal ? `signal ${signal}` : `code ${code ?? "unknown"}`;
+    return {
+      ...failure("CHILD_EXITED", `${feature.label ?? feature.id} child exited with ${reason}`, phase),
+      exitCode: code ?? null,
+      signal: signal ?? null,
+    };
+  }
+
+  function observeOwnedChild(feature, record, child, childState) {
+    child.on?.("error", (error) => {
+      if (record.child !== child || stopping) return;
+      if (record.state === "ready") {
+        markFailed(record, {
+          ...failure("CHILD_ERROR", error.message, "runtime"),
+          name: error.name ?? "Error",
+        });
+        return;
+      }
+      childState.failure ??= failure("CHILD_SPAWN_FAILED", error.message, "startup");
+    });
+    child.once?.("exit", (code, signal) => {
+      if (record.child !== child || stopping) return;
+      if (record.state === "ready") {
+        markFailed(record, childExitFailure(feature, code, signal, "runtime"));
+        return;
+      }
+      if (record.state === "launching") {
+        childState.failure ??= childExitFailure(feature, code, signal, "startup");
+      }
+    });
+  }
+
+  function terminateRecord(record, { preserveState = false } = {}) {
+    const pending = terminationPromises.get(record);
+    if (pending) return pending;
+    let operation;
+    operation = terminateOwnedChild(record, options, { preserveState }).finally(() => {
+      if (terminationPromises.get(record) === operation) terminationPromises.delete(record);
+    });
+    terminationPromises.set(record, operation);
+    return operation;
+  }
+
+  async function failOwnedStartup(feature, record, nextFailure) {
+    markFailed(record, nextFailure);
+    if (record.owned && record.child) {
+      try {
+        await terminateRecord(record, { preserveState: true });
+      } catch (error) {
+        record.failure = {
+          ...record.failure,
+          cleanup: {
+            code: error.code ?? "FEATURE_CHILD_TERMINATE_FAILED",
+            message: error.message,
+            phase: error.phase ?? "shutdown",
+          },
+        };
+        notifyStatusChange();
+        options.logger.warn?.(`${feature.label}: owned child cleanup failed (${error.message})`);
+      }
+    }
+    options.logger.warn?.(`${feature.label}: unavailable (${record.failure.message})`);
+  }
+
   async function startOne(feature, index) {
     const record = records[index];
     if (!feature.surfaceUrl) return;
@@ -540,22 +659,24 @@ export async function startFeatureProcesses(features, loggerOrOptions = console,
       startupTimeoutMs: options.startupTimeoutMs ?? FEATURE_STARTUP_TIMEOUT_MS,
       pollIntervalMs: options.pollIntervalMs ?? FEATURE_HEALTH_POLL_INTERVAL_MS,
       sleep: sleepImpl,
+      signal: startupController.signal,
     };
     const existing = await checkFeatureHealth(feature, healthOptions);
+    if (stopping) return;
     if (existing.ok) {
       record.state = "ready";
       record.health = existing.health;
+      record.failure = null;
+      notifyStatusChange();
       options.logger.log?.(`${feature.label}: using existing service at ${feature.healthUrl}`);
       return;
     }
     if (!feature.command?.length) {
-      record.state = "failed";
-      record.failure = failure(
+      await failOwnedStartup(feature, record, failure(
         "FEATURE_COMMAND_MISSING",
         `${feature.label} is offline and has no command in ${MANIFEST_NAME}`,
         "startup",
-      );
-      options.logger.warn?.(`${feature.label}: unavailable (${record.failure.message})`);
+      ));
       return;
     }
 
@@ -574,13 +695,10 @@ export async function startFeatureProcesses(features, loggerOrOptions = console,
       });
       record.child = child;
       record.owned = true;
-      child.once?.("error", (error) => {
-        childState.failure = failure("CHILD_SPAWN_FAILED", error.message, "startup");
-      });
+      observeOwnedChild(feature, record, child, childState);
+      notifyStatusChange();
     } catch (error) {
-      record.state = "failed";
-      record.failure = failure("CHILD_SPAWN_FAILED", error.message, "startup");
-      options.logger.warn?.(`${feature.label}: unavailable (${record.failure.message})`);
+      await failOwnedStartup(feature, record, failure("CHILD_SPAWN_FAILED", error.message, "startup"));
       return;
     }
 
@@ -588,32 +706,26 @@ export async function startFeatureProcesses(features, loggerOrOptions = console,
       ...healthOptions,
       childState,
     });
-    if (result.ok) {
+    if (stopping) return;
+    if (result.ok && !childState.failure && !childHasExited(child)) {
       record.state = "ready";
       record.health = result.health;
+      record.failure = null;
+      notifyStatusChange();
       options.logger.log?.(`${feature.label}: started at ${feature.surfaceUrl}`);
       return;
     }
-    record.state = "failed";
-    record.failure = result.failure;
-    try {
-      await terminateOwnedChild(record, options, { preserveState: true });
-    } catch (error) {
-      record.failure = {
-        ...record.failure,
-        cleanup: {
-          code: error.code ?? "FEATURE_CHILD_TERMINATE_FAILED",
-          message: error.message,
-          phase: error.phase ?? "shutdown",
-        },
-      };
-      options.logger.warn?.(`${feature.label}: owned child cleanup failed (${error.message})`);
-    }
-    options.logger.warn?.(`${feature.label}: unavailable (${record.failure.message})`);
+    await failOwnedStartup(
+      feature,
+      record,
+      childState.failure
+        ?? (childHasExited(child)
+          ? childExitFailure(feature, child.exitCode, child.signalCode, "startup")
+          : result.failure),
+    );
   }
 
-  await Promise.all(features.map((feature, index) => startOne(feature, index)));
-
+  let startupPromise = Promise.resolve();
   let stopPromise = null;
   const supervisor = {
     instanceId,
@@ -634,26 +746,44 @@ export async function startFeatureProcesses(features, loggerOrOptions = console,
         };
       });
     },
+    waitForStartup() {
+      return startupPromise;
+    },
     async stop() {
       if (stopPromise) return stopPromise;
+      stopping = true;
+      startupController.abort();
       stopPromise = (async () => {
+        await startupPromise;
         const shutdownErrors = [];
         for (const record of records) {
-          if (!record.owned || !record.child) continue;
-          try {
-            await terminateOwnedChild(record, options, { preserveState: record.state === "failed" });
-          } catch (error) {
-            record.failure ??= {
-              code: error.code ?? "FEATURE_CHILD_TERMINATE_FAILED",
-              message: error.message,
-              phase: error.phase ?? "shutdown",
-            };
-            record.failure.cleanup = {
-              code: error.code ?? "FEATURE_CHILD_TERMINATE_FAILED",
-              message: error.message,
-              phase: error.phase ?? "shutdown",
-            };
-            shutdownErrors.push(error);
+          if (record.owned && record.child) {
+            try {
+              await terminateRecord(record, { preserveState: record.state === "failed" });
+            } catch (error) {
+              record.state = "failed";
+              record.health = null;
+              record.failure ??= {
+                code: error.code ?? "FEATURE_CHILD_TERMINATE_FAILED",
+                message: error.message,
+                phase: error.phase ?? "shutdown",
+              };
+              record.failure.cleanup = {
+                code: error.code ?? "FEATURE_CHILD_TERMINATE_FAILED",
+                message: error.message,
+                phase: error.phase ?? "shutdown",
+              };
+              notifyStatusChange();
+              shutdownErrors.push(error);
+              continue;
+            }
+          }
+          if (record.state !== "failed") {
+            const changed = record.state !== "stopped" || record.health !== null;
+            record.state = "stopped";
+            record.health = null;
+            record.failure = null;
+            if (changed) notifyStatusChange();
           }
         }
         if (shutdownErrors.length) {
@@ -674,5 +804,18 @@ export async function startFeatureProcesses(features, loggerOrOptions = console,
       return supervisor.getFailures();
     },
   });
+  startupPromise = Promise.all(features.map(async (feature, index) => {
+    try {
+      await startOne(feature, index);
+    } catch (error) {
+      if (stopping) return;
+      await failOwnedStartup(
+        feature,
+        records[index],
+        failure("FEATURE_START_FAILED", error?.message ?? "Feature startup failed", "startup"),
+      );
+    }
+  })).then(() => supervisor);
+  if (!options.deferredStart) await startupPromise;
   return supervisor;
 }

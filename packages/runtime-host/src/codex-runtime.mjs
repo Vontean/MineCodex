@@ -1783,6 +1783,14 @@ export function createInjectionSource(features, {
       return `${featureId}:${kind}:${detailId}`;
     }
 
+    function postSurfaceActive(record, active) {
+      if (!record || record.kind !== "page") return;
+      record.frame.contentWindow?.postMessage({
+        type: "codex-personal:surface-active",
+        active: Boolean(active),
+      }, record.origin);
+    }
+
     function registerSurface(key, feature, kind, surfaceUrl, element, frame, detailId = null) {
       const record = {
         key,
@@ -1796,7 +1804,10 @@ export function createInjectionSource(features, {
         preferredHeight: null,
       };
       surfaceRecords.set(key, record);
-      frame.addEventListener("load", queueTheme);
+      frame.addEventListener("load", () => {
+        queueTheme();
+        postSurfaceActive(record, activePageFeatureId === record.featureId && !record.element.hidden);
+      });
       return record;
     }
 
@@ -2075,19 +2086,30 @@ export function createInjectionSource(features, {
       const feature = featureById.get(featureId);
       if (!feature) return;
       hidePinnedSurfaces();
-      for (const surface of pageSurfaces.values()) surface.hidden = true;
+      for (const [otherFeatureId, surface] of pageSurfaces) {
+        if (otherFeatureId === featureId) continue;
+        surface.hidden = true;
+        const record = surfaceRecords.get(surfaceKey(otherFeatureId, "page"));
+        postSurfaceActive(record, false);
+      }
       const existing = pageSurfaces.get(featureId);
       const surface = existing ?? createPageSurface(feature);
       if (existing) reloadSurfaceIfUnready(surfaceKey(feature.id, "page"), feature.surfaceUrl);
       surface.hidden = false;
       activePageFeatureId = featureId;
+      const record = surfaceRecords.get(surfaceKey(feature.id, "page"));
+      postSurfaceActive(record, true);
       updatePageSurfacePositions();
       updateSidebarSelectedState();
       queueTheme();
     }
 
     function hidePageSurfaces() {
-      for (const surface of pageSurfaces.values()) surface.hidden = true;
+      for (const [featureId, surface] of pageSurfaces) {
+        surface.hidden = true;
+        const record = surfaceRecords.get(surfaceKey(featureId, "page"));
+        postSurfaceActive(record, false);
+      }
       activePageFeatureId = null;
       updateSidebarSelectedState();
     }

@@ -26,10 +26,10 @@ for (const feature of features) {
   if (feature.modelSelector) feature.modelSelector.models = modelCatalog;
 }
 
-const featureInstanceId = randomUUID();
-const featureProcesses = await startFeatureProcesses(features, { instanceId: featureInstanceId });
 let readyWritePromise = Promise.resolve();
 let runtime;
+let featureProcesses;
+let runtimeReady = false;
 const updateCodexPidFile = createManagedPidFileWriter(process.env.MINECODEX_CODEX_PID_FILE);
 
 function writeReadyFile() {
@@ -48,18 +48,30 @@ function writeReadyFile() {
   return readyWritePromise;
 }
 
+function requestReadyFileRefresh() {
+  if (!runtimeReady || !runtime || !featureProcesses) return;
+  writeReadyFile().catch((error) => console.warn("Runtime ready-file update failed", error.message));
+}
+
+const featureInstanceId = randomUUID();
+featureProcesses = await startFeatureProcesses(features, {
+  instanceId: featureInstanceId,
+  deferredStart: true,
+  onStatusChange: requestReadyFileRefresh,
+});
+
 runtime = new CodexRuntime({
   features,
   profileDir,
   cdpPort,
+  appPath: process.env.MINECODEX_CODEX_EXECUTABLE || undefined,
   onManagedCodexPidChange: updateCodexPidFile,
-  onStatusChange: () => {
-    writeReadyFile().catch((error) => console.warn("Runtime ready-file update failed", error.message));
-  },
+  onStatusChange: requestReadyFileRefresh,
 });
 
 try {
   await runtime.start();
+  runtimeReady = true;
   await writeReadyFile();
 } catch (error) {
   await featureProcesses.stop();

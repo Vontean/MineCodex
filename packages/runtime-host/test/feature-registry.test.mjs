@@ -49,6 +49,15 @@ function fakeChild(pid, { exitsOnTerm = true } = {}) {
   return child;
 }
 
+async function waitFor(predicate, timeoutMs = 250) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (predicate()) return;
+    await new Promise((resolve) => setTimeout(resolve, 2));
+  }
+  assert.fail("Timed out waiting for the feature lifecycle transition");
+}
+
 test("distinguishes an absent feature filter from an explicitly empty filter", () => {
   const features = [{ id: "model-slider" }, { id: "notes" }, { id: "images" }];
   assert.deepEqual(selectEnabledFeatures(features, undefined), features);
@@ -497,4 +506,144 @@ test("surfaces a bounded shutdown failure when an owned child never confirms exi
   assert.equal(supervisor.plugins[0].failure.cleanup.code, "FEATURE_CHILD_SHUTDOWN_TIMEOUT");
   await assert.rejects(supervisor.stop(), /FEATURE_CHILD_SHUTDOWN_TIMEOUT/);
   assert.equal(supervisor.plugins[0].state, "failed");
+});
+
+test("marks ready owned features failed when their child later exits or errors", async () => {
+  const children = new Map([
+    ["notes", fakeChild(9201)],
+    ["images", fakeChild(9202)],
+  ]);
+  const attempts = new Map();
+  const statusChanges = [];
+  const supervisor = await startFeatureProcesses([
+    serviceFeature("notes"),
+    serviceFeature("images"),
+  ], {
+    instanceId: "runtime-instance-post-ready",
+    spawnProcess(command, args) {
+      return children.get(args[0]);
+    },
+    fetchImpl: async (url) => {
+      const attempt = (attempts.get(url) ?? 0) + 1;
+      attempts.set(url, attempt);
+      if (attempt === 1) throw new Error("offline");
+      const featureId = url.includes("47832") ? "notes" : "images";
+      return {
+        ok: true,
+        async json() {
+          return {
+            service: featureId,
+            protocolVersion: 1,
+            instanceId: "runtime-instance-post-ready",
+          };
+        },
+      };
+    },
+    onStatusChange: () => statusChanges.push("changed"),
+    logger: { log() {}, warn() {} },
+  });
+
+  assert.deepEqual(supervisor.plugins.map((plugin) => plugin.state), ["ready", "ready"]);
+  assert.ok(supervisor.plugins.every((plugin) => plugin.health));
+
+  const notesChild = children.get("notes");
+  notesChild.exitCode = 23;
+  notesChild.emit("exit", 23, null);
+  children.get("images").emit("error", new Error("runtime pipe broke"));
+
+  const notes = supervisor.plugins.find((plugin) => plugin.featureId === "notes");
+  const images = supervisor.plugins.find((plugin) => plugin.featureId === "images");
+  assert.equal(notes.state, "failed");
+  assert.equal(notes.health, null);
+  assert.equal(notes.failure.code, "CHILD_EXITED");
+  assert.equal(notes.failure.phase, "runtime");
+  assert.match(notes.failure.message, /23/);
+  assert.equal(images.state, "failed");
+  assert.equal(images.health, null);
+  assert.equal(images.failure.code, "CHILD_ERROR");
+  assert.equal(images.failure.phase, "runtime");
+  assert.match(images.failure.message, /runtime pipe broke/);
+  assert.ok(statusChanges.length >= 4);
+  await supervisor.stop();
+});
+
+test("returns deferred supervisors before slow feature health settles and emits status changes", async () => {
+  let releaseHealth;
+  const statusChanges = [];
+  const startPromise = startFeatureProcesses([
+    { id: "model-slider", label: "Model Slider", surfaceUrl: null },
+    serviceFeature("notes"),
+  ], {
+    instanceId: "runtime-instance-deferred",
+    deferredStart: true,
+    fetchImpl: () => new Promise((resolve) => {
+      releaseHealth = () => resolve({
+        ok: true,
+        async json() {
+          return {
+            service: "notes",
+            protocolVersion: 1,
+            instanceId: "runtime-instance-deferred",
+          };
+        },
+      });
+    }),
+    onStatusChange: () => statusChanges.push("changed"),
+    logger: { log() {}, warn() {} },
+  });
+  const immediate = await Promise.race([
+    startPromise.then((supervisor) => ({ supervisor })),
+    new Promise((resolve) => setTimeout(() => resolve(null), 20)),
+  ]);
+  const initialStates = immediate?.supervisor.plugins.map((plugin) => plugin.state);
+  releaseHealth?.();
+  const supervisor = await startPromise;
+
+  assert.ok(immediate, "deferred start should return before the slow health response");
+  assert.deepEqual(initialStates, ["configured", "launching"]);
+  await supervisor.waitForStartup();
+  assert.deepEqual(supervisor.plugins.map((plugin) => plugin.state), ["configured", "ready"]);
+  assert.ok(statusChanges.length >= 1);
+  await supervisor.stop();
+});
+
+test("stops safely during deferred owned-child startup without reporting an intentional exit", async () => {
+  const child = fakeChild(9203);
+  let healthAttempt = 0;
+  const statusChanges = [];
+  const startPromise = startFeatureProcesses([serviceFeature("notes")], {
+    instanceId: "runtime-instance-stop-deferred",
+    deferredStart: true,
+    healthTimeoutMs: 150,
+    startupTimeoutMs: 200,
+    stopTimeoutMs: 30,
+    killTimeoutMs: 30,
+    spawnProcess: () => child,
+    fetchImpl(url, { signal }) {
+      healthAttempt += 1;
+      if (healthAttempt === 1) return Promise.reject(new Error("offline"));
+      return new Promise((resolve, reject) => {
+        signal.addEventListener("abort", () => {
+          reject(Object.assign(new Error("aborted"), { name: "AbortError" }));
+        }, { once: true });
+      });
+    },
+    onStatusChange: () => statusChanges.push("changed"),
+    logger: { log() {}, warn() {} },
+  });
+  const immediate = await Promise.race([
+    startPromise.then((supervisor) => ({ supervisor })),
+    new Promise((resolve) => setTimeout(() => resolve(null), 20)),
+  ]);
+  const supervisor = await startPromise;
+
+  assert.ok(immediate, "deferred start should expose the supervisor while startup is in flight");
+  await waitFor(() => supervisor.plugins[0].owned);
+  await supervisor.stop();
+  await supervisor.waitForStartup();
+  assert.deepEqual(child.kills, ["SIGTERM"]);
+  assert.equal(supervisor.plugins[0].state, "stopped");
+  assert.equal(supervisor.plugins[0].health, null);
+  assert.equal(supervisor.plugins[0].failure, null);
+  assert.ok(statusChanges.length >= 1);
 });

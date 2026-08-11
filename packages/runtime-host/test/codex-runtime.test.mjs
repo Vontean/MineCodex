@@ -74,6 +74,38 @@ test("renders 24px outline feature icons at Codex's 1px visual weight", () => {
   assert.doesNotMatch(source, /icon\.setAttribute\("stroke-width", "2"\)/);
 });
 
+test("posts page-surface activity on show, hide, and iframe load", () => {
+  const source = createInjectionSource([{
+    id: "images",
+    label: "Images",
+    surfaceUrl: "http://127.0.0.1:47831/",
+    entry: { kind: "sidebar" },
+    placement: { after: "sites", order: 10 },
+    hostActions: [],
+  }]);
+
+  assert.match(
+    source,
+    /function postSurfaceActive\(record, active\)[\s\S]*?type: "codex-personal:surface-active",[\s\S]*?active: Boolean\(active\)/,
+  );
+  assert.match(
+    source,
+    /frame\.addEventListener\("load", \(\) => \{[\s\S]*?postSurfaceActive\(record, activePageFeatureId === record\.featureId && !record\.element\.hidden\)/,
+  );
+  assert.match(source, /function showPageSurface[\s\S]*?postSurfaceActive\(record, true\)/);
+  assert.match(source, /function hidePageSurfaces[\s\S]*?postSurfaceActive\(record, false\)/);
+});
+
+test("main defers feature startup publication and consumes the configured Codex executable", async () => {
+  const source = await readFile(new URL("../src/main.mjs", import.meta.url), "utf8");
+
+  assert.match(source, /deferredStart: true/);
+  assert.match(source, /onStatusChange: requestReadyFileRefresh/);
+  assert.match(source, /let runtimeReady = false/);
+  assert.match(source, /await runtime\.start\(\);\s*runtimeReady = true;\s*await writeReadyFile\(\)/);
+  assert.match(source, /appPath: process\.env\.MINECODEX_CODEX_EXECUTABLE \|\| undefined/);
+});
+
 test("emits a fail-closed native Composer model selector Adapter", () => {
   const icon = { viewBox: "0 0 24 24", markup: "<path></path>" };
   const source = createInjectionSource([{
