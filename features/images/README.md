@@ -87,7 +87,7 @@ HTTP + Images UI
 - Images 服务需要保持运行，才会持续监听新图片；侧边栏注册由 `CodexRuntimeHost` 统一维持。
 - 每次服务启动都会先开放 health，再在后台补扫停机期间新增的图片并刷新来源名称；初始补扫完成后，运行期间的新图片由文件监听自动加入。手动 Refresh 会再次补扫来源和 Archive 状态，但不会重置筛选、图板模式、详情、滚动位置或列数。刷新 ring 至少显示 1 秒。
 - 侧边栏使用 Codex 当前未公开的 CDP / DOM 能力，Codex UI 更新后只需调整统一宿主；独立 Web UI 和路径索引不受影响。
-- 当前 Codex 的 CSP 会屏蔽普通本地 iframe。统一宿主会先等待原生侧栏完成渲染，再启用 CSP bypass、注册 document-start 脚本，并替换当前 document 中旧的 MineCodex runtime 后显式完成注入；当前实现不会调用会让用户看到页面刷新的 `Page.reload`（Issue #1）。
+- 当前 Codex 的 CSP 会屏蔽普通本地 iframe。统一宿主会先启用 CSP bypass 并注册 document-start 脚本；尚未完成该初始化的首次或旧版 document 会受控 reload 一次。完成初始化后会留下 document 标记，后续 RuntimeHost 重启只替换旧的 MineCodex runtime，不再刷新 Codex 页面（Issue #1）。
 - 详情打开时会从本机 Session JSONL 按需读取该 ImageGen item 的真实 `revised_prompt` 并缓存到索引；历史记录缺少该事件时明确显示 Prompt 不可用，不从附近文本猜测。
 - 当前没有发现 Codex 会因运行时间增长而自动清理 `generated_images` 的证据。如果未来观察到真实清理，再决定是否增加可选备份。
 

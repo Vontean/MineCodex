@@ -141,6 +141,9 @@ Host 会再次发送当前状态。功能页面可据此暂停隐藏状态下的
 
 - 只在 top frame 安装 Runtime，绝不向业务 iframe 注入 binding token。
 - Watch / refresh 串行；已连接 Renderer 不重复连接，关闭 target 会清理状态。
+- 本地 Surface 注入前先启用 CSP bypass 并注册 document-start 脚本；缺少初始化标记的
+  首次或旧版 document 只受控 reload 一次。标记存在时，新的 RuntimeHost 会话直接
+  替换旧 Runtime，不刷新当前 Codex 页面。
 - 入口由 Renderer 内的 MutationObserver 幂等挂载，React 重绘不会产生重复入口。
 - Summary 根据对话主区域宽度连续派生 `overlay / shift / gutter`：小于 1096px
   使用临时 Popover；1096–1535px 预留 316px 并把对话内容左移 158px；更宽时

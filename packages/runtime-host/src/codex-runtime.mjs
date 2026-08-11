@@ -5,6 +5,8 @@ import path from "node:path";
 
 const RUNTIME_VERSION = 99;
 const HOST_BINDING_NAME = "__codexPersonalHostAction";
+const CSP_BOOTSTRAP_VERSION = 1;
+const CSP_BOOTSTRAP_KEY = "__mineCodexCspBootstrapVersion";
 
 export const RESPONSIVE_SUMMARY_LAYOUT = Object.freeze({
   contentBaseWidth: 736,
@@ -3564,6 +3566,14 @@ export function createRuntimeReadyContract({
   };
 }
 
+function createDocumentBootstrapSource(source) {
+  return `window[${JSON.stringify(CSP_BOOTSTRAP_KEY)}] = ${CSP_BOOTSTRAP_VERSION};\n${source}`;
+}
+
+function documentBootstrapExpression() {
+  return `window[${JSON.stringify(CSP_BOOTSTRAP_KEY)}] === ${CSP_BOOTSTRAP_VERSION}`;
+}
+
 async function connect(url) {
   const socket = new WebSocket(url);
   const pending = new Map();
@@ -4250,7 +4260,20 @@ export class CodexRuntime {
           bindingToken,
           runtimeSessionId: this.runtimeSessionId,
         });
-        const script = await client.send("Page.addScriptToEvaluateOnNewDocument", { source });
+        const bootstrapExpression = documentBootstrapExpression();
+        const script = await client.send("Page.addScriptToEvaluateOnNewDocument", {
+          source: createDocumentBootstrapSource(source),
+        });
+        const documentWasBootstrapped = Boolean(evaluationValue(await client.send("Runtime.evaluate", {
+          expression: bootstrapExpression,
+          returnByValue: true,
+        })));
+        if (!documentWasBootstrapped) {
+          const pageLoaded = client.waitFor("Page.loadEventFired", 20_000);
+          await client.send("Page.reload");
+          await pageLoaded;
+          await waitForExpression(client, bootstrapExpression);
+        }
         await waitForExpression(
           client,
           `document.readyState === "interactive" || document.readyState === "complete"`,

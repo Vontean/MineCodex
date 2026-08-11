@@ -903,6 +903,9 @@ test("replaces the current page runtime without reloading the Codex page", async
         injectedSource = params.source;
         return { identifier: "script-current" };
       }
+      if (method === "Runtime.evaluate" && params.expression?.includes("__mineCodexCspBootstrapVersion")) {
+        return { result: { value: true } };
+      }
       if (method === "Runtime.evaluate" && params.expression?.includes("document.readyState")) {
         return { result: { value: true } };
       }
@@ -931,6 +934,7 @@ test("replaces the current page runtime without reloading the Codex page", async
   await runtime.refreshTargets();
   assert.equal(runtime.getRendererStatus().active, true);
   assert.equal(calls.includes("Page.reload"), false);
+  assert.match(injectedSource, /__mineCodexCspBootstrapVersion/);
   assert.match(injectedSource, /"sessionId":"runtime-session-current"/);
   targets = [{ id: "target-current", type: "page", url: "about:blank", webSocketDebuggerUrl: "ws://target" }];
   await runtime.refreshTargets();
@@ -949,6 +953,81 @@ test("replaces the current page runtime without reloading the Codex page", async
     runtimeSessionId: "runtime-session-current",
   });
   assert.equal(statuses.at(-1).active, false);
+});
+
+test("reloads an unbootstrapped Codex document once before local surfaces are injected", async () => {
+  const calls = [];
+  let bootstrapped = false;
+  let injectedSource = "";
+  let resolvePageLoad;
+  const client = {
+    socket: { close() {} },
+    on() {
+      return () => {};
+    },
+    waitFor(method) {
+      calls.push(`waitFor:${method}`);
+      assert.equal(method, "Page.loadEventFired");
+      return new Promise((resolve) => {
+        resolvePageLoad = resolve;
+      });
+    },
+    async send(method, params = {}) {
+      calls.push(method);
+      if (method === "Page.addScriptToEvaluateOnNewDocument") {
+        injectedSource = params.source;
+        return { identifier: "script-bootstrap" };
+      }
+      if (method === "Page.reload") {
+        bootstrapped = true;
+        queueMicrotask(() => resolvePageLoad({}));
+        return {};
+      }
+      if (method === "Runtime.evaluate" && params.expression?.includes("__mineCodexCspBootstrapVersion")) {
+        return { result: { value: bootstrapped } };
+      }
+      if (method === "Runtime.evaluate" && params.expression?.includes("document.readyState")) {
+        return { result: { value: true } };
+      }
+      if (method === "Runtime.evaluate" && params.expression?.includes("sessionId ===")) {
+        return { result: { value: true } };
+      }
+      return {};
+    },
+  };
+  const runtime = new CodexRuntime({
+    features: [{ id: "images", hostActions: [] }, { id: "notes", hostActions: [] }],
+    profileDir: "/tmp/codex-runtime-bootstrap-profile",
+    cdpPort: 9247,
+    runtimeSessionId: "runtime-session-bootstrap",
+    fetchImpl: async (url) => {
+      if (url.endsWith("/json/list")) {
+        return cdpResponse([{
+          id: "target-bootstrap",
+          type: "page",
+          url: "app://-/index.html",
+          webSocketDebuggerUrl: "ws://target-bootstrap",
+        }]);
+      }
+      throw new Error(`Unexpected URL ${url}`);
+    },
+    connectClient: async () => client,
+    logger: { log() {}, warn() {} },
+  });
+
+  await runtime.refreshTargets();
+
+  assert.equal(runtime.getRendererStatus().active, true);
+  assert.equal(calls.filter((method) => method === "Page.reload").length, 1);
+  assert.ok(calls.indexOf("Page.setBypassCSP") < calls.indexOf("Page.addScriptToEvaluateOnNewDocument"));
+  assert.ok(calls.indexOf("Page.addScriptToEvaluateOnNewDocument") < calls.indexOf("waitFor:Page.loadEventFired"));
+  assert.ok(calls.indexOf("waitFor:Page.loadEventFired") < calls.indexOf("Page.reload"));
+  assert.match(injectedSource, /__mineCodexCspBootstrapVersion/);
+  assert.match(injectedSource, /"sessionId":"runtime-session-bootstrap"/);
+
+  await runtime.refreshTargets();
+  assert.equal(calls.filter((method) => method === "Page.reload").length, 1);
+  await runtime.stop();
 });
 
 test("clears injected target state when the current target list disappears", async () => {
