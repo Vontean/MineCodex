@@ -21,7 +21,7 @@ npm run check:runtime
 ```
 
 宿主默认扫描上层目录中的同级项目。只有当 manifest 的 `healthUrl` 返回的 JSON 同时满足
-`service === feature.id`、`protocolVersion === 1`，且 `instanceId` 等于本次 RuntimeHost
+`ok === true`、`service === feature.id`、`protocolVersion === 1`，且 `instanceId` 等于本次 RuntimeHost
 生成并传给功能进程的 `MINECODEX_FEATURE_INSTANCE_ID` 时，宿主才会复用现有服务。仅仅可达或
 返回 2xx 的 foreign / stale 服务不会被信任；身份不匹配时，宿主会在项目目录执行其
 `command`。可用以下环境变量启动隔离实例：

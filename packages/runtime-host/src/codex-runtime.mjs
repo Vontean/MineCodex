@@ -3660,6 +3660,25 @@ function evaluationValue(result) {
   return result.result?.value;
 }
 
+function requireCdpWebSocketUrl(version) {
+  const value = typeof version?.webSocketDebuggerUrl === "string"
+    ? version.webSocketDebuggerUrl.trim()
+    : "";
+  if (!value) {
+    throw new Error("Codex CDP /json/version is missing webSocketDebuggerUrl");
+  }
+  let parsed;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error("Codex CDP webSocketDebuggerUrl is invalid");
+  }
+  if (!new Set(["ws:", "wss:"]).has(parsed.protocol) || !parsed.host) {
+    throw new Error("Codex CDP webSocketDebuggerUrl must use ws: or wss:");
+  }
+  return value;
+}
+
 function processChildHasExited(child) {
   return child && (
     (child.exitCode !== null && child.exitCode !== undefined)
@@ -3952,12 +3971,15 @@ export class CodexRuntime {
   }
 
   async startTargetDiscovery() {
+    const response = await this.fetchImpl(`http://127.0.0.1:${this.cdpPort}/json/version`);
+    if (!response?.ok) {
+      throw new Error(`Codex CDP version returned HTTP ${response?.status ?? "error"}`);
+    }
+    const version = await response.json();
+    const webSocketDebuggerUrl = requireCdpWebSocketUrl(version);
+    let client;
     try {
-      const response = await this.fetchImpl(`http://127.0.0.1:${this.cdpPort}/json/version`);
-      const version = await response.json();
-      if (!version.webSocketDebuggerUrl) return;
-      const client = await this.connectClient(version.webSocketDebuggerUrl);
-      this.browserClient = client;
+      client = await this.connectClient(webSocketDebuggerUrl);
       for (const method of [
         "Target.targetCreated",
         "Target.targetInfoChanged",
@@ -3966,10 +3988,11 @@ export class CodexRuntime {
         client.on(method, () => this.queueTargetRefresh());
       }
       await client.send("Target.setDiscoverTargets", { discover: true });
+      this.browserClient = client;
     } catch (error) {
-      this.browserClient?.socket.close();
-      this.browserClient = null;
-      this.logger.warn?.("CDP target discovery unavailable; using polling", error.message);
+      client?.socket.close();
+      if (this.browserClient === client) this.browserClient = null;
+      this.logger.warn?.("CDP target discovery unavailable; using /json/list polling", error.message);
     }
   }
 
@@ -4013,7 +4036,10 @@ export class CodexRuntime {
 
   async isAvailable() {
     try {
-      return (await this.fetchImpl(`http://127.0.0.1:${this.cdpPort}/json/version`)).ok;
+      const response = await this.fetchImpl(`http://127.0.0.1:${this.cdpPort}/json/version`);
+      if (!response?.ok) return false;
+      requireCdpWebSocketUrl(await response.json());
+      return true;
     } catch {
       return false;
     }

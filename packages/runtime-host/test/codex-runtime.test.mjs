@@ -502,6 +502,74 @@ test("subscribes to CDP target changes so new App renderers are injected without
   assert.match(source, /queueTargetRefresh\(\)/);
 });
 
+test("falls back to target-list polling when a valid CDP websocket cannot connect", async () => {
+  const warnings = [];
+  const runtime = new CodexRuntime({
+    features: [],
+    profileDir: "/tmp/codex-runtime-discovery-polling-profile",
+    cdpPort: 9244,
+    fetchImpl: async () => ({
+      ok: true,
+      async json() {
+        return { webSocketDebuggerUrl: "ws://valid-but-unreachable-browser" };
+      },
+    }),
+    connectClient: async () => {
+      throw new Error("websocket refused");
+    },
+    logger: {
+      log() {},
+      warn(...args) {
+        warnings.push(args.join(" "));
+      },
+    },
+  });
+
+  await assert.doesNotReject(runtime.startTargetDiscovery());
+  assert.equal(runtime.browserClient, null);
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0], /using \/json\/list polling.*websocket refused/);
+});
+
+test("closes a partial CDP client when target discovery setup falls back to polling", async () => {
+  let closed = 0;
+  const warnings = [];
+  const runtime = new CodexRuntime({
+    features: [],
+    profileDir: "/tmp/codex-runtime-discovery-send-profile",
+    cdpPort: 9245,
+    fetchImpl: async () => ({
+      ok: true,
+      async json() {
+        return { webSocketDebuggerUrl: "wss://valid-browser" };
+      },
+    }),
+    connectClient: async () => ({
+      socket: {
+        close() {
+          closed += 1;
+        },
+      },
+      on() {},
+      async send(method) {
+        assert.equal(method, "Target.setDiscoverTargets");
+        throw new Error("discovery command failed");
+      },
+    }),
+    logger: {
+      log() {},
+      warn(...args) {
+        warnings.push(args.join(" "));
+      },
+    },
+  });
+
+  await assert.doesNotReject(runtime.startTargetDiscovery());
+  assert.equal(closed, 1);
+  assert.equal(runtime.browserClient, null);
+  assert.match(warnings[0], /using \/json\/list polling.*discovery command failed/);
+});
+
 test("uses a RuntimeHost session nonce to replace a same-version document runtime", () => {
   const source = createInjectionSource([], {
     bindingToken: "new-binding-token",
@@ -598,6 +666,55 @@ test("relaunches a managed Codex child after exit with bounded recovery", async 
   await runtime.stop();
 });
 
+test("rejects stale 2xx version payloads and relaunches until a valid CDP websocket is available", async () => {
+  let versionPayload = {};
+  let spawnCount = 0;
+  const discoveryUrls = [];
+  const runtime = new CodexRuntime({
+    features: [],
+    profileDir: "/tmp/codex-runtime-version-identity-profile",
+    appPath: "/definitely/not-a-real-codex",
+    cdpPort: 9243,
+    fetchImpl: async (url) => {
+      if (url.endsWith("/json/version")) return cdpResponse(versionPayload);
+      if (url.endsWith("/json/list")) return cdpResponse([]);
+      throw new Error(`Unexpected URL ${url}`);
+    },
+    spawnProcess: () => {
+      const child = new EventEmitter();
+      child.pid = 9260;
+      child.exitCode = null;
+      child.signalCode = null;
+      child.unref = () => {};
+      child.kill = () => true;
+      spawnCount += 1;
+      versionPayload = { webSocketDebuggerUrl: "ws://managed-browser" };
+      return child;
+    },
+    connectClient: async (url) => {
+      discoveryUrls.push(url);
+      return browserClient();
+    },
+    availabilityTimeoutMs: 100,
+    availabilityPollMs: 1,
+    monitorIntervalMs: 10_000,
+    logger: { log() {}, warn() {} },
+  });
+
+  assert.equal(await runtime.isAvailable(), false);
+  await assert.rejects(runtime.startTargetDiscovery(), /webSocketDebuggerUrl/);
+  versionPayload = { webSocketDebuggerUrl: "http://not-a-websocket" };
+  assert.equal(await runtime.isAvailable(), false);
+  await assert.rejects(runtime.startTargetDiscovery(), /webSocketDebuggerUrl/);
+  versionPayload = {};
+
+  await runtime.start();
+  assert.equal(spawnCount, 1);
+  assert.equal(await runtime.isAvailable(), true);
+  assert.deepEqual(discoveryUrls, ["ws://managed-browser"]);
+  await runtime.stop();
+});
+
 test("recovers a CDP endpoint that was already available when RuntimeHost started", async () => {
   let cdpAvailable = true;
   let spawnCount = 0;
@@ -677,7 +794,7 @@ test("reconciles an available CDP without relaunching during a target-list outag
     response.setHeader("Content-Type", "application/json");
     if (request.url === "/json/version") {
       response.statusCode = 200;
-      response.end(JSON.stringify({}));
+      response.end(JSON.stringify({ webSocketDebuggerUrl: "ws://available-browser" }));
       return;
     }
     if (request.url === "/json/list") {
@@ -701,6 +818,7 @@ test("reconciles an available CDP without relaunching during a target-list outag
       spawnCount += 1;
       throw new Error("relaunch must not happen while /json/version remains available");
     },
+    connectClient: async () => browserClient(),
     logger: { log() {}, warn() {} },
   });
 

@@ -364,10 +364,29 @@ test("rejects a foreign 2xx health service instead of accepting reachability", a
   assert.deepEqual(child.kills, ["SIGTERM"]);
 });
 
+test("requires feature health to explicitly report ok true", () => {
+  assert.equal(
+    validateFeatureHealth(
+      { ok: false, service: "notes", protocolVersion: 1, instanceId: "runtime-instance-1" },
+      "notes",
+      "runtime-instance-1",
+    ).failure.code,
+    "HEALTH_NOT_READY",
+  );
+  assert.equal(
+    validateFeatureHealth(
+      { service: "notes", protocolVersion: 1, instanceId: "runtime-instance-1" },
+      "notes",
+      "runtime-instance-1",
+    ).failure.code,
+    "HEALTH_NOT_READY",
+  );
+});
+
 test("requires protocol version 1 and the current feature instance", () => {
   assert.equal(
     validateFeatureHealth(
-      { service: "notes", protocolVersion: 2, instanceId: "runtime-instance-1" },
+      { ok: true, service: "notes", protocolVersion: 2, instanceId: "runtime-instance-1" },
       "notes",
       "runtime-instance-1",
     ).failure.code,
@@ -375,7 +394,7 @@ test("requires protocol version 1 and the current feature instance", () => {
   );
   assert.equal(
     validateFeatureHealth(
-      { service: "notes", protocolVersion: 1, instanceId: "stale-instance" },
+      { ok: true, service: "notes", protocolVersion: 1, instanceId: "stale-instance" },
       "notes",
       "runtime-instance-1",
     ).failure.code,
@@ -413,7 +432,7 @@ test("bounds a hung health endpoint and starts a healthy sibling independently",
       return Promise.resolve({
         ok: true,
         async json() {
-          return { service: "images", protocolVersion: 1, instanceId: "runtime-instance-2" };
+          return { ok: true, service: "images", protocolVersion: 1, instanceId: "runtime-instance-2" };
         },
       });
     },
@@ -532,6 +551,7 @@ test("marks ready owned features failed when their child later exits or errors",
         ok: true,
         async json() {
           return {
+            ok: true,
             service: featureId,
             protocolVersion: 1,
             instanceId: "runtime-instance-post-ready",
@@ -581,6 +601,7 @@ test("returns deferred supervisors before slow feature health settles and emits 
         ok: true,
         async json() {
           return {
+            ok: true,
             service: "notes",
             protocolVersion: 1,
             instanceId: "runtime-instance-deferred",

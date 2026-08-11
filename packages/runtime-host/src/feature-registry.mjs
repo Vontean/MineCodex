@@ -366,6 +366,12 @@ export function validateFeatureHealth(payload, featureId, instanceId) {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
     return { ok: false, failure: failure("HEALTH_INVALID_RESPONSE", "Health response must be a JSON object") };
   }
+  if (payload.ok !== true) {
+    return {
+      ok: false,
+      failure: failure("HEALTH_NOT_READY", "Health response must report ok: true"),
+    };
+  }
   if (payload.service !== featureId) {
     return {
       ok: false,
