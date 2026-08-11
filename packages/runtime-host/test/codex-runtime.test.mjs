@@ -436,7 +436,7 @@ test("ignores native Host bindings with the wrong target token", async () => {
   assert.equal(nativeCalls, 0);
 });
 
-test("loads only declared loopback Surface documents into named blank frames", async () => {
+test("loads only declared loopback Surface documents and same-document query variants into named blank frames", async () => {
   const calls = [];
   let documentHtml = "";
   const runtime = new CodexRuntime({
@@ -461,6 +461,12 @@ test("loads only declared loopback Surface documents into named blank frames", a
       }
       if (url === "http://127.0.0.1:47831/") {
         return new Response("<!doctype html><html><head></head><body>Images</body></html>", {
+          status: 200,
+          headers: { "content-type": "text/html; charset=utf-8" },
+        });
+      }
+      if (url === "http://127.0.0.1:47831/?surface=editor&kind=todo") {
+        return new Response("<!doctype html><html><head></head><body>Todo editor</body></html>", {
           status: 200,
           headers: { "content-type": "text/html; charset=utf-8" },
         });
@@ -519,6 +525,23 @@ test("loads only declared loopback Surface documents into named blank frames", a
     payload: JSON.stringify({
       token: "surface-token",
       featureId: "images",
+      requestId: "editor-surface-request",
+      action: "load-surface",
+      payload: {
+        frameName: "minecodex-surface-images",
+        surfaceUrl: "http://127.0.0.1:47831/?surface=editor&kind=todo",
+      },
+    }),
+  });
+  assert.match(documentHtml, /<base href="http:\/\/127\.0\.0\.1:47831\/\?surface=editor&kind=todo">/);
+  assert.match(documentHtml, />Todo editor</);
+
+  documentHtml = "";
+  await runtime.handleBindingCalled("renderer", client, {
+    name: "__codexPersonalHostAction",
+    payload: JSON.stringify({
+      token: "surface-token",
+      featureId: "images",
       requestId: "foreign-surface-request",
       action: "load-surface",
       payload: {
@@ -528,6 +551,35 @@ test("loads only declared loopback Surface documents into named blank frames", a
     }),
   });
   assert.equal(documentHtml, "");
+
+  await runtime.handleBindingCalled("renderer", client, {
+    name: "__codexPersonalHostAction",
+    payload: JSON.stringify({
+      token: "surface-token",
+      featureId: "images",
+      requestId: "foreign-path-surface-request",
+      action: "load-surface",
+      payload: {
+        frameName: "minecodex-surface-images",
+        surfaceUrl: "http://127.0.0.1:47831/admin?surface=editor",
+      },
+    }),
+  });
+  assert.equal(documentHtml, "");
+});
+
+test("derives editor documents from the canonical Surface URL instead of the blank transport frame", () => {
+  const source = createInjectionSource([{
+    id: "notes",
+    label: "Notes",
+    surfaceUrl: "http://127.0.0.1:47832/?surface=summary",
+    entry: { kind: "conversation-toolbar" },
+    hostActions: ["open-editor-modal"],
+    detailTabs: [],
+  }]);
+
+  assert.match(source, /const editorUrl = new URL\(sourceRecord\.surfaceUrl\)/);
+  assert.doesNotMatch(source, /const editorUrl = new URL\(sourceRecord\.frame\.src\)/);
 });
 
 test("reports path insertion truthfully when a native attachment chip is not observed", async () => {

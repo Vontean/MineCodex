@@ -46,6 +46,19 @@ test("Summary follows the native fixed-limit, continuous-scroller contract", asy
   assert.doesNotMatch(styles, /--section-rows/);
 });
 
+test("Injected Notes documents select the requested detail or editor surface from their canonical base URL", async () => {
+  const app = await readFile(path.join(projectRoot, "web/app.js"), "utf8");
+
+  assert.match(app, /const params = new URL\(document\.baseURI\)\.searchParams/);
+  assert.doesNotMatch(app, /new URLSearchParams\((?:window\.)?location\.search\)/);
+  assert.match(app, /else if \(surface === "todo"\) app\.innerHTML = renderTodoPage\(\)/);
+  assert.match(app, /else if \(surface === "prompts"\) app\.innerHTML = renderPromptsPage\(\)/);
+  assert.match(app, /else if \(surface === "files"\) app\.innerHTML = renderFilesPage\(\)/);
+  assert.match(app, /class="full-shell todo-page"/);
+  assert.match(app, /class="full-shell prompts-page"/);
+  assert.match(app, /class="full-shell files-page"/);
+});
+
 test("Todo Summary fills its five-row capacity with completed items after active items", async () => {
   const [app, styles] = await Promise.all([
     readFile(path.join(projectRoot, "web/app.js"), "utf8"),

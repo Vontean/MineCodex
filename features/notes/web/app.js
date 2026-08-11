@@ -1,4 +1,4 @@
-const params = new URLSearchParams(location.search);
+const params = new URL(document.baseURI).searchParams;
 const SUPPORTED_LOCALES = new Set(["en", "zh-CN"]);
 
 function normalizeLocale(value) {

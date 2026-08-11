@@ -51,12 +51,25 @@ function declaredSurfaceUrls(feature) {
 }
 
 function requireDeclaredLoopbackSurface(feature, value) {
-  if (typeof value !== "string" || !declaredSurfaceUrls(feature).has(value)) {
+  if (typeof value !== "string") {
     throw Object.assign(new Error("Surface URL is not declared by this feature"), {
       code: "SURFACE_URL_NOT_ALLOWED",
     });
   }
   const url = new URL(value);
+  const matchesDeclaredDocument = Array.from(declaredSurfaceUrls(feature), (declared) => new URL(declared))
+    .some((declared) => (
+      declared.origin === url.origin
+      && declared.username === url.username
+      && declared.password === url.password
+      && declared.pathname === url.pathname
+      && declared.hash === url.hash
+    ));
+  if (!matchesDeclaredDocument) {
+    throw Object.assign(new Error("Surface URL is not declared by this feature"), {
+      code: "SURFACE_URL_NOT_ALLOWED",
+    });
+  }
   if (url.protocol !== "http:" || !LOOPBACK_SURFACE_HOSTS.has(url.hostname)) {
     throw Object.assign(new Error("Surface URL must use an exact loopback HTTP origin"), {
       code: "SURFACE_URL_NOT_ALLOWED",
@@ -2541,7 +2554,7 @@ export function createInjectionSource(features, {
 
       closePromptPreview({ immediate: true });
       closeModalSurface();
-      const editorUrl = new URL(sourceRecord.frame.src);
+      const editorUrl = new URL(sourceRecord.surfaceUrl);
       editorUrl.searchParams.set("surface", "editor");
       editorUrl.searchParams.set("kind", kind);
       if (typeof payload.id === "string" && payload.id) editorUrl.searchParams.set("id", payload.id);

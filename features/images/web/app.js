@@ -303,9 +303,9 @@ function layoutMasonry() {
   const cards = [...grid.children];
   if (!cards.length) return;
 
-  // Keep DOM writes and geometry reads in separate batches so the browser only
-  // needs to resolve layout once, even for a full page of boards.
-  for (const card of cards) card.style.gridRowEnd = "auto";
+  // Existing spans do not affect the intrinsic card boxes because the grid
+  // aligns items to the start. Clearing them here would collapse the 1px row
+  // grid and clamp the user's scroll position before the new spans are applied.
   const blockGap = Number.parseFloat(getComputedStyle(cards[0]).marginBottom);
   const spans = cards.map((card) => (
     Math.ceil((card.getBoundingClientRect().height + blockGap) / rowHeight)

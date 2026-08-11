@@ -617,6 +617,7 @@ h1,
 
 .thread-board-preview img {
   width: 100%;
+  height: auto;
   min-height: 76px;
   aspect-ratio: 16 / 6;
   display: block;

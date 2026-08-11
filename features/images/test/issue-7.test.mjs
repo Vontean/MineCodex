@@ -29,9 +29,11 @@ test("Images split detail exposes honest region semantics and a shared keyboard 
   assert.match(app, /drawer\.querySelector\("\.drawer-close"\)\?\.focus/);
   assert.match(app, /thumbnail\.width = image\.width/);
   assert.match(app, /drawerImage\.width = image\.width/);
+  assert.doesNotMatch(app, /for \(const card of cards\) card\.style\.gridRowEnd = "auto"/);
   assert.match(app, /announce\(/);
   assert.match(app, /Prompt could not be loaded\./);
 
+  assert.match(styles, /\.thread-board-preview img\s*\{[^}]*height:\s*auto;/s);
   assert.match(styles, /\.drawer-scroll\s*\{[^}]*overscroll-behavior: contain/s);
   assert.match(styles, /@media \(prefers-reduced-motion: reduce\)/);
 });
