@@ -289,6 +289,48 @@ test("Images health and mutation routes require the exact bound loopback origin"
   }
 });
 
+test("Images pagination defaults stay bounded and invalid integer queries fail closed", async () => {
+  const fixture = await createImageFixture({ threadCount: 2 });
+  const server = await createHttpServer({ library: fixture.library, webDir: WEB_ROOT, port: 0 });
+  const endpoints = [
+    { path: "/api/images", collection: "images" },
+    { path: "/api/image-groups", collection: "groups" },
+  ];
+  const invalidQueries = [
+    "limit=invalid",
+    "limit=-1",
+    "limit=1.5",
+    "limit=73",
+    "offset=invalid",
+    "offset=-1",
+    "offset=1.5",
+    "offset=9007199254740992",
+  ];
+  try {
+    for (const endpoint of endpoints) {
+      const defaults = await fetch(`${server.origin}${endpoint.path}`);
+      assert.equal(defaults.status, 200);
+      const defaultPayload = await defaults.json();
+      assert.equal(defaultPayload.limit, 36);
+      assert.equal(defaultPayload.offset, 0);
+      assert.equal(defaultPayload[endpoint.collection].length, 2);
+
+      const capped = await fetch(`${server.origin}${endpoint.path}?limit=72&offset=0`);
+      assert.equal(capped.status, 200);
+      assert.equal((await capped.json()).limit, 72);
+
+      for (const query of invalidQueries) {
+        const response = await fetch(`${server.origin}${endpoint.path}?${query}`);
+        assert.equal(response.status, 400, `${endpoint.path}?${query}`);
+        assert.equal((await response.json()).error.code, "INVALID_QUERY");
+      }
+    }
+  } finally {
+    await server.close();
+    await fixture.close();
+  }
+});
+
 test("full ImageLibrary rescans share one in-flight operation", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "minecodex-images-rescan-"));
   const sourceRoot = path.join(root, "generated_images");

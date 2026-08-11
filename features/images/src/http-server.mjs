@@ -5,6 +5,9 @@ import path from "node:path";
 import { saveImageAs } from "./save-as.mjs";
 
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
+const DEFAULT_PAGE_LIMIT = 36;
+const MAX_PAGE_LIMIT = 72;
+const MAX_PAGE_OFFSET = Number.MAX_SAFE_INTEGER;
 
 const STATIC_FILES = new Map([
   ["/", ["index.html", "text/html; charset=utf-8"]],
@@ -64,6 +67,41 @@ function formatHost(host) {
 
 function mutationError(message, code) {
   return Object.assign(new Error(message), { status: 403, code });
+}
+
+function parseIntegerQuery(searchParams, name, { defaultValue, min, max }) {
+  const values = searchParams.getAll(name);
+  if (values.length === 0) return defaultValue;
+  const [raw] = values;
+  if (values.length !== 1 || !/^(0|[1-9]\d*)$/.test(raw)) {
+    throw Object.assign(new Error(`${name} must be a single integer between ${min} and ${max}`), {
+      status: 400,
+      code: "INVALID_QUERY",
+    });
+  }
+  const value = Number(raw);
+  if (!Number.isSafeInteger(value) || value < min || value > max) {
+    throw Object.assign(new Error(`${name} must be between ${min} and ${max}`), {
+      status: 400,
+      code: "INVALID_QUERY",
+    });
+  }
+  return value;
+}
+
+function paginationFor(url) {
+  return {
+    limit: parseIntegerQuery(url.searchParams, "limit", {
+      defaultValue: DEFAULT_PAGE_LIMIT,
+      min: 1,
+      max: MAX_PAGE_LIMIT,
+    }),
+    offset: parseIntegerQuery(url.searchParams, "offset", {
+      defaultValue: 0,
+      min: 0,
+      max: MAX_PAGE_OFFSET,
+    }),
+  };
 }
 
 function validateMutationOrigin(request, address, host) {
@@ -127,8 +165,7 @@ export async function createHttpServer({
       }
 
       if (request.method === "GET" && url.pathname === "/api/images") {
-        const limit = Math.min(72, Math.max(1, Number.parseInt(url.searchParams.get("limit") ?? "36", 10)));
-        const offset = Math.max(0, Number.parseInt(url.searchParams.get("offset") ?? "0", 10));
+        const { limit, offset } = paginationFor(url);
         const source = url.searchParams.get("source") ?? "all";
         const threadId = url.searchParams.get("threadId") || null;
         const sort = url.searchParams.get("sort") === "asc" ? "asc" : "desc";
@@ -156,8 +193,7 @@ export async function createHttpServer({
       }
 
       if (request.method === "GET" && url.pathname === "/api/image-groups") {
-        const limit = Math.min(72, Math.max(1, Number.parseInt(url.searchParams.get("limit") ?? "36", 10)));
-        const offset = Math.max(0, Number.parseInt(url.searchParams.get("offset") ?? "0", 10));
+        const { limit, offset } = paginationFor(url);
         const source = url.searchParams.get("source") ?? "all";
         const groups = library.groups({ source, limit, offset }).map(publicGroup);
         json(response, 200, {

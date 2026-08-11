@@ -492,7 +492,7 @@ test("missing-file cleanup is single-flight across concurrent state reads", asyn
   }
 });
 
-test("state reads stay off-path while timed-out file stats retain bounded underlying concurrency", async () => {
+test("timed-out file stats preserve bounded time and product-level underlying concurrency", async () => {
   const fileCount = 5;
   const concurrency = 2;
   const timeoutMs = 10;
@@ -501,6 +501,7 @@ test("state reads stay off-path while timed-out file stats retain bounded underl
   let startedCalls = 0;
   let autoRelease = false;
   const pendingReleases = [];
+  const operationPromises = [];
   const lateMissingResult = { isFile: () => false };
   const fixture = await createFixture({
     productOptions: {
@@ -514,7 +515,7 @@ test("state reads stay off-path while timed-out file stats retain bounded underl
           activeCalls -= 1;
           return Promise.resolve(lateMissingResult);
         }
-        return new Promise((resolve) => {
+        const operation = new Promise((resolve) => {
           let released = false;
           pendingReleases.push(() => {
             if (released) return;
@@ -523,10 +524,13 @@ test("state reads stay off-path while timed-out file stats retain bounded underl
             resolve(lateMissingResult);
           });
         });
+        operationPromises.push(operation);
+        return operation;
       },
     },
   });
   let cleanup = null;
+  let secondCleanup = null;
 
   async function waitFor(predicate, message) {
     const deadline = Date.now() + 1_000;
@@ -537,23 +541,19 @@ test("state reads stay off-path while timed-out file stats retain bounded underl
     assert.fail(message);
   }
 
-  async function waitPastTimeout() {
-    await new Promise((resolve) => setTimeout(resolve, timeoutMs + 10));
-  }
-
   function releaseCurrentWave() {
     const releases = pendingReleases.splice(0);
     for (const release of releases) release();
     return releases.length;
   }
 
-  async function stateWithin(promise, limitMs = 100) {
+  async function promiseWithin(promise, message, limitMs = 100) {
     let timer;
     try {
       return await Promise.race([
         promise,
         new Promise((_, reject) => {
-          timer = setTimeout(() => reject(new Error("getState waited for file cleanup")), limitMs);
+          timer = setTimeout(() => reject(new Error(message)), limitMs);
         }),
       ]);
     } finally {
@@ -571,40 +571,41 @@ test("state reads stay off-path while timed-out file stats retain bounded underl
     const added = await fixture.product.addFiles({ paths });
     const addedIds = added.added.map((file) => file.id);
     const revision = fixture.product.revision;
-    const state = await stateWithin(fixture.product.getState({ surface: "files" }));
+    const state = await promiseWithin(
+      fixture.product.getState({ surface: "files" }),
+      "getState waited for file cleanup",
+    );
     cleanup = fixture.product.fileCleanupPromise;
     assert.ok(cleanup);
     assert.deepEqual(new Set(state.files.map((file) => file.id)), new Set(addedIds));
 
     await waitFor(() => startedCalls === concurrency, "the first cleanup wave did not start");
-    await waitPastTimeout();
-    assert.equal(startedCalls, concurrency, "timed-out calls must keep their worker slots");
+    await promiseWithin(cleanup, "cleanup waited for timed-out underlying stats");
+    assert.equal(startedCalls, concurrency, "cleanup must not exceed occupied underlying slots");
     assert.equal(activeCalls, concurrency);
     assert.equal(maxActiveCalls, concurrency);
+    assert.equal(fixture.product.fileStatOperations.size, concurrency);
 
-    assert.equal(releaseCurrentWave(), concurrency);
-    await waitFor(() => startedCalls === concurrency * 2, "the second cleanup wave did not start");
-    await waitPastTimeout();
-    assert.equal(startedCalls, concurrency * 2);
+    secondCleanup = fixture.product.cleanupMissingFiles({ force: true });
+    await promiseWithin(secondCleanup, "forced cleanup waited for occupied stat slots");
+    assert.equal(startedCalls, concurrency, "forced cleanup must not start stats while capacity is occupied");
     assert.equal(activeCalls, concurrency);
     assert.equal(maxActiveCalls, concurrency);
+    assert.equal(fixture.product.fileStatOperations.size, concurrency);
 
     assert.equal(releaseCurrentWave(), concurrency);
-    await waitFor(() => startedCalls === fileCount, "the final cleanup wave did not start");
-    await waitPastTimeout();
-    assert.equal(activeCalls, 1);
-    assert.equal(maxActiveCalls, concurrency);
-    assert.equal(releaseCurrentWave(), 1);
-
-    await cleanup;
+    await Promise.allSettled(operationPromises);
+    await waitFor(() => fixture.product.fileStatOperations.size === 0, "settled stat slots were not released");
     assert.equal(activeCalls, 0);
-    assert.equal(startedCalls, fileCount);
+    assert.equal(startedCalls, concurrency);
     assert.equal(fixture.product.revision, revision, "late timeout results must preserve file metadata");
     for (const id of addedIds) assert.ok(fixture.product.getFile(id));
   } finally {
     autoRelease = true;
     releaseCurrentWave();
     await cleanup?.catch(() => {});
+    await secondCleanup?.catch(() => {});
+    await Promise.allSettled(operationPromises);
     await fixture.close();
   }
 });

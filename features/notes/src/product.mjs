@@ -108,13 +108,16 @@ async function mapWithConcurrency(values, concurrency, operation) {
   return results;
 }
 
-async function statWithin(fileStat, filePath, timeoutMs) {
+async function statWithin(fileStatOperations, capacity, fileStat, filePath, timeoutMs) {
+  if (fileStatOperations.size >= capacity) return null;
   const settled = Promise.resolve()
     .then(() => fileStat(filePath))
     .then(
       (info) => ({ status: "fulfilled", info }),
       (error) => ({ status: "rejected", error }),
     );
+  fileStatOperations.add(settled);
+  void settled.then(() => fileStatOperations.delete(settled));
   let timer;
   try {
     const outcome = await Promise.race([
@@ -124,7 +127,9 @@ async function statWithin(fileStat, filePath, timeoutMs) {
         timer.unref?.();
       }),
     ]);
-    return { outcome, settled };
+    if (outcome.status === "timed-out") return null;
+    if (outcome.status === "rejected") throw outcome.error;
+    return outcome.info;
   } finally {
     clearTimeout(timer);
   }
@@ -229,6 +234,7 @@ export class CodexNotesProduct extends EventEmitter {
     if (typeof fileStat !== "function") throw new Error("fileStat must be a function");
     if (typeof cleanupScheduler !== "function") throw new Error("cleanupScheduler must be a function");
     this.fileCleanupPromise = null;
+    this.fileStatOperations = new Set();
     this.lastFileCleanupAt = Number.NEGATIVE_INFINITY;
     this.db = null;
   }
@@ -377,17 +383,15 @@ export class CodexNotesProduct extends EventEmitter {
     const rows = this.db.prepare("SELECT id, canonical_path FROM files").all();
     const checks = await mapWithConcurrency(rows, this.fileCleanupConcurrency, async (row) => {
       try {
-        const { outcome, settled } = await statWithin(
+        const info = await statWithin(
+          this.fileStatOperations,
+          this.fileCleanupConcurrency,
           this.fileStat,
           row.canonical_path,
           this.fileStatTimeoutMs,
         );
-        if (outcome.status === "timed-out") {
-          await settled;
-          return null;
-        }
-        if (outcome.status === "rejected") throw outcome.error;
-        return outcome.info.isFile() ? null : row.id;
+        if (!info) return null;
+        return info.isFile() ? null : row.id;
       } catch (error) {
         return isConfirmedMissing(error) ? row.id : null;
       }
