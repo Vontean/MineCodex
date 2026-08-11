@@ -3660,7 +3660,7 @@ function evaluationValue(result) {
   return result.result?.value;
 }
 
-function requireCdpWebSocketUrl(version) {
+function requireCdpWebSocketUrl(version, expectedCdpPort) {
   const value = typeof version?.webSocketDebuggerUrl === "string"
     ? version.webSocketDebuggerUrl.trim()
     : "";
@@ -3675,6 +3675,17 @@ function requireCdpWebSocketUrl(version) {
   }
   if (!new Set(["ws:", "wss:"]).has(parsed.protocol) || !parsed.host) {
     throw new Error("Codex CDP webSocketDebuggerUrl must use ws: or wss:");
+  }
+  const hostname = parsed.hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  if (!new Set(["127.0.0.1", "localhost", "::1"]).has(hostname)) {
+    throw new Error("Codex CDP webSocketDebuggerUrl must use a loopback host");
+  }
+  const configuredPort = Number(expectedCdpPort);
+  const effectivePort = parsed.port
+    ? Number(parsed.port)
+    : parsed.protocol === "wss:" ? 443 : 80;
+  if (!Number.isInteger(configuredPort) || effectivePort !== configuredPort) {
+    throw new Error(`Codex CDP webSocketDebuggerUrl must use configured CDP port ${expectedCdpPort}`);
   }
   return value;
 }
@@ -3976,7 +3987,7 @@ export class CodexRuntime {
       throw new Error(`Codex CDP version returned HTTP ${response?.status ?? "error"}`);
     }
     const version = await response.json();
-    const webSocketDebuggerUrl = requireCdpWebSocketUrl(version);
+    const webSocketDebuggerUrl = requireCdpWebSocketUrl(version, this.cdpPort);
     let client;
     try {
       client = await this.connectClient(webSocketDebuggerUrl);
@@ -4038,7 +4049,7 @@ export class CodexRuntime {
     try {
       const response = await this.fetchImpl(`http://127.0.0.1:${this.cdpPort}/json/version`);
       if (!response?.ok) return false;
-      requireCdpWebSocketUrl(await response.json());
+      requireCdpWebSocketUrl(await response.json(), this.cdpPort);
       return true;
     } catch {
       return false;

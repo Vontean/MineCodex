@@ -511,7 +511,7 @@ test("falls back to target-list polling when a valid CDP websocket cannot connec
     fetchImpl: async () => ({
       ok: true,
       async json() {
-        return { webSocketDebuggerUrl: "ws://valid-but-unreachable-browser" };
+        return { webSocketDebuggerUrl: "ws://localhost:9244/devtools/browser/unreachable" };
       },
     }),
     connectClient: async () => {
@@ -541,7 +541,7 @@ test("closes a partial CDP client when target discovery setup falls back to poll
     fetchImpl: async () => ({
       ok: true,
       async json() {
-        return { webSocketDebuggerUrl: "wss://valid-browser" };
+        return { webSocketDebuggerUrl: "wss://[::1]:9245/devtools/browser/partial" };
       },
     }),
     connectClient: async () => ({
@@ -568,6 +568,46 @@ test("closes a partial CDP client when target discovery setup falls back to poll
   assert.equal(closed, 1);
   assert.equal(runtime.browserClient, null);
   assert.match(warnings[0], /using \/json\/list polling.*discovery command failed/);
+});
+
+test("accepts only loopback CDP websocket identity on the configured port", async () => {
+  let versionPayload = { webSocketDebuggerUrl: "ws://example.com:9246/devtools/browser/foreign" };
+  const connectedUrls = [];
+  const runtime = new CodexRuntime({
+    features: [],
+    profileDir: "/tmp/codex-runtime-loopback-identity-profile",
+    cdpPort: 9246,
+    fetchImpl: async () => ({
+      ok: true,
+      async json() {
+        return versionPayload;
+      },
+    }),
+    connectClient: async (url) => {
+      connectedUrls.push(url);
+      return browserClient();
+    },
+    logger: { log() {}, warn() {} },
+  });
+
+  assert.equal(await runtime.isAvailable(), false);
+  await assert.rejects(runtime.startTargetDiscovery(), /loopback/);
+
+  versionPayload = { webSocketDebuggerUrl: "ws://127.0.0.1:9999/devtools/browser/wrong-port" };
+  assert.equal(await runtime.isAvailable(), false);
+  await assert.rejects(runtime.startTargetDiscovery(), /configured CDP port 9246/);
+
+  for (const webSocketDebuggerUrl of [
+    "ws://127.0.0.1:9246/devtools/browser/ipv4",
+    "ws://localhost:9246/devtools/browser/localhost",
+    "wss://[::1]:9246/devtools/browser/ipv6",
+  ]) {
+    versionPayload = { webSocketDebuggerUrl };
+    assert.equal(await runtime.isAvailable(), true);
+  }
+  await runtime.startTargetDiscovery();
+  assert.deepEqual(connectedUrls, ["wss://[::1]:9246/devtools/browser/ipv6"]);
+  await runtime.stop();
 });
 
 test("uses a RuntimeHost session nonce to replace a same-version document runtime", () => {
@@ -626,7 +666,9 @@ test("relaunches a managed Codex child after exit with bounded recovery", async 
     cdpPort: 9239,
     fetchImpl: async (url) => {
       if (url.endsWith("/json/version")) {
-        return cdpResponse({ webSocketDebuggerUrl: "ws://fake-browser" }, available);
+        return cdpResponse({
+          webSocketDebuggerUrl: "ws://127.0.0.1:9239/devtools/browser/recovery",
+        }, available);
       }
       if (url.endsWith("/json/list")) return cdpResponse([]);
       throw new Error(`Unexpected URL ${url}`);
@@ -688,7 +730,9 @@ test("rejects stale 2xx version payloads and relaunches until a valid CDP websoc
       child.unref = () => {};
       child.kill = () => true;
       spawnCount += 1;
-      versionPayload = { webSocketDebuggerUrl: "ws://managed-browser" };
+      versionPayload = {
+        webSocketDebuggerUrl: "ws://127.0.0.1:9243/devtools/browser/managed",
+      };
       return child;
     },
     connectClient: async (url) => {
@@ -711,7 +755,7 @@ test("rejects stale 2xx version payloads and relaunches until a valid CDP websoc
   await runtime.start();
   assert.equal(spawnCount, 1);
   assert.equal(await runtime.isAvailable(), true);
-  assert.deepEqual(discoveryUrls, ["ws://managed-browser"]);
+  assert.deepEqual(discoveryUrls, ["ws://127.0.0.1:9243/devtools/browser/managed"]);
   await runtime.stop();
 });
 
@@ -725,7 +769,9 @@ test("recovers a CDP endpoint that was already available when RuntimeHost starte
     if (request.url === "/json/version") {
       response.statusCode = cdpAvailable ? 200 : 503;
       response.end(JSON.stringify({
-        webSocketDebuggerUrl: spawnCount ? "ws://recovered-browser" : "ws://existing-browser",
+        webSocketDebuggerUrl: spawnCount
+          ? `ws://127.0.0.1:${cdpPort}/devtools/browser/recovered`
+          : `ws://localhost:${cdpPort}/devtools/browser/existing`,
       }));
       return;
     }
@@ -772,13 +818,16 @@ test("recovers a CDP endpoint that was already available when RuntimeHost starte
     await runtime.start();
     await new Promise((resolve) => setTimeout(resolve, 30));
     assert.equal(spawnCount, 0);
-    assert.deepEqual(discoveryUrls, ["ws://existing-browser"]);
+    assert.deepEqual(discoveryUrls, [`ws://localhost:${cdpPort}/devtools/browser/existing`]);
 
     cdpAvailable = false;
     await waitFor(() => spawnCount === 1 && discoveryUrls.length === 2, 2_500);
     assert.equal(runtime.appPid, 9250);
     assert.equal(runtime.getRendererStatus().active, false);
-    assert.deepEqual(discoveryUrls, ["ws://existing-browser", "ws://recovered-browser"]);
+    assert.deepEqual(discoveryUrls, [
+      `ws://localhost:${cdpPort}/devtools/browser/existing`,
+      `ws://127.0.0.1:${cdpPort}/devtools/browser/recovered`,
+    ]);
   } finally {
     await runtime.stop();
     await new Promise((resolve) => server.close(resolve));
@@ -794,7 +843,9 @@ test("reconciles an available CDP without relaunching during a target-list outag
     response.setHeader("Content-Type", "application/json");
     if (request.url === "/json/version") {
       response.statusCode = 200;
-      response.end(JSON.stringify({ webSocketDebuggerUrl: "ws://available-browser" }));
+      response.end(JSON.stringify({
+        webSocketDebuggerUrl: `ws://127.0.0.1:${server.address().port}/devtools/browser/available`,
+      }));
       return;
     }
     if (request.url === "/json/list") {
