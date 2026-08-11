@@ -84,7 +84,7 @@ function acceptedHealth(featureId, health) {
       && identity.protocolVersion === 1
       && typeof identity.instanceId === "string"
       && identity.instanceId.length > 0
-      && health.ok !== false
+      && health.ok === true
   );
 }
 

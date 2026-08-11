@@ -138,7 +138,7 @@ test("status consumes exact RuntimeHost plugin and renderer state, including fai
       plugins: [
         { featureId: "model-slider", state: "injected", owned: false, health: true, failure: null },
         { featureId: "notes", state: "failed", owned: true, health: null, failure: { code: "HEALTH_TIMEOUT", message: "Notes health timed out", phase: "health" } },
-        { featureId: "images", state: "injected", owned: true, health: { service: "images", protocolVersion: 1, instanceId: "images-instance-1" }, failure: null },
+        { featureId: "images", state: "injected", owned: true, health: { service: "images", protocolVersion: 1, instanceId: "images-instance-1", ok: true }, failure: null },
       ],
       renderer: { discovered: true, injectedTargets: 3, active: true, runtimeSessionId: "runtime-session-1" },
     }),
@@ -186,7 +186,7 @@ test("a current-session verified service stays injected even when ownership prov
         featureId: "images",
         state: "injected",
         owned: false,
-        health: { service: "images", protocolVersion: 1, instanceId: "existing-images-instance" },
+        health: { service: "images", protocolVersion: 1, instanceId: "existing-images-instance", ok: true },
         failure: null,
       }],
       renderer: { discovered: true, injectedTargets: 1, active: true, runtimeSessionId: "runtime-session-owned-false" },
@@ -249,6 +249,49 @@ test("boolean health is rejected even when the plugin is injected and renderer i
     const images = status.features.find((feature) => feature.id === "images");
     assert.equal(images.state, "injected");
     assert.equal(images.healthy, false);
+  } finally {
+    await server.close();
+  }
+});
+
+test("matching health identity is healthy only when ok is explicitly true", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "minecodex-control-health-ok-"));
+  const paths = {
+    packageRoot: PACKAGE_ROOT,
+    configPath: path.join(root, "config.json"),
+    featuresRoot: path.join(PACKAGE_ROOT, "features"),
+    dashboardDir: path.join(PACKAGE_ROOT, "apps", "dashboard"),
+  };
+  await writeConfig(paths.configPath, { schemaVersion: 1, features: {} });
+  let health = { service: "images", protocolVersion: 1, instanceId: "images-health-ok-instance" };
+  const runtimeManager = {
+    status: () => ({
+      running: true,
+      runtimeSessionId: "runtime-session-health-ok",
+      appliedFeatures: ["images"],
+      plugins: [{ featureId: "images", state: "injected", owned: true, health, failure: null }],
+      renderer: { discovered: true, injectedTargets: 1, active: true, runtimeSessionId: "runtime-session-health-ok" },
+    }),
+  };
+  const server = await createControlServer({
+    paths,
+    token: "health-ok-secret",
+    runtimeManager,
+    port: 0,
+    logger: { error() {} },
+  });
+  try {
+    const authorization = { Authorization: "Bearer health-ok-secret" };
+    const omitted = await (await fetch(`${server.url}/api/status`, { headers: authorization })).json();
+    const omittedImages = omitted.features.find((feature) => feature.id === "images");
+    assert.equal(omittedImages.state, "injected");
+    assert.equal(omittedImages.healthy, false);
+
+    health = { ...health, ok: true };
+    const accepted = await (await fetch(`${server.url}/api/status`, { headers: authorization })).json();
+    const acceptedImages = accepted.features.find((feature) => feature.id === "images");
+    assert.equal(acceptedImages.state, "healthy");
+    assert.equal(acceptedImages.healthy, true);
   } finally {
     await server.close();
   }
