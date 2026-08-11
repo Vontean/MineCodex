@@ -253,3 +253,58 @@ test("boolean health is rejected even when the plugin is injected and renderer i
     await server.close();
   }
 });
+
+test("runtime unavailability reports enabled and disabled plugins stopped without a pending restart", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "minecodex-control-runtime-stopped-"));
+  const paths = {
+    packageRoot: PACKAGE_ROOT,
+    configPath: path.join(root, "config.json"),
+    featuresRoot: path.join(PACKAGE_ROOT, "features"),
+    dashboardDir: path.join(PACKAGE_ROOT, "apps", "dashboard"),
+  };
+  await writeConfig(paths.configPath, {
+    schemaVersion: 1,
+    features: { "model-slider": false, notes: true, images: false },
+  });
+  let running = false;
+  const runtimeManager = {
+    status: () => running
+      ? { running: true, appliedFeatures: [], plugins: [], renderer: null }
+      : {
+        running: false,
+        appliedFeatures: ["images"],
+        plugins: [{
+          featureId: "notes",
+          state: "failed",
+          owned: true,
+          health: null,
+          failure: { code: "STALE_FAILURE", message: "Stale runtime failure", phase: "health" },
+        }],
+        renderer: null,
+      },
+  };
+  const server = await createControlServer({
+    paths,
+    token: "runtime-stopped-secret",
+    runtimeManager,
+    port: 0,
+    logger: { error() {} },
+  });
+  try {
+    const authorization = { Authorization: "Bearer runtime-stopped-secret" };
+    const stopped = await (await fetch(`${server.url}/api/status`, { headers: authorization })).json();
+    assert.equal(stopped.runtime.running, false);
+    assert.equal(stopped.features.find((feature) => feature.id === "notes").enabled, true);
+    assert.equal(stopped.features.find((feature) => feature.id === "notes").state, "stopped");
+    assert.equal(stopped.features.find((feature) => feature.id === "images").enabled, false);
+    assert.equal(stopped.features.find((feature) => feature.id === "images").state, "stopped");
+    assert.equal(stopped.pendingRestart, false);
+
+    running = true;
+    const runningMismatch = await (await fetch(`${server.url}/api/status`, { headers: authorization })).json();
+    assert.equal(runningMismatch.features.find((feature) => feature.id === "notes").state, "restart-required");
+    assert.equal(runningMismatch.pendingRestart, true);
+  } finally {
+    await server.close();
+  }
+});

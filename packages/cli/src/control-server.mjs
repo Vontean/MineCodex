@@ -141,7 +141,9 @@ async function featureStatuses(paths, runtimeManager, locale, runtimeState = nul
       pluginState === "failed"
         || plugin?.failure,
     );
-    if (!config.features[feature.id] && applied) {
+    if (!runtime.running) {
+      state = "stopped";
+    } else if (!config.features[feature.id] && applied) {
       state = "restart-required";
     } else if (!config.features[feature.id] || pluginState === "stopped") {
       state = "stopped";
@@ -149,8 +151,6 @@ async function featureStatuses(paths, runtimeManager, locale, runtimeState = nul
       state = "failed";
     } else if (config.features[feature.id] !== applied) {
       state = "restart-required";
-    } else if (!runtime.running) {
-      state = "stopped";
     } else if (pluginState === "configured" || pluginState === "launching" || pluginState === "ready") {
       state = "launching";
     } else if (injected && healthy) {
