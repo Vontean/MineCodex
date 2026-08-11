@@ -5,6 +5,7 @@ import path from "node:path";
 import { saveImageAs } from "./save-as.mjs";
 
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
+const CODEX_EMBED_ORIGIN = "app://-";
 const DEFAULT_PAGE_LIMIT = 36;
 const MAX_PAGE_LIMIT = 72;
 const MAX_PAGE_OFFSET = Number.MAX_SAFE_INTEGER;
@@ -69,6 +70,16 @@ function mutationError(message, code) {
   return Object.assign(new Error(message), { status: 403, code });
 }
 
+function applyCodexEmbedCors(request, response) {
+  if (request.headers.origin !== CODEX_EMBED_ORIGIN) return false;
+  response.setHeader("Access-Control-Allow-Origin", CODEX_EMBED_ORIGIN);
+  response.setHeader("Access-Control-Allow-Methods", "GET, HEAD, POST, OPTIONS");
+  response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  response.setHeader("Access-Control-Allow-Private-Network", "true");
+  response.setHeader("Vary", "Origin");
+  return true;
+}
+
 function parseIntegerQuery(searchParams, name, { defaultValue, min, max }) {
   const values = searchParams.getAll(name);
   if (values.length === 0) return defaultValue;
@@ -115,6 +126,7 @@ function validateMutationOrigin(request, address, host) {
   if (!origin) {
     throw mutationError("Mutation requests require the exact bound loopback Origin", "ORIGIN_NOT_ALLOWED");
   }
+  if (origin === CODEX_EMBED_ORIGIN) return;
   let parsed;
   try {
     parsed = new URL(origin);
@@ -137,13 +149,20 @@ export async function createHttpServer({
   if (!LOOPBACK_HOSTS.has(host)) throw new Error("Images only supports loopback hosts");
   const server = createNodeServer(async (request, response) => {
     try {
+      applyCodexEmbedCors(request, response);
       const address = server.address();
       const boundOrigin = address && typeof address !== "string"
         ? `http://${formatHost(host)}:${address.port}`
         : `http://${formatHost(host)}:${port}`;
       const url = new URL(request.url ?? "/", boundOrigin);
 
-      if (!["GET", "HEAD", "OPTIONS"].includes(request.method)) {
+      if (request.method === "OPTIONS") {
+        response.writeHead(204, { "Cache-Control": "no-store" });
+        response.end();
+        return;
+      }
+
+      if (!["GET", "HEAD"].includes(request.method)) {
         validateMutationOrigin(request, address, host);
       }
 

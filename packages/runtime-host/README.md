@@ -141,9 +141,10 @@ Host 会再次发送当前状态。功能页面可据此暂停隐藏状态下的
 
 - 只在 top frame 安装 Runtime，绝不向业务 iframe 注入 binding token。
 - Watch / refresh 串行；已连接 Renderer 不重复连接，关闭 target 会清理状态。
-- 本地 Surface 注入前先启用 CSP bypass 并注册 document-start 脚本；缺少初始化标记的
-  首次或旧版 document 只受控 reload 一次。标记存在时，新的 RuntimeHost 会话直接
-  替换旧 Runtime，不刷新当前 Codex 页面。
+- 当前 Codex document 始终直接注入或替换 Runtime，绝不通过 CDP reload Codex 页面。
+  本地 Surface 不直接导航到 loopback URL：Host 先创建 `about:blank` iframe，再校验
+  manifest URL、health service/protocol/instance，抓取 HTML 并用 `Page.setDocumentContent`
+  写入目标 frame。Images/Notes 只向精确的 `app://-` Origin 开放 CORS。
 - 入口由 Renderer 内的 MutationObserver 幂等挂载，React 重绘不会产生重复入口。
 - Summary 根据对话主区域宽度连续派生 `overlay / shift / gutter`：小于 1096px
   使用临时 Popover；1096–1535px 预留 316px 并把对话内容左移 158px；更宽时
@@ -155,9 +156,9 @@ Host 会再次发送当前状态。功能页面可据此暂停隐藏状态下的
   border、dropdown background 和 elevation tokens 发送给 Surface。
 - 新客户端会话默认关闭；Thread 切换关闭 Pinned Summary 并清除旧 Composer Range。
 - Detail Tab 使用 Codex 当前 `local-thread` scope，因此标签状态跟随 Task；React panel
-  中的 iframe 继续注册同一套 Surface origin、`contentWindow`、Theme 与 Host-action bridge。
+  中的 iframe 继续注册同一套可信 Host origin、`contentWindow`、Theme 与 Host-action bridge。
 - Surface 以 `ready` handshake 标记可用。若第一次加载发生在服务离线期间，下一次
-  打开只重载这个未 ready 的 iframe；已经 ready 的 Surface 不重载、不打断草稿。
+  打开只重新请求 Host 加载这个未 ready 的 frame；已经 ready 的 Surface 不重载、不打断草稿。
 
 ## 当前接口分类
 

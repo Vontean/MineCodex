@@ -17,6 +17,7 @@ const featuresRoot = process.env.CODEX_FEATURES_ROOT ?? path.dirname(runtimeRoot
 const legacyDataDir = process.env.CODEX_IMAGE_HOST_DATA_DIR ?? path.join(os.homedir(), ".codex-image-host");
 const profileDir = process.env.CODEX_RUNTIME_PROFILE_DIR ?? path.join(legacyDataDir, "codex-profile");
 const cdpPort = Number(process.env.CODEX_RUNTIME_CDP_PORT ?? 9231);
+const launchCodex = process.env.MINECODEX_LAUNCH_CODEX === "1";
 
 const discoveredFeatures = await discoverFeatures(featuresRoot);
 if (!discoveredFeatures.length) throw new Error(`No codex-feature.json files found under ${featuresRoot}`);
@@ -62,6 +63,7 @@ featureProcesses = await startFeatureProcesses(features, {
 
 runtime = new CodexRuntime({
   features,
+  featureInstanceId,
   profileDir,
   cdpPort,
   appPath: process.env.MINECODEX_CODEX_EXECUTABLE || undefined,
@@ -70,7 +72,7 @@ runtime = new CodexRuntime({
 });
 
 try {
-  await runtime.start();
+  await runtime.start({ launchCodex });
   runtimeReady = true;
   await writeReadyFile();
 } catch (error) {

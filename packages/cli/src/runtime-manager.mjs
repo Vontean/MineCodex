@@ -19,6 +19,19 @@ function hasExited(child) {
   return Boolean(child && (child.exitCode != null || child.signalCode != null));
 }
 
+function hasExactCommandArgument(command, argument) {
+  const value = String(command);
+  let offset = value.indexOf(argument);
+  while (offset >= 0) {
+    const before = offset === 0 || /\s/.test(value[offset - 1]);
+    const end = offset + argument.length;
+    const after = end === value.length || /\s/.test(value[end]);
+    if (before && after) return true;
+    offset = value.indexOf(argument, offset + 1);
+  }
+  return false;
+}
+
 function normalizedFailure(failure) {
   if (!failure || typeof failure !== "object") return failure ?? null;
   return {
@@ -119,6 +132,8 @@ export class RuntimeManager {
     waitForReady: readyWaiter = waitForReady,
     sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
     stopTimeoutMs = 5_000,
+    manualLaunchPollMs = 1_000,
+    cdpPort = Number(process.env.CODEX_RUNTIME_CDP_PORT ?? 9231),
   }) {
     this.paths = paths;
     this.platform = platform;
@@ -127,6 +142,8 @@ export class RuntimeManager {
     this.waitForReady = readyWaiter;
     this.sleep = sleep;
     this.stopTimeoutMs = stopTimeoutMs;
+    this.manualLaunchPollMs = manualLaunchPollMs;
+    this.cdpPort = cdpPort;
     this.child = null;
     this.appliedFeatures = [];
     this.plugins = [];
@@ -134,6 +151,12 @@ export class RuntimeManager {
     this.stopping = false;
     this.lifecycleQueue = Promise.resolve();
     this.restartInFlight = null;
+    this.manualLaunchMonitorPromise = null;
+    this.manualLaunchMonitorStopped = true;
+    this.manualLaunchTimer = null;
+    this.manualLaunchWake = null;
+    this.manualLaunchBaselinePids = new Set();
+    this.manualLaunchArmed = false;
   }
 
   enqueue(operation) {
@@ -142,7 +165,7 @@ export class RuntimeManager {
     return next;
   }
 
-  async startInternal() {
+  async startInternal({ launchCodex = false } = {}) {
     if (this.child && !hasExited(this.child)) return this.status();
     this.clearChildState();
     this.stopping = false;
@@ -163,12 +186,13 @@ export class RuntimeManager {
         ...process.env,
         CODEX_FEATURES_ROOT: this.paths.featuresRoot,
         CODEX_RUNTIME_PROFILE_DIR: this.paths.profileDir,
-        CODEX_RUNTIME_CDP_PORT: process.env.CODEX_RUNTIME_CDP_PORT ?? "9231",
+        CODEX_RUNTIME_CDP_PORT: String(this.cdpPort),
         CODEX_IMAGE_HOST_DATA_DIR: this.paths.imagesDataDir,
         CODEX_NOTES_DATA_DIR: this.paths.notesDataDir,
         MINECODEX_ENABLED_FEATURES: features.join(","),
         MINECODEX_CODEX_PID_FILE: this.paths.codexPidPath,
         MINECODEX_RUNTIME_READY_FILE: this.paths.runtimeReadyPath,
+        MINECODEX_LAUNCH_CODEX: launchCodex ? "1" : "0",
         ...(codexExecutable ? { MINECODEX_CODEX_EXECUTABLE: codexExecutable } : {}),
       },
       stdio: "inherit",
@@ -227,7 +251,155 @@ export class RuntimeManager {
   }
 
   start() {
-    return this.enqueue(() => this.startInternal());
+    return this.enqueue(async () => {
+      const status = await this.startInternal();
+      await this.startManualLaunchMonitor();
+      return status;
+    });
+  }
+
+  async nativeCodexSnapshot() {
+    if (typeof this.platform?.snapshotNativeCodexState !== "function") return null;
+    const snapshot = await this.platform.snapshotNativeCodexState();
+    const cdpArgument = `--remote-debugging-port=${this.cdpPort}`;
+    const processes = (Array.isArray(snapshot?.processes) ? snapshot.processes : [])
+      .filter(({ command }) => !hasExactCommandArgument(command, cdpArgument));
+    return {
+      count: processes.length,
+      processes,
+      pids: new Set(processes.flatMap(({ pid }) => Number.isInteger(pid) ? [pid] : [])),
+    };
+  }
+
+  async startManualLaunchMonitor() {
+    if (this.manualLaunchMonitorPromise || typeof this.platform?.snapshotNativeCodexState !== "function") return;
+    const snapshot = await this.nativeCodexSnapshot();
+    this.manualLaunchBaselinePids = new Set(snapshot?.pids ?? []);
+    this.manualLaunchArmed = this.manualLaunchBaselinePids.size === 0;
+    this.manualLaunchMonitorStopped = false;
+    const monitor = this.monitorManualCodexLaunches().catch((error) => {
+      if (!this.manualLaunchMonitorStopped) {
+        this.logger.warn?.("MineCodex manual Codex launch monitor failed", error.message);
+      }
+    }).finally(() => {
+      if (this.manualLaunchMonitorPromise === monitor) this.manualLaunchMonitorPromise = null;
+    });
+    this.manualLaunchMonitorPromise = monitor;
+  }
+
+  waitForManualLaunchPoll() {
+    if (this.manualLaunchMonitorStopped) return Promise.resolve();
+    return new Promise((resolve) => {
+      const finish = () => {
+        if (this.manualLaunchTimer) clearTimeout(this.manualLaunchTimer);
+        this.manualLaunchTimer = null;
+        this.manualLaunchWake = null;
+        resolve();
+      };
+      this.manualLaunchWake = finish;
+      this.manualLaunchTimer = setTimeout(finish, this.manualLaunchPollMs);
+    });
+  }
+
+  async monitorManualCodexLaunches() {
+    while (!this.manualLaunchMonitorStopped) {
+      await this.waitForManualLaunchPoll();
+      if (this.manualLaunchMonitorStopped) break;
+      try {
+        await this.reconcileManualCodexLaunch();
+      } catch (error) {
+        this.logger.warn?.("MineCodex could not adopt the Codex launch", error.message);
+      }
+    }
+  }
+
+  async stopManualLaunchMonitor() {
+    this.manualLaunchMonitorStopped = true;
+    this.manualLaunchWake?.();
+    await this.manualLaunchMonitorPromise;
+    this.manualLaunchMonitorPromise = null;
+    this.manualLaunchBaselinePids.clear();
+    this.manualLaunchArmed = false;
+  }
+
+  async reconcileManualCodexLaunch() {
+    if (this.manualLaunchMonitorStopped) return false;
+    const snapshot = await this.nativeCodexSnapshot();
+    if (!snapshot) return false;
+
+    if (this.manualLaunchBaselinePids.size > 0) {
+      const baselineStillRunning = [...this.manualLaunchBaselinePids]
+        .some((pid) => snapshot.pids.has(pid));
+      if (baselineStillRunning) return false;
+      this.manualLaunchBaselinePids.clear();
+      if (snapshot.count === 0) {
+        this.manualLaunchArmed = true;
+        return false;
+      }
+      this.manualLaunchArmed = true;
+    }
+
+    if (snapshot.count === 0) {
+      this.manualLaunchArmed = true;
+      return false;
+    }
+    if (!this.manualLaunchArmed) return false;
+
+    const observedPids = new Set(snapshot.pids);
+    this.manualLaunchArmed = false;
+    this.manualLaunchBaselinePids = observedPids;
+    return this.enqueue(async () => {
+      if (this.manualLaunchMonitorStopped) return false;
+      const latest = await this.nativeCodexSnapshot();
+      const observedProcessStillRunning = latest
+        && [...observedPids].some((pid) => latest.pids.has(pid));
+      if (!observedProcessStillRunning) {
+        if (!latest?.count) {
+          this.manualLaunchBaselinePids.clear();
+          this.manualLaunchArmed = true;
+        }
+        return false;
+      }
+
+      await this.stopInternal();
+      let terminated;
+      try {
+        terminated = await this.platform.terminateNativeCodex();
+      } catch (error) {
+        await this.restoreIdleRuntimeAfterAdoptionFailure(error);
+        throw error;
+      }
+
+      if (!(terminated > 0)) {
+        await this.startInternal();
+        this.manualLaunchBaselinePids.clear();
+        this.manualLaunchArmed = true;
+        return false;
+      }
+
+      try {
+        const status = await this.startInternal({ launchCodex: true });
+        this.manualLaunchBaselinePids.clear();
+        this.manualLaunchArmed = true;
+        return status;
+      } catch (error) {
+        this.manualLaunchBaselinePids.clear();
+        this.manualLaunchArmed = true;
+        await this.restoreIdleRuntimeAfterAdoptionFailure(error);
+        throw error;
+      }
+    });
+  }
+
+  async restoreIdleRuntimeAfterAdoptionFailure(failure) {
+    try {
+      await this.startInternal();
+    } catch (recoveryError) {
+      throw new Error(
+        `${failure.message}; idle RuntimeHost recovery failed: ${recoveryError.message}`,
+        { cause: failure },
+      );
+    }
   }
 
   async stopInternal() {
@@ -273,7 +445,8 @@ export class RuntimeManager {
     }
   }
 
-  stop() {
+  async stop() {
+    await this.stopManualLaunchMonitor();
     return this.enqueue(() => this.stopInternal());
   }
 
@@ -307,7 +480,8 @@ export class RuntimeManager {
     const operation = this.enqueue(async () => {
       await this.stopInternal();
       await this.platform.terminateOwnedCodex(this.paths);
-      return this.startInternal();
+      await this.platform.terminateNativeCodex?.();
+      return this.startInternal({ launchCodex: true });
     });
     this.restartInFlight = operation;
     const shared = this.restartInFlight.finally(() => {

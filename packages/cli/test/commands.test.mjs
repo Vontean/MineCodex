@@ -72,7 +72,7 @@ test("a control-port collision fails before a service PID or RuntimeHost child i
   }
 });
 
-test("install restores the prior service and native Codex state when readiness fails", async () => {
+test("install leaves native Codex untouched and restores the prior service when readiness fails", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "minecodex-install-rollback-"));
   const paths = {
     homeDir: root,
@@ -110,14 +110,84 @@ test("install restores the prior service and native Codex state when readiness f
     "platform",
     "codex-check",
     "snapshot-service",
-    "snapshot-native",
-    "terminate-native",
     "install-service",
     "restore-service",
-    "restore-native",
   ]);
-  assert.deepEqual(events.at(-2)[1], snapshot);
-  assert.deepEqual(events.at(-1)[1], { count: 1 });
+  assert.deepEqual(events.at(-1)[1], snapshot);
+});
+
+test("successful install does not restart Codex without explicit confirmation", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "minecodex-install-user-choice-"));
+  const paths = {
+    homeDir: root,
+    supportDir: path.join(root, "support"),
+    configPath: path.join(root, "support", "config.json"),
+    tokenPath: path.join(root, "support", "control-token"),
+    launchAgentPath: path.join(root, "LaunchAgents", "minecodex.plist"),
+    serviceErrorLogPath: path.join(root, "runtime-error.log"),
+  };
+  const events = [];
+  const output = [];
+  const platform = {
+    assertInstallSupported() {},
+    assertCodexInstalled: async () => {},
+    snapshotServiceState: async () => ({ running: false }),
+    snapshotNativeCodexState: async () => { events.push("snapshot-native"); return { count: 1 }; },
+    terminateNativeCodex: async () => { events.push("terminate-native"); return 1; },
+    installService: async () => { events.push("install-service"); },
+  };
+
+  await runCli(["install"], {
+    paths,
+    platform,
+    output: (line) => output.push(line),
+    confirmRestart: async () => false,
+    serviceProbe: {
+      waitForService: async () => true,
+      waitForManagedReady: async () => ({ runtime: { running: true } }),
+    },
+  });
+
+  assert.deepEqual(events, ["install-service"]);
+  assert.match(output.join("\n"), /enabled the next time Codex restarts/i);
+  assert.match(output.join("\n"), /mcx restart/);
+});
+
+test("successful install restarts Codex only after explicit confirmation", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "minecodex-install-confirmed-restart-"));
+  const paths = {
+    homeDir: root,
+    supportDir: path.join(root, "support"),
+    configPath: path.join(root, "support", "config.json"),
+    tokenPath: path.join(root, "support", "control-token"),
+    launchAgentPath: path.join(root, "LaunchAgents", "minecodex.plist"),
+    serviceErrorLogPath: path.join(root, "runtime-error.log"),
+  };
+  const events = [];
+  const output = [];
+  await runCli(["install"], {
+    paths,
+    platform: {
+      assertInstallSupported() {},
+      assertCodexInstalled: async () => {},
+      snapshotServiceState: async () => ({ running: false }),
+      installService: async () => { events.push("install-service"); },
+    },
+    output: (line) => output.push(line),
+    confirmRestart: async () => { events.push("confirm-restart"); return true; },
+    fetchImpl: async (url) => {
+      events.push(new URL(url).pathname);
+      return { ok: true };
+    },
+    serviceProbe: {
+      waitForService: async () => true,
+      waitForManagedReady: async () => ({ runtime: { running: true } }),
+    },
+  });
+
+  assert.deepEqual(events, ["install-service", "confirm-restart", "/api/restart"]);
+  assert.match(output.join("\n"), /will be enabled the next time Codex restarts/i);
+  assert.match(output.join("\n"), /restarted/i);
 });
 
 test("mcx install rejects an unsupported Node before touching the platform seam", async () => {

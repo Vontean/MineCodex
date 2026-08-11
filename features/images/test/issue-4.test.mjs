@@ -251,6 +251,30 @@ test("Images health and mutation routes require the exact bound loopback origin"
       images: 1,
     });
 
+    const embeddedScript = await fetch(`${server.origin}/app.js`, {
+      headers: { origin: "app://-" },
+    });
+    assert.equal(embeddedScript.status, 200);
+    assert.equal(embeddedScript.headers.get("access-control-allow-origin"), "app://-");
+
+    const embeddedPreflight = await fetch(`${server.origin}/api/rescan`, {
+      method: "OPTIONS",
+      headers: {
+        origin: "app://-",
+        "access-control-request-method": "POST",
+        "access-control-request-private-network": "true",
+      },
+    });
+    assert.equal(embeddedPreflight.status, 204);
+    assert.equal(embeddedPreflight.headers.get("access-control-allow-origin"), "app://-");
+    assert.equal(embeddedPreflight.headers.get("access-control-allow-private-network"), "true");
+
+    const embeddedMutation = await fetch(`${server.origin}/api/rescan`, {
+      method: "POST",
+      headers: { origin: "app://-" },
+    });
+    assert.equal(embeddedMutation.status, 200);
+
     const port = Number(new URL(server.origin).port);
     const unexpectedHost = await rawRequest(server.origin, "/api/rescan", {
       method: "POST",

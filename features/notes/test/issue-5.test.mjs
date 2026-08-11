@@ -151,6 +151,31 @@ test("Notes HTTP state contract accepts a surface and exposes the health identit
     assert.equal(summary.prompts.length, 0);
     assert.equal(summary.files.length, 0);
 
+    const embeddedScript = await fetch(`${server.origin}/app.js`, {
+      headers: { origin: "app://-" },
+    });
+    assert.equal(embeddedScript.status, 200);
+    assert.equal(embeddedScript.headers.get("access-control-allow-origin"), "app://-");
+
+    const embeddedPreflight = await fetch(`${server.origin}/api/todos`, {
+      method: "OPTIONS",
+      headers: {
+        origin: "app://-",
+        "access-control-request-method": "POST",
+        "access-control-request-private-network": "true",
+      },
+    });
+    assert.equal(embeddedPreflight.status, 204);
+    assert.equal(embeddedPreflight.headers.get("access-control-allow-origin"), "app://-");
+    assert.equal(embeddedPreflight.headers.get("access-control-allow-private-network"), "true");
+
+    const embeddedMutation = await fetch(`${server.origin}/api/todos`, {
+      method: "POST",
+      headers: { "content-type": "application/json", origin: "app://-" },
+      body: JSON.stringify({ body: "Embedded todo" }),
+    });
+    assert.equal(embeddedMutation.status, 201);
+
     const port = Number(new URL(server.origin).port);
     const unexpectedHost = await rawRequest(server.origin, "/api/todos", {
       method: "POST",

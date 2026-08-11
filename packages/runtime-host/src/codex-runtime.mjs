@@ -7,6 +7,10 @@ const RUNTIME_VERSION = 99;
 const HOST_BINDING_NAME = "__codexPersonalHostAction";
 const CSP_BOOTSTRAP_VERSION = 1;
 const CSP_BOOTSTRAP_KEY = "__mineCodexCspBootstrapVersion";
+const CODEX_APP_ORIGIN = "app://-";
+const SURFACE_LOAD_ACTION = "load-surface";
+const SURFACE_FRAME_PREFIX = "minecodex-surface-";
+const LOOPBACK_SURFACE_HOSTS = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
 
 export const RESPONSIVE_SUMMARY_LAYOUT = Object.freeze({
   contentBaseWidth: 736,
@@ -36,6 +40,48 @@ export function responsiveSummaryContentShift({ displayMode, isPinned }, layout 
   return displayMode === "shift" && isPinned
     ? -(layout.panelWidth + layout.panelInset) / 2
     : 0;
+}
+
+function declaredSurfaceUrls(feature) {
+  return new Set([
+    feature.surfaceUrl,
+    feature.pinnedSummary?.surfaceUrl,
+    ...(feature.detailTabs ?? []).map((detail) => detail.surfaceUrl),
+  ].filter(Boolean));
+}
+
+function requireDeclaredLoopbackSurface(feature, value) {
+  if (typeof value !== "string" || !declaredSurfaceUrls(feature).has(value)) {
+    throw Object.assign(new Error("Surface URL is not declared by this feature"), {
+      code: "SURFACE_URL_NOT_ALLOWED",
+    });
+  }
+  const url = new URL(value);
+  if (url.protocol !== "http:" || !LOOPBACK_SURFACE_HOSTS.has(url.hostname)) {
+    throw Object.assign(new Error("Surface URL must use an exact loopback HTTP origin"), {
+      code: "SURFACE_URL_NOT_ALLOWED",
+    });
+  }
+  return url;
+}
+
+function findFrameByName(frameTree, frameName) {
+  if (frameTree.frame?.name === frameName) return frameTree.frame;
+  for (const child of frameTree.childFrames ?? []) {
+    const match = findFrameByName(child, frameName);
+    if (match) return match;
+  }
+  return null;
+}
+
+function documentWithBase(html, surfaceUrl) {
+  const head = /<head(?:\s[^>]*)?>/i;
+  if (!head.test(html)) {
+    throw Object.assign(new Error("Surface document has no head element"), {
+      code: "SURFACE_DOCUMENT_INVALID",
+    });
+  }
+  return html.replace(head, (match) => `${match}<base href=${JSON.stringify(surfaceUrl)}>`);
 }
 
 export function createInjectionSource(features, {
@@ -1785,6 +1831,32 @@ export function createInjectionSource(features, {
       return `${featureId}:${kind}:${detailId}`;
     }
 
+    function surfaceFrameName(featureId) {
+      const nonce = crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      return `minecodex-surface-${config.sessionId}-${featureId}-${nonce}`;
+    }
+
+    function requestSurfaceLoad(record) {
+      if (!record || record.loading || typeof globalThis[config.bindingName] !== "function") return false;
+      const requestId = crypto.randomUUID?.()
+        ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      record.loading = true;
+      record.ready = false;
+      record.loadError = null;
+      pendingHostActions.set(requestId, { recordKey: record.key, kind: "surface-load" });
+      globalThis[config.bindingName](JSON.stringify({
+        token: config.bindingToken,
+        featureId: record.featureId,
+        requestId,
+        action: "load-surface",
+        payload: {
+          frameName: record.frame.name,
+          surfaceUrl: record.surfaceUrl,
+        },
+      }));
+      return true;
+    }
+
     function postSurfaceActive(record, active) {
       if (!record || record.kind !== "page") return;
       record.frame.contentWindow?.postMessage({
@@ -1799,10 +1871,13 @@ export function createInjectionSource(features, {
         featureId: feature.id,
         kind,
         detailId,
-        origin: new URL(surfaceUrl).origin,
+        origin: window.location.origin,
+        surfaceUrl,
         element,
         frame,
         ready: false,
+        loading: false,
+        loadError: null,
         preferredHeight: null,
       };
       surfaceRecords.set(key, record);
@@ -1810,14 +1885,14 @@ export function createInjectionSource(features, {
         queueTheme();
         postSurfaceActive(record, activePageFeatureId === record.featureId && !record.element.hidden);
       });
+      requestSurfaceLoad(record);
       return record;
     }
 
     function reloadSurfaceIfUnready(key, surfaceUrl) {
       const record = surfaceRecords.get(key);
-      if (!record || record.ready) return false;
-      record.frame.src = surfaceUrl;
-      return true;
+      if (!record || record.ready || record.surfaceUrl !== surfaceUrl) return false;
+      return requestSurfaceLoad(record);
     }
 
     function removeSurfaceRecord(key) {
@@ -2056,9 +2131,10 @@ export function createInjectionSource(features, {
       }
     }
 
-    function createFrame(surfaceUrl, title) {
+    function createFrame(featureId, title) {
       const frame = document.createElement("iframe");
-      frame.src = surfaceUrl;
+      frame.name = surfaceFrameName(featureId);
+      frame.src = "about:blank";
       frame.title = title;
       frame.allow = "clipboard-write";
       frame.style.cssText = "width:100%;height:100%;border:0;display:block;background:transparent";
@@ -2076,7 +2152,7 @@ export function createInjectionSource(features, {
         "z-index:40",
         "background:transparent",
       ].join(";");
-      const frame = createFrame(feature.surfaceUrl, feature.label);
+      const frame = createFrame(feature.id, feature.label);
       surface.append(frame);
       document.body.append(surface);
       pageSurfaces.set(feature.id, surface);
@@ -2311,7 +2387,7 @@ export function createInjectionSource(features, {
         "pointer-events:none",
         "will-change:transform,opacity",
       ].join(";");
-      const frame = createFrame(definition.surfaceUrl, definition.label ?? feature.label);
+      const frame = createFrame(feature.id, definition.label ?? feature.label);
       surface.append(frame);
       document.body.append(surface);
       pinnedSurfaces.set(feature.id, surface);
@@ -2505,7 +2581,7 @@ export function createInjectionSource(features, {
         "outline:none",
       ].join(";");
 
-      const frame = createFrame(editorUrl.href, `${payload.id ? "Edit" : "Add"} ${kind}`);
+      const frame = createFrame(feature.id, `${payload.id ? "Edit" : "Add"} ${kind}`);
       dialog.append(frame);
       document.body.append(overlay, dialog);
       const key = surfaceKey(feature.id, "modal");
@@ -2751,6 +2827,8 @@ export function createInjectionSource(features, {
         const elementRef = React.useRef(null);
         const frameRef = React.useRef(null);
         const recordKeyRef = React.useRef(null);
+        const frameNameRef = React.useRef(null);
+        frameNameRef.current ??= surfaceFrameName(feature.id);
         React.useLayoutEffect(() => {
           const element = elementRef.current;
           const frame = frameRef.current;
@@ -2785,7 +2863,8 @@ export function createInjectionSource(features, {
           },
           children: jsx.jsx("iframe", {
             ref: frameRef,
-            src: detail.surfaceUrl,
+            name: frameNameRef.current,
+            src: "about:blank",
             title: detail.label,
             allow: "clipboard-write",
             style: {
@@ -3027,7 +3106,7 @@ export function createInjectionSource(features, {
       panel.setAttribute("data-app-shell-tab-panel-controller", "right");
       panel.setAttribute("data-tab-id", stableId);
       panel.style.cssText = "position:absolute;inset:0;min-height:0;background:var(--color-token-main-surface-primary)";
-      const frame = createFrame(detail.surfaceUrl, detail.label);
+      const frame = createFrame(feature.id, detail.label);
       panel.append(frame);
       strip.append(tab);
       panels.append(panel);
@@ -3337,6 +3416,11 @@ export function createInjectionSource(features, {
       pendingHostActions.delete(requestId);
       const record = surfaceRecords.get(pending.recordKey);
       if (!record) return false;
+      if (pending.kind === "surface-load") {
+        record.loading = false;
+        record.loadError = response.ok ? null : response.error;
+        return response.ok;
+      }
       respondToSurface(record, requestId, response);
       return true;
     }
@@ -3570,10 +3654,6 @@ function createDocumentBootstrapSource(source) {
   return `window[${JSON.stringify(CSP_BOOTSTRAP_KEY)}] = ${CSP_BOOTSTRAP_VERSION};\n${source}`;
 }
 
-function documentBootstrapExpression() {
-  return `window[${JSON.stringify(CSP_BOOTSTRAP_KEY)}] === ${CSP_BOOTSTRAP_VERSION}`;
-}
-
 async function connect(url) {
   const socket = new WebSocket(url);
   const pending = new Map();
@@ -3738,9 +3818,10 @@ export class CodexRuntime {
     sleep = (timeoutMs) => new Promise((resolve) => setTimeout(resolve, timeoutMs)),
     availabilityTimeoutMs = 20_000,
     availabilityPollMs = 500,
-    relaunchBaseDelayMs = 250,
-    relaunchMaxDelayMs = 2_000,
     monitorIntervalMs = 2_000,
+    surfaceLoadTimeoutMs = 5_000,
+    surfaceFramePollMs = 25,
+    featureInstanceId = null,
     runtimeSessionId = randomBytes(16).toString("hex"),
     onStatusChange = null,
     onManagedCodexPidChange = null,
@@ -3756,9 +3837,10 @@ export class CodexRuntime {
     this.sleep = sleep;
     this.availabilityTimeoutMs = availabilityTimeoutMs;
     this.availabilityPollMs = availabilityPollMs;
-    this.relaunchBaseDelayMs = relaunchBaseDelayMs;
-    this.relaunchMaxDelayMs = relaunchMaxDelayMs;
     this.monitorIntervalMs = monitorIntervalMs;
+    this.surfaceLoadTimeoutMs = surfaceLoadTimeoutMs;
+    this.surfaceFramePollMs = surfaceFramePollMs;
+    this.featureInstanceId = featureInstanceId;
     this.runtimeSessionId = runtimeSessionId;
     this.onStatusChange = onStatusChange;
     this.onManagedCodexPidChange = onManagedCodexPidChange;
@@ -3774,7 +3856,6 @@ export class CodexRuntime {
     this.targetRefreshQueued = false;
     this.appPid = null;
     this.managedCodexChild = null;
-    this.recoveryPromise = null;
     this.monitorTimer = null;
     this.monitorWake = null;
     this.stopPromise = null;
@@ -3782,20 +3863,35 @@ export class CodexRuntime {
     this.pidChangeQueue = null;
     this.rendererDiscovered = false;
     this.lastRendererStatus = null;
-    this.codexLifecycleManaged = false;
   }
 
-  async start() {
+  async start({ launchCodex = false } = {}) {
     this.stopping = false;
     await mkdir(this.profileDir, { recursive: true });
-    this.codexLifecycleManaged = true;
-    if (!(await this.isAvailable())) {
-      this.launchManagedCodex();
-      await this.waitUntilAvailable();
+    const available = await this.isAvailable();
+    if (!available && launchCodex) {
+      const child = this.launchManagedCodex();
+      try {
+        await this.waitUntilAvailable();
+      } catch (error) {
+        if (this.managedCodexChild === child && !processChildHasExited(child)) {
+          child.kill?.("SIGTERM");
+          const exited = await waitForProcessChildExit(child, 500);
+          if (!exited && !processChildHasExited(child)) {
+            child.kill?.("SIGKILL");
+            await waitForProcessChildExit(child, 500);
+          }
+        }
+        throw error;
+      }
     }
 
-    await this.startTargetDiscovery();
-    await this.refresh();
+    if (available || launchCodex) {
+      await this.startTargetDiscovery();
+      await this.refresh();
+    } else {
+      this.notifyStatusChange();
+    }
     await this.flushManagedCodexPidChange();
     this.monitorPromise = this.monitor();
   }
@@ -3869,14 +3965,10 @@ export class CodexRuntime {
 
   markCodexUnavailable(error) {
     this.clearRendererState();
-    if (this.codexLifecycleManaged && !this.stopping) {
-      this.scheduleCodexRecovery();
-    }
     return error;
   }
 
   launchManagedCodex() {
-    this.codexLifecycleManaged = true;
     const child = this.spawnProcess(
       this.appPath,
       [
@@ -3901,7 +3993,6 @@ export class CodexRuntime {
       this.notifyManagedCodexPidChange(null);
       if (this.stopping) return;
       this.clearRendererState();
-      this.scheduleCodexRecovery();
     };
     child.once?.("exit", onExit);
     child.once?.("error", (error) => {
@@ -3910,73 +4001,6 @@ export class CodexRuntime {
     });
     child.unref?.();
     return child;
-  }
-
-  scheduleCodexRecovery() {
-    if (this.stopping || this.recoveryPromise) return this.recoveryPromise;
-    const recovery = this.recoverManagedCodex();
-    let trackedRecovery;
-    trackedRecovery = recovery.finally(() => {
-      if (this.recoveryPromise === trackedRecovery) this.recoveryPromise = null;
-    });
-    this.recoveryPromise = trackedRecovery;
-    return trackedRecovery;
-  }
-
-  async recoverManagedCodex() {
-    let attempt = 0;
-    while (!this.stopping) {
-      if (this.managedCodexChild && !processChildHasExited(this.managedCodexChild)) {
-        await this.sleep(Math.max(1, Math.min(this.relaunchMaxDelayMs, this.relaunchBaseDelayMs || 1)));
-        continue;
-      }
-      if (await this.isAvailable()) {
-        try {
-          await this.startTargetDiscovery();
-          await this.refresh();
-          await this.flushManagedCodexPidChange();
-          return;
-        } catch (error) {
-          if (this.stopping) return;
-          if (await this.isAvailable()) {
-            this.logger.warn?.("Managed Codex CDP is still available; retrying discovery", error.message);
-            await this.sleep(Math.max(1, Math.min(this.relaunchMaxDelayMs, this.relaunchBaseDelayMs || 1)));
-            continue;
-          }
-        }
-      }
-      const delay = Math.min(
-        this.relaunchBaseDelayMs * (2 ** attempt),
-        this.relaunchMaxDelayMs,
-      );
-      if (delay > 0) await this.sleep(delay);
-      if (this.stopping) return;
-      let child;
-      try {
-        child = this.launchManagedCodex();
-        await this.waitUntilAvailable();
-        await this.startTargetDiscovery();
-        await this.refresh();
-        await this.flushManagedCodexPidChange();
-        return;
-      } catch (error) {
-        this.logger.warn?.("Managed Codex recovery retry failed", error.message);
-        if (
-          child
-          && this.managedCodexChild === child
-          && child.exitCode === null
-          && child.signalCode === null
-        ) {
-          child.kill?.("SIGTERM");
-          const exited = await waitForProcessChildExit(child, 500);
-          if (!exited && !processChildHasExited(child)) {
-            child.kill?.("SIGKILL");
-            await waitForProcessChildExit(child, 500);
-          }
-        }
-        attempt += 1;
-      }
-    }
   }
 
   queueTargetRefresh() {
@@ -4165,6 +4189,106 @@ export class CodexRuntime {
     }
   }
 
+  async fetchSurfaceResource(url, label) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), this.surfaceLoadTimeoutMs);
+    try {
+      return await this.fetchImpl(url, {
+        cache: "no-store",
+        headers: { origin: CODEX_APP_ORIGIN },
+        signal: controller.signal,
+      });
+    } catch (error) {
+      if (controller.signal.aborted) {
+        throw Object.assign(new Error(`${label} timed out`), { code: "SURFACE_LOAD_TIMEOUT" });
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  async verifiedSurfaceDocument(feature, surfaceUrl) {
+    requireDeclaredLoopbackSurface(feature, surfaceUrl);
+    if (!this.featureInstanceId || !feature.healthUrl) {
+      throw Object.assign(new Error("Surface service identity is unavailable"), {
+        code: "SURFACE_IDENTITY_UNAVAILABLE",
+      });
+    }
+    const healthResponse = await this.fetchSurfaceResource(feature.healthUrl, "Surface health check");
+    if (!healthResponse?.ok) {
+      throw Object.assign(new Error(`Surface health returned HTTP ${healthResponse?.status ?? "error"}`), {
+        code: "SURFACE_HEALTH_FAILED",
+      });
+    }
+    let health;
+    try {
+      health = await healthResponse.json();
+    } catch {
+      throw Object.assign(new Error("Surface health returned invalid JSON"), {
+        code: "SURFACE_HEALTH_FAILED",
+      });
+    }
+    if (
+      health?.ok !== true
+      || health.service !== feature.id
+      || health.protocolVersion !== 1
+      || health.instanceId !== this.featureInstanceId
+    ) {
+      throw Object.assign(new Error("Surface service identity does not match this RuntimeHost"), {
+        code: "SURFACE_IDENTITY_MISMATCH",
+      });
+    }
+
+    const response = await this.fetchSurfaceResource(surfaceUrl, "Surface document request");
+    if (!response?.ok) {
+      throw Object.assign(new Error(`Surface document returned HTTP ${response?.status ?? "error"}`), {
+        code: "SURFACE_DOCUMENT_FAILED",
+      });
+    }
+    const contentType = String(response.headers?.get?.("content-type") ?? "").toLowerCase();
+    if (!contentType.startsWith("text/html")) {
+      throw Object.assign(new Error("Surface document must be HTML"), {
+        code: "SURFACE_DOCUMENT_INVALID",
+      });
+    }
+    return documentWithBase(await response.text(), surfaceUrl);
+  }
+
+  async loadSurfaceIntoFrame(client, feature, payload = {}) {
+    const frameName = payload.frameName;
+    if (
+      typeof frameName !== "string"
+      || !frameName.startsWith(SURFACE_FRAME_PREFIX)
+      || frameName.length > 256
+    ) {
+      throw Object.assign(new Error("Surface frame identity is invalid"), {
+        code: "SURFACE_FRAME_INVALID",
+      });
+    }
+    const surfaceUrl = payload.surfaceUrl;
+    const html = await this.verifiedSurfaceDocument(feature, surfaceUrl);
+    const deadline = Date.now() + this.surfaceLoadTimeoutMs;
+    let frame = null;
+    while (!frame && Date.now() < deadline) {
+      const { frameTree } = await client.send("Page.getFrameTree");
+      frame = findFrameByName(frameTree, frameName);
+      if (!frame) await this.sleep(this.surfaceFramePollMs);
+    }
+    if (!frame) {
+      throw Object.assign(new Error("Surface frame was not discovered"), {
+        code: "SURFACE_FRAME_NOT_FOUND",
+      });
+    }
+    if (frame.url !== "about:blank") {
+      throw Object.assign(new Error("Surface frame must remain at about:blank before loading"), {
+        code: "SURFACE_FRAME_INVALID",
+      });
+    }
+    await client.send("Page.setDocumentContent", { frameId: frame.id, html });
+    return { loaded: true };
+  }
+
   async handleBindingCalled(targetId, client, params) {
     if (params.name !== HOST_BINDING_NAME) return;
     let request;
@@ -4175,6 +4299,18 @@ export class CodexRuntime {
     }
     if (request.token !== this.bindingTokens.get(targetId) || typeof request.requestId !== "string") return;
     const feature = this.features.find((candidate) => candidate.id === request.featureId);
+    if (feature && request.action === SURFACE_LOAD_ACTION) {
+      try {
+        const result = await this.loadSurfaceIntoFrame(client, feature, request.payload);
+        await this.resolveHostAction(client, request.requestId, { ok: true, result });
+      } catch (error) {
+        await this.resolveHostAction(client, request.requestId, {
+          ok: false,
+          error: { code: error.code ?? "SURFACE_LOAD_FAILED", message: error.message },
+        });
+      }
+      return;
+    }
     if (!feature?.hostActions?.includes(request.action)) {
       await this.resolveHostAction(client, request.requestId, {
         ok: false,
@@ -4260,20 +4396,9 @@ export class CodexRuntime {
           bindingToken,
           runtimeSessionId: this.runtimeSessionId,
         });
-        const bootstrapExpression = documentBootstrapExpression();
         const script = await client.send("Page.addScriptToEvaluateOnNewDocument", {
           source: createDocumentBootstrapSource(source),
         });
-        const documentWasBootstrapped = Boolean(evaluationValue(await client.send("Runtime.evaluate", {
-          expression: bootstrapExpression,
-          returnByValue: true,
-        })));
-        if (!documentWasBootstrapped) {
-          const pageLoaded = client.waitFor("Page.loadEventFired", 20_000);
-          await client.send("Page.reload");
-          await pageLoaded;
-          await waitForExpression(client, bootstrapExpression);
-        }
         await waitForExpression(
           client,
           `document.readyState === "interactive" || document.readyState === "complete"`,
@@ -4303,7 +4428,6 @@ export class CodexRuntime {
       this.stopping = true;
       this.targetRefreshQueued = false;
       this.monitorWake?.();
-      await this.recoveryPromise?.catch(() => {});
       await this.monitorPromise?.catch(() => {});
       await Promise.all(Array.from(this.clients, async ([targetId, client]) => {
         const identifier = this.scriptIds.get(targetId);

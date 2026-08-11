@@ -15,6 +15,7 @@ const LUCIDE_ICON_ROOT = path.resolve(DEFAULT_WEB_ROOT, "../assets/icons");
 const MAX_BODY_BYTES = 1024 * 1024;
 const MAX_PREVIEW_BYTES = 64 * 1024 * 1024;
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
+const CODEX_EMBED_ORIGIN = "app://-";
 const LUCIDE_ICON_NAMES = [
   "circle",
   "ellipsis",
@@ -233,6 +234,16 @@ function formatHost(host) {
   return host.includes(":") && !host.startsWith("[") ? `[${host}]` : host;
 }
 
+function applyCodexEmbedCors(request, response) {
+  if (request.headers.origin !== CODEX_EMBED_ORIGIN) return false;
+  response.setHeader("Access-Control-Allow-Origin", CODEX_EMBED_ORIGIN);
+  response.setHeader("Access-Control-Allow-Methods", "GET, HEAD, POST, PATCH, DELETE, OPTIONS");
+  response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  response.setHeader("Access-Control-Allow-Private-Network", "true");
+  response.setHeader("Vary", "Origin");
+  return true;
+}
+
 function validateMutationOrigin(request, address, host) {
   const expectedHost = formatHost(host);
   const expectedOrigin = `http://${expectedHost}:${address.port}`;
@@ -246,6 +257,7 @@ function validateMutationOrigin(request, address, host) {
 
   const origin = request.headers.origin;
   if (!origin) return;
+  if (origin === CODEX_EMBED_ORIGIN) return;
   let parsed;
   try {
     parsed = new URL(origin);
@@ -285,6 +297,7 @@ export function createCodexNotesServer({
 
   const server = createServer(async (request, response) => {
     try {
+      applyCodexEmbedCors(request, response);
       const url = new URL(request.url ?? "/", `http://${formatHost(host)}:${port}`);
       const { pathname } = url;
       const method = request.method ?? "GET";
@@ -293,12 +306,7 @@ export function createCodexNotesServer({
       }
 
       if (method === "OPTIONS") {
-        response.writeHead(204, {
-          "Access-Control-Allow-Origin": request.headers.origin ?? "null",
-          "Access-Control-Allow-Headers": "Content-Type",
-          "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
-          "Access-Control-Max-Age": "600",
-        });
+        response.writeHead(204, { "Access-Control-Max-Age": "600" });
         response.end();
         return;
       }

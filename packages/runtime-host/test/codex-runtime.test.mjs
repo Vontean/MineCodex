@@ -96,14 +96,16 @@ test("posts page-surface activity on show, hide, and iframe load", () => {
   assert.match(source, /function hidePageSurfaces[\s\S]*?postSurfaceActive\(record, false\)/);
 });
 
-test("main defers feature startup publication and consumes the configured Codex executable", async () => {
+test("main defers feature startup publication and consumes explicit Codex launch intent", async () => {
   const source = await readFile(new URL("../src/main.mjs", import.meta.url), "utf8");
 
   assert.match(source, /deferredStart: true/);
   assert.match(source, /onStatusChange: requestReadyFileRefresh/);
   assert.match(source, /let runtimeReady = false/);
-  assert.match(source, /await runtime\.start\(\);\s*runtimeReady = true;\s*await writeReadyFile\(\)/);
+  assert.match(source, /await runtime\.start\(\{ launchCodex \}\);\s*runtimeReady = true;\s*await writeReadyFile\(\)/);
   assert.match(source, /appPath: process\.env\.MINECODEX_CODEX_EXECUTABLE \|\| undefined/);
+  assert.match(source, /const launchCodex = process\.env\.MINECODEX_LAUNCH_CODEX === "1"/);
+  assert.match(source, /featureInstanceId,/);
 });
 
 test("emits a fail-closed native Composer model selector Adapter", () => {
@@ -263,6 +265,11 @@ test("emits an isolated conversation-toolbar Adapter with strict Surface and Hos
   assert.match(source, /"zh-CN":"切换固定笔记"/);
   assert.match(source, /"zh-CN":"待办"/);
   assert.match(source, /"hostActions":\["insert-text","attach-file","open-detail-tab","open-editor-modal","resolve-file-paths"\]/);
+  assert.match(source, /function surfaceFrameName\(featureId\)/);
+  assert.match(source, /frame\.name = surfaceFrameName\(featureId\)/);
+  assert.match(source, /frame\.src = "about:blank"/);
+  assert.match(source, /action: "load-surface"/);
+  assert.doesNotMatch(source, /frame\.src = surfaceUrl/);
   assert.match(source, /function normalizedLocale\(value\)/);
   assert.match(source, /function localizedText\(fallback, locales = \{\}\)/);
   assert.match(source, /label: localizedText\(feature\.label, feature\.labels\)/);
@@ -427,6 +434,100 @@ test("ignores native Host bindings with the wrong target token", async () => {
   });
 
   assert.equal(nativeCalls, 0);
+});
+
+test("loads only declared loopback Surface documents into named blank frames", async () => {
+  const calls = [];
+  let documentHtml = "";
+  const runtime = new CodexRuntime({
+    features: [{
+      id: "images",
+      surfaceUrl: "http://127.0.0.1:47831/",
+      healthUrl: "http://127.0.0.1:47831/api/health",
+      hostActions: [],
+      detailTabs: [],
+      pinnedSummary: null,
+    }],
+    featureInstanceId: "surface-instance",
+    profileDir: "/tmp/codex-runtime-surface-profile",
+    fetchImpl: async (url) => {
+      if (url === "http://127.0.0.1:47831/api/health") {
+        return new Response(JSON.stringify({
+          ok: true,
+          service: "images",
+          protocolVersion: 1,
+          instanceId: "surface-instance",
+        }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      if (url === "http://127.0.0.1:47831/") {
+        return new Response("<!doctype html><html><head></head><body>Images</body></html>", {
+          status: 200,
+          headers: { "content-type": "text/html; charset=utf-8" },
+        });
+      }
+      throw new Error(`Unexpected URL ${url}`);
+    },
+  });
+  runtime.bindingTokens.set("renderer", "surface-token");
+  const client = {
+    async send(method, params = {}) {
+      calls.push(method);
+      if (method === "Page.getFrameTree") {
+        return {
+          frameTree: {
+            frame: { id: "root", url: "app://-/index.html" },
+            childFrames: [{
+              frame: {
+                id: "surface-frame",
+                parentId: "root",
+                name: "minecodex-surface-images",
+                url: "about:blank",
+              },
+            }],
+          },
+        };
+      }
+      if (method === "Page.setDocumentContent") {
+        assert.equal(params.frameId, "surface-frame");
+        documentHtml = params.html;
+      }
+      return { result: { value: true } };
+    },
+  };
+
+  await runtime.handleBindingCalled("renderer", client, {
+    name: "__codexPersonalHostAction",
+    payload: JSON.stringify({
+      token: "surface-token",
+      featureId: "images",
+      requestId: "surface-request",
+      action: "load-surface",
+      payload: {
+        frameName: "minecodex-surface-images",
+        surfaceUrl: "http://127.0.0.1:47831/",
+      },
+    }),
+  });
+
+  assert.equal(calls.includes("Page.setDocumentContent"), true);
+  assert.match(documentHtml, /<base href="http:\/\/127\.0\.0\.1:47831\/">/);
+  assert.match(documentHtml, />Images</);
+
+  documentHtml = "";
+  await runtime.handleBindingCalled("renderer", client, {
+    name: "__codexPersonalHostAction",
+    payload: JSON.stringify({
+      token: "surface-token",
+      featureId: "images",
+      requestId: "foreign-surface-request",
+      action: "load-surface",
+      payload: {
+        frameName: "minecodex-surface-images",
+        surfaceUrl: "http://127.0.0.1:49999/",
+      },
+    }),
+  });
+  assert.equal(documentHtml, "");
 });
 
 test("reports path insertion truthfully when a native attachment chip is not observed", async () => {
@@ -653,7 +754,28 @@ async function waitFor(predicate, timeoutMs = 250) {
   assert.fail("Timed out waiting for the lifecycle transition");
 }
 
-test("relaunches a managed Codex child after exit with bounded recovery", async () => {
+test("starts idle without launching Codex until the user explicitly requests it", async () => {
+  let spawnCount = 0;
+  const runtime = new CodexRuntime({
+    features: [],
+    profileDir: "/tmp/codex-runtime-user-controlled-profile",
+    cdpPort: 9247,
+    fetchImpl: async () => cdpResponse({}, false),
+    spawnProcess: () => {
+      spawnCount += 1;
+      throw new Error("background startup must not launch Codex");
+    },
+    monitorIntervalMs: 10_000,
+    logger: { log() {}, warn() {} },
+  });
+
+  await runtime.start();
+  assert.equal(spawnCount, 0);
+  assert.equal(runtime.getRendererStatus().active, false);
+  await runtime.stop();
+});
+
+test("leaves a managed Codex child stopped after the user exits", async () => {
   let available = false;
   let spawnCount = 0;
   const children = [];
@@ -688,8 +810,6 @@ test("relaunches a managed Codex child after exit with bounded recovery", async 
     sleep: async () => {},
     availabilityTimeoutMs: 100,
     availabilityPollMs: 1,
-    relaunchBaseDelayMs: 0,
-    relaunchMaxDelayMs: 0,
     onStatusChange: (status) => statuses.push(status),
     onManagedCodexPidChange: (pid) => pidChanges.push(pid),
     logger: { log() {}, warn() {} },
@@ -699,16 +819,17 @@ test("relaunches a managed Codex child after exit with bounded recovery", async 
   assert.equal(spawnCount, 1);
   assert.deepEqual(pidChanges, [9200]);
   available = false;
-  children[0].exitCode = 1;
-  children[0].emit("exit", 1, null);
+  children[0].exitCode = 0;
+  children[0].emit("exit", 0, null);
   await waitFor(() => statuses.some((status) => status.active === false));
-  await waitFor(() => spawnCount === 2);
-  assert.equal(runtime.appPid, 9201);
-  assert.deepEqual(pidChanges, [9200, null, 9201]);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(spawnCount, 1);
+  assert.equal(runtime.appPid, null);
+  assert.deepEqual(pidChanges, [9200, null]);
   await runtime.stop();
 });
 
-test("rejects stale 2xx version payloads and relaunches until a valid CDP websocket is available", async () => {
+test("rejects stale 2xx version payloads and launches once after explicit user intent", async () => {
   let versionPayload = {};
   let spawnCount = 0;
   const discoveryUrls = [];
@@ -752,14 +873,14 @@ test("rejects stale 2xx version payloads and relaunches until a valid CDP websoc
   await assert.rejects(runtime.startTargetDiscovery(), /webSocketDebuggerUrl/);
   versionPayload = {};
 
-  await runtime.start();
+  await runtime.start({ launchCodex: true });
   assert.equal(spawnCount, 1);
   assert.equal(await runtime.isAvailable(), true);
   assert.deepEqual(discoveryUrls, ["ws://127.0.0.1:9243/devtools/browser/managed"]);
   await runtime.stop();
 });
 
-test("recovers a CDP endpoint that was already available when RuntimeHost started", async () => {
+test("does not relaunch Codex when an attached CDP endpoint exits", async () => {
   let cdpAvailable = true;
   let spawnCount = 0;
   const children = [];
@@ -793,8 +914,6 @@ test("recovers a CDP endpoint that was already available when RuntimeHost starte
     monitorIntervalMs: 10,
     availabilityTimeoutMs: 100,
     availabilityPollMs: 1,
-    relaunchBaseDelayMs: 0,
-    relaunchMaxDelayMs: 0,
     spawnProcess: () => {
       const child = new EventEmitter();
       child.pid = 9250 + spawnCount;
@@ -804,7 +923,6 @@ test("recovers a CDP endpoint that was already available when RuntimeHost starte
       child.kill = () => true;
       spawnCount += 1;
       children.push(child);
-      cdpAvailable = true;
       return child;
     },
     connectClient: async (url) => {
@@ -821,13 +939,12 @@ test("recovers a CDP endpoint that was already available when RuntimeHost starte
     assert.deepEqual(discoveryUrls, [`ws://localhost:${cdpPort}/devtools/browser/existing`]);
 
     cdpAvailable = false;
-    await waitFor(() => spawnCount === 1 && discoveryUrls.length === 2, 2_500);
-    assert.equal(runtime.appPid, 9250);
+    await waitFor(() => runtime.getRendererStatus().active === false, 500);
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    assert.equal(spawnCount, 0);
+    assert.equal(runtime.appPid, null);
     assert.equal(runtime.getRendererStatus().active, false);
-    assert.deepEqual(discoveryUrls, [
-      `ws://localhost:${cdpPort}/devtools/browser/existing`,
-      `ws://127.0.0.1:${cdpPort}/devtools/browser/recovered`,
-    ]);
+    assert.deepEqual(discoveryUrls, [`ws://localhost:${cdpPort}/devtools/browser/existing`]);
   } finally {
     await runtime.stop();
     await new Promise((resolve) => server.close(resolve));
@@ -863,8 +980,6 @@ test("reconciles an available CDP without relaunching during a target-list outag
     profileDir: "/tmp/codex-runtime-cdp-still-available-profile",
     cdpPort: server.address().port,
     monitorIntervalMs: 10,
-    relaunchBaseDelayMs: 0,
-    relaunchMaxDelayMs: 0,
     spawnProcess: () => {
       spawnCount += 1;
       throw new Error("relaunch must not happen while /json/version remains available");
@@ -955,22 +1070,14 @@ test("replaces the current page runtime without reloading the Codex page", async
   assert.equal(statuses.at(-1).active, false);
 });
 
-test("reloads an unbootstrapped Codex document once before local surfaces are injected", async () => {
+test("bootstraps the current Codex document without reloading it", async () => {
   const calls = [];
   let bootstrapped = false;
   let injectedSource = "";
-  let resolvePageLoad;
   const client = {
     socket: { close() {} },
     on() {
       return () => {};
-    },
-    waitFor(method) {
-      calls.push(`waitFor:${method}`);
-      assert.equal(method, "Page.loadEventFired");
-      return new Promise((resolve) => {
-        resolvePageLoad = resolve;
-      });
     },
     async send(method, params = {}) {
       calls.push(method);
@@ -979,9 +1086,11 @@ test("reloads an unbootstrapped Codex document once before local surfaces are in
         return { identifier: "script-bootstrap" };
       }
       if (method === "Page.reload") {
+        throw new Error("RuntimeHost must not reload the Codex application document");
+      }
+      if (method === "Runtime.evaluate" && params.expression?.includes("window.__mineCodexCspBootstrapVersion =")) {
         bootstrapped = true;
-        queueMicrotask(() => resolvePageLoad({}));
-        return {};
+        return { result: { value: true } };
       }
       if (method === "Runtime.evaluate" && params.expression?.includes("__mineCodexCspBootstrapVersion")) {
         return { result: { value: bootstrapped } };
@@ -1018,15 +1127,15 @@ test("reloads an unbootstrapped Codex document once before local surfaces are in
   await runtime.refreshTargets();
 
   assert.equal(runtime.getRendererStatus().active, true);
-  assert.equal(calls.filter((method) => method === "Page.reload").length, 1);
+  assert.equal(calls.includes("Page.reload"), false);
+  assert.equal(calls.includes("waitFor:Page.loadEventFired"), false);
   assert.ok(calls.indexOf("Page.setBypassCSP") < calls.indexOf("Page.addScriptToEvaluateOnNewDocument"));
-  assert.ok(calls.indexOf("Page.addScriptToEvaluateOnNewDocument") < calls.indexOf("waitFor:Page.loadEventFired"));
-  assert.ok(calls.indexOf("waitFor:Page.loadEventFired") < calls.indexOf("Page.reload"));
+  assert.ok(calls.indexOf("Page.addScriptToEvaluateOnNewDocument") < calls.lastIndexOf("Runtime.evaluate"));
   assert.match(injectedSource, /__mineCodexCspBootstrapVersion/);
   assert.match(injectedSource, /"sessionId":"runtime-session-bootstrap"/);
 
   await runtime.refreshTargets();
-  assert.equal(calls.filter((method) => method === "Page.reload").length, 1);
+  assert.equal(calls.includes("Page.reload"), false);
   await runtime.stop();
 });
 
@@ -1123,7 +1232,7 @@ test("writes and clears managed Codex PID identity through an atomic file seam",
   }
 });
 
-test("serializes asynchronous managed Codex PID updates across relaunch boundaries", async () => {
+test("serializes asynchronous managed Codex PID updates across launch boundaries", async () => {
   const events = [];
   let releaseFirst;
   const firstUpdate = new Promise((resolve) => {

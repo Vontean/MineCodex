@@ -1,5 +1,6 @@
 import { access, readFile, rm } from "node:fs/promises";
 import path from "node:path";
+import { createInterface } from "node:readline/promises";
 import { assertNodeSupported, MacPlatformAdapter } from "./platform.mjs";
 import { ensureConfig, ensureControlToken, readConfig } from "./config.mjs";
 import { createControlServer } from "./control-server.mjs";
@@ -98,37 +99,32 @@ async function restoreService(platform, snapshot, { cliPath, paths }) {
   return platform.restoreServiceState(snapshot, { cliPath, paths });
 }
 
-async function nativeSnapshot(platform) {
-  if (platform.snapshotNativeCodexState) return platform.snapshotNativeCodexState();
-  return { count: 0 };
-}
-
-async function restoreNative(platform, snapshot) {
-  if (!snapshot?.count) return;
-  if (platform.restoreNativeCodexState) {
-    await platform.restoreNativeCodexState(snapshot);
-    return;
-  }
-  await platform.openNativeCodex?.();
-}
-
 function appendRollbackError(error, rollbackError) {
   if (!rollbackError) return error;
   return new Error(`${error.message} Automatic rollback also failed: ${rollbackError.message}`, { cause: error });
 }
 
-async function installCommand({ paths, platform, cliPath, output, serviceProbe, fetchImpl, nodeVersion = process.versions.node }) {
+export async function confirmRestartNow({ input = process.stdin, terminalOutput = process.stdout } = {}) {
+  if (!input.isTTY || !terminalOutput.isTTY) return false;
+  const prompt = createInterface({ input, output: terminalOutput });
+  try {
+    const answer = await prompt.question("Restart Codex now? [y/N] ");
+    return /^(y|yes)$/i.test(answer.trim());
+  } catch {
+    return false;
+  } finally {
+    prompt.close();
+  }
+}
+
+async function installCommand({ paths, platform, cliPath, output, serviceProbe, fetchImpl, confirmRestart, nodeVersion = process.versions.node }) {
   assertNodeSupported(nodeVersion);
   platform.assertInstallSupported();
   await platform.assertCodexInstalled();
   const previousService = await serviceSnapshot(platform, paths);
-  const previousNative = await nativeSnapshot(platform);
   await ensureConfig(paths.configPath);
   await ensureControlToken(paths.tokenPath);
-  let nativeCount = 0;
   try {
-    nativeCount = await platform.terminateNativeCodex();
-    if (nativeCount) output(`Restarting ${nativeCount} running Codex instance${nativeCount === 1 ? "" : "s"} with MineCodex enabled…`);
     await platform.installService({ cliPath, paths, start: true });
     const waitForServiceImpl = serviceProbe?.waitForService ?? waitForService;
     const waitForManagedReadyImpl = serviceProbe?.waitForManagedReady ?? waitForManagedReady;
@@ -143,15 +139,14 @@ async function installCommand({ paths, platform, cliPath, output, serviceProbe, 
     } catch (failure) {
       rollbackError = failure;
     }
-    try {
-      await restoreNative(platform, previousNative?.count ? previousNative : { count: nativeCount });
-    } catch (failure) {
-      rollbackError = rollbackError ?? failure;
-    }
     throw appendRollbackError(error, rollbackError);
   }
-  output("MineCodex installed. Model Slider, Notes, and Images are enabled by default.");
-  output("Run `mcx open` to manage plugins.");
+  output("MineCodex installed. It will be enabled the next time Codex restarts.");
+  if (await confirmRestart()) {
+    await restartCommand({ paths, output, fetchImpl });
+  } else {
+    output("Run `mcx restart` when you are ready.");
+  }
 }
 
 async function openCommand({ paths, platform, serviceProbe, fetchImpl }) {
@@ -377,12 +372,13 @@ export async function runCli(argv, {
   npm = createNpmAdapter(),
   serviceProbe,
   fetchImpl = fetch,
+  confirmRestart = confirmRestartNow,
   nodeVersion = process.versions.node,
 } = {}) {
   const [command = "--help", ...args] = argv;
   if (["--help", "-h", "help"].includes(command)) return printHelp(output);
   if (["--version", "-v"].includes(command)) return output(packageMetadata.version);
-  if (command === "install") return installCommand({ paths, platform, cliPath, output, serviceProbe, fetchImpl, nodeVersion });
+  if (command === "install") return installCommand({ paths, platform, cliPath, output, serviceProbe, fetchImpl, confirmRestart, nodeVersion });
   if (command === "open" || command === "gui") return openCommand({ paths, platform, serviceProbe, fetchImpl });
   if (command === "status") return statusCommand({ paths, platform, jsonOutput: args.includes("--json"), output, fetchImpl });
   if (command === "restart") return restartCommand({ paths, output, fetchImpl });
