@@ -109,15 +109,22 @@ async function mapWithConcurrency(values, concurrency, operation) {
 }
 
 async function statWithin(fileStat, filePath, timeoutMs) {
+  const settled = Promise.resolve()
+    .then(() => fileStat(filePath))
+    .then(
+      (info) => ({ status: "fulfilled", info }),
+      (error) => ({ status: "rejected", error }),
+    );
   let timer;
   try {
-    return await Promise.race([
-      fileStat(filePath),
+    const outcome = await Promise.race([
+      settled,
       new Promise((resolve) => {
-        timer = setTimeout(() => resolve(null), timeoutMs);
+        timer = setTimeout(() => resolve({ status: "timed-out" }), timeoutMs);
         timer.unref?.();
       }),
     ]);
+    return { outcome, settled };
   } finally {
     clearTimeout(timer);
   }
@@ -370,9 +377,17 @@ export class CodexNotesProduct extends EventEmitter {
     const rows = this.db.prepare("SELECT id, canonical_path FROM files").all();
     const checks = await mapWithConcurrency(rows, this.fileCleanupConcurrency, async (row) => {
       try {
-        const info = await statWithin(this.fileStat, row.canonical_path, this.fileStatTimeoutMs);
-        if (!info) return null;
-        return info.isFile() ? null : row.id;
+        const { outcome, settled } = await statWithin(
+          this.fileStat,
+          row.canonical_path,
+          this.fileStatTimeoutMs,
+        );
+        if (outcome.status === "timed-out") {
+          await settled;
+          return null;
+        }
+        if (outcome.status === "rejected") throw outcome.error;
+        return outcome.info.isFile() ? null : row.id;
       } catch (error) {
         return isConfirmedMissing(error) ? row.id : null;
       }

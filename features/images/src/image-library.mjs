@@ -215,10 +215,13 @@ export class ImageLibrary {
     }
     if (this.initialScanPromise) return this.initialScanPromise;
     this.initialScanPromise = (async () => {
-      const imported = await this.rescan();
+      const initialImported = await this.rescan();
       if (!this.isLifecycleActive(lifecycleVersion)) return { imported: 0, total: 0 };
       this.startWatching(lifecycleVersion);
-      return { imported, total: this.count() };
+      if (!this.isLifecycleActive(lifecycleVersion)) return { imported: 0, total: 0 };
+      const reconciliationImported = this.watcher ? await this.rescan() : 0;
+      if (!this.isLifecycleActive(lifecycleVersion)) return { imported: 0, total: 0 };
+      return { imported: initialImported + reconciliationImported, total: this.count() };
     })();
     return this.initialScanPromise;
   }

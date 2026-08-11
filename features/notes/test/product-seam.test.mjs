@@ -492,24 +492,119 @@ test("missing-file cleanup is single-flight across concurrent state reads", asyn
   }
 });
 
-test("state reads do not wait for an unresponsive file stat and timeouts preserve metadata", async () => {
+test("state reads stay off-path while timed-out file stats retain bounded underlying concurrency", async () => {
+  const fileCount = 5;
+  const concurrency = 2;
+  const timeoutMs = 10;
+  let activeCalls = 0;
+  let maxActiveCalls = 0;
+  let startedCalls = 0;
+  let autoRelease = false;
+  const pendingReleases = [];
+  const lateMissingResult = { isFile: () => false };
   const fixture = await createFixture({
     productOptions: {
-      fileStat: async () => new Promise(() => {}),
-      fileStatTimeoutMs: 10,
+      fileCleanupConcurrency: concurrency,
+      fileStatTimeoutMs: timeoutMs,
+      fileStat() {
+        startedCalls += 1;
+        activeCalls += 1;
+        maxActiveCalls = Math.max(maxActiveCalls, activeCalls);
+        if (autoRelease) {
+          activeCalls -= 1;
+          return Promise.resolve(lateMissingResult);
+        }
+        return new Promise((resolve) => {
+          let released = false;
+          pendingReleases.push(() => {
+            if (released) return;
+            released = true;
+            activeCalls -= 1;
+            resolve(lateMissingResult);
+          });
+        });
+      },
     },
   });
+  let cleanup = null;
+
+  async function waitFor(predicate, message) {
+    const deadline = Date.now() + 1_000;
+    while (Date.now() < deadline) {
+      if (predicate()) return;
+      await new Promise((resolve) => setTimeout(resolve, 1));
+    }
+    assert.fail(message);
+  }
+
+  async function waitPastTimeout() {
+    await new Promise((resolve) => setTimeout(resolve, timeoutMs + 10));
+  }
+
+  function releaseCurrentWave() {
+    const releases = pendingReleases.splice(0);
+    for (const release of releases) release();
+    return releases.length;
+  }
+
+  async function stateWithin(promise, limitMs = 100) {
+    let timer;
+    try {
+      return await Promise.race([
+        promise,
+        new Promise((_, reject) => {
+          timer = setTimeout(() => reject(new Error("getState waited for file cleanup")), limitMs);
+        }),
+      ]);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   try {
-    const source = path.join(fixture.directory, "slow-volume.txt");
-    await writeFile(source, "available");
-    const added = await fixture.product.addFiles({ paths: [source] });
+    const paths = [];
+    for (let index = 0; index < fileCount; index += 1) {
+      const source = path.join(fixture.directory, `slow-volume-${index}.txt`);
+      await writeFile(source, `available ${index}`);
+      paths.push(source);
+    }
+    const added = await fixture.product.addFiles({ paths });
+    const addedIds = added.added.map((file) => file.id);
     const revision = fixture.product.revision;
-    const state = await fixture.product.getState();
-    assert.equal(state.files.some((file) => file.id === added.added[0].id), true);
-    await fixture.product.fileCleanupPromise;
-    assert.equal(fixture.product.revision, revision, "A stat timeout must not remove the file or emit a revision");
-    assert.ok(fixture.product.getFile(added.added[0].id));
+    const state = await stateWithin(fixture.product.getState({ surface: "files" }));
+    cleanup = fixture.product.fileCleanupPromise;
+    assert.ok(cleanup);
+    assert.deepEqual(new Set(state.files.map((file) => file.id)), new Set(addedIds));
+
+    await waitFor(() => startedCalls === concurrency, "the first cleanup wave did not start");
+    await waitPastTimeout();
+    assert.equal(startedCalls, concurrency, "timed-out calls must keep their worker slots");
+    assert.equal(activeCalls, concurrency);
+    assert.equal(maxActiveCalls, concurrency);
+
+    assert.equal(releaseCurrentWave(), concurrency);
+    await waitFor(() => startedCalls === concurrency * 2, "the second cleanup wave did not start");
+    await waitPastTimeout();
+    assert.equal(startedCalls, concurrency * 2);
+    assert.equal(activeCalls, concurrency);
+    assert.equal(maxActiveCalls, concurrency);
+
+    assert.equal(releaseCurrentWave(), concurrency);
+    await waitFor(() => startedCalls === fileCount, "the final cleanup wave did not start");
+    await waitPastTimeout();
+    assert.equal(activeCalls, 1);
+    assert.equal(maxActiveCalls, concurrency);
+    assert.equal(releaseCurrentWave(), 1);
+
+    await cleanup;
+    assert.equal(activeCalls, 0);
+    assert.equal(startedCalls, fileCount);
+    assert.equal(fixture.product.revision, revision, "late timeout results must preserve file metadata");
+    for (const id of addedIds) assert.ok(fixture.product.getFile(id));
   } finally {
+    autoRelease = true;
+    releaseCurrentWave();
+    await cleanup?.catch(() => {});
     await fixture.close();
   }
 });

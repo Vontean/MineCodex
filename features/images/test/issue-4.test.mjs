@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
+import { writeFileSync } from "node:fs";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { request as httpRequest } from "node:http";
 import os from "node:os";
@@ -150,6 +151,42 @@ test("deferred Images startup exposes health before scanning and watches only af
   }
 });
 
+test("Images reconciles a PNG created synchronously while the watcher is established", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "minecodex-images-watch-gap-"));
+  const sourceRoot = path.join(root, "generated_images");
+  const dataDir = path.join(root, "library");
+  const threadDir = path.join(sourceRoot, "thread-watch-gap");
+  const initialImagePath = path.join(threadDir, "image-before-watch.png");
+  const imagePath = path.join(threadDir, "image-watch-gap.png");
+  await mkdir(threadDir, { recursive: true });
+  await writeFile(initialImagePath, ONE_PIXEL_PNG);
+
+  const watcher = new EventEmitter();
+  watcher.close = () => {};
+  let watcherCreates = 0;
+  const library = new ImageLibrary({
+    sourceRoot,
+    dataDir,
+    watchFactory(_root, _options, _listener) {
+      watcherCreates += 1;
+      writeFileSync(imagePath, ONE_PIXEL_PNG);
+      return watcher;
+    },
+  });
+  try {
+    assert.deepEqual(await library.start(), { imported: 2, total: 2 });
+    assert.equal(watcherCreates, 1);
+    assert.equal(library.count(), 2);
+    assert.deepEqual(
+      new Set(library.list().map((image) => image.sourcePath)),
+      new Set([initialImagePath, imagePath]),
+    );
+  } finally {
+    library.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("closing Images during its initial scan cannot create a watcher afterward", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "minecodex-images-startup-close-"));
   const sourceRoot = path.join(root, "generated_images");
@@ -282,7 +319,7 @@ test("full ImageLibrary rescans share one in-flight operation", async () => {
     releaseRefresh();
     assert.equal(await second, 0);
     assert.deepEqual(library.rescanStatus(), { inProgress: false });
-    assert.equal(refreshCalls, 2, "startup and one shared rescan only");
+    assert.equal(refreshCalls, 2, "startup and one shared rescan only when watching is disabled");
   } finally {
     library.close();
     await rm(root, { recursive: true, force: true });
