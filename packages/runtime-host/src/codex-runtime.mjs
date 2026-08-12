@@ -11,6 +11,7 @@ const CODEX_APP_ORIGIN = "app://-";
 const SURFACE_LOAD_ACTION = "load-surface";
 const SURFACE_FRAME_PREFIX = "minecodex-surface-";
 const LOOPBACK_SURFACE_HOSTS = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
+const RIGHT_PANEL_ROUTE_KINDS = Object.freeze(["home", "local-thread"]);
 
 export const RESPONSIVE_SUMMARY_LAYOUT = Object.freeze({
   contentBaseWidth: 736,
@@ -112,6 +113,7 @@ export function createInjectionSource(features, {
     currentRuntime?.dispose?.();
 
     const lifetime = new AbortController();
+    const rightPanelRouteKinds = new Set(config.rightPanelRouteKinds);
 
     const entryMarker = "data-codex-personal-feature";
     const pageSurfaceMarker = "data-codex-personal-surface";
@@ -2701,7 +2703,7 @@ export function createInjectionSource(features, {
       return key ? element[key] : null;
     }
 
-    function currentTaskScope() {
+    function currentRightPanelScope() {
       let anchor = document.querySelector('[data-app-shell-tabs="true"]');
       let anchorFiber = reactFiberFor(anchor);
       if (!anchorFiber) {
@@ -2718,12 +2720,12 @@ export function createInjectionSource(features, {
       let rootFiber = anchorFiber;
       while (rootFiber.return) rootFiber = rootFiber.return;
 
-      const isTaskScope = (value) => (
+      const isRightPanelScope = (value) => (
         value
         && typeof value === "object"
         && typeof value.get === "function"
         && typeof value.set === "function"
-        && value.value?.routeKind === "local-thread"
+        && rightPanelRouteKinds.has(value.value?.routeKind)
         && typeof value.query?.getOrFetch === "function"
       );
       const inspected = new Set();
@@ -2734,8 +2736,8 @@ export function createInjectionSource(features, {
           || inspected.has(value)
         ) return null;
         inspected.add(value);
-        if (isTaskScope(value)) return value;
-        if (isTaskScope(value.current)) return value.current;
+        if (isRightPanelScope(value)) return value;
+        if (isRightPanelScope(value.current)) return value.current;
         return null;
       };
 
@@ -2769,10 +2771,10 @@ export function createInjectionSource(features, {
       return null;
     }
 
-    async function waitForCurrentTaskScope() {
+    async function waitForCurrentRightPanelScope() {
       const deadline = performance.now() + 2_000;
       do {
-        const scope = currentTaskScope();
+        const scope = currentRightPanelScope();
         if (scope) return scope;
         await new Promise((resolve) => setTimeout(resolve, 50));
       } while (performance.now() < deadline);
@@ -2810,6 +2812,7 @@ export function createInjectionSource(features, {
             typeof controller?.openTab !== "function"
             || typeof controller?.activateTab !== "function"
             || typeof controller?.closeTab !== "function"
+            || !controller?.tabById$
             || typeof jsx?.jsx !== "function"
             || typeof React?.useLayoutEffect !== "function"
             || typeof React?.useRef !== "function"
@@ -2923,17 +2926,31 @@ export function createInjectionSource(features, {
       return reloaded;
     }
 
+    async function waitForNativeDetailTabMount(scope, controller, tabId, detailKey) {
+      const deadline = performance.now() + 2_000;
+      do {
+        let registered = false;
+        try {
+          registered = scope.get(controller.tabById$, tabId) != null;
+        } catch {}
+        if (registered && nativeDetailSurfaceKeys.has(detailKey)) return true;
+        await new Promise((resolve) => setTimeout(resolve, 25));
+      } while (performance.now() < deadline);
+      return false;
+    }
+
     async function openNativeDetailTab(feature, detail) {
       const capability = await loadNativeTabCapability();
       if (!capability) return null;
-      const scope = await waitForCurrentTaskScope();
+      const scope = await waitForCurrentRightPanelScope();
       if (!scope) {
-        nativeTabCapabilityError = new Error("The current Codex Task scope was not found");
+        nativeTabCapabilityError = new Error("The current Codex right-panel scope was not found");
         return null;
       }
 
       const { controller, jsx } = capability;
       const tabId = `${feature.id}-${detail.id}`;
+      const detailKey = `${feature.id}:${detail.id}`;
       let session = Array.from(nativeOpenTabSessions).find((candidate) => (
         candidate.scope === scope && candidate.tabId === tabId
       ));
@@ -2963,6 +2980,17 @@ export function createInjectionSource(features, {
       } catch (error) {
         if (isNewSession) nativeOpenTabSessions.delete(session);
         nativeTabCapabilityError = error;
+        return null;
+      }
+
+      if (!await waitForNativeDetailTabMount(scope, controller, tabId, detailKey)) {
+        if (isNewSession) nativeOpenTabSessions.delete(session);
+        if (!focusedExisting) {
+          try {
+            controller.closeTab(scope, tabId);
+          } catch {}
+        }
+        nativeTabCapabilityError = new Error("Codex native right-panel Tab did not mount");
         return null;
       }
 
@@ -3466,6 +3494,7 @@ export function createInjectionSource(features, {
     bindingName,
     bindingToken,
     summaryLayout: RESPONSIVE_SUMMARY_LAYOUT,
+    rightPanelRouteKinds: RIGHT_PANEL_ROUTE_KINDS,
     features: runtimeFeatures,
   })})`;
 }

@@ -383,11 +383,15 @@ test("opens detail views only in Codex native right-panel tabs", () => {
 
   assert.match(source, /function nativeTabModuleUrl\(\)/);
   assert.match(source, /async function loadNativeTabCapability\(\)/);
-  assert.match(source, /async function waitForCurrentTaskScope\(\)/);
+  assert.match(source, /const rightPanelRouteKinds = new Set\(config\.rightPanelRouteKinds\)/);
+  assert.match(source, /async function waitForCurrentRightPanelScope\(\)/);
   assert.match(source, /const controller = appModule\.Gtt\("right"\)/);
+  assert.match(source, /!controller\?\.tabById\$/);
   assert.match(source, /const jsx = appModule\.hkt\(\)/);
   assert.match(source, /const React = appModule\.Skt\(\)/);
-  assert.match(source, /value\.value\?\.routeKind === "local-thread"/);
+  assert.match(source, /rightPanelRouteKinds\.has\(value\.value\?\.routeKind\)/);
+  assert.match(source, /"rightPanelRouteKinds":\["home","local-thread"\]/);
+  assert.doesNotMatch(source, /value\.value\?\.routeKind === "local-thread"/);
   assert.match(source, /function nativeDetailComponent\(feature, detail, capability\)/);
   assert.match(source, /function nativeDetailIcon\(feature, detail, jsx\)/);
   assert.match(source, /const icon = detail\.icon \?\? feature\.icon/);
@@ -395,6 +399,9 @@ test("opens detail views only in Codex native right-panel tabs", () => {
   assert.match(source, /React\.useLayoutEffect\(\(\) => \{/);
   assert.match(source, /registerSurface\(recordKey, feature, "detail", detail\.surfaceUrl, element, frame, detail\.id\)/);
   assert.match(source, /controller\.openTab\(scope, nativeDetailComponent\(feature, detail, capability\)/);
+  assert.match(source, /async function waitForNativeDetailTabMount\(scope, controller, tabId, detailKey\)/);
+  assert.match(source, /scope\.get\(controller\.tabById\$, tabId\) != null/);
+  assert.match(source, /nativeDetailSurfaceKeys\.has\(detailKey\)/);
   assert.match(source, /id: tabId,[\s\S]*?isClosable: true,[\s\S]*?onClose:/s);
   assert.match(source, /presentation: "native"/);
   assert.doesNotMatch(source, /function openFallbackDetailTab\(feature, detail\)/);

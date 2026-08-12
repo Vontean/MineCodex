@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "notes",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "label": {
     "en": "Notes",
     "zh-CN": "笔记"
