@@ -1,31 +1,32 @@
+<p align="center">
+  <img src="./assets/readme/hero.svg" width="100%" alt="MineCodex：给 Codex Desktop 增加轻量、本地优先的插件，包含模型滑条、笔记与图片库">
+</p>
+
 # MineCodex
 
-MineCodex 给 Codex Desktop 增加三个轻量、本地优先的插件：
+MineCodex 给 Codex Desktop 增加一组轻量、本地优先的扩展功能。所有数据均保存在本地，不经过任何第三方服务器，也不会改变 Codex 的原有使用习惯。
 
-- **Model Slider**：更清楚、更顺滑的模型选择窗口。
-- **Notes**：跨会话管理 Todo、Prompts 和 Files。
-- **Images**：集中浏览生成图片、Prompt 和来源任务。
+## 插件列表
+
+| 插件 | 说明 |
+| --- | --- |
+| **Model Slider** | 更清晰、更顺滑的模型切换面板：具备品牌标识、常用收藏与流畅交互 |
+| **Notes** | 跨会话管理待办事项、常用提示词与文件，可随时从 Codex 工具栏快速复用 |
+| **Images** | 集中浏览生成的图片、Prompt 和来源任务，轻松保存原图或快速返回原会话 |
+| **Hide Upsell Banner** | 隐藏输入框上方的用量提示横幅，仅优化界面展示，不影响正常的用量统计 |
 
 ## 安装
 
-MineCodex v1 仅支持 macOS，需要 Node.js 22.5 或更高版本。安装时会从
-`/Applications/ChatGPT.app` 或 `~/Applications/ChatGPT.app` 查找 Codex Desktop；
-如果两处都找不到，安装会停止并给出提示。
+MineCodex 目前仅支持 macOS 系统，需要 Node.js 22.5 或更高版本。安装程序会自动扫描 `/Applications/ChatGPT.app` 或 `~/Applications/ChatGPT.app` 寻找 Codex Desktop；如果两处均未找到，安装将暂停并给出说明。
 
 ```bash
 npm install -g minecodex
 mcx install
 ```
 
-`mcx install` 不会关闭或启动 Codex，也不会改变当前窗口。安装完成后，终端会提示
-MineCodex 将在下次重启 Codex 时启用，并询问是否现在重启；默认答案是 **No**。
-安装过程只有在用户明确确认，或之后主动运行 `mcx restart` 时，才会关闭并重新打开
-Codex。安装后，macOS 的“登录项与扩展”中会显示名为 **MineCodex** 的后台项目。
-这个后台项目负责插件与本地控制台：用户退出 Codex 后，它会保持停止；用户后来从
-Dock 主动打开 Codex 时，这次新启动会被视为明确的启动意图，并切换为可注入的托管
-实例。由于普通 Dock 启动本身没有 CDP，首次切换时 Codex 可能会短暂重开一次。
+运行 `mcx install` 不会强制关闭或启动 Codex，也不会影响当前打开的窗口。安装完成后，终端会说明更改将在下一次重启 Codex 时生效，并询问是否立即重启；默认选项为 **No**。只有在您明确确认，或后续手动运行 `mcx restart` 时，才会重新打开 Codex。安装完成后，macOS 的“登录项与扩展”中会添加名为 **MineCodex** 的后台项目。
 
-安装后三个插件默认开启。打开本地控制台：
+打开本地控制台：
 
 ```bash
 mcx open
@@ -33,19 +34,22 @@ mcx open
 
 常用命令：
 
-```text
-mcx install
-mcx uninstall [--purge]
-mcx update
-mcx open
-mcx status [--json]
-mcx restart
-```
+| 命令 | 作用 |
+| --- | --- |
+| `mcx install` | 安装或修复 MineCodex |
+| `mcx uninstall [--purge]` | 移除扩展；默认保留个人数据，带 `--purge` 参数才会清理 |
+| `mcx update` | 更新到最新的稳定版本 |
+| `mcx open` | 打开 MineCodex 控制台 |
+| `mcx status [--json]` | 查看安装与插件运行状态 |
+| `mcx restart` | 重启 Codex 并应用插件开启/关闭状态 |
 
-关闭插件只会停用对应功能，不会删除数据；保存开关后运行 `mcx restart` 应用变更。
-`mcx uninstall` 会移除名为 MineCodex 的后台项目，并默认保留 MineCodex 设置、
-Notes 数据和 Images 索引；只有显式传入 `--purge` 才会删除 MineCodex 自有数据。
-MineCodex 永远不会删除 `~/.codex/generated_images` 中的原图或 Notes 引用的源文件。
+关闭某项功能仅停用对应的扩展服务，不会删除任何个人数据；修改设置后运行 `mcx restart` 即可应用更改。
+
+运行 `mcx uninstall` 会移除名为 MineCodex 的后台项目，并默认保留配置设置、Notes 笔记和 Images 图片索引；只有显式加上 `--purge` 参数，才会清理 MineCodex 产生的本地配置。MineCodex 绝不会删除 `~/.codex/generated_images` 中的原始图片或 Notes 引用的本地文件。
+
+## 工作原理
+
+MineCodex 统一管理 Codex 内的菜单入口、主题风格与界面适配。每个插件（Model Slider、Notes、Images）独立管理各自的数据与操作页面；Hide Upsell Banner 专注于界面展示的优化，不影响实际的用量计算。所有功能按需开启，关闭后即停止运行。
 
 ## 开发
 
@@ -57,9 +61,6 @@ npm run pack:check
 npm run pack:audit
 ```
 
-MineCodex 是唯一发布仓库。三个插件继续拥有各自的数据和页面；RuntimeHost 只负责
-Codex 中的入口、主题与交互适配。
+## 许可
 
-MineCodex 是非官方独立项目，与 OpenAI 无关联。项目自有代码以 MIT License 授权；
-第三方图标、品牌和兼容资产遵循各自的权利说明，见
-[`features/model-slider/THIRD_PARTY_NOTICES.md`](features/model-slider/THIRD_PARTY_NOTICES.md)。
+MineCodex 是非官方独立扩展项目，与 OpenAI 无关联。项目自有代码以 MIT License 授权；第三方图标、品牌和兼容资产遵循各自的权利说明，见 [`features/model-slider/THIRD_PARTY_NOTICES.md`](features/model-slider/THIRD_PARTY_NOTICES.md)。
