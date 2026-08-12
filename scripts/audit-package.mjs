@@ -35,6 +35,7 @@ const requiredFiles = [
   "README.md",
   "apps/dashboard/index.html",
   "features/images/codex-feature.json",
+  "features/hide-upsell-banner/codex-feature.json",
   "features/model-slider/THIRD_PARTY_NOTICES.md",
   "features/model-slider/codex-feature.json",
   "features/model-slider/vendor/cc-switch-LICENSE",

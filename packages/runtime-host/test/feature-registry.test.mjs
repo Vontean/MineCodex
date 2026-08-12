@@ -128,6 +128,52 @@ test("discovers sibling Codex features and orders them by placement", async () =
   }
 });
 
+test("normalizes a service-free page-script feature with an inlined script source", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "codex-runtime-page-script-"));
+  try {
+    const project = path.join(root, "HideUpsellBanner");
+    await mkdir(path.join(project, "src"), { recursive: true });
+    await writeFile(path.join(project, "codex-feature.json"), JSON.stringify({
+      schemaVersion: 1,
+      id: "hide-upsell-banner",
+      label: { en: "Hide Upsell Banner", "zh-CN": "隐藏用量横幅" },
+      entry: { kind: "page-script", script: "src/hide-upsell-banner.mjs" },
+      placement: { order: 40 },
+    }));
+    await writeFile(path.join(project, "src", "hide-upsell-banner.mjs"),
+      "(signal, window, document, MutationObserver) => { return () => {}; };\n");
+
+    const [feature] = await discoverFeatures(root);
+    assert.equal(feature.id, "hide-upsell-banner");
+    assert.equal(feature.entry.kind, "page-script");
+    assert.equal(feature.surfaceUrl, null);
+    assert.equal(feature.command, null);
+    assert.equal(feature.pageScript.resource, "src/hide-upsell-banner.mjs");
+    assert.match(feature.pageScript.source, /return \(\) => \{\};/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("rejects a page-script feature without a script resource", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "codex-runtime-page-script-missing-"));
+  try {
+    await mkdir(path.join(root, "BrokenScript"));
+    await writeFile(path.join(root, "BrokenScript", "codex-feature.json"), JSON.stringify({
+      schemaVersion: 1,
+      id: "broken-script",
+      label: "Broken Script",
+      entry: { kind: "page-script" },
+    }));
+    await assert.rejects(
+      discoverFeatures(root),
+      /page-script entries require entry\.script or script\.resource/,
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("normalizes a conversation toolbar feature, local SVG resource, and registered Host actions", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "codex-runtime-toolbar-feature-"));
   try {

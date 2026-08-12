@@ -1,6 +1,6 @@
 {
   "name": "minecodex",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "description": "Lightweight, local-first plugins for the Codex desktop app.",
   "license": "MIT",
   "type": "module",
@@ -29,6 +29,8 @@
     "features/images/src",
     "features/images/web",
     "features/images/codex-feature.json",
+    "features/hide-upsell-banner/src",
+    "features/hide-upsell-banner/codex-feature.json",
     "apps/dashboard/app.js",
     "apps/dashboard/favicon.svg",
     "apps/dashboard/index.html",
@@ -40,7 +42,7 @@
   },
   "scripts": {
     "start": "node packages/cli/bin/mcx.mjs serve",
-    "test": "node --test packages/cli/test/*.test.mjs packages/runtime-host/test/*.test.mjs features/model-slider/test/*.test.mjs features/notes/test/*.test.mjs features/images/test/*.test.mjs apps/dashboard/test/*.test.mjs",
+    "test": "node --test packages/cli/test/*.test.mjs packages/runtime-host/test/*.test.mjs features/model-slider/test/*.test.mjs features/notes/test/*.test.mjs features/images/test/*.test.mjs features/hide-upsell-banner/test/*.test.mjs apps/dashboard/test/*.test.mjs",
     "test:cli": "node --test packages/cli/test/*.test.mjs",
     "test:runtime": "node --test packages/runtime-host/test/*.test.mjs",
     "check": "node --check packages/cli/bin/mcx.mjs && node --check packages/cli/src/*.mjs && node --check packages/runtime-host/src/*.mjs",

@@ -52,9 +52,9 @@ test("runtime manager starts only configured plugins and restarts the owned Code
   };
   const manager = new RuntimeManager({ paths, platform, spawnProcess, logger: { error() {} } });
   await manager.start();
-  assert.equal(spawnOptions.env.MINECODEX_ENABLED_FEATURES, "model-slider,images");
+  assert.equal(spawnOptions.env.MINECODEX_ENABLED_FEATURES, "model-slider,images,hide-upsell-banner");
   assert.equal(spawnOptions.env.MINECODEX_LAUNCH_CODEX, "0");
-  assert.deepEqual(manager.status().appliedFeatures, ["model-slider", "images"]);
+  assert.deepEqual(manager.status().appliedFeatures, ["model-slider", "images", "hide-upsell-banner"]);
   await manager.restart();
   assert.equal(terminatedOwned, 1);
   assert.equal(terminatedNative, 1);

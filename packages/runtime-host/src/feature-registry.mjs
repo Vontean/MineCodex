@@ -13,6 +13,8 @@ const HOST_ACTIONS = new Set([
   "resolve-file-paths",
 ]);
 
+const PAGE_SCRIPT_ENTRY_KINDS = new Set(["page-script"]);
+
 export const FEATURE_PROTOCOL_VERSION = 1;
 export const FEATURE_HEALTH_TIMEOUT_MS = 750;
 export const FEATURE_STARTUP_TIMEOUT_MS = 1_000;
@@ -127,6 +129,23 @@ async function normalizeModelSelector(modelSelector, projectDir) {
   };
 }
 
+async function normalizePageScript(manifest, projectDir) {
+  const resource = manifest.entry?.script ?? manifest.pageScript?.resource ?? manifest.script;
+  if (!resource) {
+    throw new Error("page-script entries require entry.script or script.resource");
+  }
+  const scriptPath = path.resolve(projectDir, resource);
+  const relative = path.relative(projectDir, scriptPath);
+  if (relative.startsWith("..") || path.isAbsolute(relative)) {
+    throw new Error("page-script resource must stay inside the feature project");
+  }
+  const source = await readFile(scriptPath, "utf8");
+  if (!source.trim()) {
+    throw new Error("page-script resource must be a non-empty script file");
+  }
+  return { resource, source };
+}
+
 async function normalizeFeature(manifest, projectDir) {
   if (manifest.schemaVersion !== 1) throw new Error("schemaVersion must be 1");
   if (!manifest.id || !manifest.label) {
@@ -135,11 +154,12 @@ async function normalizeFeature(manifest, projectDir) {
 
   const label = normalizeLocalizedText(manifest.label, "label");
   const entryKind = manifest.entry?.kind ?? "sidebar";
-  if (!new Set(["sidebar", "conversation-toolbar", "composer-model-selector"]).has(entryKind)) {
-    throw new Error("entry.kind must be sidebar, conversation-toolbar, or composer-model-selector");
+  if (!new Set(["sidebar", "conversation-toolbar", "composer-model-selector", ...PAGE_SCRIPT_ENTRY_KINDS]).has(entryKind)) {
+    throw new Error("entry.kind must be sidebar, conversation-toolbar, composer-model-selector, or page-script");
   }
   const isModelSelector = entryKind === "composer-model-selector";
-  if (!isModelSelector && !manifest.surfaceUrl) {
+  const isPageScript = PAGE_SCRIPT_ENTRY_KINDS.has(entryKind);
+  if (!isModelSelector && !isPageScript && !manifest.surfaceUrl) {
     throw new Error("surfaceUrl is required for rendered features");
   }
   if (entryKind === "conversation-toolbar" && !manifest.entry?.ariaLabel) {
@@ -221,6 +241,9 @@ async function normalizeFeature(manifest, projectDir) {
     hostActions,
     modelSelector: isModelSelector
       ? await normalizeModelSelector(manifest.modelSelector, projectDir)
+      : null,
+    pageScript: isPageScript
+      ? await normalizePageScript(manifest, projectDir)
       : null,
     placement: {
       after: manifest.placement?.after ?? "sites",

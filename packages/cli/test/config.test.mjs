@@ -20,6 +20,7 @@ test("config defaults every known plugin on and preserves unknown fields", async
     "future-plugin": true,
     "model-slider": true,
     images: true,
+    "hide-upsell-banner": true,
   });
   assert.deepEqual(config.future, { channel: "preview" });
 

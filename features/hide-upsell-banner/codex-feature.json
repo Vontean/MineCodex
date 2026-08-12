@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "hide-upsell-banner",
+  "version": "0.1.10",
+  "label": {
+    "en": "Hide Upsell Banner",
+    "zh-CN": "隐藏用量横幅"
+  },
+  "description": {
+    "en": "Hide the rate-limit upsell banner in the composer while leaving usage checks untouched.",
+    "zh-CN": "隐藏输入区上方的用量耗尽横幅，不拦截额度查询功能。"
+  },
+  "entry": {
+    "kind": "page-script",
+    "script": "src/hide-upsell-banner.mjs"
+  },
+  "icon": {
+    "viewBox": "0 0 24 24",
+    "markup": "<rect width=\"18\" height=\"12\" x=\"3\" y=\"6\" rx=\"2.5\"></rect><path d=\"m5 5 14 14\"></path>"
+  },
+  "placement": {
+    "order": 40
+  }
+}

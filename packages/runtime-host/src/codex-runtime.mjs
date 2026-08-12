@@ -247,6 +247,7 @@ export function createInjectionSource(features, {
     const modelSelectorFeature = features.find(
       (feature) => feature.entry?.kind === "composer-model-selector",
     ) ?? null;
+    const pageScriptFeatures = features.filter((feature) => feature.entry?.kind === "page-script");
     const pageSurfaces = new Map();
     const pinnedSurfaces = new Map();
     const surfaceRecords = new Map();
@@ -269,6 +270,7 @@ export function createInjectionSource(features, {
     let shiftedThreadOriginal = null;
     let mainContentObserver = null;
     const domObservers = [];
+    const pageScriptCleanups = [];
     const pendingHostActions = new Map();
     let activeModalRecordKey = null;
     let activePromptPreview = null;
@@ -365,6 +367,24 @@ export function createInjectionSource(features, {
       document.documentElement.setAttribute("data-codex-model-slider-catalog-ready", "");
       document.documentElement.append(modelSelectorStyle);
       void loadNativeFastIcon();
+    }
+
+    for (const feature of pageScriptFeatures) {
+      const source = feature.pageScript?.source ?? "";
+      if (!source.trim()) continue;
+      try {
+        const installer = new Function(
+          "signal",
+          "window",
+          "document",
+          "MutationObserver",
+          `"use strict";\n${source}`,
+        );
+        const cleanup = installer(lifetime.signal, window, document, MutationObserver);
+        if (typeof cleanup === "function") pageScriptCleanups.push(cleanup);
+      } catch (error) {
+        console.warn(`[codex-personal] page-script feature failed: ${feature.id}`, error);
+      }
     }
 
     function findEntry(featureId) {
@@ -3451,6 +3471,11 @@ export function createInjectionSource(features, {
       resolveHostAction,
       dispose: () => {
         lifetime.abort();
+        for (const cleanup of pageScriptCleanups.splice(0)) {
+          try { cleanup(); } catch (error) {
+            console.warn("[codex-personal] page-script cleanup failed", error);
+          }
+        }
         if (ensureFrame != null) cancelAnimationFrame(ensureFrame);
         if (ensureTimer != null) clearTimeout(ensureTimer);
         for (const observer of domObservers) observer.disconnect();
@@ -3487,6 +3512,7 @@ export function createInjectionSource(features, {
     detailTabs: feature.detailTabs ?? [],
     hostActions: feature.hostActions ?? [],
     modelSelector: feature.modelSelector ?? null,
+    pageScript: feature.pageScript ?? null,
   }));
   return `(${install.toString()})(${JSON.stringify({
     version: RUNTIME_VERSION,
