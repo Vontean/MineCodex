@@ -3307,12 +3307,13 @@ export function createInjectionSource(features, {
       const anchorButton = temporaryChatButton ?? summaryButton ?? bottomPanelButton ?? sidePanelButton;
       if (!anchorButton) return;
       const anchorRoot = toolbarControlRoot(anchorButton);
-      // The side-panel toggle sits in a narrow fixed container that travels
-      // with the native panel. Entries anchored to it must live in the
-      // fallback toolbar group, otherwise the Notes entry would be dragged
-      // into the side panel and hidden. The Notes entry is only grouped with
-      // the native summary button when that button is the anchor.
-      const useFallbackAnchor = anchorButton === sidePanelButton;
+      // The bottom/side-panel toggles sit in narrow fixed containers that
+      // travel with the native panels. Entries anchored to them must live in
+      // the fallback toolbar group, otherwise the Notes entry would be
+      // dragged into the panel or push the native toggle out of the header.
+      // The Notes entry is only grouped with the native summary button when
+      // that button is the anchor.
+      const useFallbackAnchor = anchorButton === sidePanelButton || anchorButton === bottomPanelButton;
       const summaryGroup = useFallbackAnchor ? null : nativeSummaryToolbarGroup(anchorButton);
       let targetGroup = summaryGroup ?? ensureFallbackSummaryToolbarGroup(anchorButton);
       if (!targetGroup) return;
