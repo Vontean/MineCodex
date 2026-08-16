@@ -439,6 +439,20 @@ export function createInjectionSource(features, {
       }) ?? null;
     }
 
+    function nativeSidePanelButton() {
+      return Array.from(document.querySelectorAll("button")).find((button) => {
+        if (button.getAttribute("aria-label") !== "Toggle side panel") return false;
+        return isVisibleToolbarControl(button);
+      }) ?? null;
+    }
+
+    function nativeTemporaryChatButton() {
+      return Array.from(document.querySelectorAll("button")).find((button) => {
+        if (!/temporary chat/i.test(button.getAttribute("aria-label") ?? "")) return false;
+        return isVisibleToolbarControl(button);
+      }) ?? null;
+    }
+
     function toolbarControlRoot(button) {
       return button?.parentElement?.parentElement ?? button?.parentElement ?? button ?? null;
     }
@@ -719,8 +733,50 @@ export function createInjectionSource(features, {
       for (let depth = 0; fiber && depth < 40; depth += 1, fiber = fiber.return) {
         const props = fiber.memoizedProps;
         if (Array.isArray(props?.models) && typeof props.onSelectReasoningEffort === "function") return props;
+        if (
+          props?.models
+          && typeof props.models === "object"
+          && !Array.isArray(props.models)
+          && typeof props.onModelChange === "function"
+          && props.selectedModel
+        ) {
+          return chatComposerModelController(props);
+        }
       }
       return null;
+    }
+
+    function chatComposerModelController(props) {
+      const selected = props.selectedModel ?? {};
+      if (!Array.isArray(props.models?.versionOptions) || !selected.versionId) return null;
+      const version = props.models.versionOptions.find(
+        (candidate) => String(candidate.id ?? "") === String(selected.versionId ?? ""),
+      );
+      if (!version) return null;
+      const options = Array.isArray(version?.options) ? version.options : [];
+      const effortFor = (option) => String(option?.title ?? option?.lane ?? "").toLowerCase();
+      const efforts = options.map(effortFor).filter(Boolean);
+      const selectedOption = options.find(
+        (option) => String(option.thinkingEffort ?? "") === String(selected.thinkingEffort ?? ""),
+      );
+      const selectedEffort = selectedOption ? effortFor(selectedOption) : (efforts[0] ?? "instant");
+      const models = [{
+        model: String(selected.slug ?? ""),
+        displayName: String(version?.label ?? selected.slug ?? ""),
+        defaultReasoningEffort: selectedEffort,
+        supportedReasoningEfforts: efforts.map((effort) => ({ reasoningEffort: effort })),
+      }];
+      return {
+        models,
+        onSelectReasoningEffort(effort) {
+          const target = options.find((option) => effortFor(option) === String(effort).toLowerCase());
+          if (!target) return;
+          const next = { ...selected, slug: String(target.slug ?? selected.slug ?? "") };
+          if (target.thinkingEffort) next.thinkingEffort = target.thinkingEffort;
+          else delete next.thinkingEffort;
+          props.onModelChange(next);
+        },
+      };
     }
 
     function nativeCatalogModelFor(identity) {
@@ -1138,11 +1194,11 @@ export function createInjectionSource(features, {
       const observedIdentity = modelIdentity(observedRaw);
       const nativeDescriptor = nativeModelDescriptorForItem(item, observedRaw);
       const catalogModel = catalogModelFor(observedIdentity, selector);
-      const raw = nativeDescriptor?.slug ?? catalogModel?.slug ?? observedRaw;
+      const raw = catalogModel?.slug ?? nativeDescriptor?.slug ?? observedRaw;
       item.dataset.codexModelSliderRaw = raw;
       item.dataset.codexModelSliderItem = "";
       item.dataset.codexModelSliderOrder = String(index);
-      item.dataset.codexModelSliderIdentitySource = nativeDescriptor ? "native" : catalogModel ? "catalog" : "visible";
+      item.dataset.codexModelSliderIdentitySource = catalogModel ? "catalog" : nativeDescriptor ? "native" : "visible";
       if (item.querySelector("[data-codex-model-slider-row]")) return;
 
       const identity = modelIdentity(raw);
@@ -2105,7 +2161,10 @@ export function createInjectionSource(features, {
     }
 
     function currentComposer() {
-      return document.querySelector('[data-codex-composer="true"][contenteditable="true"]');
+      const marked = document.querySelector('[data-codex-composer="true"][contenteditable="true"]');
+      if (marked) return marked;
+      return Array.from(document.querySelectorAll('[contenteditable="true"][role="textbox"]'))
+        .find((element) => isVisibleToolbarControl(element)) ?? null;
     }
 
     function rememberComposerSelection() {
@@ -3218,15 +3277,18 @@ export function createInjectionSource(features, {
 
     function ensureToolbarEntries() {
       if (!toolbarFeatures.length) return;
-      const bottomPanelButton = nativeBottomPanelButton();
-      if (!bottomPanelButton) return;
+      const temporaryChatButton = nativeTemporaryChatButton();
       const summaryButton = nativeSummaryButton();
-      const summaryRoot = toolbarControlRoot(summaryButton);
-      const summaryGroup = nativeSummaryToolbarGroup(summaryButton);
-      const fallbackGroup = summaryGroup ? null : ensureFallbackSummaryToolbarGroup(bottomPanelButton);
+      const bottomPanelButton = nativeBottomPanelButton();
+      const sidePanelButton = nativeSidePanelButton();
+      const anchorButton = temporaryChatButton ?? summaryButton ?? bottomPanelButton ?? sidePanelButton;
+      if (!anchorButton) return;
+      const anchorRoot = toolbarControlRoot(anchorButton);
+      const summaryGroup = nativeSummaryToolbarGroup(anchorButton);
+      const fallbackGroup = summaryGroup ? null : ensureFallbackSummaryToolbarGroup(anchorButton);
       const targetGroup = summaryGroup ?? fallbackGroup;
       if (!targetGroup) return;
-      let cursor = summaryRoot;
+      let cursor = anchorRoot;
       for (const feature of toolbarFeatures) {
         const entries = Array.from(document.querySelectorAll(`[${entryMarker}="${feature.id}"]`));
         for (const duplicate of entries.slice(1)) {
@@ -3234,7 +3296,7 @@ export function createInjectionSource(features, {
         }
         const entry = entries[0]?.isConnected
           ? entries[0]
-          : createToolbarEntry(feature, summaryButton ?? bottomPanelButton);
+          : createToolbarEntry(feature, anchorButton);
         const entryRoot = entry?.closest("[data-codex-personal-toolbar-entry]") ?? entry;
         if (!entryRoot) continue;
         if (cursor) {
