@@ -779,6 +779,7 @@ test("a new Dock launch is adopted once without reopening Codex after the user e
     spawnProcess,
     waitForReady: readyWaiter,
     logger: { error() {}, warn() {} },
+    cdpPort: 9231,
     manualLaunchPollMs: 60_000,
     stopTimeoutMs: 100,
   });
