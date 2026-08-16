@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "hide-upsell-banner",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "label": {
     "en": "Hide Upsell Banner",
     "zh-CN": "隐藏用量横幅"

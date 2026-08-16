@@ -105,6 +105,14 @@ export function createInjectionSource(features, {
 } = {}) {
   function install(config) {
     if (window.top !== window) return;
+    if (!document.documentElement) {
+      // The document bootstrap runs before the root element exists. Defer the
+      // whole install until the DOM is ready instead of crashing on a null
+      // documentElement (which previously left the runtime permanently absent
+      // after a renderer reload).
+      document.addEventListener("DOMContentLoaded", () => install(config), { once: true });
+      return;
+    }
     const currentRuntime = window.__codexPersonalRuntime;
     if (currentRuntime?.version === config.version && currentRuntime?.sessionId === config.sessionId) {
       currentRuntime.ensure();

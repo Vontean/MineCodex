@@ -37,18 +37,30 @@ function hideVisibleBanners(root = document) {
   }
 }
 
+let rescanQueued = false;
+function rescanBanners() {
+  // React can render the banner in stages: an empty <aside> shell first, then
+  // text and style updates on the same element. A childList-only observer
+  // misses those later mutations, so every mutation triggers a full rescan
+  // instead of only inspecting freshly added nodes.
+  if (rescanQueued) return;
+  rescanQueued = true;
+  queueMicrotask(() => {
+    rescanQueued = false;
+    hideVisibleBanners(document);
+  });
+}
+
 hideVisibleBanners();
-const observer = new MutationObserver((records) => {
-  for (const record of records) {
-    for (const node of record.addedNodes) {
-      if (node.nodeType !== Node.ELEMENT_NODE) continue;
-      hideVisibleBanners(node);
-    }
-  }
+const observer = new MutationObserver(() => {
+  rescanBanners();
 });
 observer.observe(document.documentElement, {
   childList: true,
   subtree: true,
+  attributes: true,
+  attributeFilter: ["style", "class", "hidden"],
+  characterData: true,
 });
 
 return () => {

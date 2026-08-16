@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "images",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "label": {
     "en": "Images",
     "zh-CN": "图片"
