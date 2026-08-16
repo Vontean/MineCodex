@@ -477,10 +477,26 @@ export function createInjectionSource(features, {
       if (!group) {
         group = document.createElement("div");
         group.setAttribute("data-codex-personal-summary-toolbar-group", "fallback");
-        group.className = "ms-auto flex shrink-0 items-center gap-1.5";
+        // The host toolbar strip is pointer-events:none; without this the
+        // fallback entries would be visible but unclickable.
+        group.className = "ms-auto flex shrink-0 items-center gap-1.5 pointer-events-auto";
+        // Same structure as the native tool group (e.g. the temporary-chat
+        // group in Chat mode): an in-flow ms-auto strip inside the flexible
+        // header area. It sits at the right edge while the side panel is
+        // closed and, when the side panel widens its host container, moves
+        // together with the native layout exactly like Chat mode does.
         toolbarHost.append(group);
       }
       return group;
+    }
+
+    function toolbarEntryFitsHeader(entryRoot) {
+      const header = entryRoot.closest("header");
+      if (!header) return true;
+      const headerRect = header.getBoundingClientRect();
+      const entryRect = entryRoot.getBoundingClientRect();
+      if (entryRect.width <= 0 || entryRect.height <= 0) return false;
+      return entryRect.right <= headerRect.right + 1 && entryRect.left >= headerRect.left - 1;
     }
 
     function isNativeSummaryButton(element) {
@@ -2487,9 +2503,16 @@ export function createInjectionSource(features, {
       const entryRect = entry.getBoundingClientRect();
       const scrollRect = mainContentViewport()?.querySelector(".thread-scroll-container")
         ?.getBoundingClientRect();
+      // The native conversation header is a fixed overlay that starts above the
+      // thread scroll container (scroll top is often 0 while the header still
+      // occupies the top toolbar strip). Anchor below the header so the pinned
+      // surface never covers the toolbar entry used to close it again.
+      const header = entry.closest("header");
+      const headerBottom = header?.getBoundingClientRect().bottom ?? 0;
+      const contentTop = Math.max(scrollRect?.top ?? 0, headerBottom);
       const top = displayMode === "overlay"
         ? entryRect.bottom + layout.popoverOffset
-        : (scrollRect?.top ?? 46) + layout.verticalInset;
+        : (contentTop || 46) + layout.verticalInset;
       const right = displayMode === "overlay"
         ? Math.max(layout.popoverOffset, innerWidth - entryRect.right)
         : Math.max(layout.panelInset, innerWidth - target.right + layout.panelInset);
@@ -3284,11 +3307,16 @@ export function createInjectionSource(features, {
       const anchorButton = temporaryChatButton ?? summaryButton ?? bottomPanelButton ?? sidePanelButton;
       if (!anchorButton) return;
       const anchorRoot = toolbarControlRoot(anchorButton);
-      const summaryGroup = nativeSummaryToolbarGroup(anchorButton);
-      const fallbackGroup = summaryGroup ? null : ensureFallbackSummaryToolbarGroup(anchorButton);
-      const targetGroup = summaryGroup ?? fallbackGroup;
+      // The side-panel toggle sits in a narrow fixed container that travels
+      // with the native panel. Entries anchored to it must live in the
+      // fallback toolbar group, otherwise the Notes entry would be dragged
+      // into the side panel and hidden. The Notes entry is only grouped with
+      // the native summary button when that button is the anchor.
+      const useFallbackAnchor = anchorButton === sidePanelButton;
+      const summaryGroup = useFallbackAnchor ? null : nativeSummaryToolbarGroup(anchorButton);
+      let targetGroup = summaryGroup ?? ensureFallbackSummaryToolbarGroup(anchorButton);
       if (!targetGroup) return;
-      let cursor = anchorRoot;
+      let cursor = useFallbackAnchor ? null : anchorRoot;
       for (const feature of toolbarFeatures) {
         const entries = Array.from(document.querySelectorAll(`[${entryMarker}="${feature.id}"]`));
         for (const duplicate of entries.slice(1)) {
@@ -3304,10 +3332,24 @@ export function createInjectionSource(features, {
         } else if (targetGroup.lastElementChild !== entryRoot) {
           targetGroup.append(entryRoot);
         }
+        // Narrow native anchor containers (e.g. the Work-mode side-panel
+        // button) can push the entry outside the header so it becomes
+        // unreachable. Move it into the fallback toolbar group instead.
+        if (summaryGroup && !toolbarEntryFitsHeader(entryRoot)) {
+          const fallback = ensureFallbackSummaryToolbarGroup(anchorButton);
+          if (fallback && fallback !== summaryGroup) {
+            fallback.append(entryRoot);
+            targetGroup = fallback;
+            cursor = null;
+          }
+        }
         cursor = entryRoot;
       }
       if (summaryGroup) {
-        document.querySelectorAll("[data-codex-personal-summary-toolbar-group]").forEach((group) => group.remove());
+        document.querySelectorAll("[data-codex-personal-summary-toolbar-group]").forEach((group) => {
+          const used = [...group.querySelectorAll(`[${entryMarker}]`)].some((entry) => entry.isConnected);
+          if (!used) group.remove();
+        });
       }
     }
 
