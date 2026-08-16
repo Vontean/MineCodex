@@ -339,6 +339,33 @@ test("builds a fresh generic shell from native Advanced View controls without a 
   assert.doesNotMatch(source, /_[A-Za-z]+_[a-z0-9]+_\d+/);
 });
 
+test("activates only the cloned Simple panel and clears stale Advanced sizing", () => {
+  const source = createInjectionSource([{
+    id: "model-slider",
+    label: "Model Slider",
+    surfaceUrl: null,
+    entry: { kind: "composer-model-selector", ariaLabel: "Model Slider" },
+    modelSelector: {
+      maxVisibleItems: 6,
+      favoriteStorageKey: "codex-model-slider:favorites:v1",
+      providerAliases: {},
+      strings: {},
+      icons: {},
+      brands: [],
+    },
+    hostActions: [],
+  }]);
+
+  assert.match(source, /const simplePanel = sliderTemplate\?\.closest\("\[data-active\]"\)/);
+  assert.match(source, /if \(panel !== simplePanel\) panel\.remove\(\)/);
+  assert.match(source, /simplePanel\.setAttribute\("data-active", "true"\)/);
+  assert.match(source, /simplePanel\.setAttribute\("aria-hidden", "false"\)/);
+  assert.match(source, /simplePanel\.removeAttribute\("inert"\)/);
+  assert.match(source, /shell\.style\.removeProperty\("--advanced-view-height"\)/);
+  assert.match(source, /shell\.style\.removeProperty\("--simple-view-height"\)/);
+  assert.match(source, /shell\.style\.removeProperty\("height"\)/);
+});
+
 test("preserves the published direct-controller effort commit chain", () => {
   const source = createInjectionSource([{
     id: "model-slider",

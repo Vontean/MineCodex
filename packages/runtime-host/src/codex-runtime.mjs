@@ -1794,7 +1794,8 @@ export function createInjectionSource(features, {
       const controlsTemplate = shell.querySelector("[data-model-picker-view-toggle]")?.parentElement
         ?? liveNativeViewControls({ firstElementChild: shell });
       const sliderTemplate = shell.querySelector("[data-model-picker-power-slider]");
-      const simpleTemplate = sliderTemplate?.closest("[data-active]")?.firstElementChild;
+      const simplePanel = sliderTemplate?.closest("[data-active]");
+      const simpleTemplate = simplePanel?.firstElementChild;
       if (!controlsTemplate || !simpleTemplate) return null;
       const controls = cloneNativeViewControls(parentMenu, {
         modelLabel,
@@ -1812,6 +1813,15 @@ export function createInjectionSource(features, {
       if (!controls || !simple) return null;
       controlsTemplate.replaceWith(controls.root);
       simpleTemplate.replaceWith(simple.root);
+      shell.querySelectorAll("[data-active]").forEach((panel) => {
+        if (panel !== simplePanel) panel.remove();
+      });
+      simplePanel.setAttribute("data-active", "true");
+      simplePanel.setAttribute("aria-hidden", "false");
+      simplePanel.removeAttribute("inert");
+      shell.style.removeProperty("--advanced-view-height");
+      shell.style.removeProperty("--simple-view-height");
+      shell.style.removeProperty("height");
       clearNativeCloneAnnouncements(shell);
       const rail = simple.rail;
       rail.setAttribute("role", "slider");
