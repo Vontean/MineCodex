@@ -299,7 +299,6 @@ export function createInjectionSource(features, {
     let modelSelectorTriggerObserver = null;
     let modelSelectorObservedTrigger = null;
     let modelSelectorNativeFastIcons = null;
-    let modelSelectorNativeSimpleContainerTemplate = null;
     const modelSelectorStyle = document.createElement("style");
     modelSelectorStyle.setAttribute("data-codex-model-slider-style", "");
     modelSelectorStyle.textContent = `
@@ -349,17 +348,26 @@ export function createInjectionSource(features, {
       [data-codex-model-slider-star] svg { position: relative; z-index: 2; width: 16px; height: 16px; pointer-events: none; }
       [data-codex-model-slider-divider] { height: 0.5px; margin: 4px 8px; background: var(--color-token-border, var(--color-border)); }
       [data-codex-model-slider-generic-menu] { overflow-x: hidden; }
-      [data-codex-model-slider-fast-particle-clip] { position: absolute; inset: 0; overflow: hidden; border-radius: inherit; pointer-events: none; }
-      [data-codex-model-slider-fast-particles] { position: absolute; inset: 0; }
-      [data-codex-model-slider-fast-particle-path] { position: absolute; left: 0; width: 100%; animation: codex-model-slider-fast-particle linear infinite; }
-      [data-codex-model-slider-fast-particle] {
-        position: absolute; left: 0; width: 3px; height: 3px; border-radius: 50%;
-        background: var(--color-text-accent); box-shadow: 0 0 4px color-mix(in srgb, var(--color-text-accent) 60%, transparent);
+      [data-codex-model-slider-generic] { box-sizing: border-box; width: 100%; }
+      [data-codex-model-slider-fast] { margin-left: auto; border: 0; background: transparent; cursor: pointer; }
+      [data-codex-model-slider-fast]:focus-visible { outline: 2px solid var(--color-border-focus); outline-offset: 1px; }
+      [data-codex-model-slider-rail][data-codex-model-slider-fallback] { position: relative; height: 38px; margin: 1px 8px 0; outline: none; cursor: pointer; }
+      [data-codex-model-slider-track] { position: absolute; top: 12px; right: 0; left: 0; height: 16px; border-radius: 999px; background: var(--color-background-control); }
+      [data-codex-model-slider-range] { position: absolute; top: 0; bottom: 0; left: 0; width: var(--codex-model-slider-progress); border-radius: inherit; background: var(--color-text-accent); }
+      [data-codex-model-slider-fallback] [data-codex-model-slider-tick] {
+        position: absolute; top: 16px; width: 6px; height: 6px; transform: translate(-50%, -50%); border: 0; border-radius: 50%;
+        padding: 0; background: var(--color-text-foreground-tertiary); pointer-events: none;
       }
-      @keyframes codex-model-slider-fast-particle { from { transform: translateX(-4px); } to { transform: translateX(calc(100% + 4px)); } }
+      [data-codex-model-slider-fallback] [data-codex-model-slider-tick][data-selected="true"] { background: var(--color-text-on-accent); }
+      [data-codex-model-slider-thumb] {
+        position: absolute; top: 7px; left: var(--codex-model-slider-progress); width: 26px; height: 26px;
+        transform: translateX(-50%); border: 0.5px solid var(--color-token-border, var(--color-border)); border-radius: 50%;
+        background: var(--color-background-elevated-primary-opaque, var(--color-background-panel)); box-shadow: var(--shadow-md);
+        pointer-events: none;
+      }
+      [data-codex-model-slider-fallback]:focus-visible [data-codex-model-slider-thumb] { box-shadow: 0 0 0 2px var(--color-border-focus); }
       @media (prefers-reduced-motion: reduce) {
         [data-codex-model-slider-star] { transition: none; }
-        [data-codex-model-slider-fast-particle-path] { animation: none; }
       }
     `;
 
@@ -595,11 +603,9 @@ export function createInjectionSource(features, {
           },
         };
         document.querySelectorAll("[data-codex-model-slider-fast]").forEach((button) => {
+          const icon = createNativeFastIcon(button.getAttribute("aria-pressed") === "true");
           const content = button.querySelector("[data-codex-model-slider-fast-content]");
-          const template = content?.querySelector("svg");
-          const icon = createNativeFastIcon(button.getAttribute("aria-pressed") === "true", template);
-          if (icon && template) template.replaceWith(icon);
-          else if (icon && content) content.replaceChildren(icon);
+          if (icon && content) content.replaceChildren(icon);
         });
         queueEnsure();
       } catch {
@@ -607,15 +613,42 @@ export function createInjectionSource(features, {
       }
     }
 
-    function createNativeFastIcon(active, template = null) {
+    function nativeCssModuleClass(tokenName, root = document) {
+      const pattern = new RegExp(`^_${tokenName}_[A-Za-z0-9_-]+$`);
+      const live = Array.from(root.querySelectorAll(`[class*="_${tokenName}_"]`))
+        .flatMap((element) => Array.from(element.classList))
+        .find((name) => pattern.test(name));
+      if (live) return live;
+      const selectorPattern = new RegExp(`\\.(_${tokenName}_[A-Za-z0-9_-]+)`);
+      const find = (rules) => {
+        for (const rule of rules ?? []) {
+          const match = String(rule.selectorText ?? "").match(selectorPattern);
+          if (match?.[1]) return match[1];
+          try {
+            const nested = find(rule.cssRules);
+            if (nested) return nested;
+          } catch {
+            // Ignore inaccessible nested rules and continue with Codex's readable sheets.
+          }
+        }
+        return null;
+      };
+      for (const sheet of document.styleSheets) {
+        try {
+          const match = find(sheet.cssRules);
+          if (match) return match;
+        } catch {
+          // Ignore cross-origin stylesheets.
+        }
+      }
+      return null;
+    }
+
+    function createNativeFastIcon(active) {
       const definition = modelSelectorNativeFastIcons?.[active ? "active" : "inactive"];
       const icon = createModelSelectorIcon(definition, { brand: true });
-      if (!icon) return null;
-      for (const name of ["width", "height", "viewBox", "class"]) {
-        const value = template?.getAttribute(name);
-        if (value != null) icon.setAttribute(name, value);
-      }
-      icon.setAttribute("data-codex-model-slider-fast-icon", "");
+      const iconClass = nativeCssModuleClass("FastModeIcon");
+      if (icon && iconClass) icon.classList.add(iconClass);
       return icon;
     }
 
@@ -935,6 +968,7 @@ export function createInjectionSource(features, {
         signal: lifetime.signal,
       });
     }
+
     function modelItemRawValue(item) {
       if (item.dataset.codexModelSliderRaw) return item.dataset.codexModelSliderRaw;
       return String(item.innerText ?? "").split("\n").map((value) => value.trim()).filter(Boolean).join(" ");
@@ -1288,7 +1322,7 @@ export function createInjectionSource(features, {
         const currentMenu = nativeModelPickerMenu() ?? parentMenu;
         const row = nativeModelPickerRow(currentMenu);
         if (row) {
-          if (!setReactControlledMenuOpen(row, true)) row.click();
+          setReactControlledMenuOpen(row, true);
           setTimeout(queueEnsure, 0);
           return;
         }
@@ -1363,55 +1397,26 @@ export function createInjectionSource(features, {
       select();
     }
 
-    function nativeSliderTrack(rail) {
-      return Array.from(rail?.children ?? []).find((element) => (
-        String(element.className).includes("_Track_")
-      )) ?? null;
-    }
-
-    function nativeSliderEdgeOffsets(rail) {
-      const track = nativeSliderTrack(rail);
-      const ticks = Array.from(rail?.querySelectorAll("[data-codex-model-slider-tick]") ?? []);
-      if (!track || ticks.length < 2) return { start: 0, end: 0 };
-      const trackRect = track.getBoundingClientRect();
-      const firstRect = ticks[0].getBoundingClientRect();
-      const lastRect = ticks.at(-1).getBoundingClientRect();
-      if (!(trackRect.width > 0 && firstRect.width > 0 && lastRect.width > 0)) {
-        return { start: 0, end: 0 };
-      }
-      return {
-        start: firstRect.left + firstRect.width / 2 - trackRect.left,
-        end: trackRect.right - (lastRect.left + lastRect.width / 2),
-      };
-    }
-
     function setGenericSliderVisual(rail, index, count) {
       const progress = count <= 1 ? 0 : (index / (count - 1)) * 100;
       const nativeRange = rail.querySelector("[data-codex-model-slider-native-range]");
       const nativeThumb = rail.querySelector("[data-codex-model-slider-native-thumb]");
       if (nativeRange && nativeThumb) {
-        const { start, end } = nativeSliderEdgeOffsets(rail);
-        const correction = start * (1 - progress / 100) - end * (progress / 100);
-        nativeRange.style.transform = `translateX(calc(${progress - 100}% + ${correction}px))`;
+        const thumbRadius = 13;
+        const correction = thumbRadius - (progress / 50) * thumbRadius;
+        const segment = count <= 1 ? 100 : 100 / (count - 1);
+        const edgeScale = Math.min(progress / segment, (100 - progress) / segment, 1);
+        const edgeCorrection = correction * Math.max(0, edgeScale);
+        nativeRange.style.transform = `translateX(calc(${progress - 100}% + ${edgeCorrection}px))`;
         nativeThumb.style.left = `calc(${progress}% + ${correction}px)`;
-        const particleClip = rail.querySelector("[data-codex-model-slider-fast-particle-clip]");
-        if (particleClip) particleClip.style.clipPath = `inset(0 calc(${100 - progress}% - ${correction}px) 0 0)`;
+        const particleClip = rail.querySelector('[class*="_FastParticleClip_"]');
+        if (particleClip) particleClip.style.clipPath = `inset(0 calc(${100 - progress}% - ${edgeCorrection}px) 0 0)`;
       }
       rail.style.setProperty("--codex-model-slider-progress", `${progress}%`);
       rail.querySelectorAll("[data-codex-model-slider-tick]").forEach((tick, tickIndex) => {
         tick.setAttribute("data-selected", String(tickIndex <= index));
       });
       rail.setAttribute("aria-valuenow", String(index));
-    }
-
-    function syncGenericSliderEffort(shell, selectedEffort, effortLevels) {
-      const efforts = effortLevels.map((level) => level.effort);
-      const selectedIndex = efforts.indexOf(selectedEffort);
-      const rail = shell?.querySelector("[data-codex-model-slider-rail]");
-      if (!rail || selectedIndex < 0) return false;
-      rail.setAttribute("aria-valuetext", effortLabel(efforts[selectedIndex]));
-      setGenericSliderVisual(rail, selectedIndex, efforts.length);
-      return true;
     }
 
     function nativeParticleSeed(index, salt) {
@@ -1422,14 +1427,19 @@ export function createInjectionSource(features, {
     function syncNativeFastParticles(rail, enabled) {
       const track = Array.from(rail.children).find((element) => String(element.className).includes("_Track_"));
       if (!track) return;
-      track.querySelectorAll("[data-codex-model-slider-fast-particle-clip]").forEach((element) => element.remove());
+      track.querySelectorAll('[class*="_FastParticleClip_"]').forEach((element) => element.remove());
       if (!enabled || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      const clipClass = nativeCssModuleClass("FastParticleClip");
+      const particlesClass = nativeCssModuleClass("FastTrackParticles");
+      const pathClass = nativeCssModuleClass("FastTrackParticlePath");
+      const particleClass = nativeCssModuleClass("TrackParticle");
+      if (!clipClass || !particlesClass || !pathClass || !particleClass) return;
       const clip = document.createElement("span");
-      clip.setAttribute("data-codex-model-slider-fast-particle-clip", "");
+      clip.className = clipClass;
       clip.setAttribute("aria-hidden", "true");
       clip.style.opacity = "1";
       const particles = document.createElement("span");
-      particles.setAttribute("data-codex-model-slider-fast-particles", "");
+      particles.className = particlesClass;
       particles.setAttribute("aria-hidden", "true");
       particles.setAttribute("data-animation-active", "true");
       const travelDuration = 1.9;
@@ -1442,12 +1452,12 @@ export function createInjectionSource(features, {
         const speed = 1 + (nativeParticleSeed(index, 21) - 0.5) * 0.4;
         const duration = travelDuration / speed;
         const path = document.createElement("span");
-        path.setAttribute("data-codex-model-slider-fast-particle-path", "");
+        path.className = pathClass;
         path.style.animationDelay = `${index * stagger - duration * remainingTravel}s`;
         path.style.animationDuration = `${duration}s`;
         path.style.top = `${12 + nativeParticleSeed(index, 23) * 76}%`;
         const particle = document.createElement("span");
-        particle.setAttribute("data-codex-model-slider-fast-particle", "");
+        particle.className = particleClass;
         particle.style.opacity = String(0.4 + nativeParticleSeed(index, 11) * 0.6);
         particle.style.transform = `translate(-50%, -50%) scale(${0.5 + nativeParticleSeed(index, 12) * 0.45})`;
         path.append(particle);
@@ -1463,18 +1473,14 @@ export function createInjectionSource(features, {
       const rail = shell.querySelector("[data-codex-model-slider-rail]");
       if (!button || !rail) return;
       button.setAttribute("aria-pressed", String(enabled));
-      button.setAttribute("aria-checked", String(enabled));
       button.setAttribute("data-fast-mode-enabled", String(enabled));
       button.setAttribute("data-max-power-selection", String(maxPowerSelection));
-      button.setAttribute("data-state", enabled ? "open" : "closed");
       button.setAttribute("aria-label", enabled
         ? (locale === "zh-CN" ? "关闭 Fast 模式" : "Disable Fast mode")
         : (locale === "zh-CN" ? "开启 Fast 模式" : "Enable Fast mode"));
+      const icon = createNativeFastIcon(enabled);
       const content = button.querySelector("[data-codex-model-slider-fast-content]");
-      const template = content?.querySelector("svg");
-      const icon = createNativeFastIcon(enabled, template);
-      if (icon && template) template.replaceWith(icon);
-      else if (icon && content) content.replaceChildren(icon);
+      if (icon && content) content.replaceChildren(icon);
       rail.setAttribute("data-fast-mode", String(enabled));
       rail.setAttribute("data-fast-mode-dot-transition", animate ? (enabled ? "entering" : "exiting") : (enabled ? "active" : "inactive"));
       syncNativeFastParticles(rail, enabled);
@@ -1486,230 +1492,6 @@ export function createInjectionSource(features, {
           }
         }, enabled ? 1_200 : 350);
       }
-    }
-
-    function clearNativeCloneAnnouncements(root) {
-      root.querySelectorAll("[id]").forEach((element) => element.removeAttribute("id"));
-      root.querySelectorAll("[aria-describedby], [aria-labelledby]").forEach((element) => {
-        element.removeAttribute("aria-describedby");
-        element.removeAttribute("aria-labelledby");
-      });
-      root.querySelectorAll('[role="status"], [aria-live]').forEach((element) => element.remove());
-    }
-
-    function nativeCssModuleClass(tokenName) {
-      const pattern = new RegExp(`\\.(_${tokenName}_[A-Za-z0-9_-]+)`);
-      const find = (rules) => {
-        for (const rule of rules ?? []) {
-          const match = String(rule.selectorText ?? "").match(pattern);
-          if (match?.[1]) return match[1];
-          try {
-            const nested = find(rule.cssRules);
-            if (nested) return nested;
-          } catch {
-            // Ignore inaccessible nested rules and continue with the current native sheet.
-          }
-        }
-        return null;
-      };
-      for (const sheet of document.styleSheets) {
-        try {
-          const match = find(sheet.cssRules);
-          if (match) return match;
-        } catch {
-          // Ignore cross-origin sheets; Codex's app stylesheet remains readable.
-        }
-      }
-      return null;
-    }
-
-    function replaceNativeCssModuleClass(element, fromTokenName, toTokenName) {
-      const replacement = nativeCssModuleClass(toTokenName);
-      if (!element || !replacement) return false;
-      Array.from(element.classList).filter((name) => name.includes(`_${fromTokenName}_`))
-        .forEach((name) => element.classList.remove(name));
-      element.classList.add(replacement);
-      return true;
-    }
-
-    function liveNativeViewControls(parentMenu) {
-      const slider = parentMenu.firstElementChild?.querySelector("[data-model-picker-power-slider]");
-      const simplePanel = slider?.closest("[data-active]");
-      return Array.from(simplePanel?.parentElement?.children ?? []).find((element) => (
-        element !== simplePanel && !element.hasAttribute("data-active")
-      )) ?? null;
-    }
-
-    function nativeViewControlsTemplate(parentMenu) {
-      const toggle = parentMenu.firstElementChild?.querySelector("[data-model-picker-view-toggle]");
-      const liveTemplate = toggle?.parentElement ?? liveNativeViewControls(parentMenu);
-      return liveTemplate ?? modelSelectorNativeSimpleContainerTemplate
-        ?.querySelector("[data-model-picker-view-toggle]")?.parentElement
-        ?? liveNativeViewControls({ firstElementChild: modelSelectorNativeSimpleContainerTemplate })
-        ?? null;
-    }
-
-    function nativeSimpleContainerTemplate(parentMenu) {
-      const liveTemplate = parentMenu.firstElementChild;
-      if (
-        liveTemplate?.querySelector("[data-model-picker-power-slider]")
-        && liveNativeViewControls(parentMenu)
-      ) {
-        modelSelectorNativeSimpleContainerTemplate = liveTemplate.cloneNode(true);
-      }
-      return liveTemplate?.querySelector("[data-model-picker-power-slider]") && liveNativeViewControls(parentMenu)
-        ? liveTemplate
-        : modelSelectorNativeSimpleContainerTemplate;
-    }
-
-    function nativeSimpleViewTemplate(parentMenu) {
-      const slider = parentMenu.firstElementChild?.querySelector("[data-model-picker-power-slider]");
-      const panel = slider?.closest("[data-active]");
-      return panel?.firstElementChild ?? null;
-    }
-
-    function cloneNativeViewControls(
-      parentMenu,
-      {
-        modelLabel,
-        supportsFast,
-        fastEnabled,
-        maxPowerSelection,
-        onModelOpen,
-        onFastToggle,
-      } = {},
-    ) {
-      const template = nativeViewControlsTemplate(parentMenu);
-      if (!template) return null;
-      const controls = template.cloneNode(true);
-      controls.setAttribute("data-codex-model-slider-controls", "");
-      controls.setAttribute("data-expanded", "false");
-      controls.setAttribute("data-ultra-warning-visible", "false");
-      let toggle = controls.querySelector("[data-model-picker-view-toggle]");
-      if (!toggle) {
-        toggle = controls.querySelector(':scope > [role="menuitem"]');
-        const content = toggle?.firstElementChild;
-        const chevron = nativeModelPickerRow(parentMenu)?.querySelector("svg")?.cloneNode(true);
-        if (
-          !toggle
-          || !content
-          || !chevron
-          || !replaceNativeCssModuleClass(toggle, "ResetToDefault", "ViewToggle")
-        ) return null;
-        const contentClass = nativeCssModuleClass("ViewToggleContent");
-        const iconClass = nativeCssModuleClass("ViewToggleIcon");
-        if (!contentClass || !iconClass) return null;
-        content.className = contentClass;
-        chevron.setAttribute("class", iconClass);
-        content.querySelector("svg")?.replaceWith(chevron);
-        toggle.setAttribute("data-model-picker-view-toggle", "");
-      }
-      if (!toggle) return null;
-      const toggleText = firstVisibleTextNode(toggle);
-      if (toggleText) toggleText.textContent = modelLabel;
-      toggle.removeAttribute("data-model-picker-view-toggle");
-      toggle.removeAttribute("aria-hidden");
-      toggle.setAttribute("role", "button");
-      toggle.setAttribute("tabindex", "0");
-      toggle.setAttribute("aria-haspopup", "menu");
-      toggle.setAttribute("aria-expanded", "false");
-      toggle.setAttribute("aria-label", `Model ${modelLabel}`);
-      toggle.setAttribute("data-codex-model-slider-model-button", "");
-      const toggleContent = toggle.querySelector("svg")?.parentElement;
-      toggleContent?.setAttribute("data-codex-model-slider-model-content", "");
-      toggle.querySelector("svg")?.setAttribute("data-codex-model-slider-model-icon", "");
-
-      const openModels = () => onModelOpen?.();
-      toggle.addEventListener("click", openModels);
-      toggle.addEventListener("keydown", (event) => {
-        if (event.key !== "Enter" && event.key !== " ") return;
-        event.preventDefault();
-        openModels();
-      });
-
-      let fast = controls.querySelector('[role="menuitemcheckbox"]');
-      if (!fast && supportsFast) {
-        fast = toggle.cloneNode(true);
-        const fastContent = fast.firstElementChild;
-        const fastContentClass = nativeCssModuleClass("FastModeToggleContent");
-        const fastIconClass = nativeCssModuleClass("FastModeIcon");
-        if (
-          !fastContent
-          || !fastContentClass
-          || !fastIconClass
-          || !replaceNativeCssModuleClass(fast, "ViewToggle", "FastModeToggle")
-        ) return null;
-        fast.removeAttribute("data-codex-model-slider-model-button");
-        fast.removeAttribute("aria-haspopup");
-        fast.removeAttribute("aria-expanded");
-        fast.setAttribute("role", "menuitemcheckbox");
-        fastContent.className = fastContentClass;
-        const fastIcon = createNativeFastIcon(fastEnabled);
-        if (!fastIcon) return null;
-        fastIcon.removeAttribute("width");
-        fastIcon.removeAttribute("height");
-        fastIcon.setAttribute("class", fastIconClass);
-        fastContent.replaceChildren(fastIcon);
-        toggle.after(fast);
-      }
-      if (fast) {
-        if (supportsFast) {
-          fast.setAttribute("data-codex-model-slider-fast", "");
-          fast.setAttribute("data-visible", "true");
-          fast.removeAttribute("data-disabled");
-          fast.removeAttribute("aria-hidden");
-          fast.setAttribute("aria-pressed", String(fastEnabled));
-          fast.setAttribute("aria-checked", String(fastEnabled));
-          fast.setAttribute("data-fast-mode-enabled", String(fastEnabled));
-          fast.setAttribute("data-max-power-selection", String(maxPowerSelection));
-          fast.setAttribute("aria-label", fastEnabled
-            ? (locale === "zh-CN" ? "关闭 Fast 模式" : "Disable Fast mode")
-            : (locale === "zh-CN" ? "开启 Fast 模式" : "Enable Fast mode"));
-          const fastContent = fast.querySelector("svg")?.parentElement;
-          fastContent?.setAttribute("data-codex-model-slider-fast-content", "");
-          const toggleFast = () => onFastToggle?.(fast.getAttribute("aria-pressed") !== "true");
-          fast.addEventListener("click", (event) => {
-            event.preventDefault();
-            toggleFast();
-          });
-          fast.addEventListener("keydown", (event) => {
-            if (event.key !== "Enter" && event.key !== " ") return;
-            event.preventDefault();
-            toggleFast();
-          });
-        } else {
-          fast.removeAttribute("data-codex-model-slider-fast");
-        }
-      }
-      clearNativeCloneAnnouncements(controls);
-      return { root: controls, modelButton: toggle, fastButton: supportsFast ? fast : null };
-    }
-
-    function cloneNativeSimpleView(parentMenu, count, fastEnabled) {
-      const template = nativeSimpleViewTemplate(parentMenu);
-      if (!template) return null;
-      const simpleView = template.cloneNode(true);
-      simpleView.setAttribute("data-codex-model-slider-simple-view", "");
-      simpleView.querySelectorAll("[data-reasoning-slider], [role=\"status\"], [aria-live]")
-        .forEach((element) => element.remove());
-      const originalSlider = simpleView.querySelector("[data-model-picker-power-slider]");
-      const nativeSlider = cloneNativePowerSlider(parentMenu, count, fastEnabled);
-      if (!originalSlider || !nativeSlider) return null;
-      originalSlider.replaceWith(nativeSlider);
-      clearNativeCloneAnnouncements(simpleView);
-      const rail = nativeSlider.querySelector('[role="slider"]');
-      if (!rail) return null;
-      rail.setAttribute("data-codex-model-slider-rail", "");
-      return { root: simpleView, rail };
-    }
-
-    function nativeTickOffset(tick) {
-      const match = String(tick?.style.left ?? "").match(
-        /^calc\(\s*[-+\d.]+%\s*([+-])\s*([\d.]+)px\s*\)$/,
-      );
-      if (!match) return null;
-      const offset = Number(match[2]);
-      return match[1] === "-" ? -offset : offset;
     }
 
     function cloneNativePowerSlider(parentMenu, count, fastEnabled) {
@@ -1731,9 +1513,7 @@ export function createInjectionSource(features, {
       root.removeAttribute("data-disabled");
       root.removeAttribute("disabled");
       root.setAttribute("tabindex", "0");
-      root.setAttribute("aria-valuemin", "0");
       root.setAttribute("aria-valuemax", String(Math.max(0, count - 1)));
-      root.setAttribute("aria-valuenow", "0");
       root.setAttribute("data-fast-mode", String(fastEnabled));
       root.setAttribute("data-fast-mode-dot-transition", fastEnabled ? "active" : "inactive");
       root.setAttribute("data-max", "false");
@@ -1747,23 +1527,16 @@ export function createInjectionSource(features, {
       const tickRail = Array.from(root.querySelectorAll("div")).find((element) => (
         String(element.className).includes("_TickRail_")
       ));
-      const nativeTicks = Array.from(tickRail?.children ?? []);
-      const tickTemplate = nativeTicks[0] ?? null;
+      const tickTemplate = tickRail?.querySelector("span");
       if (!range || !thumbScale || !tickRail || !tickTemplate) return null;
       range.setAttribute("data-codex-model-slider-native-range", "");
       thumbScale.setAttribute("data-codex-model-slider-native-thumb", "");
-      const startOffset = nativeTickOffset(nativeTicks[0]);
-      const endOffset = nativeTickOffset(nativeTicks.at(-1));
-      if (nativeTicks.length !== count && (startOffset == null || endOffset == null)) return null;
       tickRail.replaceChildren(...Array.from({ length: count }, (_, index) => {
-        const tick = (nativeTicks[index] ?? tickTemplate).cloneNode(true);
+        const tick = tickTemplate.cloneNode(true);
         tick.setAttribute("data-codex-model-slider-tick", "");
-        if (nativeTicks.length !== count) {
-          const progress = count <= 1 ? 0 : (index / (count - 1)) * 100;
-          const offset = startOffset + ((endOffset - startOffset) * progress) / 100;
-          const sign = offset >= 0 ? "+" : "-";
-          tick.style.left = `calc(${progress}% ${sign} ${Math.abs(offset)}px)`;
-        }
+        const progress = count <= 1 ? 0 : (index / (count - 1)) * 100;
+        const correction = 13 - (progress / 50) * 13;
+        tick.style.left = `calc(${progress}% + ${correction}px)`;
         return tick;
       }));
       syncNativeFastParticles(root, fastEnabled);
@@ -1773,7 +1546,55 @@ export function createInjectionSource(features, {
     function createGenericModelSlider(parentMenu, selector, identity, model, selectedEffort) {
       const efforts = model.supportedReasoningLevels.map((level) => level.effort);
       const selectedIndex = Math.max(0, efforts.indexOf(selectedEffort));
-      const maxEffort = efforts.at(-1);
+      const classes = Object.fromEntries([
+        "Menu",
+        "ViewToggle",
+        "ViewToggleContent",
+        "ViewToggleIcon",
+        "ViewControls",
+        "FastModeToggle",
+        "FastModeToggleContent",
+        "SimpleView",
+      ].map((tokenName) => [tokenName, nativeCssModuleClass(tokenName, parentMenu)]));
+      if (Object.values(classes).some((name) => !name)) return null;
+      const shell = document.createElement("div");
+      shell.setAttribute("data-codex-model-slider-generic", `${identity.raw}:${selectedEffort}`);
+      shell.className = classes.Menu;
+      shell.setAttribute("data-view", "simple");
+      shell.setAttribute("data-reduced-motion", String(matchMedia("(prefers-reduced-motion: reduce)").matches));
+      shell.setAttribute("data-transitions-ready", "false");
+      const nativeRow = nativeModelPickerRow(parentMenu);
+      const modelButton = document.createElement("div");
+      modelButton.className = classes.ViewToggle;
+      modelButton.setAttribute("role", "button");
+      modelButton.setAttribute("tabindex", "0");
+      modelButton.setAttribute("data-codex-model-slider-model-button", "");
+      modelButton.setAttribute("aria-label", `Model ${modelDisplayLabel(identity, selector)}`);
+      const buttonContent = document.createElement("span");
+      buttonContent.className = classes.ViewToggleContent;
+      const buttonLabel = document.createElement("span");
+      buttonLabel.textContent = modelDisplayLabel(identity, selector);
+      const nativeChevron = nativeRow?.querySelector("svg")?.cloneNode(true);
+      if (nativeChevron) {
+        nativeChevron.className.baseVal = classes.ViewToggleIcon;
+        nativeChevron.setAttribute("aria-hidden", "true");
+        buttonContent.append(buttonLabel, nativeChevron);
+      } else {
+        buttonContent.append(buttonLabel);
+      }
+      modelButton.append(buttonContent);
+      const openModels = () => openNativeModelSubmenu(parentMenu);
+      modelButton.addEventListener("click", openModels);
+      modelButton.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        openModels();
+      });
+
+      const viewControls = document.createElement("div");
+      viewControls.className = classes.ViewControls;
+      viewControls.setAttribute("data-expanded", "false");
+      viewControls.setAttribute("data-ultra-warning-visible", "false");
       const controller = nativeComposerModelController();
       const fastOption = controller?.serviceTierOptions?.find((option) => option?.value === "priority") ?? null;
       const nativeModel = nativeCatalogModelFor(identity);
@@ -1784,53 +1605,64 @@ export function createInjectionSource(features, {
           || controller.selectedServiceTier === fastOption.value
         ),
       );
-      const modelLabel = modelDisplayLabel(identity, selector);
-      const shell = nativeSimpleContainerTemplate(parentMenu)?.cloneNode(true);
-      if (!shell) return null;
-      shell.style.removeProperty("display");
-      shell.setAttribute("data-codex-model-slider-generic", `${identity.raw}:${selectedEffort}`);
-      shell.setAttribute("data-view", "simple");
-      const openModels = () => openNativeModelSubmenu(parentMenu);
-      const controlsTemplate = shell.querySelector("[data-model-picker-view-toggle]")?.parentElement
-        ?? liveNativeViewControls({ firstElementChild: shell });
-      const sliderTemplate = shell.querySelector("[data-model-picker-power-slider]");
-      const simplePanel = sliderTemplate?.closest("[data-active]");
-      const simpleTemplate = simplePanel?.firstElementChild;
-      if (!controlsTemplate || !simpleTemplate) return null;
-      const controls = cloneNativeViewControls(parentMenu, {
-        modelLabel,
-        supportsFast,
-        fastEnabled,
-        maxPowerSelection: selectedEffort === maxEffort,
-        onModelOpen: openModels,
-        onFastToggle: (nextEnabled) => {
-          syncGenericFastVisual(shell, nextEnabled, selectedEffort === maxEffort, true);
-          controller?.onSelectServiceTier?.(nextEnabled ? fastOption?.value : null);
+      if (supportsFast) {
+        const fastButton = document.createElement("button");
+        fastButton.type = "button";
+        fastButton.className = classes.FastModeToggle;
+        fastButton.setAttribute("data-codex-model-slider-fast", "");
+        fastButton.setAttribute("aria-pressed", String(fastEnabled));
+        fastButton.setAttribute("data-fast-mode-enabled", String(fastEnabled));
+        fastButton.setAttribute("data-max-power-selection", String(selectedEffort === "ultra"));
+        fastButton.setAttribute("data-visible", "true");
+        fastButton.setAttribute("aria-label", fastEnabled
+          ? (locale === "zh-CN" ? "关闭 Fast 模式" : "Disable Fast mode")
+          : (locale === "zh-CN" ? "开启 Fast 模式" : "Enable Fast mode"));
+        const fastIcon = createNativeFastIcon(fastEnabled);
+        const fastContent = document.createElement("span");
+        fastContent.className = classes.FastModeToggleContent;
+        fastContent.setAttribute("data-codex-model-slider-fast-content", "");
+        if (fastIcon) fastContent.append(fastIcon);
+        fastButton.append(fastContent);
+        fastButton.addEventListener("click", () => {
+          const nextEnabled = fastButton.getAttribute("aria-pressed") !== "true";
+          syncGenericFastVisual(shell, nextEnabled, selectedEffort === "ultra", true);
+          controller.onSelectServiceTier?.(nextEnabled ? fastOption.value : null);
           queueEnsure();
-        },
-      });
-      const simple = cloneNativeSimpleView(parentMenu, efforts.length, fastEnabled);
-      if (!controls || !simple) return null;
-      controlsTemplate.replaceWith(controls.root);
-      simpleTemplate.replaceWith(simple.root);
-      shell.querySelectorAll("[data-active]").forEach((panel) => {
-        if (panel !== simplePanel) panel.remove();
-      });
-      simplePanel.setAttribute("data-active", "true");
-      simplePanel.setAttribute("aria-hidden", "false");
-      simplePanel.removeAttribute("inert");
-      shell.style.removeProperty("--advanced-view-height");
-      shell.style.removeProperty("--simple-view-height");
-      shell.style.removeProperty("height");
-      clearNativeCloneAnnouncements(shell);
-      const rail = simple.rail;
+        });
+        viewControls.append(modelButton, fastButton);
+      } else {
+        viewControls.append(modelButton);
+      }
+
+      const nativeSlider = cloneNativePowerSlider(parentMenu, efforts.length, fastEnabled);
+      const rail = nativeSlider?.querySelector('[role="slider"]') ?? document.createElement("div");
+      rail.setAttribute("data-codex-model-slider-rail", "");
+      if (!nativeSlider) rail.setAttribute("data-codex-model-slider-fallback", "");
       rail.setAttribute("role", "slider");
       rail.setAttribute("tabindex", "0");
       rail.setAttribute("aria-label", locale === "zh-CN" ? "推理强度" : "Reasoning effort");
       rail.setAttribute("aria-valuemin", "0");
       rail.setAttribute("aria-valuemax", String(efforts.length - 1));
       rail.setAttribute("aria-valuetext", effortLabel(efforts[selectedIndex]));
+      if (!nativeSlider) {
+        const track = document.createElement("div");
+        track.setAttribute("data-codex-model-slider-track", "");
+        const range = document.createElement("div");
+        range.setAttribute("data-codex-model-slider-range", "");
+        track.append(range);
+        efforts.forEach((_effort, index) => {
+          const tick = document.createElement("span");
+          tick.setAttribute("data-codex-model-slider-tick", "");
+          tick.style.left = `${efforts.length <= 1 ? 0 : (index / (efforts.length - 1)) * 100}%`;
+          track.append(tick);
+        });
+        const thumb = document.createElement("span");
+        thumb.setAttribute("data-codex-model-slider-thumb", "");
+        rail.append(track, thumb);
+      }
+      setGenericSliderVisual(rail, selectedIndex, efforts.length);
       syncNativeFastParticles(rail, fastEnabled);
+      setGenericSliderVisual(rail, selectedIndex, efforts.length);
 
       let pendingIndex = selectedIndex;
       let dragging = false;
@@ -1882,7 +1714,6 @@ export function createInjectionSource(features, {
       rail.addEventListener("keydown", (event) => {
         if (!new Set(["ArrowLeft", "ArrowRight", "Home", "End"]).has(event.key)) return;
         event.preventDefault();
-        pendingIndex = Number(rail.getAttribute("aria-valuenow") ?? pendingIndex);
         if (event.key === "Home") pendingIndex = 0;
         else if (event.key === "End") pendingIndex = efforts.length - 1;
         else pendingIndex = Math.min(
@@ -1893,28 +1724,23 @@ export function createInjectionSource(features, {
         rail.setAttribute("aria-valuetext", effortLabel(efforts[pendingIndex]));
         selectNativeEffort(parentMenu, efforts[pendingIndex]);
       });
+      const simpleView = document.createElement("div");
+      simpleView.className = classes.SimpleView;
+      simpleView.append(nativeSlider ?? rail);
+      shell.append(viewControls, simpleView);
       return shell;
     }
 
     function enhanceGenericModelPicker(parentMenu, selector) {
-      const controller = nativeComposerModelController();
-      const controllerModel = String(controller?.model ?? "").trim();
-      const identity = modelIdentity(controllerModel || nativeModelValue(parentMenu));
+      const identity = modelIdentity(nativeModelValue(parentMenu));
       const model = modelDefinitionFor(identity, selector);
       const efforts = model?.supportedReasoningLevels ?? [];
       if (!model || efforts.length < 2) return false;
-      const effortValues = efforts.map((level) => level.effort);
-      const controllerEffort = String(controller?.reasoningEffort ?? "").trim();
-      const triggerEffort = String(document.querySelector("[data-codex-intelligence-trigger]")
-        ?.getAttribute("data-selected-reasoning-effort") ?? "").trim();
-      const selectedEffort = effortValues.includes(controllerEffort)
-        ? controllerEffort
-        : effortValues.includes(triggerEffort)
-          ? triggerEffort
-          : model.defaultReasoningLevel ?? efforts[0].effort;
-      const selectedServiceTier = controller?.selectedServiceTier;
+      const selectedEffort = document.querySelector("[data-codex-intelligence-trigger]")
+        ?.getAttribute("data-selected-reasoning-effort") ?? model.defaultReasoningLevel ?? efforts[0].effort;
+      const selectedServiceTier = nativeComposerModelController()?.selectedServiceTier;
       const serviceTierKey = selectedServiceTier?.id ?? selectedServiceTier ?? "standard";
-      const key = `${identity.raw}:${serviceTierKey}:${efforts.map((level) => level.effort).join(",")}`;
+      const key = `${identity.raw}:${selectedEffort}:${serviceTierKey}:${efforts.map((level) => level.effort).join(",")}`;
       const existing = parentMenu.querySelector(":scope > [data-codex-model-slider-generic]");
       const nativeTemplateReady = Boolean(
         parentMenu.firstElementChild
@@ -1930,15 +1756,15 @@ export function createInjectionSource(features, {
       }
       parentMenu.removeAttribute("data-codex-model-slider-template-wait");
       parentMenu.style.removeProperty("visibility");
+      const canUpgradeFallback = Boolean(
+        existing?.querySelector("[data-codex-model-slider-fallback]") && nativeTemplateReady,
+      );
+      if (existing?.getAttribute("data-codex-model-slider-generic") === key && !canUpgradeFallback) return true;
+      existing?.remove();
       const nativeContainer = parentMenu.firstElementChild;
       if (!nativeContainer) return false;
-      if (existing?.getAttribute("data-codex-model-slider-generic") === key) {
-        syncGenericSliderEffort(existing, selectedEffort, efforts);
-        return true;
-      }
       const shell = createGenericModelSlider(parentMenu, selector, identity, model, selectedEffort);
       if (!shell) return false;
-      existing?.remove();
       if (!modelSelectorGenericContainers.has(nativeContainer)) {
         modelSelectorGenericContainers.set(nativeContainer, nativeContainer.style.display);
       }
@@ -1946,17 +1772,6 @@ export function createInjectionSource(features, {
       nativeContainer.style.display = "none";
       shell.setAttribute("data-codex-model-slider-generic", key);
       parentMenu.append(shell);
-      syncGenericSliderEffort(shell, selectedEffort, efforts);
-      if (nativeModel?.slug.toLowerCase().startsWith("gpt-")) {
-        const fastOption = controller?.serviceTierOptions?.find((option) => option?.value === "priority") ?? null;
-        const fastEnabled = Boolean(
-          fastOption && (
-            controller.selectedServiceTier?.id === (fastOption.tier?.id ?? "priority")
-            || controller.selectedServiceTier === fastOption.value
-          ),
-        );
-        syncGenericFastVisual(shell, fastEnabled, selectedEffort === effortValues.at(-1));
-      }
       return true;
     }
 

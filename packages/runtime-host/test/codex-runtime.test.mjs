@@ -173,15 +173,15 @@ test("emits a fail-closed native Composer model selector Adapter", () => {
   assert.match(source, /data-codex-model-slider-trigger/);
   assert.match(source, /max-width: none/);
   assert.match(source, /data-codex-model-slider-selecting-effort/);
-  assert.match(source, /data-codex-model-slider-controls/);
-  assert.match(source, /data-codex-model-slider-model-content/);
-  assert.match(source, /data-codex-model-slider-model-icon/);
-  assert.match(source, /data-codex-model-slider-simple-view/);
-  assert.doesNotMatch(
-    source,
-    /(?:className(?:\.baseVal)?\s*=|classList\.add\()\s*["']_[A-Za-z][A-Za-z0-9]*_[a-z0-9]+_\d+/,
-  );
-  assert.doesNotMatch(source, /data-codex-model-slider-fallback/);
+  assert.match(source, /function nativeCssModuleClass\(tokenName, root = document\)/);
+  for (const tokenName of ["ViewControls", "ViewToggleContent", "ViewToggleIcon", "SimpleView"]) {
+    assert.match(source, new RegExp(`"${tokenName}"`));
+  }
+  assert.match(source, /nativeCssModuleClass\(tokenName, parentMenu\)/);
+  assert.match(source, /if \(Object\.values\(classes\)\.some\(\(name\) => !name\)\) return null/);
+  assert.match(source, /const shell = createGenericModelSlider[\s\S]*?if \(!shell\) return false/);
+  assert.doesNotMatch(source, /_1ryrb_/);
+  assert.match(source, /const canUpgradeFallback = Boolean/);
   assert.match(source, /characterData: true/);
   assert.match(source, /ensureFrame = requestAnimationFrame\(flushEnsure\)/);
   assert.match(source, /ensureTimer = setTimeout\(flushEnsure, 50\)/);
@@ -193,7 +193,6 @@ test("emits a fail-closed native Composer model selector Adapter", () => {
     /beginNativeEffortTransaction\(\);[\s\S]*?setReactControlledMenuOpen\(row, true\)/,
   );
   assert.match(source, /function setReactControlledMenuOpen\(element, open\)/);
-  assert.match(source, /if \(!setReactControlledMenuOpen\(row, true\)\) row\.click\(\)/);
   assert.doesNotMatch(source, /function openNativeModelSubmenu[\s\S]*?dispatchPointerClick\(row\)/);
   assert.match(source, /function isNativeEffortSubmenu\(menu\)/);
   assert.match(source, /function invokeNativeMenuItemSelect\(item\)/);
@@ -222,216 +221,6 @@ test("emits a fail-closed native Composer model selector Adapter", () => {
   assert.match(source, /"favoriteStorageKey":"codex-model-slider:favorites:v1"/);
   assert.doesNotMatch(source, /"zh-CN":"搜索模型"/);
   assert.doesNotMatch(source, /model_catalog_json/);
-});
-
-test("builds Simple View from the current native controls and layout templates", () => {
-  const source = createInjectionSource([{
-    id: "model-slider",
-    label: "Model Slider",
-    surfaceUrl: null,
-    entry: { kind: "composer-model-selector", ariaLabel: "Model Slider" },
-    modelSelector: {
-      maxVisibleItems: 6,
-      favoriteStorageKey: "codex-model-slider:favorites:v1",
-      providerAliases: {},
-      strings: {},
-      icons: {},
-      brands: [],
-    },
-    hostActions: [],
-  }]);
-
-  assert.match(source, /function cloneNativeViewControls\(\s*parentMenu/);
-  assert.match(source, /function cloneNativeSimpleView\(parentMenu/);
-  assert.match(source, /cloneNativeViewControls\(parentMenu/);
-  assert.match(source, /cloneNativeSimpleView\(parentMenu/);
-  assert.doesNotMatch(source, /\[data-codex-model-slider-controls\] \{/);
-  assert.doesNotMatch(source, /\[data-codex-model-slider-simple-view\] \{/);
-  assert.doesNotMatch(
-    source,
-    /\[data-codex-model-slider-fast-icon\] \{[^}]*width: 20px; height: 20px/s,
-  );
-});
-
-test("synchronizes the current effort for new and reused generic slider shells", () => {
-  const source = createInjectionSource([{
-    id: "model-slider",
-    label: "Model Slider",
-    surfaceUrl: null,
-    entry: { kind: "composer-model-selector", ariaLabel: "Model Slider" },
-    modelSelector: {
-      maxVisibleItems: 6,
-      favoriteStorageKey: "codex-model-slider:favorites:v1",
-      providerAliases: {},
-      strings: {},
-      icons: {},
-      brands: [],
-    },
-    hostActions: [],
-  }]);
-
-  assert.match(source, /function syncGenericSliderEffort\(shell, selectedEffort, effortLevels\)/);
-  assert.match(source, /const efforts = effortLevels\.map\(\(level\) => level\.effort\)/);
-  assert.match(source, /const selectedIndex = efforts\.indexOf\(selectedEffort\)/);
-  assert.match(source, /rail\.setAttribute\("aria-valuetext", effortLabel\(efforts\[selectedIndex\]\)\)/);
-  assert.match(
-    source,
-    /if \(existing\?\.getAttribute\("data-codex-model-slider-generic"\) === key\) \{[\s\S]*?syncGenericSliderEffort\(existing, selectedEffort, efforts\);[\s\S]*?return true;/,
-  );
-  assert.match(source, /pendingIndex = Number\(rail\.getAttribute\("aria-valuenow"\) \?\? pendingIndex\)/);
-  assert.match(source, /parentMenu\.append\(shell\);\s*syncGenericSliderEffort\(shell, selectedEffort, efforts\)/);
-});
-
-test("reuses the captured native ViewControls when Max reopens in Advanced View", () => {
-  const source = createInjectionSource([{
-    id: "model-slider",
-    label: "Model Slider",
-    surfaceUrl: null,
-    entry: { kind: "composer-model-selector", ariaLabel: "Model Slider" },
-    modelSelector: {
-      maxVisibleItems: 6,
-      favoriteStorageKey: "codex-model-slider:favorites:v1",
-      providerAliases: {},
-      strings: {},
-      icons: {},
-      brands: [],
-    },
-    hostActions: [],
-  }]);
-
-  assert.match(source, /let modelSelectorNativeSimpleContainerTemplate = null/);
-  assert.match(source, /function nativeSimpleContainerTemplate\(parentMenu\)/);
-  assert.match(
-    source,
-    /modelSelectorNativeSimpleContainerTemplate = liveTemplate\.cloneNode\(true\)/,
-  );
-  assert.match(source, /: modelSelectorNativeSimpleContainerTemplate/);
-  assert.match(source, /const shell = nativeSimpleContainerTemplate\(parentMenu\)\?\.cloneNode\(true\)/);
-  assert.match(source, /const template = nativeViewControlsTemplate\(parentMenu\);[\s\S]*?template\.cloneNode\(true\)/);
-  assert.doesNotMatch(source, /_[A-Za-z]+_[a-z0-9]+_\d+/);
-});
-
-test("builds a fresh generic shell from native Advanced View controls without a cache", () => {
-  const source = createInjectionSource([{
-    id: "model-slider",
-    label: "Model Slider",
-    surfaceUrl: null,
-    entry: { kind: "composer-model-selector", ariaLabel: "Model Slider" },
-    modelSelector: {
-      maxVisibleItems: 6,
-      favoriteStorageKey: "codex-model-slider:favorites:v1",
-      providerAliases: {},
-      strings: {},
-      icons: {},
-      brands: [],
-    },
-    hostActions: [],
-  }]);
-
-  assert.match(source, /function nativeViewControlsTemplate\(parentMenu\)[\s\S]*?nativeSimpleViewTemplate\(parentMenu\)/);
-  assert.match(source, /function nativeCssModuleClass\(tokenName\)/);
-  assert.match(source, /document\.styleSheets/);
-  assert.match(source, /replaceNativeCssModuleClass\(toggle, "ResetToDefault", "ViewToggle"\)/);
-  assert.match(source, /nativeCssModuleClass\("ViewToggleContent"\)/);
-  assert.match(source, /nativeModelPickerRow\(parentMenu\)\?\.querySelector\("svg"\)/);
-  assert.match(source, /liveTemplate\?\.querySelector\("\[data-model-picker-power-slider\]"\)/);
-  assert.match(source, /const controlsTemplate = shell\.querySelector[\s\S]*?liveNativeViewControls\(\{ firstElementChild: shell \}\)/);
-  assert.doesNotMatch(source, /_[A-Za-z]+_[a-z0-9]+_\d+/);
-});
-
-test("activates only the cloned Simple panel and clears stale Advanced sizing", () => {
-  const source = createInjectionSource([{
-    id: "model-slider",
-    label: "Model Slider",
-    surfaceUrl: null,
-    entry: { kind: "composer-model-selector", ariaLabel: "Model Slider" },
-    modelSelector: {
-      maxVisibleItems: 6,
-      favoriteStorageKey: "codex-model-slider:favorites:v1",
-      providerAliases: {},
-      strings: {},
-      icons: {},
-      brands: [],
-    },
-    hostActions: [],
-  }]);
-
-  assert.match(source, /const simplePanel = sliderTemplate\?\.closest\("\[data-active\]"\)/);
-  assert.match(source, /if \(panel !== simplePanel\) panel\.remove\(\)/);
-  assert.match(source, /simplePanel\.setAttribute\("data-active", "true"\)/);
-  assert.match(source, /simplePanel\.setAttribute\("aria-hidden", "false"\)/);
-  assert.match(source, /simplePanel\.removeAttribute\("inert"\)/);
-  assert.match(source, /shell\.style\.removeProperty\("--advanced-view-height"\)/);
-  assert.match(source, /shell\.style\.removeProperty\("--simple-view-height"\)/);
-  assert.match(source, /shell\.style\.removeProperty\("height"\)/);
-});
-
-test("preserves the published direct-controller effort commit chain", () => {
-  const source = createInjectionSource([{
-    id: "model-slider",
-    label: "Model Slider",
-    surfaceUrl: null,
-    entry: { kind: "composer-model-selector", ariaLabel: "Model Slider" },
-    modelSelector: {
-      maxVisibleItems: 6,
-      favoriteStorageKey: "codex-model-slider:favorites:v1",
-      providerAliases: {},
-      strings: {},
-      icons: {},
-      brands: [],
-    },
-    hostActions: [],
-  }]);
-
-  const functionSource = source.match(
-    /function selectNativeEffort\(parentMenu, effort\) \{[\s\S]*?\n    \}\n\n    function nativeSliderTrack/,
-  )?.[0].replace(/\n\n    function nativeSliderTrack[\s\S]*$/, "");
-  assert.ok(functionSource, "generated selectNativeEffort function is present");
-
-  const calls = [];
-  const controller = {
-    onSelectReasoningEffort(effort) {
-      calls.push(`effort:${effort}`);
-    },
-  };
-  const run = new Function("controller", "calls", `
-    let modelSelectorPendingOutsideDismiss = false;
-    const nativeComposerModelController = () => controller;
-    const queueEnsure = () => calls.push("ensure");
-    const closeReactControlledMenu = () => calls.push("close");
-    const document = { querySelector() { return null; }, body: {} };
-    ${functionSource}
-    selectNativeEffort({}, "max");
-  `);
-  run(controller, calls);
-
-  assert.deepEqual(calls, ["effort:max", "ensure"]);
-  assert.match(source, /function scheduleModelSliderReturn\(\)/);
-  assert.match(source, /\}, 260\);/);
-});
-
-test("rebuilds the generic shell from the committed controller model", () => {
-  const source = createInjectionSource([{
-    id: "model-slider",
-    label: "Model Slider",
-    surfaceUrl: null,
-    entry: { kind: "composer-model-selector", ariaLabel: "Model Slider" },
-    modelSelector: {
-      maxVisibleItems: 6,
-      favoriteStorageKey: "codex-model-slider:favorites:v1",
-      providerAliases: {},
-      strings: {},
-      icons: {},
-      brands: [],
-    },
-    hostActions: [],
-  }]);
-
-  assert.match(source, /const controllerModel = String\(controller\?\.model \?\? ""\)\.trim\(\)/);
-  assert.match(source, /const identity = modelIdentity\(controllerModel \|\| nativeModelValue\(parentMenu\)\)/);
-  assert.match(source, /const key = `\$\{identity\.raw\}:\$\{serviceTierKey\}:\$\{efforts\.map/);
-  assert.doesNotMatch(source, /const key = `\$\{identity\.raw\}:\$\{selectedEffort\}:/);
-  assert.match(source, /const shell = createGenericModelSlider[\s\S]*?if \(!shell\) return false;[\s\S]*?existing\?\.remove\(\)/);
 });
 
 test("emits an isolated conversation-toolbar Adapter with strict Surface and Host-action boundaries", () => {
