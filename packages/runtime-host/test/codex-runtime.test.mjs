@@ -142,7 +142,8 @@ test("emits a fail-closed native Composer model selector Adapter", () => {
   assert.match(source, /wrapper\.getAttribute\("style"\) === record\.lastAppliedStyle/);
   assert.match(source, /parentRect\.right - wrapperRect\.width/);
   assert.match(source, /icon\.setAttribute\("fill", "currentColor"\)/);
-  assert.match(source, /return aliases\.length === 1 \? aliases\[0\] : null/);
+  assert.match(source, /return resolveModelAlias\(aliases, identity\)/);
+  assert.match(source, /function resolveModelAlias\(aliases, identity\)/);
   assert.match(source, /function nativeModelDescriptorForItem\(item, observedRaw\)/);
   assert.match(source, /const raw = catalogModel\?\.slug \?\? nativeDescriptor\?\.slug \?\? observedRaw/);
   assert.match(source, /item\.dataset\.codexModelSliderIdentitySource = catalogModel \? "catalog" : nativeDescriptor \? "native" : "visible"/);

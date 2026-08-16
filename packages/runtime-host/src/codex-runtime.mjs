@@ -852,7 +852,20 @@ export function createInjectionSource(features, {
       const aliases = (selector.models ?? []).filter((model) => (
         comparableModelLabel(model.slug) === target || comparableModelLabel(model.displayName) === target
       ));
-      return aliases.length === 1 ? aliases[0] : null;
+      return resolveModelAlias(aliases, identity);
+    }
+
+    function resolveModelAlias(aliases, identity) {
+      if (aliases.length === 1) return aliases[0];
+      if (aliases.length < 2 || identity.provider) return null;
+      const native = aliases.find((model) => !model.slug.includes("/"));
+      const thirdParty = aliases.find((model) => model.slug.includes("/"));
+      if (!native || !thirdParty) return null;
+      if (!modelIdentity(native.slug).backend.toLowerCase().startsWith("gpt")) return null;
+      const nativeLabel = formatIdentifier(
+        modelIdentity(String(native.displayName ?? native.slug)).backend,
+      ).toLowerCase();
+      return formatIdentifier(identity.backend).toLowerCase() === nativeLabel ? native : thirdParty;
     }
 
     function loadModelFavorites(selector) {
@@ -1128,6 +1141,29 @@ export function createInjectionSource(features, {
       }, 260);
     }
 
+    function nativeGptSortRank(rawValue) {
+      const known = new Map([
+        ["gpt-5.6-sol", 1], ["gpt-5.6-terra", 2], ["gpt-5.6-luna", 3],
+        ["gpt-5.5", 4], ["gpt-5.4", 5], ["gpt-5.4-mini", 6], ["gpt-5.3-codex-spark", 7],
+      ]);
+      const raw = String(rawValue ?? "").trim();
+      const knownRank = known.get(raw);
+      if (knownRank != null) return { official: true, rank: knownRank };
+      const identity = modelIdentity(raw);
+      return identity.provider ? null : { official: true, rank: 100 };
+    }
+
+    function compareEnhancedModelItems(a, b, favorites) {
+      const favA = Number(favorites.has(a.dataset.codexModelSliderRaw));
+      const favB = Number(favorites.has(b.dataset.codexModelSliderRaw));
+      if (favA !== favB) return favB - favA;
+      const rankA = nativeGptSortRank(a.dataset.codexModelSliderRaw);
+      const rankB = nativeGptSortRank(b.dataset.codexModelSliderRaw);
+      if (Boolean(rankA) !== Boolean(rankB)) return rankA ? -1 : 1;
+      if (rankA && rankB) return rankA.rank - rankB.rank;
+      return 0;
+    }
+
     function renderEnhancedModelMenu(menu, selector) {
       const items = modelMenuItems(menu).filter((item) => item.dataset.codexModelSliderRaw);
       if (!items.length) return;
@@ -1135,7 +1171,7 @@ export function createInjectionSource(features, {
       items.forEach((item) => { item.style.display = ""; });
       const starred = items.filter((item) => favorites.has(item.dataset.codexModelSliderRaw));
       const ordinary = items.filter((item) => !favorites.has(item.dataset.codexModelSliderRaw));
-      const desired = [...starred, ...ordinary];
+      const desired = items.slice().sort((a, b) => compareEnhancedModelItems(a, b, favorites));
       const parent = items[0].parentElement;
       if (!parent || !desired.every((item) => item.parentElement === parent)) return;
       const current = Array.from(parent.children).filter((child) => child.hasAttribute?.("data-codex-model-slider-item"));
@@ -1148,7 +1184,10 @@ export function createInjectionSource(features, {
           divider.setAttribute("data-codex-model-slider-divider", "");
           divider.setAttribute("role", "separator");
         }
-        if (divider.nextElementSibling !== ordinary[0]) parent.insertBefore(divider, ordinary[0]);
+        const firstOrdinary = desired.find((item) => !favorites.has(item.dataset.codexModelSliderRaw));
+        if (firstOrdinary && divider.nextElementSibling !== firstOrdinary) {
+          parent.insertBefore(divider, firstOrdinary);
+        }
       } else {
         divider?.remove();
       }
@@ -1204,6 +1243,7 @@ export function createInjectionSource(features, {
     }
 
     function enhanceModelItem(item, menu, selector, index) {
+      if (item.querySelector("[data-codex-model-slider-row]")) return;
       const observedRaw = modelItemRawValue(item);
       if (!observedRaw) return;
       if (!modelSelectorOriginalItems.has(item)) modelSelectorOriginalItems.set(item, item.innerHTML);
@@ -1215,7 +1255,6 @@ export function createInjectionSource(features, {
       item.dataset.codexModelSliderItem = "";
       item.dataset.codexModelSliderOrder = String(index);
       item.dataset.codexModelSliderIdentitySource = catalogModel ? "catalog" : nativeDescriptor ? "native" : "visible";
-      if (item.querySelector("[data-codex-model-slider-row]")) return;
 
       const identity = modelIdentity(raw);
       const display = modelDisplayLabel(identity, selector);

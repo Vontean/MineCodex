@@ -18,6 +18,7 @@
     "favoriteStorageKey": "codex-model-slider:favorites:v1",
     "providerAliases": {
       "opencode-go": "OpenCode Go",
+      "packyapi": "PackyAPI",
       "xai": "xAI",
       "zhipu": "Zhipu AI",
       "google": "Google",
