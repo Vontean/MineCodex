@@ -8,6 +8,20 @@ licensed under the MIT License. Product names and marks remain the property of t
 
 The upstream license text is preserved in `vendor/cc-switch-LICENSE`.
 
+## Zhipu official favicon
+
+`assets/providers/zhipu.svg` wraps the official Z.ai (Zhipu) favicon
+downloaded from <https://www.zhipuai.cn/favicon.png> in an SVG container.
+The favicon and Z.ai marks remain the property of Zhipu AI; the wrapper is
+distributed under MineCodex's MIT License.
+
+## Simple Icons (Xiaomi)
+
+`assets/providers/xiaomimimo.svg` uses the Xiaomi mark from
+[`simple-icons/simple-icons`](https://github.com/simple-icons/simple-icons)
+(`icons/xiaomi.svg`), licensed under CC0 1.0. The Xiaomi brand mark remains
+the property of Xiaomi Corporation.
+
 ## Lucide
 
 Lucide icons distributed by MineCodex include the Model Slider UI icons, Notes action and
