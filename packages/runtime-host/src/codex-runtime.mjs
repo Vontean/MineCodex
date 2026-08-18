@@ -376,7 +376,6 @@ export function createInjectionSource(features, {
     if (modelSelectorFeature) {
       document.documentElement.setAttribute("data-codex-model-slider-catalog-ready", "");
       document.documentElement.append(modelSelectorStyle);
-      void loadNativeFastIcon();
     }
 
     for (const feature of pageScriptFeatures) {
@@ -619,32 +618,6 @@ export function createInjectionSource(features, {
       return icon;
     }
 
-    async function loadNativeFastIcon() {
-      const sourceLink = document.querySelector('link[href*="/assets/app-initial-"][href$=".js"]');
-      if (!sourceLink?.href) return;
-      try {
-        const source = await fetch(sourceLink.href).then((response) => response.text());
-        const active = source.match(/d:`(M11\.9125 21\.4125[^`]+)`,fill:`currentColor`/);
-        const inactive = source.match(/d:`(M7\.38 16\.2207[^`]+)`,fill:`currentColor`/);
-        if (!active?.[1] || !inactive?.[1]) return;
-        modelSelectorNativeFastIcons = {
-          active: { viewBox: "0 0 24 24", markup: `<path d="${active[1]}" fill="currentColor" />` },
-          inactive: {
-            viewBox: "0 0 20 20",
-            markup: `<g transform="translate(2.43 1.609)"><path d="${inactive[1]}" fill="currentColor" /></g>`,
-          },
-        };
-        document.querySelectorAll("[data-codex-model-slider-fast]").forEach((button) => {
-          const icon = createNativeFastIcon(button.getAttribute("aria-pressed") === "true");
-          const content = button.querySelector("[data-codex-model-slider-fast-content]");
-          if (icon && content) content.replaceChildren(icon);
-        });
-        queueEnsure();
-      } catch {
-        // Leave the native control untouched when this private Codex asset moves.
-      }
-    }
-
     function nativeCssModuleClass(tokenName, root = document) {
       const pattern = new RegExp(`^_${tokenName}_[A-Za-z0-9_-]+$`);
       const live = Array.from(root.querySelectorAll(`[class*="_${tokenName}_"]`))
@@ -676,11 +649,33 @@ export function createInjectionSource(features, {
       return null;
     }
 
+    function captureNativeFastIcon() {
+      const capture = (state, pathPrefix) => {
+        if (modelSelectorNativeFastIcons?.[state]) return;
+        const path = Array.from(document.querySelectorAll("svg path")).find(
+          (candidate) => candidate.getAttribute("d")?.startsWith(pathPrefix),
+        );
+        const svg = path?.closest("svg");
+        if (!svg) return;
+        const template = svg.cloneNode(true);
+        template.removeAttribute("id");
+        template.removeAttribute("width");
+        template.removeAttribute("height");
+        if (!modelSelectorNativeFastIcons) modelSelectorNativeFastIcons = {};
+        modelSelectorNativeFastIcons[state] = template;
+      };
+      capture("active", "M11.9125 21.4125");
+      capture("inactive", "M7.38 16.2207");
+      return modelSelectorNativeFastIcons;
+    }
+
     function createNativeFastIcon(active) {
-      const definition = modelSelectorNativeFastIcons?.[active ? "active" : "inactive"];
-      const icon = createModelSelectorIcon(definition, { brand: true });
+      const template = captureNativeFastIcon()?.[active ? "active" : "inactive"];
+      if (!template) return null;
+      const icon = template.cloneNode(true);
+      icon.setAttribute("aria-hidden", "true");
       const iconClass = nativeCssModuleClass("FastModeIcon");
-      if (icon && iconClass) icon.classList.add(iconClass);
+      if (iconClass && !icon.classList.contains(iconClass)) icon.classList.add(iconClass);
       return icon;
     }
 
@@ -1960,6 +1955,7 @@ export function createInjectionSource(features, {
     function ensureModelSelector() {
       const selector = modelSelectorFeature?.modelSelector;
       if (!selector) return;
+      captureNativeFastIcon();
       pruneModelSubmenuPositionObservers();
       if (!modelSelectorStyle.isConnected) document.head?.append(modelSelectorStyle);
       enhanceComposerModelTrigger(selector);

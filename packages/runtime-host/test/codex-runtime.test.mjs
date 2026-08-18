@@ -146,6 +146,10 @@ test("emits a fail-closed native Composer model selector Adapter", () => {
   assert.match(source, /function nativeModelDescriptorForItem\(item, observedRaw\)/);
   assert.match(source, /const raw = catalogModel\?\.slug \?\? nativeDescriptor\?\.slug \?\? observedRaw/);
   assert.match(source, /item\.dataset\.codexModelSliderIdentitySource = catalogModel \? "catalog" : nativeDescriptor \? "native" : "visible"/);
+  assert.match(source, /function captureNativeFastIcon\(\)/);
+  assert.match(source, /template\.cloneNode\(true\)/);
+  assert.doesNotMatch(source, /loadNativeFastIcon|modelSelectorNativeFastIcons\?\[/);
+  assert.match(source, /modelSelectorNativeFastIcons\[state\] = template/);
   assert.match(source, /function chatComposerModelController\(props\)/);
   assert.match(source, /if \(!Array\.isArray\(props\.models\?\.versionOptions\) \|\| !selected\.versionId\) return null/);
   assert.match(source, /props\.models\.versionOptions\.find/);
