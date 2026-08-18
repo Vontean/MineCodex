@@ -320,6 +320,9 @@ export function createInjectionSource(features, {
       [data-codex-model-slider-trigger-label] {
         display: inline; overflow: visible; text-overflow: clip; white-space: nowrap;
       }
+      [data-codex-model-slider-trigger] [class*="_ModelPickerTriggerEffortLabel_"] {
+        display: inline-flex; align-items: center; align-self: center;
+      }
       html[data-codex-model-slider-selecting-effort] [role="menu"][data-state="open"]:not(:has([data-reasoning-slider])) {
         visibility: hidden !important; opacity: 0 !important; animation: none !important; pointer-events: none !important;
       }
@@ -1846,8 +1849,14 @@ export function createInjectionSource(features, {
       const model = modelDefinitionFor(identity, selector);
       const efforts = model?.supportedReasoningLevels ?? [];
       if (!model || efforts.length < 2) return false;
-      const selectedEffort = document.querySelector("[data-codex-intelligence-trigger]")
-        ?.getAttribute("data-selected-reasoning-effort") ?? model.defaultReasoningLevel ?? efforts[0].effort;
+      // 控制器推导的任务内实际 effort 优先，避免子任务/主任务切换后触发器属性滞后；
+      // 触发器属性仅在控制器无法解析时作为实时回退，静态目录默认值最后兜底。
+      const nativeModel = nativeCatalogModelFor(identity);
+      const selectedEffort = nativeModel?.defaultReasoningLevel
+        ?? document.querySelector("[data-codex-intelligence-trigger]")
+          ?.getAttribute("data-selected-reasoning-effort")
+        ?? model.defaultReasoningLevel
+        ?? efforts[0].effort;
       const selectedServiceTier = nativeComposerModelController()?.selectedServiceTier;
       const serviceTierKey = selectedServiceTier?.id ?? selectedServiceTier ?? "standard";
       const key = `${identity.raw}:${selectedEffort}:${serviceTierKey}:${efforts.map((level) => level.effort).join(",")}`;
@@ -1856,7 +1865,6 @@ export function createInjectionSource(features, {
         parentMenu.firstElementChild
           ?.querySelector("[data-model-picker-power-slider] [class*='_TickRail_'] > span"),
       );
-      const nativeModel = nativeCatalogModelFor(identity);
       const templateWaitCount = Number(parentMenu.getAttribute("data-codex-model-slider-template-wait") ?? 0);
       if (nativeModel?.slug.toLowerCase().startsWith("gpt-") && !nativeTemplateReady && templateWaitCount < 3) {
         parentMenu.setAttribute("data-codex-model-slider-template-wait", String(templateWaitCount + 1));

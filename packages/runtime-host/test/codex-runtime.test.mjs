@@ -233,6 +233,70 @@ test("emits a fail-closed native Composer model selector Adapter", () => {
   assert.doesNotMatch(source, /"zh-CN":"搜索模型"/);
   assert.doesNotMatch(source, /model_catalog_json/);
 });
+test("resolves Model Slider effort from the native controller before the trigger DOM attribute", () => {
+  const icon = { viewBox: "0 0 24 24", markup: "<path></path>" };
+  const source = createInjectionSource([{
+    id: "model-slider",
+    label: "Model Slider",
+    surfaceUrl: null,
+    entry: { kind: "composer-model-selector", ariaLabel: "Model Slider" },
+    modelSelector: {
+      maxVisibleItems: 6,
+      favoriteStorageKey: "codex-model-slider:favorites:v1",
+      providerAliases: { "opencode-go": "OpenCode Go" },
+      strings: {
+        star: { value: "Star {model}", locales: { en: "Star {model}", "zh-CN": "收藏 {model}" } },
+        unstar: { value: "Unstar {model}", locales: { en: "Unstar {model}", "zh-CN": "取消收藏 {model}" } },
+      },
+      icons: { fallback: icon, star: icon, unstar: icon },
+      brands: [{ id: "deepseek", keywords: ["deepseek"], icon }],
+    },
+    hostActions: [],
+  }]);
+
+  // 子任务触发器属性（medium）滞后于控制器推导状态（max）时，控制器值必须优先。
+  assert.match(
+    source,
+    /const nativeModel = nativeCatalogModelFor\(identity\);\n\s*const selectedEffort = nativeModel\?\.defaultReasoningLevel[\s\S]*?getAttribute\("data-selected-reasoning-effort"\)/,
+  );
+  assert.match(
+    source,
+    /nativeModel\?\.defaultReasoningLevel\s*\?\?[\s\S]*?\?\? model\.defaultReasoningLevel\s*\?\? efforts\[0\]\.effort/,
+  );
+  // 已解析 effort 决定最终滑杆索引：max 落在最右档。
+  assert.match(source, /const selectedIndex = Math\.max\(0, efforts\.indexOf\(selectedEffort\)\)/);
+  // 任务切换时按可控状态重建：key 包含已解析 effort，key 变化即重建菜单。
+  assert.match(source, /const key = `\$\{identity\.raw\}:\$\{selectedEffort\}:/);
+  assert.match(source, /existing\?\.getAttribute\("data-codex-model-slider-generic"\) === key/);
+});
+
+test("normalizes Composer trigger effort-label alignment under Model Slider", () => {
+  const icon = { viewBox: "0 0 24 24", markup: "<path></path>" };
+  const source = createInjectionSource([{
+    id: "model-slider",
+    label: "Model Slider",
+    surfaceUrl: null,
+    entry: { kind: "composer-model-selector", ariaLabel: "Model Slider" },
+    modelSelector: {
+      maxVisibleItems: 6,
+      favoriteStorageKey: "codex-model-slider:favorites:v1",
+      providerAliases: {},
+      strings: {
+        star: { value: "Star {model}", locales: { en: "Star {model}", "zh-CN": "收藏 {model}" } },
+        unstar: { value: "Unstar {model}", locales: { en: "Unstar {model}", "zh-CN": "取消收藏 {model}" } },
+      },
+      icons: { fallback: icon, star: icon, unstar: icon },
+      brands: [],
+    },
+    hostActions: [],
+  }]);
+
+  // 隐藏原生模型文本后，effort 标签仍需与 flex 居中的 chevron 垂直对齐。
+  assert.match(
+    source,
+    /data-codex-model-slider-trigger\] \[class\*="_ModelPickerTriggerEffortLabel_"\]\s*\{[\s\S]*?display: inline-flex; align-items: center; align-self: center;/,
+  );
+});
 
 test("emits an isolated conversation-toolbar Adapter with strict Surface and Host-action boundaries", () => {
   const source = createInjectionSource([{
