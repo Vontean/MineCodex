@@ -148,7 +148,13 @@ test("emits a fail-closed native Composer model selector Adapter", () => {
   assert.match(source, /item\.dataset\.codexModelSliderIdentitySource = catalogModel \? "catalog" : nativeDescriptor \? "native" : "visible"/);
   assert.match(source, /function captureNativeFastIcon\(\)/);
   assert.match(source, /template\.cloneNode\(true\)/);
-  assert.doesNotMatch(source, /loadNativeFastIcon|modelSelectorNativeFastIcons\?\[/);
+  // Fast icons must be known at startup: bundle extraction + localStorage persist; DOM clone is an upgrade path.
+  assert.match(source, /function loadNativeFastIconFromBundle\(\)/);
+  assert.match(source, /modelSelectorFastIconStorageKey = "codex-model-slider:fast-icons:v1"/);
+  assert.match(source, /function persistNativeFastIcons\(\)/);
+  assert.match(source, /function loadPersistedNativeFastIcons\(\)/);
+  assert.match(source, /function applyNativeFastIconsToShells\(\)/);
+  assert.match(source, /modelSelectorNativeFastIconSources\[state\] = "dom"/);
   assert.match(source, /modelSelectorNativeFastIcons\[state\] = template/);
   assert.match(source, /function chatComposerModelController\(props\)/);
   assert.match(source, /if \(!Array\.isArray\(props\.models\?\.versionOptions\) \|\| !selected\.versionId\) return null/);

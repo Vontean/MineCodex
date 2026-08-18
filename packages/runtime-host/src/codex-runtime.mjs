@@ -298,6 +298,8 @@ export function createInjectionSource(features, {
     let modelSelectorTriggerObserver = null;
     let modelSelectorObservedTrigger = null;
     let modelSelectorNativeFastIcons = null;
+    // Fast 图标来源标记：bundle 静态提取 vs DOM 克隆，DOM 克隆优先以保持像素一致。
+    let modelSelectorNativeFastIconSources = null;
     const modelSelectorStyle = document.createElement("style");
     modelSelectorStyle.setAttribute("data-codex-model-slider-style", "");
     modelSelectorStyle.textContent = `
@@ -376,6 +378,17 @@ export function createInjectionSource(features, {
     if (modelSelectorFeature) {
       document.documentElement.setAttribute("data-codex-model-slider-catalog-ready", "");
       document.documentElement.append(modelSelectorStyle);
+      // 启动阶段就解析 Fast 图标：先读持久化的原生克隆，再从 app bundle 静态提取兜底，
+      // 避免首次会话必须等用户点开弹窗后 DOM 里才出现图标。
+      const persistedIcons = loadPersistedNativeFastIcons();
+      if (persistedIcons) {
+        modelSelectorNativeFastIcons = persistedIcons;
+        modelSelectorNativeFastIconSources = {};
+        for (const state of Object.keys(persistedIcons)) {
+          modelSelectorNativeFastIconSources[state] = "persisted";
+        }
+      }
+      void loadNativeFastIconFromBundle();
     }
 
     for (const feature of pageScriptFeatures) {
@@ -649,9 +662,99 @@ export function createInjectionSource(features, {
       return null;
     }
 
+    const modelSelectorFastIconStorageKey = "codex-model-slider:fast-icons:v1";
+
+    function persistNativeFastIcons() {
+      if (!modelSelectorNativeFastIcons) return;
+      try {
+        const payload = {};
+        for (const [state, template] of Object.entries(modelSelectorNativeFastIcons)) {
+          payload[state] = template.outerHTML;
+        }
+        localStorage.setItem(modelSelectorFastIconStorageKey, JSON.stringify(payload));
+      } catch {
+        // localStorage 不可用时静默降级，仅本次会话内生效。
+      }
+    }
+
+    function loadPersistedNativeFastIcons() {
+      try {
+        const payload = JSON.parse(localStorage.getItem(modelSelectorFastIconStorageKey) ?? "null");
+        if (!payload || typeof payload !== "object") return null;
+        const icons = {};
+        for (const [state, markup] of Object.entries(payload)) {
+          if (typeof markup !== "string") continue;
+          const container = document.createElement("template");
+          container.innerHTML = markup;
+          const svg = container.content.querySelector("svg");
+          if (svg) icons[state] = svg;
+        }
+        return Object.keys(icons).length ? icons : null;
+      } catch {
+        return null;
+      }
+    }
+
+    function extractFastIconPath(source, prefix) {
+      const match = String(source).match(new RegExp(`d:\`(${prefix}[^\`]*)\``));
+      return match?.[1] ?? null;
+    }
+
+    async function loadNativeFastIconFromBundle() {
+      const sourceLink = document.querySelector('link[href*="/assets/app-initial-"][href$=".js"]');
+      if (!sourceLink?.href) return;
+      try {
+        const source = await fetch(sourceLink.href).then((response) => response.text());
+        if (!modelSelectorNativeFastIcons) {
+          modelSelectorNativeFastIcons = {};
+          modelSelectorNativeFastIconSources = {};
+        }
+        let gained = false;
+        const define = (state, prefix, definition) => {
+          if (modelSelectorNativeFastIcons[state]) return;
+          const path = extractFastIconPath(source, prefix);
+          if (!path) return;
+          const svg = createModelSelectorIcon({
+            viewBox: definition.viewBox,
+            markup: definition.transform
+              ? `<g transform="${definition.transform}"><path d="${path}" fill="currentColor" /></g>`
+              : `<path d="${path}" fill="currentColor" />`,
+          }, { brand: true });
+          if (!svg) return;
+          modelSelectorNativeFastIcons[state] = svg;
+          modelSelectorNativeFastIconSources[state] = "bundle";
+          gained = true;
+        };
+        define("active", "M11\\.9125 21\\.4125", { viewBox: "0 0 24 24" });
+        define("inactive", "M7\\.38 16\\.2207", { viewBox: "0 0 20 20", transform: "translate(2.43 1.609)" });
+        if (gained) {
+          persistNativeFastIcons();
+          applyNativeFastIconsToShells();
+          queueEnsure();
+        }
+      } catch {
+        // 私有资源移动时保持原生控件不变，等待 DOM 克隆兜底。
+      }
+    }
+
+    function hasVisibleFastControl() {
+      return Boolean(
+        document.querySelector("[data-codex-model-slider-fast]")
+        || document.querySelector('[class*="_FastModeToggle_"]')
+        || document.querySelector('[class*="_ModelPickerTriggerFastIndicator_"] svg'),
+      );
+    }
+
     function captureNativeFastIcon() {
+      // Fast 图标只在 Fast 控件渲染后才出现在 DOM（打开菜单或 GPT 模型）；
+      // 启动阶段已有 bundle/持久化兜底，因此无可见 Fast 控件时不做全页扫描。
+      if (!hasVisibleFastControl()) {
+        return modelSelectorNativeFastIcons;
+      }
       const capture = (state, pathPrefix) => {
-        if (modelSelectorNativeFastIcons?.[state]) return;
+        const current = modelSelectorNativeFastIcons?.[state];
+        const currentSource = modelSelectorNativeFastIconSources?.[state];
+        if (current && currentSource === "dom") return;
         const path = Array.from(document.querySelectorAll("svg path")).find(
           (candidate) => candidate.getAttribute("d")?.startsWith(pathPrefix),
         );
@@ -661,12 +764,31 @@ export function createInjectionSource(features, {
         template.removeAttribute("id");
         template.removeAttribute("width");
         template.removeAttribute("height");
-        if (!modelSelectorNativeFastIcons) modelSelectorNativeFastIcons = {};
+        if (!modelSelectorNativeFastIcons) {
+          modelSelectorNativeFastIcons = {};
+          modelSelectorNativeFastIconSources = {};
+        }
         modelSelectorNativeFastIcons[state] = template;
+        modelSelectorNativeFastIconSources[state] = "dom";
       };
       capture("active", "M11.9125 21.4125");
       capture("inactive", "M7.38 16.2207");
+      const ready = Boolean(
+        modelSelectorNativeFastIcons?.active && modelSelectorNativeFastIcons?.inactive,
+      );
+      if (ready) {
+        persistNativeFastIcons();
+        applyNativeFastIconsToShells();
+      }
       return modelSelectorNativeFastIcons;
+    }
+
+    function applyNativeFastIconsToShells() {
+      document.querySelectorAll("[data-codex-model-slider-fast]").forEach((button) => {
+        const icon = createNativeFastIcon(button.getAttribute("aria-pressed") === "true");
+        const content = button.querySelector("[data-codex-model-slider-fast-content]");
+        if (icon && content) content.replaceChildren(icon);
+      });
     }
 
     function createNativeFastIcon(active) {
