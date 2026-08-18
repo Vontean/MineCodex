@@ -2996,6 +2996,42 @@ export function createInjectionSource(features, {
       return null;
     }
 
+    function nativeJsxRuntime(appModule) {
+      const candidates = Object.values(appModule).filter((value) => {
+        if (typeof value !== "function" || value.length !== 0) return false;
+        let source;
+        try {
+          source = Function.prototype.toString.call(value);
+        } catch {
+          return false;
+        }
+        if (source.length > 1200) return false;
+        if (
+          source.includes("useState")
+          || source.includes("memo_cache_sentinel")
+          || source.includes("(0,")
+          || source.startsWith("class ")
+        ) return false;
+        return source.includes("jsxs") && source.includes("Fragment");
+      });
+      for (const candidate of candidates) {
+        let runtime;
+        try {
+          runtime = candidate();
+        } catch {
+          continue;
+        }
+        if (
+          runtime
+          && typeof runtime === "object"
+          && typeof runtime.jsx === "function"
+          && typeof runtime.jsxs === "function"
+          && "Fragment" in runtime
+        ) return runtime;
+      }
+      return null;
+    }
+
     async function loadNativeTabCapability() {
       if (nativeTabCapability) return nativeTabCapability;
       if (nativeTabCapabilityPromise) return nativeTabCapabilityPromise;
@@ -3004,28 +3040,24 @@ export function createInjectionSource(features, {
           const moduleUrl = await waitForNativeTabModuleUrl();
           if (!moduleUrl) throw new Error("Codex app-initial modulepreload was not found");
           const appModule = await import(moduleUrl);
-          if (typeof appModule.Gtt !== "function") {
-            throw new Error("Codex right-panel controller factory is unavailable");
-          }
-          if (typeof appModule.hkt !== "function" || typeof appModule.Skt !== "function") {
-            throw new Error("Codex React runtime factories are unavailable");
-          }
-          const controller = appModule.Gtt("right");
-          const jsx = appModule.hkt();
-          const React = appModule.Skt();
+          const controller = Object.values(appModule).find((value) => (
+            value
+            && typeof value === "object"
+            && typeof value.openTab === "function"
+            && typeof value.closeTab === "function"
+            && typeof value.activateTab === "function"
+            && value.panelId === "right"
+          ));
+          if (!controller) throw new Error("Codex right-panel controller is unavailable");
+          const jsx = nativeJsxRuntime(appModule);
           if (
-            typeof controller?.openTab !== "function"
-            || typeof controller?.activateTab !== "function"
-            || typeof controller?.closeTab !== "function"
-            || !controller?.tabById$
+            !controller?.tabById$
             || typeof jsx?.jsx !== "function"
-            || typeof React?.useLayoutEffect !== "function"
-            || typeof React?.useRef !== "function"
+            || typeof jsx?.jsxs !== "function"
           ) throw new Error("Codex native tab capability is incomplete");
           nativeTabCapability = {
             controller,
             jsx,
-            React,
             moduleAsset: moduleUrl.split("/").pop(),
           };
           nativeTabCapabilityError = null;
@@ -3062,38 +3094,10 @@ export function createInjectionSource(features, {
       const detailKey = `${feature.id}:${detail.id}`;
       let Component = nativeDetailComponents.get(detailKey);
       if (Component) return Component;
-      const { jsx, React } = capability;
+      const { jsx } = capability;
+      const frameName = surfaceFrameName(feature.id);
       Component = function CodexPersonalDetailTab() {
-        const elementRef = React.useRef(null);
-        const frameRef = React.useRef(null);
-        const recordKeyRef = React.useRef(null);
-        const frameNameRef = React.useRef(null);
-        frameNameRef.current ??= surfaceFrameName(feature.id);
-        React.useLayoutEffect(() => {
-          const element = elementRef.current;
-          const frame = frameRef.current;
-          if (!element || !frame) return undefined;
-          const instanceId = crypto.randomUUID?.()
-            ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-          const recordKey = surfaceKey(feature.id, "native-detail", `${detail.id}:${instanceId}`);
-          recordKeyRef.current = recordKey;
-          registerSurface(recordKey, feature, "detail", detail.surfaceUrl, element, frame, detail.id);
-          let keys = nativeDetailSurfaceKeys.get(detailKey);
-          if (!keys) {
-            keys = new Set();
-            nativeDetailSurfaceKeys.set(detailKey, keys);
-          }
-          keys.add(recordKey);
-          queueTheme();
-          return () => {
-            keys.delete(recordKey);
-            if (keys.size === 0) nativeDetailSurfaceKeys.delete(detailKey);
-            removeSurfaceRecord(recordKey);
-            recordKeyRef.current = null;
-          };
-        }, []);
         return jsx.jsx("div", {
-          ref: elementRef,
           "data-codex-personal-native-detail": detailKey,
           style: {
             height: "100%",
@@ -3102,8 +3106,7 @@ export function createInjectionSource(features, {
             background: "var(--color-token-main-surface-primary)",
           },
           children: jsx.jsx("iframe", {
-            ref: frameRef,
-            name: frameNameRef.current,
+            name: frameName,
             src: "about:blank",
             title: detail.label,
             allow: "clipboard-write",
@@ -3131,17 +3134,17 @@ export function createInjectionSource(features, {
       return reloaded;
     }
 
-    async function waitForNativeDetailTabMount(scope, controller, tabId, detailKey) {
+    async function waitForNativeDetailTabElement(detailKey) {
       const deadline = performance.now() + 2_000;
       do {
-        let registered = false;
-        try {
-          registered = scope.get(controller.tabById$, tabId) != null;
-        } catch {}
-        if (registered && nativeDetailSurfaceKeys.has(detailKey)) return true;
+        const element = document.querySelector(
+          `[data-codex-personal-native-detail="${detailKey}"]`,
+        );
+        const frame = element?.querySelector("iframe");
+        if (element && frame) return { element, frame };
         await new Promise((resolve) => setTimeout(resolve, 25));
       } while (performance.now() < deadline);
-      return false;
+      return null;
     }
 
     async function openNativeDetailTab(feature, detail) {
@@ -3180,7 +3183,14 @@ export function createInjectionSource(features, {
           icon: nativeDetailIcon(feature, detail, jsx),
           isClosable: true,
           props: {},
-          onClose: () => nativeOpenTabSessions.delete(session),
+          onClose: () => {
+            nativeOpenTabSessions.delete(session);
+            const closedKeys = nativeDetailSurfaceKeys.get(detailKey);
+            if (closedKeys) {
+              for (const key of closedKeys) removeSurfaceRecord(key);
+              nativeDetailSurfaceKeys.delete(detailKey);
+            }
+          },
         });
       } catch (error) {
         if (isNewSession) nativeOpenTabSessions.delete(session);
@@ -3188,15 +3198,29 @@ export function createInjectionSource(features, {
         return null;
       }
 
-      if (!await waitForNativeDetailTabMount(scope, controller, tabId, detailKey)) {
-        if (isNewSession) nativeOpenTabSessions.delete(session);
-        if (!focusedExisting) {
-          try {
-            controller.closeTab(scope, tabId);
-          } catch {}
+      if (!nativeDetailSurfaceKeys.has(detailKey)) {
+        const mounted = await waitForNativeDetailTabElement(detailKey);
+        if (!mounted) {
+          if (isNewSession) nativeOpenTabSessions.delete(session);
+          if (!focusedExisting) {
+            try {
+              controller.closeTab(scope, tabId);
+            } catch {}
+          }
+          nativeTabCapabilityError = new Error("Codex native right-panel Tab did not mount");
+          return null;
         }
-        nativeTabCapabilityError = new Error("Codex native right-panel Tab did not mount");
-        return null;
+        const instanceId = crypto.randomUUID?.()
+          ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        const recordKey = surfaceKey(feature.id, "native-detail", `${detail.id}:${instanceId}`);
+        registerSurface(recordKey, feature, "detail", detail.surfaceUrl, mounted.element, mounted.frame, detail.id);
+        let keys = nativeDetailSurfaceKeys.get(detailKey);
+        if (!keys) {
+          keys = new Set();
+          nativeDetailSurfaceKeys.set(detailKey, keys);
+        }
+        keys.add(recordKey);
+        queueTheme();
       }
 
       nativeTabCapabilityError = null;
@@ -3214,6 +3238,9 @@ export function createInjectionSource(features, {
     }
 
     function closeNativeDetailTabs() {
+      for (const keys of Array.from(nativeDetailSurfaceKeys.values())) {
+        for (const key of keys) removeSurfaceRecord(key);
+      }
       for (const session of Array.from(nativeOpenTabSessions)) {
         try {
           session.controller.closeTab(session.scope, session.tabId);
