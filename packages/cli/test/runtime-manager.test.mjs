@@ -1,13 +1,15 @@
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { writeConfig } from "../src/config.mjs";
 import { RuntimeManager } from "../src/runtime-manager.mjs";
 
-test("runtime manager starts only configured plugins and restarts the owned Codex process", async () => {
+const acceptCdpOwner = async () => true;
+
+test("runtime manager starts configured plugins and restarts without broad native termination", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "minecodex-runtime-"));
   const paths = {
     packageRoot: root,
@@ -53,17 +55,17 @@ test("runtime manager starts only configured plugins and restarts the owned Code
   const manager = new RuntimeManager({ paths, platform, spawnProcess, logger: { error() {} } });
   await manager.start();
   assert.equal(spawnOptions.env.MINECODEX_ENABLED_FEATURES, "model-slider,images,hide-upsell-banner");
-  assert.equal(spawnOptions.env.MINECODEX_LAUNCH_CODEX, "0");
+  assert.equal(spawnOptions.env.MINECODEX_LAUNCH_CODEX, undefined);
   assert.deepEqual(manager.status().appliedFeatures, ["model-slider", "images", "hide-upsell-banner"]);
   await manager.restart();
   assert.equal(terminatedOwned, 1);
-  assert.equal(terminatedNative, 1);
-  assert.equal(spawnOptions.env.MINECODEX_LAUNCH_CODEX, "1");
+  assert.equal(terminatedNative, 0);
+  assert.equal(spawnOptions.env.MINECODEX_LAUNCH_CODEX, undefined);
   assert.equal(children.length, 2);
   await manager.stop();
 });
 
-test("runtime manager propagates the resolved supported user Codex executable", async () => {
+test("runtime manager verifies the resolved Codex installation without passing a foreground launch path", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "minecodex-runtime-codex-path-"));
   const paths = {
     packageRoot: root,
@@ -80,6 +82,7 @@ test("runtime manager propagates the resolved supported user Codex executable", 
   await writeConfig(paths.configPath, { schemaVersion: 1, features: { notes: true } });
   const executable = "/Users/example/Applications/ChatGPT.app/Contents/MacOS/ChatGPT";
   let spawnOptions;
+  let codexCalls = 0;
   const child = new EventEmitter();
   child.pid = 75;
   child.exitCode = null;
@@ -91,10 +94,13 @@ test("runtime manager propagates the resolved supported user Codex executable", 
   const manager = new RuntimeManager({
     paths,
     platform: {
-      codex: async () => ({
+      codex: async () => {
+        codexCalls += 1;
+        return {
         appPath: "/Users/example/Applications/ChatGPT.app",
         executable,
-      }),
+        };
+      },
     },
     spawnProcess: (_command, _args, options) => {
       spawnOptions = options;
@@ -109,7 +115,8 @@ test("runtime manager propagates the resolved supported user Codex executable", 
   });
 
   await manager.start();
-  assert.equal(spawnOptions.env.MINECODEX_CODEX_EXECUTABLE, executable);
+  assert.equal(codexCalls, 1);
+  assert.equal(spawnOptions.env.MINECODEX_CODEX_EXECUTABLE, undefined);
   await manager.stop();
 });
 
@@ -712,7 +719,7 @@ test("startup failure confirms cleanup exit and allows a fresh start", async () 
   await manager.stop();
 });
 
-test("a new Dock launch is adopted once without reopening Codex after the user exits", async (t) => {
+test("a ChatGPT process restored before the service is adopted through the public lifecycle", async (t) => {
   const root = await mkdtemp(path.join(os.tmpdir(), "minecodex-runtime-dock-launch-"));
   const paths = {
     packageRoot: root,
@@ -729,7 +736,6 @@ test("a new Dock launch is adopted once without reopening Codex after the user e
   await writeConfig(paths.configPath, { schemaVersion: 1, features: { notes: true } });
 
   const children = [];
-  const launchIntents = [];
   const spawnProcess = (_command, _args, options) => {
     const child = new EventEmitter();
     child.pid = 900 + children.length;
@@ -742,7 +748,6 @@ test("a new Dock launch is adopted once without reopening Codex after the user e
       queueMicrotask(() => child.emit("exit", 0, null));
     };
     children.push(child);
-    launchIntents.push(options.env.MINECODEX_LAUNCH_CODEX);
     return child;
   };
   const readyWaiter = async (_readyPath, child) => ({
@@ -751,26 +756,34 @@ test("a new Dock launch is adopted once without reopening Codex after the user e
     features: ["notes"],
     plugins: [{ featureId: "notes", state: "ready", owned: true, failure: null }],
     renderer: {
-      discovered: launchIntents.at(-1) === "1",
-      injectedTargets: launchIntents.at(-1) === "1" ? 1 : 0,
-      active: launchIntents.at(-1) === "1",
+      discovered: children.length > 1,
+      injectedTargets: children.length > 1 ? 1 : 0,
+      active: children.length > 1,
       runtimeSessionId: `dock-session-${child.pid}`,
     },
     failures: [],
   });
 
   let nativeProcesses = [{ pid: 801, command: "/Applications/ChatGPT.app/Contents/MacOS/ChatGPT" }];
-  let terminateNativeCalls = 0;
+  const terminatedPids = [];
   const platform = {
     snapshotNativeCodexState: async () => ({
       count: nativeProcesses.length,
       processes: [...nativeProcesses],
     }),
-    terminateNativeCodex: async () => {
-      terminateNativeCalls += 1;
-      const count = nativeProcesses.length;
-      nativeProcesses = [];
-      return count;
+    terminateNativeCodex: async (pid) => {
+      terminatedPids.push(pid);
+      const existed = nativeProcesses.some((processInfo) => processInfo.pid === pid);
+      nativeProcesses = nativeProcesses.filter((processInfo) => processInfo.pid !== pid);
+      return existed ? 1 : 0;
+    },
+    assertNativeCodexCdp: acceptCdpOwner,
+    openNativeCodex: async () => {
+      nativeProcesses = [{
+        pid: 804,
+        command: "/Applications/ChatGPT.app/Contents/MacOS/ChatGPT --remote-debugging-address=127.0.0.1 --remote-debugging-port=9231 --remote-allow-origins=http://127.0.0.1:9231",
+      }];
+      return nativeProcesses[0];
     },
   };
   const manager = new RuntimeManager({
@@ -786,44 +799,50 @@ test("a new Dock launch is adopted once without reopening Codex after the user e
   t.after(() => manager.stop());
 
   await manager.start();
-  assert.deepEqual(launchIntents, ["0"]);
-
-  // A Codex instance that predates the service is a baseline, not a new user launch.
+  // 登录恢复可能先启动 ChatGPT；首次扫描也必须增强它。
   await manager.reconcileManualCodexLaunch();
-  assert.equal(terminateNativeCalls, 0);
-  assert.equal(children.length, 1);
+  assert.deepEqual(terminatedPids, [801]);
+  assert.equal(children.length, 2);
+  assert.equal(manager.status().healthy, true);
+  assert.equal(manager.status().codex.owned, true);
+  assert.deepEqual(JSON.parse(await readFile(paths.codexPidPath, "utf8")), {
+    version: 1,
+    pid: 804,
+    command: nativeProcesses[0].command,
+  });
 
   // The user exiting Codex must leave it stopped.
   nativeProcesses = [];
   await manager.reconcileManualCodexLaunch();
   await manager.reconcileManualCodexLaunch();
-  assert.equal(terminateNativeCalls, 0);
-  assert.equal(children.length, 1);
+  assert.deepEqual(terminatedPids, [801]);
+  assert.equal(children.length, 2);
 
   // A user-supplied compatible CDP launch is already attachable and must not be replaced.
   nativeProcesses = [{
     pid: 802,
-    command: "/Applications/ChatGPT.app/Contents/MacOS/ChatGPT --remote-debugging-port=9231",
+    command: "/Applications/ChatGPT.app/Contents/MacOS/ChatGPT --remote-debugging-address=127.0.0.1 --remote-debugging-port=9231 --remote-allow-origins=http://127.0.0.1:9231",
   }];
   await manager.reconcileManualCodexLaunch();
-  assert.equal(terminateNativeCalls, 0);
-  assert.equal(children.length, 1);
+  assert.deepEqual(terminatedPids, [801]);
+  assert.equal(children.length, 3);
+  assert.equal(manager.status().healthy, true);
+  assert.equal(manager.status().codex.owned, false);
 
   // A later Dock launch is explicit user intent and is adopted exactly once.
   nativeProcesses = [{ pid: 803, command: "/Applications/ChatGPT.app/Contents/MacOS/ChatGPT" }];
   await manager.reconcileManualCodexLaunch();
-  assert.equal(terminateNativeCalls, 1);
-  assert.deepEqual(launchIntents, ["0", "1"]);
-  assert.equal(children.length, 2);
+  assert.deepEqual(terminatedPids, [801, 803]);
+  assert.equal(children.length, 4);
   assert.deepEqual(children[0].received, ["SIGTERM"]);
   assert.equal(manager.status().renderer.active, true);
 
   await manager.reconcileManualCodexLaunch();
-  assert.equal(terminateNativeCalls, 1);
-  assert.equal(children.length, 2);
+  assert.deepEqual(terminatedPids, [801, 803]);
+  assert.equal(children.length, 4);
 });
 
-test("a failed Dock adoption restores an idle RuntimeHost without relaunching Codex", async (t) => {
+test("a failed ChatGPT replacement restores an idle RuntimeHost without retrying or relaunching", async (t) => {
   const root = await mkdtemp(path.join(os.tmpdir(), "minecodex-runtime-dock-recovery-"));
   const paths = {
     packageRoot: root,
@@ -840,7 +859,6 @@ test("a failed Dock adoption restores an idle RuntimeHost without relaunching Co
   await writeConfig(paths.configPath, { schemaVersion: 1, features: { notes: true } });
 
   const children = [];
-  const launchIntents = [];
   const spawnProcess = (_command, _args, options) => {
     const child = new EventEmitter();
     child.pid = 950 + children.length;
@@ -851,7 +869,6 @@ test("a failed Dock adoption restores an idle RuntimeHost without relaunching Co
       queueMicrotask(() => child.emit("exit", 0, null));
     };
     children.push(child);
-    launchIntents.push(options.env.MINECODEX_LAUNCH_CODEX);
     return child;
   };
   const readyWaiter = async (_readyPath, child) => ({
@@ -876,6 +893,10 @@ test("a failed Dock adoption restores an idle RuntimeHost without relaunching Co
     terminateNativeCodex: async () => {
       throw new Error("native Codex refused to exit");
     },
+    assertNativeCodexCdp: acceptCdpOwner,
+    openNativeCodex: async () => {
+      throw new Error("LaunchServices must not run after failed termination");
+    },
   };
   const manager = new RuntimeManager({
     paths,
@@ -891,9 +912,10 @@ test("a failed Dock adoption restores an idle RuntimeHost without relaunching Co
   await manager.start();
   nativeProcesses = [{ pid: 951, command: "/Applications/ChatGPT.app/Contents/MacOS/ChatGPT" }];
   await assert.rejects(manager.reconcileManualCodexLaunch(), /native Codex refused to exit/);
-  assert.deepEqual(launchIntents, ["0", "0"]);
+  assert.equal(children.length, 2);
   assert.equal(manager.status().running, true);
-  assert.equal(manager.status().renderer.active, false);
+  assert.equal(manager.status().healthy, false);
+  assert.match(manager.status().failures.at(-1).message, /refused to exit/);
 });
 
 test("the background monitor automatically adopts a Dock launch", async (t) => {
@@ -913,7 +935,6 @@ test("the background monitor automatically adopts a Dock launch", async (t) => {
   await writeConfig(paths.configPath, { schemaVersion: 1, features: { notes: true } });
 
   const children = [];
-  const launchIntents = [];
   const spawnProcess = (_command, _args, options) => {
     const child = new EventEmitter();
     child.pid = 980 + children.length;
@@ -924,7 +945,6 @@ test("the background monitor automatically adopts a Dock launch", async (t) => {
       queueMicrotask(() => child.emit("exit", 0, null));
     };
     children.push(child);
-    launchIntents.push(options.env.MINECODEX_LAUNCH_CODEX);
     return child;
   };
   const readyWaiter = async (_readyPath, child) => ({
@@ -933,9 +953,9 @@ test("the background monitor automatically adopts a Dock launch", async (t) => {
     features: ["notes"],
     plugins: [{ featureId: "notes", state: "ready", owned: true, failure: null }],
     renderer: {
-      discovered: launchIntents.at(-1) === "1",
-      injectedTargets: launchIntents.at(-1) === "1" ? 1 : 0,
-      active: launchIntents.at(-1) === "1",
+      discovered: children.length > 1,
+      injectedTargets: children.length > 1 ? 1 : 0,
+      active: children.length > 1,
       runtimeSessionId: `dock-monitor-${child.pid}`,
     },
     failures: [],
@@ -951,7 +971,15 @@ test("the background monitor automatically adopts a Dock launch", async (t) => {
       terminateNativeCodex: async () => {
         const count = nativeProcesses.length;
         nativeProcesses = [];
-        return count;
+        return count ? 1 : 0;
+      },
+      assertNativeCodexCdp: acceptCdpOwner,
+      openNativeCodex: async () => {
+        nativeProcesses = [{
+          pid: 982,
+          command: "/Applications/ChatGPT.app/Contents/MacOS/ChatGPT --remote-debugging-address=127.0.0.1 --remote-debugging-port=9231 --remote-allow-origins=http://127.0.0.1:9231",
+        }];
+        return nativeProcesses[0];
       },
     },
     spawnProcess,
@@ -969,7 +997,294 @@ test("the background monitor automatically adopts a Dock launch", async (t) => {
     await new Promise((resolve) => setTimeout(resolve, 2));
   }
 
-  assert.deepEqual(launchIntents, ["0", "1"]);
+  assert.equal(children[1].pid, 981);
   assert.equal(children.length, 2);
   assert.equal(manager.status().renderer.active, true);
+  assert.equal(manager.status().codex.owned, true);
+});
+
+test("a normal official ChatGPT launch is replaced once through LaunchServices and becomes healthy", async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "minecodex-runtime-launchservices-"));
+  const paths = {
+    packageRoot: root,
+    supportDir: path.join(root, "support"),
+    configPath: path.join(root, "support", "config.json"),
+    runtimeEntry: path.join(root, "runtime.mjs"),
+    featuresRoot: path.join(root, "features"),
+    profileDir: path.join(root, "profile"),
+    imagesDataDir: path.join(root, "images"),
+    notesDataDir: path.join(root, "notes"),
+    codexPidPath: path.join(root, "codex.pid"),
+    runtimeReadyPath: path.join(root, "runtime-ready.json"),
+  };
+  await writeConfig(paths.configPath, { schemaVersion: 1, features: { notes: true } });
+
+  const children = [];
+  const spawnArguments = [];
+  const spawnProcess = (_command, _args, options) => {
+    const child = new EventEmitter();
+    child.pid = 1_100 + children.length;
+    child.exitCode = null;
+    child.signalCode = null;
+    child.received = [];
+    child.kill = (signal) => {
+      child.received.push(signal);
+      child.exitCode = 0;
+      queueMicrotask(() => child.emit("exit", 0, null));
+    };
+    children.push(child);
+    spawnArguments.push({ args: _args, env: options.env });
+    queueMicrotask(() => writeFile(options.env.MINECODEX_RUNTIME_READY_FILE, JSON.stringify({
+      pid: child.pid,
+      runtimeSessionId: `launchservices-${child.pid}`,
+      features: ["notes"],
+      plugins: [{ featureId: "notes", state: "injected", owned: true, health: { ok: true }, failure: null }],
+      renderer: {
+        discovered: children.length > 1,
+        injectedTargets: children.length > 1 ? 1 : 0,
+        active: children.length > 1,
+        runtimeSessionId: `launchservices-${child.pid}`,
+      },
+      failures: [],
+    })));
+    return child;
+  };
+
+  let nativeProcesses = [];
+  const terminatedPids = [];
+  const launchRequests = [];
+  let resolveSecondLaunchStarted;
+  let releaseSecondLaunch;
+  const secondLaunchStarted = new Promise((resolve) => { resolveSecondLaunchStarted = resolve; });
+  const platform = {
+    snapshotNativeCodexState: async () => ({
+      count: nativeProcesses.length,
+      processes: [...nativeProcesses],
+    }),
+    terminateNativeCodex: async (pid) => {
+      terminatedPids.push(pid);
+      const processInfo = nativeProcesses.find((candidate) => candidate.pid === pid);
+      if (!processInfo) return 0;
+      nativeProcesses = nativeProcesses.filter((candidate) => candidate.pid !== pid);
+      return 1;
+    },
+    assertNativeCodexCdp: acceptCdpOwner,
+    openNativeCodex: async (options) => {
+      launchRequests.push(options);
+      if (launchRequests.length === 2) {
+        resolveSecondLaunchStarted();
+        await new Promise((resolve) => { releaseSecondLaunch = resolve; });
+      }
+      nativeProcesses = [{
+        pid: 2_201,
+        command: "/Applications/ChatGPT.app/Contents/MacOS/ChatGPT --remote-debugging-address=127.0.0.1 --remote-debugging-port=9231 --remote-allow-origins=http://127.0.0.1:9231",
+        verified: true,
+      }];
+      return nativeProcesses[0];
+    },
+  };
+  const manager = new RuntimeManager({
+    paths,
+    platform,
+    spawnProcess,
+    waitForReady: async (_readyPath, child) => ({
+      pid: child.pid,
+      runtimeSessionId: `launchservices-${child.pid}`,
+      features: ["notes"],
+      plugins: [{ featureId: "notes", state: "injected", owned: true, health: { ok: true }, failure: null }],
+      renderer: {
+        discovered: children.length > 1,
+        injectedTargets: children.length > 1 ? 1 : 0,
+        active: children.length > 1,
+        runtimeSessionId: `launchservices-${child.pid}`,
+      },
+      failures: [],
+    }),
+    logger: { error() {}, warn() {} },
+    cdpPort: 9231,
+    manualLaunchPollMs: 60_000,
+    stopTimeoutMs: 100,
+  });
+  t.after(() => manager.stop());
+
+  await manager.start();
+  nativeProcesses = [{
+    pid: 2_200,
+    command: "/Applications/ChatGPT.app/Contents/MacOS/ChatGPT",
+    verified: true,
+  }];
+
+  await manager.reconcileManualCodexLaunch();
+
+  assert.deepEqual(terminatedPids, [2_200]);
+  assert.deepEqual(launchRequests, [{ cdpPort: 9231 }]);
+  assert.equal(children.length, 2);
+  assert.equal(manager.status().healthy, true);
+  assert.equal(manager.status().codex.pid, 2_201);
+  assert.equal(manager.status().codex.owned, true);
+  assert.equal(spawnArguments[1].env.MINECODEX_LAUNCH_CODEX, undefined);
+
+  const restartPromise = manager.restart();
+  await secondLaunchStarted;
+  assert.equal(await manager.reconcileManualCodexLaunch(), false);
+  releaseSecondLaunch();
+  await restartPromise;
+  assert.deepEqual(terminatedPids, [2_200, 2_201]);
+  assert.deepEqual(launchRequests, [{ cdpPort: 9231 }, { cdpPort: 9231 }]);
+  assert.equal(children.length, 3);
+  assert.equal(manager.status().healthy, true);
+});
+
+test("a compatible loopback CDP ChatGPT launch is adopted without termination or relaunch", async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "minecodex-runtime-cdp-adopt-"));
+  const paths = {
+    packageRoot: root,
+    supportDir: path.join(root, "support"),
+    configPath: path.join(root, "support", "config.json"),
+    runtimeEntry: path.join(root, "runtime.mjs"),
+    featuresRoot: path.join(root, "features"),
+    profileDir: path.join(root, "profile"),
+    imagesDataDir: path.join(root, "images"),
+    notesDataDir: path.join(root, "notes"),
+    codexPidPath: path.join(root, "codex.pid"),
+    runtimeReadyPath: path.join(root, "runtime-ready.json"),
+  };
+  await writeConfig(paths.configPath, { schemaVersion: 1, features: { notes: true } });
+  const children = [];
+  const spawnProcess = (_command, _args, options) => {
+    const child = new EventEmitter();
+    child.pid = 3_100 + children.length;
+    child.exitCode = null;
+    child.signalCode = null;
+    child.kill = () => {
+      child.exitCode = 0;
+      queueMicrotask(() => child.emit("exit", 0, null));
+    };
+    children.push(child);
+    queueMicrotask(() => writeFile(options.env.MINECODEX_RUNTIME_READY_FILE, JSON.stringify({
+      pid: child.pid,
+      runtimeSessionId: `cdp-adopt-${child.pid}`,
+      features: ["notes"],
+      plugins: [{ featureId: "notes", state: "injected", owned: true, health: { ok: true }, failure: null }],
+      renderer: {
+        discovered: children.length > 1,
+        injectedTargets: children.length > 1 ? 1 : 0,
+        active: children.length > 1,
+        runtimeSessionId: `cdp-adopt-${child.pid}`,
+      },
+      failures: [],
+    })));
+    return child;
+  };
+  const compatibleProcess = {
+    pid: 3_200,
+    command: "/Applications/ChatGPT.app/Contents/MacOS/ChatGPT --remote-debugging-address=127.0.0.1 --remote-debugging-port=9231 --remote-allow-origins=http://127.0.0.1:9231",
+  };
+  let nativeProcesses = [];
+  let terminateCalls = 0;
+  let launchCalls = 0;
+  const manager = new RuntimeManager({
+    paths,
+    platform: {
+      snapshotNativeCodexState: async () => ({ count: nativeProcesses.length, processes: [...nativeProcesses] }),
+      terminateNativeCodex: async () => { terminateCalls += 1; return 1; },
+      assertNativeCodexCdp: acceptCdpOwner,
+      openNativeCodex: async () => { launchCalls += 1; throw new Error("compatible CDP launch must not reopen ChatGPT"); },
+    },
+    spawnProcess,
+    waitForReady: async (_readyPath, child) => ({
+      pid: child.pid,
+      runtimeSessionId: `cdp-adopt-${child.pid}`,
+      features: ["notes"],
+      plugins: [{ featureId: "notes", state: "injected", owned: true, health: { ok: true }, failure: null }],
+      renderer: {
+        discovered: children.length > 1,
+        injectedTargets: children.length > 1 ? 1 : 0,
+        active: children.length > 1,
+        runtimeSessionId: `cdp-adopt-${child.pid}`,
+      },
+      failures: [],
+    }),
+    logger: { error() {}, warn() {} },
+    cdpPort: 9231,
+    manualLaunchPollMs: 60_000,
+    stopTimeoutMs: 100,
+  });
+  t.after(() => manager.stop());
+
+  await manager.start();
+  nativeProcesses = [compatibleProcess];
+  await manager.reconcileManualCodexLaunch();
+
+  assert.equal(terminateCalls, 0);
+  assert.equal(launchCalls, 0);
+  assert.equal(manager.status().healthy, true);
+  assert.deepEqual(manager.status().codex, { pid: compatibleProcess.pid, owned: false, command: compatibleProcess.command });
+});
+
+test("multiple new ChatGPT processes fail closed and are not retried as a launch loop", async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "minecodex-runtime-multiple-launches-"));
+  const paths = {
+    packageRoot: root,
+    supportDir: path.join(root, "support"),
+    configPath: path.join(root, "support", "config.json"),
+    runtimeEntry: path.join(root, "runtime.mjs"),
+    featuresRoot: path.join(root, "features"),
+    profileDir: path.join(root, "profile"),
+    imagesDataDir: path.join(root, "images"),
+    notesDataDir: path.join(root, "notes"),
+    codexPidPath: path.join(root, "codex.pid"),
+    runtimeReadyPath: path.join(root, "runtime-ready.json"),
+  };
+  await writeConfig(paths.configPath, { schemaVersion: 1, features: { notes: true } });
+  const children = [];
+  const spawnProcess = () => {
+    const child = new EventEmitter();
+    child.pid = 4_100 + children.length;
+    child.exitCode = null;
+    child.signalCode = null;
+    child.kill = () => {
+      child.exitCode = 0;
+      queueMicrotask(() => child.emit("exit", 0, null));
+    };
+    children.push(child);
+    return child;
+  };
+  let nativeProcesses = [];
+  const terminatedPids = [];
+  let launchCalls = 0;
+  const manager = new RuntimeManager({
+    paths,
+    platform: {
+      snapshotNativeCodexState: async () => ({ count: nativeProcesses.length, processes: [...nativeProcesses] }),
+      terminateNativeCodex: async (pid) => { terminatedPids.push(pid); return 1; },
+      openNativeCodex: async () => { launchCalls += 1; throw new Error("must not choose between concurrent launches"); },
+    },
+    spawnProcess,
+    waitForReady: async (_readyPath, child) => ({
+      pid: child.pid,
+      runtimeSessionId: `multiple-${child.pid}`,
+      features: ["notes"],
+      plugins: [{ featureId: "notes", state: "ready", owned: true, failure: null }],
+      renderer: { discovered: false, injectedTargets: 0, active: false, runtimeSessionId: `multiple-${child.pid}` },
+      failures: [],
+    }),
+    logger: { error() {}, warn() {} },
+    manualLaunchPollMs: 60_000,
+  });
+  t.after(() => manager.stop());
+
+  await manager.start();
+  nativeProcesses = [
+    { pid: 4_200, command: "/Applications/ChatGPT.app/Contents/MacOS/ChatGPT" },
+    { pid: 4_201, command: "/Applications/ChatGPT.app/Contents/MacOS/ChatGPT" },
+  ];
+  await manager.reconcileManualCodexLaunch();
+  await manager.reconcileManualCodexLaunch();
+
+  assert.deepEqual(terminatedPids, []);
+  assert.equal(launchCalls, 0);
+  assert.equal(children.length, 1);
+  assert.equal(manager.status().healthy, false);
+  assert.equal(manager.status().failures.at(-1).code, "MULTIPLE_CHATGPT_LAUNCHES");
 });

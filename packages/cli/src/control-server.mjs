@@ -290,11 +290,13 @@ export async function createControlServer({
           service: { running: true },
           runtime: {
             running: runtime.running,
+            healthy: runtime.healthy === true,
             pid: runtime.pid ?? null,
             runtimeSessionId: runtime.runtimeSessionId ?? null,
             ready: runtime.ready ?? null,
             plugins: runtime.plugins ?? runtime.pluginStates ?? [],
             renderer: runtime.renderer ?? null,
+            codex: runtime.codex ?? null,
             failures: runtime.failures ?? [],
           },
           runtimeSessionId: runtime.runtimeSessionId ?? null,

@@ -96,15 +96,14 @@ test("posts page-surface activity on show, hide, and iframe load", () => {
   assert.match(source, /function hidePageSurfaces[\s\S]*?postSurfaceActive\(record, false\)/);
 });
 
-test("main defers feature startup publication and consumes explicit Codex launch intent", async () => {
+test("main defers feature startup publication and leaves foreground ChatGPT launching to the CLI adapter", async () => {
   const source = await readFile(new URL("../src/main.mjs", import.meta.url), "utf8");
 
   assert.match(source, /deferredStart: true/);
   assert.match(source, /onStatusChange: requestReadyFileRefresh/);
   assert.match(source, /let runtimeReady = false/);
-  assert.match(source, /await runtime\.start\(\{ launchCodex \}\);\s*runtimeReady = true;\s*await writeReadyFile\(\)/);
-  assert.match(source, /appPath: process\.env\.MINECODEX_CODEX_EXECUTABLE \|\| undefined/);
-  assert.match(source, /const launchCodex = process\.env\.MINECODEX_LAUNCH_CODEX === "1"/);
+  assert.match(source, /await runtime\.start\(\);\s*runtimeReady = true;\s*await writeReadyFile\(\)/);
+  assert.doesNotMatch(source, /MINECODEX_CODEX_EXECUTABLE|MINECODEX_LAUNCH_CODEX|launchCodex/);
   assert.match(source, /featureInstanceId,/);
 });
 
@@ -843,14 +842,14 @@ async function waitFor(predicate, timeoutMs = 250) {
   assert.fail("Timed out waiting for the lifecycle transition");
 }
 
-test("starts idle without launching Codex until the user explicitly requests it", async () => {
+test("starts idle without a foreground application launcher", async () => {
   let spawnCount = 0;
   const runtime = new CodexRuntime({
     features: [],
     profileDir: "/tmp/codex-runtime-user-controlled-profile",
     cdpPort: 9247,
     fetchImpl: async () => cdpResponse({}, false),
-    spawnProcess: () => {
+    launchApplication: () => {
       spawnCount += 1;
       throw new Error("background startup must not launch Codex");
     },
@@ -884,7 +883,7 @@ test("leaves a managed Codex child stopped after the user exits", async () => {
       if (url.endsWith("/json/list")) return cdpResponse([]);
       throw new Error(`Unexpected URL ${url}`);
     },
-    spawnProcess: () => {
+    launchApplication: () => {
       const child = new EventEmitter();
       child.pid = 9200 + spawnCount;
       child.exitCode = null;
@@ -932,7 +931,7 @@ test("rejects stale 2xx version payloads and launches once after explicit user i
       if (url.endsWith("/json/list")) return cdpResponse([]);
       throw new Error(`Unexpected URL ${url}`);
     },
-    spawnProcess: () => {
+    launchApplication: () => {
       const child = new EventEmitter();
       child.pid = 9260;
       child.exitCode = null;

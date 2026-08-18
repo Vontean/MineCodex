@@ -5,12 +5,14 @@ import test from "node:test";
 import {
   assertNodeSupported,
   buildServiceRuntimeConfig,
+  CODEX_BUNDLE_IDENTIFIER,
   CODEX_EXECUTABLE,
   isExactCodexProcess,
   LEGACY_SERVICE_LABEL,
   MacPlatformAdapter,
   resolveCodexInstallation,
   SERVICE_LABEL,
+  verifyCodexInstallation,
 } from "../src/platform.mjs";
 import { resolvePaths } from "../src/paths.mjs";
 
@@ -215,6 +217,211 @@ test("MacPlatformAdapter refuses broad service removal targets before touching l
     serviceAppPath: "/MineCodex.app",
   }), /unsafe MineCodex service path/);
   assert.equal(touched, false);
+});
+
+test("MacPlatformAdapter verifies the official bundle and OpenAI signing identity", async () => {
+  const calls = [];
+  const installation = await verifyCodexInstallation({
+    installation: { appPath: "/Applications/ChatGPT.app", executable: CODEX_EXECUTABLE },
+    execFile: async (file, args) => {
+      calls.push([file, args]);
+      if (file === "/usr/bin/plutil") return { stdout: `${CODEX_BUNDLE_IDENTIFIER}\n` };
+      if (args[0] === "-dv") return { stderr: "Identifier=com.openai.codex\nAuthority=Developer ID Application: OpenAI OpCo, LLC (2DC432GLL2)\nTeamIdentifier=2DC432GLL2\n" };
+      return { stdout: "", stderr: "" };
+    },
+  });
+
+  assert.equal(installation.bundleIdentifier, CODEX_BUNDLE_IDENTIFIER);
+  assert.match(installation.signingIdentity, /OpenAI/);
+  assert.equal(installation.verified, true);
+  assert.equal(calls.length, 3);
+
+  await assert.rejects(verifyCodexInstallation({
+    installation: { appPath: "/Applications/ChatGPT.app", executable: CODEX_EXECUTABLE },
+    execFile: async (file) => file === "/usr/bin/plutil"
+      ? { stdout: "com.example.substituted\n" }
+      : { stdout: "", stderr: "" },
+  }), /non-official ChatGPT bundle/);
+
+  await assert.rejects(verifyCodexInstallation({
+    installation: { appPath: "/Applications/ChatGPT.app", executable: CODEX_EXECUTABLE },
+    execFile: async (file, args) => {
+      if (file === "/usr/bin/plutil") return { stdout: `${CODEX_BUNDLE_IDENTIFIER}\n` };
+      if (args[0] === "-dv") return { stderr: "Identifier=com.openai.codex\nAuthority=Developer ID Application: OpenAI Lookalike\nTeamIdentifier=ATTACKER123\n" };
+      return { stdout: "", stderr: "" };
+    },
+  }), /unexpected signing identity/);
+});
+
+test("MacPlatformAdapter revalidates the official app when its installation fingerprint changes", async () => {
+  let generation = 1;
+  let signatureChecks = 0;
+  const adapter = new MacPlatformAdapter({
+    platform: "darwin",
+    fileSystem: {
+      readFile: async () => "present",
+      stat: async (filePath) => ({ ino: filePath.length, size: 100, mtimeMs: generation }),
+    },
+    execFile: async (file, args) => {
+      if (file === "/usr/bin/plutil") return { stdout: `${CODEX_BUNDLE_IDENTIFIER}\n` };
+      if (file === "/usr/bin/codesign") {
+        signatureChecks += 1;
+        if (args[0] === "-dv") return { stderr: "Identifier=com.openai.codex\nAuthority=Developer ID Application: OpenAI OpCo, LLC (2DC432GLL2)\nTeamIdentifier=2DC432GLL2\n" };
+      }
+      return { stdout: "", stderr: "" };
+    },
+  });
+
+  await adapter.assertCodexInstalled();
+  await adapter.codex();
+  assert.equal(signatureChecks, 2);
+  generation += 1;
+  await adapter.codex();
+  assert.equal(signatureChecks, 4);
+});
+
+test("MacPlatformAdapter opens a new official ChatGPT instance through LaunchServices without a profile override", async () => {
+  const calls = [];
+  let opened = false;
+  const existing = `4100 ${CODEX_EXECUTABLE} --remote-debugging-address=127.0.0.1 --remote-debugging-port=9231 --remote-allow-origins=http://127.0.0.1:9231\n`;
+  const launched = `4201 ${CODEX_EXECUTABLE} --remote-debugging-address=127.0.0.1 --remote-debugging-port=9231 --remote-allow-origins=http://127.0.0.1:9231 --no-first-run\n`;
+  const adapter = new MacPlatformAdapter({
+    platform: "darwin",
+    codexInstallation: { appPath: "/Applications/ChatGPT.app", executable: CODEX_EXECUTABLE },
+    execFile: async (file, args) => {
+      calls.push([file, args]);
+      if (file === "/usr/bin/open") { opened = true; return { stdout: "" }; }
+      if (file === "/usr/sbin/lsof") return { stdout: "p4201\nn127.0.0.1:9231\n" };
+      return { stdout: existing + (opened ? launched : "") };
+    },
+    sleep: async () => {},
+  });
+
+  const processInfo = await adapter.openNativeCodex({ cdpPort: 9231 });
+
+  assert.equal(processInfo.pid, 4201);
+  assert.equal(processInfo.verified, true);
+  assert.deepEqual(calls.find(([file]) => file === "/usr/bin/open"), ["/usr/bin/open", [
+    "-n",
+    "-a",
+    "/Applications/ChatGPT.app",
+    "--args",
+      "--remote-debugging-address=127.0.0.1",
+      "--remote-debugging-port=9231",
+      "--remote-allow-origins=http://127.0.0.1:9231",
+    ]]);
+  assert.equal(calls.some(([, args]) => args.includes("--user-data-dir=/tmp/minecodex-profile")), false);
+});
+
+test("MacPlatformAdapter rejects a CDP listener that is not owned by the verified ChatGPT PID", async () => {
+  const command = `${CODEX_EXECUTABLE} --remote-debugging-address=127.0.0.1 --remote-debugging-port=9231 --remote-allow-origins=http://127.0.0.1:9231`;
+  const adapter = new MacPlatformAdapter({
+    platform: "darwin",
+    codexInstallation: { appPath: "/Applications/ChatGPT.app", executable: CODEX_EXECUTABLE },
+    execFile: async () => ({ stdout: "p9999\nn127.0.0.1:9231\n" }),
+  });
+
+  await assert.rejects(adapter.assertNativeCodexCdp({
+    pid: 4201,
+    command,
+    verified: true,
+  }, 9231), /does not own loopback CDP port/);
+});
+
+test("MacPlatformAdapter terminates only the exact verified native ChatGPT PID", async () => {
+  const killed = [];
+  let alive = true;
+  let helperAlive = true;
+  const adapter = new MacPlatformAdapter({
+    platform: "darwin",
+    codexInstallation: { appPath: "/Applications/ChatGPT.app", executable: CODEX_EXECUTABLE },
+    execFile: async (file, args) => file === "/bin/ps"
+      ? { stdout: args.includes("pid=,ppid=,command=")
+        ? `4202 1 ${CODEX_EXECUTABLE}\n4204 4202 ${CODEX_EXECUTABLE} --type=renderer\n`
+        : (alive ? `4202 ${CODEX_EXECUTABLE}\n` : "") }
+      : { stdout: "" },
+    processApi: {
+      kill(pid, signal) {
+        killed.push([pid, signal]);
+        if (signal === "SIGTERM") alive = false;
+        if (signal === 0 && pid === 4202 && !alive) throw Object.assign(new Error("gone"), { code: "ESRCH" });
+        if (signal === 0 && pid === 4204 && !helperAlive) throw Object.assign(new Error("gone"), { code: "ESRCH" });
+      },
+    },
+    sleep: async () => { helperAlive = false; },
+  });
+
+  assert.equal(await adapter.terminateNativeCodex(4202, CODEX_EXECUTABLE), 1);
+  assert.deepEqual(killed, [[4202, "SIGTERM"], [4202, 0], [4204, 0], [4204, 0]]);
+  await assert.rejects(adapter.terminateNativeCodex(), /exact ChatGPT PID/);
+  assert.equal(await adapter.terminateNativeCodex(4206, CODEX_EXECUTABLE), 0);
+  assert.deepEqual(killed, [[4202, "SIGTERM"], [4202, 0], [4204, 0], [4204, 0]]);
+
+  const unverifiedAdapter = new MacPlatformAdapter({
+    platform: "darwin",
+    codexInstallation: { appPath: "/Applications/ChatGPT.app", executable: CODEX_EXECUTABLE, verified: false },
+    execFile: async (file) => file === "/bin/ps"
+      ? { stdout: `4203 ${CODEX_EXECUTABLE}\n` }
+      : { stdout: "" },
+    processApi: { kill() { throw new Error("unverified process must not be killed"); } },
+  });
+  assert.equal(await unverifiedAdapter.terminateNativeCodex(4203, CODEX_EXECUTABLE), 0);
+});
+
+test("MacPlatformAdapter can remove a MineCodex-owned LaunchServices session without touching an unowned profile", async () => {
+  const command = `${CODEX_EXECUTABLE} --remote-debugging-address=127.0.0.1 --remote-debugging-port=9231 --remote-allow-origins=http://127.0.0.1:9231`;
+  const files = new Map([["/tmp/minecodex-owned.pid", `${JSON.stringify({ version: 1, pid: 4300, command })}\n`]]);
+  const killed = [];
+  let alive = true;
+  const adapter = new MacPlatformAdapter({
+    platform: "darwin",
+    codexInstallation: { appPath: "/Applications/ChatGPT.app", executable: CODEX_EXECUTABLE },
+    fileSystem: {
+      readFile: async (filePath) => {
+        if (!files.has(filePath)) throw Object.assign(new Error("missing"), { code: "ENOENT" });
+        return files.get(filePath);
+      },
+      unlink: async (filePath) => { files.delete(filePath); },
+    },
+    execFile: async (file, args) => file === "/bin/ps"
+      ? { stdout: args.includes("pid=,ppid=,command=") ? `4300 1 ${command}\n` : (alive ? `4300 ${command}\n` : "") }
+      : { stdout: "" },
+    processApi: {
+      kill(pid, signal) {
+        killed.push([pid, signal]);
+        if (signal === "SIGTERM") alive = false;
+        if (signal === 0 && !alive) throw Object.assign(new Error("gone"), { code: "ESRCH" });
+      },
+    },
+    sleep: async () => {},
+  });
+
+  assert.equal(await adapter.terminateOwnedCodex({
+    codexPidPath: "/tmp/minecodex-owned.pid",
+    profileDir: "/tmp/official-chatgpt-profile",
+  }), true);
+  assert.deepEqual(killed, [[4300, "SIGTERM"], [4300, 0]]);
+  assert.equal(files.has("/tmp/minecodex-owned.pid"), false);
+});
+
+test("MacPlatformAdapter rejects a stale owner marker after PID reuse", async () => {
+  const staleCommand = `${CODEX_EXECUTABLE} --remote-debugging-address=127.0.0.1 --remote-debugging-port=9231 --remote-allow-origins=http://127.0.0.1:9231`;
+  const currentCommand = `${staleCommand} --new-session`;
+  const adapter = new MacPlatformAdapter({
+    platform: "darwin",
+    codexInstallation: { appPath: "/Applications/ChatGPT.app", executable: CODEX_EXECUTABLE },
+    fileSystem: {
+      readFile: async () => `${JSON.stringify({ version: 1, pid: 4400, command: staleCommand })}\n`,
+      unlink: async () => {},
+    },
+    execFile: async (file) => file === "/bin/ps" ? { stdout: `4400 ${currentCommand}\n` } : { stdout: "" },
+    processApi: { kill() { throw new Error("stale ownership must not terminate the reused PID"); } },
+  });
+
+  assert.equal(await adapter.terminateOwnedCodex({
+    codexPidPath: "/tmp/minecodex-owned.pid",
+    profileDir: "/tmp/official-chatgpt-profile",
+  }), false);
 });
 
 test("MacPlatformAdapter keeps the service bundle when macOS refuses to unregister it", async () => {

@@ -1,5 +1,4 @@
 import { randomBytes } from "node:crypto";
-import { spawn } from "node:child_process";
 import { mkdir, stat } from "node:fs/promises";
 import path from "node:path";
 
@@ -3923,7 +3922,7 @@ export class CodexRuntime {
     cdpPort = 9231,
     logger = console,
     fetchImpl = globalThis.fetch,
-    spawnProcess = spawn,
+    launchApplication = null,
     connectClient = connect,
     sleep = (timeoutMs) => new Promise((resolve) => setTimeout(resolve, timeoutMs)),
     availabilityTimeoutMs = 20_000,
@@ -3942,7 +3941,7 @@ export class CodexRuntime {
     this.cdpPort = cdpPort;
     this.logger = logger;
     this.fetchImpl = fetchImpl;
-    this.spawnProcess = spawnProcess;
+    this.launchApplication = launchApplication;
     this.connectClient = connectClient;
     this.sleep = sleep;
     this.availabilityTimeoutMs = availabilityTimeoutMs;
@@ -4079,17 +4078,19 @@ export class CodexRuntime {
   }
 
   launchManagedCodex() {
-    const child = this.spawnProcess(
-      this.appPath,
-      [
+    if (typeof this.launchApplication !== "function") {
+      throw new Error("CodexRuntime requires an explicit application launcher for isolated tests.");
+    }
+    const child = this.launchApplication({
+      appPath: this.appPath,
+      args: [
         `--user-data-dir=${this.profileDir}`,
         "--remote-debugging-address=127.0.0.1",
         `--remote-debugging-port=${this.cdpPort}`,
         `--remote-allow-origins=http://127.0.0.1:${this.cdpPort}`,
         "--no-first-run",
       ],
-      { detached: true, stdio: "ignore" },
-    );
+    });
     this.managedCodexChild = child;
     this.appPid = child.pid ?? null;
     this.notifyManagedCodexPidChange(this.appPid);

@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
+import { ChatGPTLaunchCoordinator } from "./chatgpt-launch-coordinator.mjs";
 import { readConfig, FEATURE_IDS } from "./config.mjs";
 
 export const RUNTIME_PLUGIN_STATES = Object.freeze([
@@ -17,19 +18,6 @@ function enabledFeatureIds(config) {
 
 function hasExited(child) {
   return Boolean(child && (child.exitCode != null || child.signalCode != null));
-}
-
-function hasExactCommandArgument(command, argument) {
-  const value = String(command);
-  let offset = value.indexOf(argument);
-  while (offset >= 0) {
-    const before = offset === 0 || /\s/.test(value[offset - 1]);
-    const end = offset + argument.length;
-    const after = end === value.length || /\s/.test(value[end]);
-    if (before && after) return true;
-    offset = value.indexOf(argument, offset + 1);
-  }
-  return false;
 }
 
 function normalizedFailure(failure) {
@@ -134,6 +122,7 @@ export class RuntimeManager {
     stopTimeoutMs = 5_000,
     manualLaunchPollMs = 1_000,
     cdpPort = Number(process.env.CODEX_RUNTIME_CDP_PORT ?? 9231),
+    launchCoordinator = null,
   }) {
     this.paths = paths;
     this.platform = platform;
@@ -157,6 +146,13 @@ export class RuntimeManager {
     this.manualLaunchWake = null;
     this.manualLaunchBaselinePids = new Set();
     this.manualLaunchArmed = false;
+    this.manualLaunchSuppressionDepth = 0;
+    this.enhancedCodex = null;
+    this.enhancementFailure = null;
+    this.launchCoordinator = launchCoordinator ?? new ChatGPTLaunchCoordinator({
+      platform,
+      cdpPort,
+    });
   }
 
   enqueue(operation) {
@@ -165,36 +161,33 @@ export class RuntimeManager {
     return next;
   }
 
-  async startInternal({ launchCodex = false } = {}) {
+  async startInternal() {
     if (this.child && !hasExited(this.child)) return this.status();
     this.clearChildState();
     this.stopping = false;
     const config = await readConfig(this.paths.configPath);
     const features = enabledFeatureIds(config);
-    const codexInstallation = typeof this.platform?.codex === "function"
-      ? await this.platform.codex()
-      : null;
-    const codexExecutable = codexInstallation?.executable
-      ?? process.env.MINECODEX_CODEX_EXECUTABLE;
+    if (typeof this.platform?.codex === "function") await this.platform.codex();
     await mkdir(this.paths.supportDir, { recursive: true, mode: 0o700 });
     await unlink(this.paths.runtimeReadyPath).catch((error) => {
       if (error.code !== "ENOENT") throw error;
     });
+    const runtimeEnvironment = {
+      ...process.env,
+      CODEX_FEATURES_ROOT: this.paths.featuresRoot,
+      CODEX_RUNTIME_PROFILE_DIR: this.paths.profileDir,
+      CODEX_RUNTIME_CDP_PORT: String(this.cdpPort),
+      CODEX_IMAGE_HOST_DATA_DIR: this.paths.imagesDataDir,
+      CODEX_NOTES_DATA_DIR: this.paths.notesDataDir,
+      MINECODEX_ENABLED_FEATURES: features.join(","),
+      MINECODEX_CODEX_PID_FILE: this.paths.codexPidPath,
+      MINECODEX_RUNTIME_READY_FILE: this.paths.runtimeReadyPath,
+    };
+    delete runtimeEnvironment.MINECODEX_LAUNCH_CODEX;
+    delete runtimeEnvironment.MINECODEX_CODEX_EXECUTABLE;
     const child = this.spawnProcess(process.execPath, [this.paths.runtimeEntry], {
       cwd: this.paths.packageRoot,
-      env: {
-        ...process.env,
-        CODEX_FEATURES_ROOT: this.paths.featuresRoot,
-        CODEX_RUNTIME_PROFILE_DIR: this.paths.profileDir,
-        CODEX_RUNTIME_CDP_PORT: String(this.cdpPort),
-        CODEX_IMAGE_HOST_DATA_DIR: this.paths.imagesDataDir,
-        CODEX_NOTES_DATA_DIR: this.paths.notesDataDir,
-        MINECODEX_ENABLED_FEATURES: features.join(","),
-        MINECODEX_CODEX_PID_FILE: this.paths.codexPidPath,
-        MINECODEX_RUNTIME_READY_FILE: this.paths.runtimeReadyPath,
-        MINECODEX_LAUNCH_CODEX: launchCodex ? "1" : "0",
-        ...(codexExecutable ? { MINECODEX_CODEX_EXECUTABLE: codexExecutable } : {}),
-      },
+      env: runtimeEnvironment,
       stdio: "inherit",
     });
     this.child = child;
@@ -261,9 +254,8 @@ export class RuntimeManager {
   async nativeCodexSnapshot() {
     if (typeof this.platform?.snapshotNativeCodexState !== "function") return null;
     const snapshot = await this.platform.snapshotNativeCodexState();
-    const cdpArgument = `--remote-debugging-port=${this.cdpPort}`;
     const processes = (Array.isArray(snapshot?.processes) ? snapshot.processes : [])
-      .filter(({ command }) => !hasExactCommandArgument(command, cdpArgument));
+      .filter(({ command }) => !String(command).includes("--user-data-dir="));
     return {
       count: processes.length,
       processes,
@@ -271,11 +263,24 @@ export class RuntimeManager {
     };
   }
 
+  async syncManualLaunchBaseline() {
+    const snapshot = await this.nativeCodexSnapshot();
+    if (!snapshot) return;
+    this.manualLaunchBaselinePids = new Set(snapshot.pids);
+    this.manualLaunchArmed = true;
+  }
+
+  async clearOwnedCodexMarker() {
+    await unlink(this.paths.codexPidPath).catch((error) => {
+      if (error.code !== "ENOENT") this.logger.warn?.("MineCodex could not clear its ChatGPT owner marker", error.message);
+    });
+  }
+
   async startManualLaunchMonitor() {
     if (this.manualLaunchMonitorPromise || typeof this.platform?.snapshotNativeCodexState !== "function") return;
-    const snapshot = await this.nativeCodexSnapshot();
-    this.manualLaunchBaselinePids = new Set(snapshot?.pids ?? []);
-    this.manualLaunchArmed = this.manualLaunchBaselinePids.size === 0;
+    // 登录恢复时 ChatGPT 可能先于服务启动，首次扫描也必须纳入增强流程。
+    this.manualLaunchBaselinePids.clear();
+    this.manualLaunchArmed = true;
     this.manualLaunchMonitorStopped = false;
     const monitor = this.monitorManualCodexLaunches().catch((error) => {
       if (!this.manualLaunchMonitorStopped) {
@@ -323,83 +328,108 @@ export class RuntimeManager {
   }
 
   async reconcileManualCodexLaunch() {
-    if (this.manualLaunchMonitorStopped) return false;
+    if (this.manualLaunchMonitorStopped || this.manualLaunchSuppressionDepth > 0) return false;
     const snapshot = await this.nativeCodexSnapshot();
     if (!snapshot) return false;
-
-    if (this.manualLaunchBaselinePids.size > 0) {
-      const baselineStillRunning = [...this.manualLaunchBaselinePids]
-        .some((pid) => snapshot.pids.has(pid));
-      if (baselineStillRunning) return false;
-      this.manualLaunchBaselinePids.clear();
-      if (snapshot.count === 0) {
-        this.manualLaunchArmed = true;
-        return false;
-      }
-      this.manualLaunchArmed = true;
+    if (this.enhancedCodex && !snapshot.pids.has(this.enhancedCodex.pid)) {
+      if (this.enhancedCodex.owned) await this.clearOwnedCodexMarker();
+      this.enhancedCodex = null;
     }
-
     if (snapshot.count === 0) {
+      if (this.enhancedCodex?.owned) await this.clearOwnedCodexMarker();
+      this.enhancedCodex = null;
+      this.manualLaunchBaselinePids.clear();
       this.manualLaunchArmed = true;
       return false;
     }
     if (!this.manualLaunchArmed) return false;
+    const newProcesses = snapshot.processes.filter(({ pid }) => !this.manualLaunchBaselinePids.has(pid));
+    this.manualLaunchBaselinePids = new Set(snapshot.pids);
+    if (newProcesses.length === 0) return false;
+    if (newProcesses.length > 1) {
+      this.enhancementFailure = {
+        code: "MULTIPLE_CHATGPT_LAUNCHES",
+        message: "MineCodex found multiple new official ChatGPT processes and did not terminate any of them.",
+        phase: "launch",
+      };
+      return false;
+    }
 
-    const observedPids = new Set(snapshot.pids);
+    const observedProcess = newProcesses[0];
     this.manualLaunchArmed = false;
-    this.manualLaunchBaselinePids = observedPids;
+    this.enhancementFailure = null;
+    this.manualLaunchSuppressionDepth += 1;
     return this.enqueue(async () => {
-      if (this.manualLaunchMonitorStopped) return false;
-      const latest = await this.nativeCodexSnapshot();
-      const observedProcessStillRunning = latest
-        && [...observedPids].some((pid) => latest.pids.has(pid));
-      if (!observedProcessStillRunning) {
-        if (!latest?.count) {
-          this.manualLaunchBaselinePids.clear();
+      try {
+        if (this.manualLaunchMonitorStopped) return false;
+        const latest = await this.nativeCodexSnapshot();
+        const currentProcess = latest?.processes.find((candidate) => (
+          candidate.pid === observedProcess.pid
+          && candidate.command === observedProcess.command
+        ));
+        if (!currentProcess) {
           this.manualLaunchArmed = true;
+          return false;
         }
-        return false;
-      }
-
-      await this.stopInternal();
-      let terminated;
-      try {
-        terminated = await this.platform.terminateNativeCodex();
-      } catch (error) {
-        await this.restoreIdleRuntimeAfterAdoptionFailure(error);
-        throw error;
-      }
-
-      if (!(terminated > 0)) {
-        await this.startInternal();
-        this.manualLaunchBaselinePids.clear();
+        try {
+          const result = await this.launchCoordinator.ensureObservedLaunch(currentProcess, {
+            stopRuntime: () => this.stopInternal(),
+            startRuntime: () => this.startInternal(),
+            waitForHealthy: () => this.waitForHealthyRuntime(),
+          });
+          this.enhancedCodex = result.codex;
+          this.enhancementFailure = null;
+          if (this.enhancedCodex.owned) await this.writeOwnedCodexPid(this.enhancedCodex);
+          await this.syncManualLaunchBaseline();
+          return result;
+        } catch (error) {
+          this.enhancementFailure = normalizedFailure({
+            code: error.code ?? "CHATGPT_ENHANCEMENT_FAILED",
+            message: error.message,
+            phase: "launch",
+          });
+          try {
+            await this.startInternal();
+          } catch (recoveryError) {
+            throw new Error(
+              `${error.message}; idle RuntimeHost recovery failed: ${recoveryError.message}`,
+              { cause: error },
+            );
+          }
+          throw error;
+        }
+      } finally {
         this.manualLaunchArmed = true;
-        return false;
-      }
-
-      try {
-        const status = await this.startInternal({ launchCodex: true });
-        this.manualLaunchBaselinePids.clear();
-        this.manualLaunchArmed = true;
-        return status;
-      } catch (error) {
-        this.manualLaunchBaselinePids.clear();
-        this.manualLaunchArmed = true;
-        await this.restoreIdleRuntimeAfterAdoptionFailure(error);
-        throw error;
+        await this.syncManualLaunchBaseline().catch((error) => {
+          this.logger.warn?.("MineCodex could not refresh the ChatGPT launch baseline", error.message);
+        });
+        this.manualLaunchSuppressionDepth -= 1;
       }
     });
   }
 
-  async restoreIdleRuntimeAfterAdoptionFailure(failure) {
-    try {
-      await this.startInternal();
-    } catch (recoveryError) {
-      throw new Error(
-        `${failure.message}; idle RuntimeHost recovery failed: ${recoveryError.message}`,
-        { cause: failure },
-      );
+  async writeOwnedCodexPid(processInfo) {
+    if (!this.paths.codexPidPath) return;
+    const marker = {
+      version: 1,
+      pid: processInfo?.pid,
+      command: processInfo?.command,
+    };
+    if (!Number.isInteger(marker.pid) || marker.pid <= 1 || typeof marker.command !== "string" || !marker.command) {
+      throw new Error("MineCodex cannot persist incomplete ChatGPT ownership identity.");
     }
+    await writeFile(this.paths.codexPidPath, `${JSON.stringify(marker)}\n`, { mode: 0o600 });
+  }
+
+  async waitForHealthyRuntime(initialStatus = null, timeoutMs = 25_000) {
+    const deadline = Date.now() + timeoutMs;
+    let status = initialStatus ?? this.status();
+    while (Date.now() < deadline) {
+      if (!status.healthy) status = await this.refreshStatus();
+      if (status.healthy) return status;
+      await this.sleep(100);
+    }
+    throw new Error("MineCodex RuntimeHost did not prove renderer discovery and feature injection.");
   }
 
   async stopInternal() {
@@ -477,11 +507,54 @@ export class RuntimeManager {
 
   restart() {
     if (this.restartInFlight) return this.restartInFlight;
+    this.manualLaunchSuppressionDepth += 1;
     const operation = this.enqueue(async () => {
-      await this.stopInternal();
-      await this.platform.terminateOwnedCodex(this.paths);
-      await this.platform.terminateNativeCodex?.();
-      return this.startInternal({ launchCodex: true });
+      try {
+        const previousCodex = this.enhancedCodex;
+        if (previousCodex?.owned && typeof this.platform?.terminateNativeCodex === "function") {
+          const result = await this.launchCoordinator.relaunchOwned({
+            stopRuntime: () => this.stopInternal(),
+            terminateOwned: async () => {
+              const terminated = await this.platform.terminateNativeCodex(previousCodex.pid, previousCodex.command);
+              if (terminated !== 1) throw new Error(`MineCodex could not terminate owned ChatGPT pid ${previousCodex.pid}.`);
+            },
+            startRuntime: () => this.startInternal(),
+            waitForHealthy: (status) => this.waitForHealthyRuntime(status),
+          });
+          this.enhancedCodex = result.codex;
+          this.enhancementFailure = null;
+          if (this.enhancedCodex.pid) await this.writeOwnedCodexPid(this.enhancedCodex);
+          await this.syncManualLaunchBaseline();
+          return result;
+        }
+        if (previousCodex && !previousCodex.owned) {
+          await this.stopInternal();
+          const healthy = await this.waitForHealthyRuntime(await this.startInternal());
+          await this.syncManualLaunchBaseline();
+          return { ...healthy, codex: previousCodex };
+        }
+        await this.stopInternal();
+        if (!previousCodex) await this.platform.terminateOwnedCodex?.(this.paths);
+        this.enhancedCodex = null;
+        this.enhancementFailure = null;
+        if (typeof this.platform?.openNativeCodex !== "function") return this.startInternal();
+        const launched = await this.platform.openNativeCodex({ cdpPort: this.cdpPort });
+        const status = await this.startInternal();
+        const healthy = await this.waitForHealthyRuntime(status);
+        this.enhancedCodex = {
+          pid: launched?.pid ?? null,
+          owned: true,
+          command: launched?.command ?? null,
+        };
+        if (this.enhancedCodex.pid) await this.writeOwnedCodexPid(this.enhancedCodex);
+        await this.syncManualLaunchBaseline();
+        return { ...healthy, codex: this.enhancedCodex };
+      } finally {
+        await this.syncManualLaunchBaseline().catch((error) => {
+          this.logger.warn?.("MineCodex could not refresh the ChatGPT launch baseline", error.message);
+        });
+        this.manualLaunchSuppressionDepth -= 1;
+      }
     });
     this.restartInFlight = operation;
     const shared = this.restartInFlight.finally(() => {
@@ -492,8 +565,10 @@ export class RuntimeManager {
 
   status() {
     const running = Boolean(this.child && !hasExited(this.child));
+    const healthy = running && this.ready?.renderer?.active === true;
     return {
       running,
+      healthy,
       pid: this.child?.pid ?? null,
       appliedFeatures: running ? [...this.appliedFeatures] : [],
       plugins: running ? [...this.plugins] : [],
@@ -501,7 +576,10 @@ export class RuntimeManager {
       ready: running ? this.ready : null,
       runtimeSessionId: running ? this.ready?.runtimeSessionId ?? null : null,
       renderer: running ? this.ready?.renderer ?? null : null,
-      failures: running ? [...(this.ready?.failures ?? [])] : [],
+      codex: this.enhancedCodex ? { ...this.enhancedCodex } : null,
+      failures: running
+        ? [...(this.ready?.failures ?? []), ...(this.enhancementFailure ? [this.enhancementFailure] : [])]
+        : (this.enhancementFailure ? [this.enhancementFailure] : []),
     };
   }
 }
