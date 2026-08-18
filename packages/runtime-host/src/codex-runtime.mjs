@@ -2992,42 +2992,6 @@ export function createInjectionSource(features, {
       return null;
     }
 
-    function nativeJsxRuntime(appModule) {
-      const candidates = Object.values(appModule).filter((value) => {
-        if (typeof value !== "function" || value.length !== 0) return false;
-        let source;
-        try {
-          source = Function.prototype.toString.call(value);
-        } catch {
-          return false;
-        }
-        if (source.length > 1200) return false;
-        if (
-          source.includes("useState")
-          || source.includes("memo_cache_sentinel")
-          || source.includes("(0,")
-          || source.startsWith("class ")
-        ) return false;
-        return source.includes("jsxs") && source.includes("Fragment");
-      });
-      for (const candidate of candidates) {
-        let runtime;
-        try {
-          runtime = candidate();
-        } catch {
-          continue;
-        }
-        if (
-          runtime
-          && typeof runtime === "object"
-          && typeof runtime.jsx === "function"
-          && typeof runtime.jsxs === "function"
-          && "Fragment" in runtime
-        ) return runtime;
-      }
-      return null;
-    }
-
     async function loadNativeTabCapability() {
       if (nativeTabCapability) return nativeTabCapability;
       if (nativeTabCapabilityPromise) return nativeTabCapabilityPromise;
@@ -3045,15 +3009,9 @@ export function createInjectionSource(features, {
             && value.panelId === "right"
           ));
           if (!controller) throw new Error("Codex right-panel controller is unavailable");
-          const jsx = nativeJsxRuntime(appModule);
-          if (
-            !controller?.tabById$
-            || typeof jsx?.jsx !== "function"
-            || typeof jsx?.jsxs !== "function"
-          ) throw new Error("Codex native tab capability is incomplete");
+          if (!controller?.tabById$) throw new Error("Codex native tab capability is incomplete");
           nativeTabCapability = {
             controller,
-            jsx,
             moduleAsset: moduleUrl.split("/").pop(),
           };
           nativeTabCapabilityError = null;
@@ -3068,10 +3026,20 @@ export function createInjectionSource(features, {
       return capability;
     }
 
-    function nativeDetailIcon(feature, detail, jsx) {
+    function nativeReactElement(type, props) {
+      return {
+        $$typeof: Symbol.for("react.transitional.element"),
+        type,
+        key: null,
+        ref: null,
+        props: props ?? {},
+      };
+    }
+
+    function nativeDetailIcon(feature, detail) {
       const icon = detail.icon ?? feature.icon;
       if (!icon?.markup) return undefined;
-      return jsx.jsx("svg", {
+      return nativeReactElement("svg", {
         width: 16,
         height: 16,
         viewBox: icon.viewBox ?? "0 0 24 24",
@@ -3086,14 +3054,13 @@ export function createInjectionSource(features, {
       });
     }
 
-    function nativeDetailComponent(feature, detail, capability) {
+    function nativeDetailComponent(feature, detail) {
       const detailKey = `${feature.id}:${detail.id}`;
       let Component = nativeDetailComponents.get(detailKey);
       if (Component) return Component;
-      const { jsx } = capability;
       const frameName = surfaceFrameName(feature.id);
       Component = function CodexPersonalDetailTab() {
-        return jsx.jsx("div", {
+        return nativeReactElement("div", {
           "data-codex-personal-native-detail": detailKey,
           style: {
             height: "100%",
@@ -3101,7 +3068,7 @@ export function createInjectionSource(features, {
             overflow: "hidden",
             background: "var(--color-token-main-surface-primary)",
           },
-          children: jsx.jsx("iframe", {
+          children: nativeReactElement("iframe", {
             name: frameName,
             src: "about:blank",
             title: detail.label,
@@ -3152,7 +3119,7 @@ export function createInjectionSource(features, {
         return null;
       }
 
-      const { controller, jsx } = capability;
+      const { controller } = capability;
       const tabId = `${feature.id}-${detail.id}`;
       const detailKey = `${feature.id}:${detail.id}`;
       let session = Array.from(nativeOpenTabSessions).find((candidate) => (
@@ -3171,12 +3138,12 @@ export function createInjectionSource(features, {
       }
 
       try {
-        controller.openTab(scope, nativeDetailComponent(feature, detail, capability), {
+        controller.openTab(scope, nativeDetailComponent(feature, detail), {
           id: tabId,
           kind: tabId,
           title: detail.label,
           tooltip: detail.label,
-          icon: nativeDetailIcon(feature, detail, jsx),
+          icon: nativeDetailIcon(feature, detail),
           isClosable: true,
           props: {},
           onClose: () => {
