@@ -1288,3 +1288,105 @@ test("multiple new ChatGPT processes fail closed and are not retried as a launch
   assert.equal(manager.status().healthy, false);
   assert.equal(manager.status().failures.at(-1).code, "MULTIPLE_CHATGPT_LAUNCHES");
 });
+
+test("replaces a freshly woken ChatGPT instance but yields to one already in use", async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "minecodex-runtime-takeover-gate-"));
+  const paths = {
+    packageRoot: root,
+    supportDir: path.join(root, "support"),
+    configPath: path.join(root, "support", "config.json"),
+    runtimeEntry: path.join(root, "runtime.mjs"),
+    featuresRoot: path.join(root, "features"),
+    profileDir: path.join(root, "profile"),
+    imagesDataDir: path.join(root, "images"),
+    notesDataDir: path.join(root, "notes"),
+    codexPidPath: path.join(root, "codex.pid"),
+    runtimeReadyPath: path.join(root, "runtime-ready.json"),
+  };
+  const children = [];
+  const spawnProcess = (command, args, options) => {
+    const child = new EventEmitter();
+    child.pid = 4_000 + children.length;
+    child.command = command;
+    child.args = args;
+    child.options = options;
+    child.killed = false;
+    child.kill = (signal) => {
+      child.killed = true;
+      child.received = [...(child.received ?? []), signal];
+      queueMicrotask(() => child.emit("exit", 0, signal));
+      return true;
+    };
+    children.push(child);
+    child.startedMsAgo = args.join(" ").includes("--remote-debugging-port=") ? 0 : null;
+    return child;
+  };
+  const readyWaiter = async (_readyPath, child) => ({
+    pid: child.pid,
+    runtimeSessionId: `gate-session-${child.pid}`,
+    features: ["notes"],
+    plugins: [{ featureId: "notes", state: "injected", owned: true, health: { ok: true }, failure: null }],
+    renderer: {
+      discovered: children.length > 1,
+      injectedTargets: children.length > 1 ? 1 : 0,
+      active: children.length > 1,
+      runtimeSessionId: `gate-session-${child.pid}`,
+    },
+    failures: [],
+  });
+  const startedMsPerPid = new Map();
+  const platform = {
+    snapshotNativeCodexState: async () => {
+      const processes = Array.from(startedMsPerPid.keys()).map((pid) => ({
+        pid,
+        command: pid >= 5_000
+          ? "/Applications/ChatGPT.app/Contents/MacOS/ChatGPT"
+          : "/Applications/ChatGPT.app/Contents/MacOS/ChatGPT --remote-debugging-address=127.0.0.1 --remote-debugging-port=9231 --remote-allow-origins=http://127.0.0.1:9231",
+        verified: true,
+      }));
+      return { count: processes.length, processes };
+    },
+    terminateNativeCodex: async (pid) => {
+      if (!startedMsPerPid.has(pid)) return 0;
+      startedMsPerPid.delete(pid);
+      return 1;
+    },
+    codexProcessStartedMsAgo: async (processInfo) => startedMsPerPid.get(processInfo.pid) ?? null,
+    assertNativeCodexCdp: async () => true,
+    openNativeCodex: async () => {
+      startedMsPerPid.set(5_100, 0);
+      return { pid: 5_100, command: "/Applications/ChatGPT.app/Contents/MacOS/ChatGPT --remote-debugging-address=127.0.0.1 --remote-debugging-port=9231 --remote-allow-origins=http://127.0.0.1:9231", verified: true };
+    },
+  };
+  const manager = new RuntimeManager({
+    paths,
+    platform,
+    spawnProcess,
+    waitForReady: readyWaiter,
+    logger: { error() {}, warn() {} },
+    cdpPort: 9231,
+    manualLaunchPollMs: 60_000,
+    manualTakeoverGraceMs: 60_000,
+    stopTimeoutMs: 100,
+  });
+  t.after(() => manager.stop());
+
+  await manager.start();
+
+  // A freshly woken instance (under the grace period) is still replaced.
+  startedMsPerPid.set(5_001, 400);
+  await manager.reconcileManualCodexLaunch();
+  assert.equal(startedMsPerPid.has(5_001), false, "fresh wake should be replaced");
+  assert.equal(startedMsPerPid.has(5_100), true, "replacement CDP instance should be running");
+
+  // The existing official instance now ages past the grace period.
+  startedMsPerPid.set(5_002, 120_000);
+  await manager.reconcileManualCodexLaunch();
+  assert.equal(startedMsPerPid.has(5_002), true, "in-use official instance must not be terminated");
+  assert.equal(manager.status().failures.at(-1).code, "OFFICIAL_CHATGPT_IN_USE");
+
+  // Yielding is sticky: the same instance is not retried on the next reconciliation.
+  await manager.reconcileManualCodexLaunch();
+  assert.equal(startedMsPerPid.has(5_002), true);
+  assert.equal(manager.status().failures.at(-1).code, "OFFICIAL_CHATGPT_IN_USE");
+});

@@ -120,7 +120,8 @@ export class RuntimeManager {
     waitForReady: readyWaiter = waitForReady,
     sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
     stopTimeoutMs = 5_000,
-    manualLaunchPollMs = 1_000,
+    manualLaunchPollMs = 150,
+    manualTakeoverGraceMs = 60_000,
     cdpPort = Number(process.env.CODEX_RUNTIME_CDP_PORT ?? 9231),
     launchCoordinator = null,
   }) {
@@ -132,6 +133,7 @@ export class RuntimeManager {
     this.sleep = sleep;
     this.stopTimeoutMs = stopTimeoutMs;
     this.manualLaunchPollMs = manualLaunchPollMs;
+    this.manualTakeoverGraceMs = manualTakeoverGraceMs;
     this.cdpPort = cdpPort;
     this.child = null;
     this.appliedFeatures = [];
@@ -327,6 +329,19 @@ export class RuntimeManager {
     this.manualLaunchArmed = false;
   }
 
+  async isManualTakeoverAllowed(processInfo) {
+    if (typeof this.platform?.codexProcessStartedMsAgo !== "function") return true;
+    let startedMsAgo;
+    try {
+      startedMsAgo = await this.platform.codexProcessStartedMsAgo(processInfo);
+    } catch (error) {
+      this.logger.warn?.("MineCodex could not read the ChatGPT start time", error.message);
+      return true;
+    }
+    if (!Number.isInteger(startedMsAgo) || startedMsAgo < 0) return true;
+    return startedMsAgo < this.manualTakeoverGraceMs;
+  }
+
   async reconcileManualCodexLaunch() {
     if (this.manualLaunchMonitorStopped || this.manualLaunchSuppressionDepth > 0) return false;
     const snapshot = await this.nativeCodexSnapshot();
@@ -372,6 +387,14 @@ export class RuntimeManager {
           return false;
         }
         try {
+          if (!(await this.isManualTakeoverAllowed(currentProcess))) {
+            this.enhancementFailure = {
+              code: "OFFICIAL_CHATGPT_IN_USE",
+              message: "MineCodex left the official ChatGPT instance running because it was already in use.",
+              phase: "launch",
+            };
+            return null;
+          }
           const result = await this.launchCoordinator.ensureObservedLaunch(currentProcess, {
             stopRuntime: () => this.stopInternal(),
             startRuntime: () => this.startInternal(),
