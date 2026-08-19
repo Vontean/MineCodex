@@ -148,7 +148,22 @@ test("emits a fail-closed native Composer model selector Adapter", () => {
   assert.match(source, /item\.dataset\.codexModelSliderIdentitySource = catalogModel \? "catalog" : nativeDescriptor \? "native" : "visible"/);
   assert.match(source, /function captureNativeFastIcon\(\)/);
   assert.match(source, /template\.cloneNode\(true\)/);
+  // Regression guard: icon building reads the ready store only and must not re-enter capture.
+  assert.match(source, new RegExp(String.raw`const template = modelSelectorNativeFastIcons\?\.\[active \? \"active\" : \"inactive\"\]`));
+  assert.doesNotMatch(source, new RegExp(String.raw`const template = captureNativeFastIcon\(\)\?\.\[active`));
   // Fast icons must be known at startup: bundle extraction + localStorage persist; DOM clone is an upgrade path.
+  // P1 guard: Fast-icon capture must run after menu enhancement and be exception-isolated.
+  assert.doesNotMatch(source, /if \(!selector\) return;\s+captureNativeFastIcon\(\);/);
+  assert.doesNotMatch(source, /captureNativeFastIcon\(\);\s+pruneModelSubmenuPositionObservers\(\);/);
+  assert.match(source, /} catch \(error\) \{\s+console\.warn\("\[codex-personal\] fast icon capture failed", error\);/);
+  // P2a guard: the app-bundle fetch short-circuits once both icons are already ready.
+  assert.match(source, /if \(modelSelectorNativeFastIcons\?\.active && modelSelectorNativeFastIcons\?\.inactive\) return;/);
+  // P2b guard: localStorage persist is dirty-flagged instead of running every ensure.
+  assert.match(source, /if \(!modelSelectorNativeFastIcons \|\| !modelSelectorNativeFastIconsDirty\) return;/);
+  assert.match(source, /modelSelectorNativeFastIconsDirty = true;/);
+  // P2c guard: the full-page SVG scan is gated to Fast-control visibility transitions.
+  assert.match(source, /const justBecameVisible = visible && !modelSelectorFastControlVisible;/);
+  assert.match(source, /if \(visible && justBecameVisible\) \{/);
   assert.match(source, /function loadNativeFastIconFromBundle\(\)/);
   assert.match(source, /modelSelectorFastIconStorageKey = "codex-model-slider:fast-icons:v1"/);
   assert.match(source, /function persistNativeFastIcons\(\)/);
