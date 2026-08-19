@@ -22,6 +22,10 @@ test("keeps provider identity and brand identity separate", () => {
   const deepseek = manifest.modelSelector.brands.find((brand) => brand.id === "deepseek");
   assert.deepEqual(deepseek.keywords, ["deepseek"]);
   assert.equal(deepseek.icon.resource, "assets/providers/deepseek.svg");
+  assert.equal(manifest.modelSelector.providerAliases["meta"], "Meta");
+  const muse = manifest.modelSelector.brands.find((brand) => brand.id === "muse");
+  assert.deepEqual(muse.keywords, ["muse", "muse-spark"]);
+  assert.equal(muse.icon.resource, "assets/providers/muse.svg");
 });
 
 test("ships every configured SVG resource and localized selector copy", async () => {

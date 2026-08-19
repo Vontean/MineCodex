@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "model-slider",
-  "version": "0.1.11",
+  "version": "0.1.12",
   "label": {
     "en": "Model Slider",
     "zh-CN": "模型滑条"
@@ -22,6 +22,7 @@
       "xai": "xAI",
       "zhipu": "Zhipu AI",
       "google": "Google",
+      "meta": "Meta",
       "anthropic": "Anthropic",
       "openai": "OpenAI"
     },
@@ -50,6 +51,7 @@
       { "id": "minimax", "keywords": ["minimax"], "icon": { "resource": "assets/providers/minimax.svg" } },
       { "id": "qwen", "keywords": ["qwen", "qwq"], "icon": { "resource": "assets/providers/qwen.svg" } },
       { "id": "hunyuan", "keywords": ["hunyuan"], "icon": { "resource": "assets/providers/hunyuan.svg" } },
+      { "id": "muse", "keywords": ["muse", "muse-spark"], "icon": { "resource": "assets/providers/muse.svg" } },
       { "id": "zhipu", "keywords": ["zhipu", "chatglm", "glm"], "icon": { "resource": "assets/providers/zhipu.svg" } },
       { "id": "openai", "keywords": ["openai", "gpt", "codex", "o1", "o3", "o4"], "icon": { "resource": "assets/providers/openai.svg" } }
     ]

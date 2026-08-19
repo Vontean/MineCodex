@@ -22,6 +22,13 @@ distributed under MineCodex's MIT License.
 (`icons/xiaomi.svg`), licensed under CC0 1.0. The Xiaomi brand mark remains
 the property of Xiaomi Corporation.
 
+## Meta logo (provider mark)
+
+`assets/providers/muse.svg` is the official Meta Platforms logo rendered in the
+same 24×24 provider-mark style (Lobe Icons) as the other provider icons in this
+folder. The Meta mark remains the property of Meta Platforms, Inc.; the SVG
+wrapper is distributed under MineCodex's MIT License.
+
 ## Lucide
 
 Lucide icons distributed by MineCodex include the Model Slider UI icons, Notes action and
