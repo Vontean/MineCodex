@@ -146,6 +146,9 @@ test("emits a fail-closed native Composer model selector Adapter", () => {
   assert.match(source, /function nativeModelDescriptorForItem\(item, observedRaw\)/);
   assert.match(source, /const raw = catalogModel\?\.slug \?\? nativeDescriptor\?\.slug \?\? observedRaw/);
   assert.match(source, /item\.dataset\.codexModelSliderIdentitySource = catalogModel \? "catalog" : nativeDescriptor \? "native" : "visible"/);
+  // Reused menu rows must refresh dataset before the row-exists shortcut.
+  assert.match(source, /item\.dataset\.codexModelSliderIdentitySource = catalogModel \? "catalog" : nativeDescriptor \? "native" : "visible";\s+if \(item\.querySelector\("\[data-codex-model-slider-row\]"\)\) return;/);
+  assert.doesNotMatch(source, /if \(item\.querySelector\("\[data-codex-model-slider-row\]"\)\) return;\s+const observedRaw = modelItemRawValue\(item\);/);
   assert.match(source, /function captureNativeFastIcon\(\)/);
   assert.match(source, /template\.cloneNode\(true\)/);
   // Regression guard: icon building reads the ready store only and must not re-enter capture.

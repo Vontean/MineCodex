@@ -1378,18 +1378,19 @@ export function createInjectionSource(features, {
     }
 
     function enhanceModelItem(item, menu, selector, index) {
-      if (item.querySelector("[data-codex-model-slider-row]")) return;
       const observedRaw = modelItemRawValue(item);
       if (!observedRaw) return;
-      if (!modelSelectorOriginalItems.has(item)) modelSelectorOriginalItems.set(item, item.innerHTML);
       const observedIdentity = modelIdentity(observedRaw);
       const nativeDescriptor = nativeModelDescriptorForItem(item, observedRaw);
       const catalogModel = catalogModelFor(observedIdentity, selector);
       const raw = catalogModel?.slug ?? nativeDescriptor?.slug ?? observedRaw;
+      // 先刷新 dataset：React 原地复用菜单节点时，raw/排序/收藏键不能基于过期值。
       item.dataset.codexModelSliderRaw = raw;
       item.dataset.codexModelSliderItem = "";
       item.dataset.codexModelSliderOrder = String(index);
       item.dataset.codexModelSliderIdentitySource = catalogModel ? "catalog" : nativeDescriptor ? "native" : "visible";
+      if (item.querySelector("[data-codex-model-slider-row]")) return;
+      if (!modelSelectorOriginalItems.has(item)) modelSelectorOriginalItems.set(item, item.innerHTML);
 
       const identity = modelIdentity(raw);
       const display = modelDisplayLabel(identity, selector);
