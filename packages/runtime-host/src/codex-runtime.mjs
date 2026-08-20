@@ -316,6 +316,7 @@ export function createInjectionSource(features, {
     let modelSelectorFastControlVisible = false;
     // 持久化脏标记：仅在图标实际变化时写一次 localStorage。
     let modelSelectorNativeFastIconsDirty = false;
+    const modelSelectorFastIconStorageKey = "codex-model-slider:fast-icons:v1";
     const modelSelectorStyle = document.createElement("style");
     modelSelectorStyle.setAttribute("data-codex-model-slider-style", "");
     modelSelectorStyle.textContent = `
@@ -396,7 +397,7 @@ export function createInjectionSource(features, {
       document.documentElement.append(modelSelectorStyle);
       // 启动阶段就解析 Fast 图标：先读持久化的原生克隆，再从 app bundle 静态提取兜底，
       // 避免首次会话必须等用户点开弹窗后 DOM 里才出现图标。
-      const persistedIcons = loadPersistedNativeFastIcons();
+      const persistedIcons = loadPersistedNativeFastIcons(modelSelectorFastIconStorageKey);
       if (persistedIcons) {
         modelSelectorNativeFastIcons = persistedIcons;
         modelSelectorNativeFastIconSources = {};
@@ -685,8 +686,6 @@ export function createInjectionSource(features, {
       return null;
     }
 
-    const modelSelectorFastIconStorageKey = "codex-model-slider:fast-icons:v1";
-
     function persistNativeFastIcons() {
       if (!modelSelectorNativeFastIcons || !modelSelectorNativeFastIconsDirty) return;
       try {
@@ -701,22 +700,29 @@ export function createInjectionSource(features, {
       }
     }
 
-    function loadPersistedNativeFastIcons() {
+    function loadPersistedNativeFastIcons(storageKey) {
+      let stored;
       try {
-        const payload = JSON.parse(localStorage.getItem(modelSelectorFastIconStorageKey) ?? "null");
-        if (!payload || typeof payload !== "object") return null;
-        const icons = {};
-        for (const [state, markup] of Object.entries(payload)) {
-          if (typeof markup !== "string") continue;
-          const container = document.createElement("template");
-          container.innerHTML = markup;
-          const svg = container.content.querySelector("svg");
-          if (svg) icons[state] = svg;
-        }
-        return Object.keys(icons).length ? icons : null;
+        stored = localStorage.getItem(storageKey);
       } catch {
         return null;
       }
+      let payload;
+      try {
+        payload = JSON.parse(stored ?? "null");
+      } catch {
+        return null;
+      }
+      if (!payload || typeof payload !== "object") return null;
+      const icons = {};
+      for (const [state, markup] of Object.entries(payload)) {
+        if (typeof markup !== "string") continue;
+        const container = document.createElement("template");
+        container.innerHTML = markup;
+        const svg = container.content.querySelector("svg");
+        if (svg) icons[state] = svg;
+      }
+      return Object.keys(icons).length ? icons : null;
     }
 
     function extractFastIconPath(source, prefix) {

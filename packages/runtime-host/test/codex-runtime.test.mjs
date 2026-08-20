@@ -5,6 +5,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import vm from "node:vm";
 import {
   CodexRuntime,
   RESPONSIVE_SUMMARY_LAYOUT,
@@ -15,6 +16,184 @@ import {
   responsiveSummaryVisibleSurface,
 } from "../src/codex-runtime.mjs";
 import { createManagedPidFileWriter } from "../src/pid-file.mjs";
+
+function modelSliderFeatureFixture() {
+  const icon = { viewBox: "0 0 24 24", markup: "<path></path>" };
+  return {
+    id: "model-slider",
+    label: "Model Slider",
+    labels: { en: "Model Slider", "zh-CN": "模型滑杆" },
+    surfaceUrl: null,
+    entry: {
+      kind: "composer-model-selector",
+      ariaLabel: "Model Slider",
+      ariaLabels: { en: "Model Slider", "zh-CN": "模型滑杆" },
+    },
+    modelSelector: {
+      maxVisibleItems: 6,
+      favoriteStorageKey: "codex-model-slider:favorites:v1",
+      providerAliases: {},
+      strings: {
+        star: { value: "Star {model}", locales: { en: "Star {model}", "zh-CN": "收藏 {model}" } },
+        unstar: { value: "Unstar {model}", locales: { en: "Unstar {model}", "zh-CN": "取消收藏 {model}" } },
+      },
+      icons: { fallback: icon, star: icon, unstar: icon },
+      brands: [],
+    },
+    hostActions: [],
+  };
+}
+
+async function executeModelSliderInjection({ storageValue, exposeLocalStorage = true } = {}) {
+  class FixtureElement {
+    constructor(tagName = "div") {
+      this.tagName = tagName.toUpperCase();
+      this.attributes = new Map();
+      this.children = [];
+      this.style = {
+        setProperty() {},
+        removeProperty() {},
+        getPropertyValue() { return ""; },
+        getPropertyPriority() { return ""; },
+      };
+      this.classList = {
+        add() {},
+        remove() {},
+        toggle() {},
+        contains() { return false; },
+      };
+      this.isConnected = true;
+      this.hidden = false;
+      this.outerHTML = `<${tagName}></${tagName}>`;
+    }
+
+    setAttribute(name, value) { this.attributes.set(name, String(value)); }
+    getAttribute(name) { return this.attributes.get(name) ?? null; }
+    removeAttribute(name) { this.attributes.delete(name); }
+    toggleAttribute(name, force) {
+      if (force) this.setAttribute(name, "");
+      else this.removeAttribute(name);
+    }
+    append(...children) { this.children.push(...children); }
+    appendChild(child) { this.append(child); return child; }
+    querySelector() { return null; }
+    querySelectorAll() { return []; }
+    cloneNode() {
+      const clone = new FixtureElement(this.tagName.toLowerCase());
+      clone.outerHTML = this.outerHTML;
+      return clone;
+    }
+    remove() { this.isConnected = false; }
+    addEventListener() {}
+    getBoundingClientRect() {
+      return { left: 0, right: 0, top: 0, bottom: 0, width: 0, height: 0 };
+    }
+  }
+
+  class FixtureTemplate extends FixtureElement {
+    set innerHTML(value) {
+      this.markup = String(value);
+    }
+
+    get content() {
+      return {
+        querySelector: (selector) => {
+          if (selector !== "svg" || !this.markup?.includes("<svg")) return null;
+          const svg = new FixtureElement("svg");
+          svg.outerHTML = this.markup;
+          return svg;
+        },
+      };
+    }
+  }
+
+  let fetchCalls = 0;
+  const sourceLink = { href: "app://-/assets/app-initial-fixture.js" };
+  const documentElement = new FixtureElement("html");
+  documentElement.lang = "en";
+  const document = {
+    documentElement,
+    head: new FixtureElement("head"),
+    body: new FixtureElement("body"),
+    styleSheets: [],
+    createElement(tagName) {
+      return tagName === "template" ? new FixtureTemplate(tagName) : new FixtureElement(tagName);
+    },
+    createElementNS(_namespace, tagName) { return new FixtureElement(tagName); },
+    querySelector(selector) {
+      return selector === 'link[href*="/assets/app-initial-"][href$=".js"]' ? sourceLink : null;
+    },
+    querySelectorAll() { return []; },
+    getElementById() { return null; },
+    addEventListener() {},
+    getSelection() { return null; },
+  };
+  const window = {
+    document,
+    location: { origin: "app://-", pathname: "/", search: "" },
+    addEventListener() {},
+    matchMedia() { return { matches: false }; },
+  };
+  window.top = window;
+  const storage = {
+    getItem(key) {
+      assert.equal(key, "codex-model-slider:fast-icons:v1");
+      return storageValue ?? null;
+    },
+    setItem() {},
+  };
+  const source = createInjectionSource([modelSliderFeatureFixture()], {
+    runtimeSessionId: "fast-icon-fixture",
+  }).replace(
+    "void loadNativeFastIconFromBundle();",
+    `window.__fastIconProbe = () => ({
+      sources: { ...modelSelectorNativeFastIconSources },
+      states: Object.keys(modelSelectorNativeFastIcons ?? {}),
+      dirty: modelSelectorNativeFastIconsDirty,
+    });
+    void loadNativeFastIconFromBundle();`,
+  );
+  const context = {
+    AbortController,
+    Element: FixtureElement,
+    HTMLElement: FixtureElement,
+    File: class FixtureFile {},
+    MutationObserver: class FixtureMutationObserver {
+      observe() {}
+      disconnect() {}
+    },
+    NodeFilter: { SHOW_TEXT: 4 },
+    cancelAnimationFrame() {},
+    clearTimeout() {},
+    console,
+    document,
+    fetch: async () => {
+      fetchCalls += 1;
+      return { async text() { return ""; } };
+    },
+    getComputedStyle() {
+      return { display: "block", visibility: "visible", getPropertyValue() { return ""; } };
+    },
+    innerHeight: 900,
+    innerWidth: 1200,
+    location: window.location,
+    navigator: { language: "en", languages: ["en"] },
+    queueMicrotask,
+    requestAnimationFrame() { return 1; },
+    setTimeout() { return 2; },
+    window,
+  };
+  if (exposeLocalStorage) context.localStorage = storage;
+  vm.runInNewContext(source, context);
+  await Promise.resolve();
+  await Promise.resolve();
+  const probe = window.__fastIconProbe?.();
+  return {
+    fetchCalls,
+    probe: probe ? JSON.parse(JSON.stringify(probe)) : null,
+    runtimeInstalled: Boolean(window.__codexPersonalRuntime),
+  };
+}
 
 test("matches Codex Summary responsive thresholds and content-shift behavior", () => {
   assert.equal(responsiveSummaryDisplayMode(1095), "overlay");
@@ -51,6 +230,35 @@ test("only grants page scripts their declared loopback service origin", () => {
     surfaceUrl: "http://127.0.0.1:49123/",
     healthUrl: "http://127.0.0.1:49124/api/health",
   }), null);
+});
+
+test("restores persisted Fast icons before the bundle fallback runs", async () => {
+  const storageValue = JSON.stringify({
+    active: '<svg data-state="active"><path></path></svg>',
+    inactive: '<svg data-state="inactive"><path></path></svg>',
+  });
+
+  const result = await executeModelSliderInjection({ storageValue });
+
+  assert.equal(result.runtimeInstalled, true);
+  assert.deepEqual(result.probe.states.sort(), ["active", "inactive"]);
+  assert.deepEqual(result.probe.sources, { active: "persisted", inactive: "persisted" });
+  assert.equal(result.probe.dirty, false);
+  assert.equal(result.fetchCalls, 0);
+});
+
+test("keeps Model Slider available when persisted Fast icons cannot be read", async () => {
+  const scenarios = [
+    { name: "missing", options: {} },
+    { name: "malformed", options: { storageValue: "{" } },
+    { name: "unavailable", options: { exposeLocalStorage: false } },
+  ];
+
+  for (const scenario of scenarios) {
+    const result = await executeModelSliderInjection(scenario.options);
+    assert.equal(result.runtimeInstalled, true, scenario.name);
+    assert.equal(result.fetchCalls, 1, scenario.name);
+  }
 });
 
 test("releases thread content to native Summary when a personal panel needs no shift", () => {
@@ -194,7 +402,7 @@ test("emits a fail-closed native Composer model selector Adapter", () => {
   assert.match(source, /function loadNativeFastIconFromBundle\(\)/);
   assert.match(source, /modelSelectorFastIconStorageKey = "codex-model-slider:fast-icons:v1"/);
   assert.match(source, /function persistNativeFastIcons\(\)/);
-  assert.match(source, /function loadPersistedNativeFastIcons\(\)/);
+  assert.match(source, /function loadPersistedNativeFastIcons\(storageKey\)/);
   assert.match(source, /function applyNativeFastIconsToShells\(\)/);
   assert.match(source, /modelSelectorNativeFastIconSources\[state\] = "dom"/);
   assert.match(source, /modelSelectorNativeFastIcons\[state\] = template/);
