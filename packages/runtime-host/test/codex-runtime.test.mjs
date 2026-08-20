@@ -46,6 +46,7 @@ function modelSliderFeatureFixture() {
 
 async function executeModelSliderInjection({
   controllerProps,
+  mainContentShift,
   storageValue,
   exposeLocalStorage = true,
   triggerEffort,
@@ -55,11 +56,18 @@ async function executeModelSliderInjection({
       this.tagName = tagName.toUpperCase();
       this.attributes = new Map();
       this.children = [];
+      const styleProperties = new Map();
       this.style = {
-        setProperty() {},
-        removeProperty() {},
-        getPropertyValue() { return ""; },
-        getPropertyPriority() { return ""; },
+        setProperty(name, value, priority = "") {
+          styleProperties.set(name, { value: String(value), priority: String(priority) });
+        },
+        removeProperty(name) {
+          const previous = styleProperties.get(name)?.value ?? "";
+          styleProperties.delete(name);
+          return previous;
+        },
+        getPropertyValue(name) { return styleProperties.get(name)?.value ?? ""; },
+        getPropertyPriority(name) { return styleProperties.get(name)?.priority ?? ""; },
       };
       this.classList = {
         add() {},
@@ -119,6 +127,20 @@ async function executeModelSliderInjection({
   if (controllerProps) {
     trigger.__reactFiber$fixture = { memoizedProps: controllerProps, return: null };
   }
+  const mainContent = new FixtureElement("main");
+  const scrollContainer = new FixtureElement("div");
+  const scrollContent = new FixtureElement("div");
+  scrollContainer.firstElementChild = scrollContent;
+  mainContent.querySelector = (selector) => (
+    selector === ".thread-scroll-container" ? scrollContainer : null
+  );
+  if (mainContentShift) {
+    mainContent.style.setProperty(
+      "--thread-wide-block-inline-shift",
+      mainContentShift.value,
+      mainContentShift.priority,
+    );
+  }
   const documentElement = new FixtureElement("html");
   documentElement.lang = "en";
   const document = {
@@ -132,6 +154,7 @@ async function executeModelSliderInjection({
     createElementNS(_namespace, tagName) { return new FixtureElement(tagName); },
     querySelector(selector) {
       if (selector === "[data-codex-intelligence-trigger]") return trigger;
+      if (selector === "[data-app-shell-main-content-layout]") return mainContent;
       return selector === 'link[href*="/assets/app-initial-"][href$=".js"]' ? sourceLink : null;
     },
     querySelectorAll() { return []; },
@@ -144,6 +167,7 @@ async function executeModelSliderInjection({
     location: { origin: "app://-", pathname: "/", search: "" },
     addEventListener() {},
     matchMedia() { return { matches: false }; },
+    setTimeout() { return 2; },
   };
   window.top = window;
   const storage = {
@@ -179,6 +203,10 @@ async function executeModelSliderInjection({
         selectedIndex: Math.max(0, efforts.findIndex((level) => level.effort === selectedEffort)),
         efforts: efforts.map((level) => level.effort),
       };
+    };
+    window.__summaryShiftProbe = {
+      apply: applyThreadContentShift,
+      restore: restoreThreadContentShift,
     };
     void loadNativeFastIconFromBundle();`,
   );
@@ -223,6 +251,22 @@ async function executeModelSliderInjection({
       return value ? JSON.parse(JSON.stringify(value)) : null;
     },
     fetchCalls,
+    summaryShift: {
+      apply: (value) => window.__summaryShiftProbe.apply(value),
+      restore: () => window.__summaryShiftProbe.restore(),
+      snapshot: () => ({
+        owner: {
+          value: mainContent.style.getPropertyValue("--thread-wide-block-inline-shift"),
+          priority: mainContent.style.getPropertyPriority("--thread-wide-block-inline-shift"),
+          marker: mainContent.getAttribute("data-codex-personal-summary-shift"),
+        },
+        scrollContent: {
+          left: scrollContent.style.getPropertyValue("left"),
+          position: scrollContent.style.getPropertyValue("position"),
+          marker: scrollContent.getAttribute("data-codex-personal-summary-shift"),
+        },
+      }),
+    },
     probe: probe ? JSON.parse(JSON.stringify(probe)) : null,
     runtimeInstalled: Boolean(window.__codexPersonalRuntime),
   };
@@ -303,22 +347,49 @@ test("releases thread content to native Summary when a personal panel needs no s
   );
 });
 
-test("keeps personal Summary shifts separate from Codex's native transform", () => {
+test("shifts and restores the shared conversation column through the native Summary variable", async () => {
+  const result = await executeModelSliderInjection({
+    mainContentShift: { value: "23px", priority: "important" },
+  });
+
+  result.summaryShift.apply(-158);
+  assert.deepEqual(result.summaryShift.snapshot(), {
+    owner: { value: "158px", priority: "important", marker: "-158" },
+    scrollContent: { left: "", position: "", marker: null },
+  });
+
+  result.summaryShift.apply(-120);
+  assert.deepEqual(result.summaryShift.snapshot().owner, {
+    value: "120px",
+    priority: "important",
+    marker: "-120",
+  });
+
+  result.summaryShift.restore();
+  assert.deepEqual(result.summaryShift.snapshot(), {
+    owner: { value: "23px", priority: "important", marker: null },
+    scrollContent: { left: "", position: "", marker: null },
+  });
+
+  const emptyOriginal = await executeModelSliderInjection();
+  emptyOriginal.summaryShift.apply(-158);
+  emptyOriginal.summaryShift.restore();
+  assert.deepEqual(emptyOriginal.summaryShift.snapshot().owner, {
+    value: "",
+    priority: "",
+    marker: null,
+  });
+});
+
+test("uses the native Summary variable without an isolated scroll-child offset", () => {
   const source = createInjectionSource([]);
 
-  assert.doesNotMatch(
-    source,
-    /content\.style\.setProperty\("(?:transform|--thread-wide-block-inline-shift)"/,
-  );
-  assert.doesNotMatch(
-    source,
-    /element\.style\.setProperty\("(?:transform|--thread-wide-block-inline-shift)"/,
-  );
-  assert.match(
-    source,
-    /threadShiftStyle\.textContent = "\[data-codex-personal-summary-shift\] \{ transform: none !important; --thread-wide-block-inline-shift: 0px !important; \}"/,
-  );
-  assert.match(source, /threadShiftStyle\.remove\(\)/);
+  assert.match(source, /const owner = mainContentViewport\(\)/);
+  assert.match(source, /owner\.style\.setProperty\(\s*"--thread-wide-block-inline-shift"/);
+  assert.match(source, /getPropertyPriority\("--thread-wide-block-inline-shift"\)/);
+  assert.match(source, /element\.style\.removeProperty\("--thread-wide-block-inline-shift"\)/);
+  assert.doesNotMatch(source, /threadShiftStyle/);
+  assert.doesNotMatch(source, /style\.setProperty\("(?:position|left)"/);
 });
 
 test("renders 24px outline feature icons at Codex's 1px visual weight", () => {

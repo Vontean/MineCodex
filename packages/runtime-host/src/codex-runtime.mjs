@@ -139,9 +139,6 @@ export function createInjectionSource(features, {
     const pinnedSurfaceMarker = "data-codex-personal-pinned-summary";
     const modalSurfaceMarker = "data-codex-personal-modal";
     const promptPreviewMarker = "data-codex-personal-prompt-preview";
-    const threadShiftStyle = document.createElement("style");
-    threadShiftStyle.setAttribute("data-codex-personal-summary-shift-style", "");
-    threadShiftStyle.textContent = "[data-codex-personal-summary-shift] { transform: none !important; --thread-wide-block-inline-shift: 0px !important; }";
     const nativeLabels = {
       sites: ["sites", "站点"],
       scheduled: ["scheduled", "计划任务"],
@@ -285,8 +282,8 @@ export function createInjectionSource(features, {
     let savedComposerThread = null;
     let currentThread = null;
     let currentSummaryDisplayMode = null;
-    let shiftedThreadContent = null;
-    let shiftedThreadOriginal = null;
+    let shiftedConversationOwner = null;
+    let shiftedConversationOriginal = null;
     let mainContentObserver = null;
     const domObservers = [];
     const pageScriptCleanups = [];
@@ -2593,24 +2590,23 @@ export function createInjectionSource(features, {
       }
     }
 
-    function threadScrollContent() {
-      const scrollContainer = mainContentViewport()?.querySelector(".thread-scroll-container");
-      return scrollContainer?.firstElementChild instanceof HTMLElement
-        ? scrollContainer.firstElementChild
-        : null;
-    }
-
     function restoreThreadContentShift() {
-      if (!shiftedThreadContent || !shiftedThreadOriginal) return;
-      const { element, position, left, transition } = shiftedThreadOriginal;
+      if (!shiftedConversationOwner || !shiftedConversationOriginal) return;
+      const { element, shift } = shiftedConversationOriginal;
       if (element.isConnected) {
-        element.style.setProperty("position", position.value, position.priority);
-        element.style.setProperty("left", left.value, left.priority);
-        element.style.setProperty("transition", transition.value, transition.priority);
+        if (shift.value) {
+          element.style.setProperty(
+            "--thread-wide-block-inline-shift",
+            shift.value,
+            shift.priority,
+          );
+        } else {
+          element.style.removeProperty("--thread-wide-block-inline-shift");
+        }
         element.removeAttribute("data-codex-personal-summary-shift");
       }
-      shiftedThreadContent = null;
-      shiftedThreadOriginal = null;
+      shiftedConversationOwner = null;
+      shiftedConversationOriginal = null;
     }
 
     function applyThreadContentShift(value) {
@@ -2618,45 +2614,28 @@ export function createInjectionSource(features, {
         restoreThreadContentShift();
         return;
       }
-      if (!threadShiftStyle.isConnected) {
-        (document.head ?? document.documentElement)?.append(threadShiftStyle);
-      }
-      const content = threadScrollContent();
-      if (!content) {
+      const owner = mainContentViewport();
+      if (!(owner instanceof HTMLElement)) {
         restoreThreadContentShift();
         return;
       }
-      if (shiftedThreadContent !== content) {
+      if (shiftedConversationOwner !== owner) {
         restoreThreadContentShift();
-        shiftedThreadContent = content;
-        shiftedThreadOriginal = {
-          element: content,
-          position: {
-            value: content.style.getPropertyValue("position"),
-            priority: content.style.getPropertyPriority("position"),
-          },
-          left: {
-            value: content.style.getPropertyValue("left"),
-            priority: content.style.getPropertyPriority("left"),
-          },
-          transition: {
-            value: content.style.getPropertyValue("transition"),
-            priority: content.style.getPropertyPriority("transition"),
+        shiftedConversationOwner = owner;
+        shiftedConversationOriginal = {
+          element: owner,
+          shift: {
+            value: owner.style.getPropertyValue("--thread-wide-block-inline-shift"),
+            priority: owner.style.getPropertyPriority("--thread-wide-block-inline-shift"),
           },
         };
       }
-      const duration = reducedMotion() ? 0 : 300;
-      content.style.setProperty("transition", duration
-        ? "left 300ms cubic-bezier(.2,.8,.2,1)"
-        : "none", "important");
-      content.style.setProperty("position", "relative", "important");
-      content.style.setProperty("left", `${value}px`, "important");
-      content.setAttribute("data-codex-personal-summary-shift", String(value));
-      if (duration) window.setTimeout(() => {
-        if (content.getAttribute("data-codex-personal-summary-shift") !== String(value)) return;
-        content.style.setProperty("transition", "none", "important");
-        content.style.setProperty("left", `${value}px`, "important");
-      }, duration + 50);
+      owner.style.setProperty(
+        "--thread-wide-block-inline-shift",
+        `${Math.max(0, -Number(value))}px`,
+        "important",
+      );
+      owner.setAttribute("data-codex-personal-summary-shift", String(value));
     }
 
     function setSummarySurfaceVisible(surface, visible, mode) {
@@ -3866,7 +3845,6 @@ export function createInjectionSource(features, {
         for (const observer of domObservers) observer.disconnect();
         mainContentObserver?.observer.disconnect();
         restoreThreadContentShift();
-        threadShiftStyle.remove();
         for (const root of document.querySelectorAll("[data-codex-personal-toolbar-entry]")) root.remove();
         for (const group of document.querySelectorAll("[data-codex-personal-summary-toolbar-group]")) group.remove();
         for (const surface of pageSurfaces.values()) surface.remove();
