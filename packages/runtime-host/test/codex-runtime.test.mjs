@@ -165,6 +165,11 @@ test("emits a fail-closed native Composer model selector Adapter", () => {
   assert.match(source, /if \(!modelSelectorNativeFastIcons \|\| !modelSelectorNativeFastIconsDirty\) return;/);
   assert.match(source, /modelSelectorNativeFastIconsDirty = true;/);
   // P2c guard: the full-page SVG scan is gated to Fast-control visibility transitions.
+  // Sidebar selection must use the native selected class bg-primary-ghost-hover:
+  // highlight the active MineCodex entry with it and strip it from native items.
+  assert.match(source, /entry\.classList\.toggle\(\"bg-primary-ghost-hover", selected\);/);
+  assert.match(source, /element\.classList\.remove\(\"bg-primary-ghost-hover"\);/);
+  assert.match(source, /classList\.toggle\(\"bg-primary-ghost-hover", Boolean\(selection\.hadPrimaryGhost\)\);/);
   assert.match(source, /const justBecameVisible = visible && !modelSelectorFastControlVisible;/);
   assert.match(source, /if \(visible && justBecameVisible\) \{/);
   assert.match(source, /function loadNativeFastIconFromBundle\(\)/);

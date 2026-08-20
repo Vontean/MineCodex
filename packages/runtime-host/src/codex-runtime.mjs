@@ -2421,16 +2421,23 @@ export function createInjectionSource(features, {
       ]);
       for (const element of selected) {
         if (element.hasAttribute(entryMarker) || alreadySuppressed.has(element)) continue;
-        suppressedSelections.push({
+        const selection = {
           element,
           ariaCurrent: element.getAttribute("aria-current"),
           threadSelected: element.getAttribute("data-app-action-sidebar-thread-selected"),
+          hadPrimaryGhost: element.classList.contains("bg-primary-ghost-hover"),
+          hadHoverPrimaryGhost: element.classList.contains("hover:bg-primary-ghost-hover"),
           hadActiveClass: element.classList.contains("bg-token-list-hover-background"),
           hadHoverClass: element.classList.contains("hover:bg-token-list-hover-background"),
-        });
+        };
+        suppressedSelections.push(selection);
         element.removeAttribute("aria-current");
         element.removeAttribute("data-app-action-sidebar-thread-selected");
+        // 原生选中态（灰底）现在由 bg-primary-ghost-hover 承载，需一并移除；
+        // 旧 token 类仍保留处理，以便兼容旧主题。
+        element.classList.remove("bg-primary-ghost-hover");
         element.classList.remove("bg-token-list-hover-background");
+        if (!selection.hadHoverPrimaryGhost) element.classList.add("hover:bg-primary-ghost-hover");
         element.classList.add("hover:bg-token-list-hover-background");
       }
     }
@@ -2443,6 +2450,8 @@ export function createInjectionSource(features, {
         if (selection.threadSelected !== null) {
           element.setAttribute("data-app-action-sidebar-thread-selected", selection.threadSelected);
         }
+        element.classList.toggle("bg-primary-ghost-hover", Boolean(selection.hadPrimaryGhost));
+        element.classList.toggle("hover:bg-primary-ghost-hover", Boolean(selection.hadHoverPrimaryGhost));
         element.classList.toggle("bg-token-list-hover-background", selection.hadActiveClass);
         element.classList.toggle("hover:bg-token-list-hover-background", selection.hadHoverClass);
       }
@@ -2454,6 +2463,7 @@ export function createInjectionSource(features, {
         const entry = findEntry(feature.id);
         if (!entry) continue;
         const selected = feature.id === activePageFeatureId;
+        entry.classList.toggle("bg-primary-ghost-hover", selected);
         entry.classList.toggle("bg-token-list-hover-background", selected);
         entry.classList.toggle("hover:bg-token-list-hover-background", !selected);
         if (selected) entry.setAttribute("aria-current", "page");
