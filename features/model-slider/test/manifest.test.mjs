@@ -28,6 +28,31 @@ test("keeps provider identity and brand identity separate", () => {
   assert.equal(muse.icon.resource, "assets/providers/muse.svg");
 });
 
+test("maps OpenCode Go HY3 to Hunyuan without broad HY matching", () => {
+  const identity = (raw) => {
+    const slash = raw.indexOf("/");
+    return {
+      raw,
+      backend: slash > 0 ? raw.slice(slash + 1) : raw,
+    };
+  };
+  const brandForModel = (raw) => {
+    const model = identity(raw);
+    const haystack = `${model.backend} ${model.raw}`.toLowerCase();
+    return manifest.modelSelector.brands.find((brand) => (
+      brand.keywords.some((keyword) => haystack.includes(keyword))
+    ))?.id ?? null;
+  };
+
+  assert.equal(brandForModel("opencode-go/hy3"), "hunyuan");
+  assert.equal(brandForModel("opencode-go/hunyuan-3"), "hunyuan");
+  assert.equal(brandForModel("other-provider/hy3"), null);
+  assert.equal(brandForModel("opencode-go/hyphen-3"), null);
+  assert.ok(!manifest.modelSelector.brands
+    .find((brand) => brand.id === "hunyuan")
+    .keywords.includes("hy"));
+});
+
 test("ships every configured SVG resource and localized selector copy", async () => {
   const resources = [
     ...Object.values(manifest.modelSelector.icons).map((icon) => icon.resource),
