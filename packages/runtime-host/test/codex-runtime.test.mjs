@@ -44,7 +44,12 @@ function modelSliderFeatureFixture() {
   };
 }
 
-async function executeModelSliderInjection({ storageValue, exposeLocalStorage = true } = {}) {
+async function executeModelSliderInjection({
+  controllerProps,
+  storageValue,
+  exposeLocalStorage = true,
+  triggerEffort,
+} = {}) {
   class FixtureElement {
     constructor(tagName = "div") {
       this.tagName = tagName.toUpperCase();
@@ -109,6 +114,11 @@ async function executeModelSliderInjection({ storageValue, exposeLocalStorage = 
 
   let fetchCalls = 0;
   const sourceLink = { href: "app://-/assets/app-initial-fixture.js" };
+  const trigger = new FixtureElement("button");
+  if (triggerEffort) trigger.setAttribute("data-selected-reasoning-effort", triggerEffort);
+  if (controllerProps) {
+    trigger.__reactFiber$fixture = { memoizedProps: controllerProps, return: null };
+  }
   const documentElement = new FixtureElement("html");
   documentElement.lang = "en";
   const document = {
@@ -121,6 +131,7 @@ async function executeModelSliderInjection({ storageValue, exposeLocalStorage = 
     },
     createElementNS(_namespace, tagName) { return new FixtureElement(tagName); },
     querySelector(selector) {
+      if (selector === "[data-codex-intelligence-trigger]") return trigger;
       return selector === 'link[href*="/assets/app-initial-"][href$=".js"]' ? sourceLink : null;
     },
     querySelectorAll() { return []; },
@@ -151,6 +162,24 @@ async function executeModelSliderInjection({ storageValue, exposeLocalStorage = 
       states: Object.keys(modelSelectorNativeFastIcons ?? {}),
       dirty: modelSelectorNativeFastIconsDirty,
     });
+    window.__modelSliderEffortProbe = (raw) => {
+      const identity = modelIdentity(raw);
+      const model = modelDefinitionFor(identity, modelSelectorFeature.modelSelector);
+      const efforts = model?.supportedReasoningLevels ?? [];
+      const nativeModel = nativeCatalogModelFor(identity);
+      const selectedEffort = nativeModel?.currentReasoningLevel
+        ?? document.querySelector("[data-codex-intelligence-trigger]")
+          ?.getAttribute("data-selected-reasoning-effort")
+        ?? model?.defaultReasoningLevel
+        ?? efforts[0]?.effort;
+      return {
+        current: nativeModel?.currentReasoningLevel ?? null,
+        default: nativeModel?.defaultReasoningLevel ?? null,
+        selectedEffort,
+        selectedIndex: Math.max(0, efforts.findIndex((level) => level.effort === selectedEffort)),
+        efforts: efforts.map((level) => level.effort),
+      };
+    };
     void loadNativeFastIconFromBundle();`,
   );
   const context = {
@@ -189,6 +218,10 @@ async function executeModelSliderInjection({ storageValue, exposeLocalStorage = 
   await Promise.resolve();
   const probe = window.__fastIconProbe?.();
   return {
+    effortProbe: (raw) => {
+      const value = window.__modelSliderEffortProbe?.(raw);
+      return value ? JSON.parse(JSON.stringify(value)) : null;
+    },
     fetchCalls,
     probe: probe ? JSON.parse(JSON.stringify(probe)) : null,
     runtimeInstalled: Boolean(window.__codexPersonalRuntime),
@@ -493,6 +526,58 @@ test("emits a fail-closed native Composer model selector Adapter", () => {
   assert.doesNotMatch(source, /"zh-CN":"搜索模型"/);
   assert.doesNotMatch(source, /model_catalog_json/);
 });
+test("maps current controller effort separately from the model default", async () => {
+  const controller = {
+    models: [{
+      model: "gpt-5.6-sol",
+      displayName: "GPT 5.6 Sol",
+      defaultReasoningEffort: "low",
+      supportedReasoningEfforts: ["low", "medium", "high", "xhigh", "max"].map(
+        (reasoningEffort) => ({ reasoningEffort }),
+      ),
+    }],
+    reasoningEffort: "max",
+    onSelectReasoningEffort() {},
+  };
+  const result = await executeModelSliderInjection({
+    controllerProps: controller,
+    triggerEffort: "medium",
+  });
+
+  assert.deepEqual(result.effortProbe("gpt-5.6-sol"), {
+    current: "max",
+    default: "low",
+    selectedEffort: "max",
+    selectedIndex: 4,
+    efforts: ["low", "medium", "high", "xhigh", "max"],
+  });
+});
+
+test("recomputes Model Slider effort when the active Composer controller changes", async () => {
+  const controller = {
+    models: [{
+      model: "deepseek-v4",
+      displayName: "DeepSeek V4",
+      defaultReasoningEffort: "medium",
+      supportedReasoningEfforts: ["medium", "high", "max"].map(
+        (reasoningEffort) => ({ reasoningEffort }),
+      ),
+    }],
+    reasoningEffort: "max",
+    onSelectReasoningEffort() {},
+  };
+  const result = await executeModelSliderInjection({
+    controllerProps: controller,
+    triggerEffort: "medium",
+  });
+
+  assert.equal(result.effortProbe("deepseek-v4").selectedEffort, "max");
+  assert.equal(result.effortProbe("deepseek-v4").selectedIndex, 2);
+  controller.reasoningEffort = "high";
+  assert.equal(result.effortProbe("deepseek-v4").selectedEffort, "high");
+  assert.equal(result.effortProbe("deepseek-v4").selectedIndex, 1);
+});
+
 test("resolves Model Slider effort from the native controller before the trigger DOM attribute", () => {
   const icon = { viewBox: "0 0 24 24", markup: "<path></path>" };
   const source = createInjectionSource([{
@@ -517,12 +602,13 @@ test("resolves Model Slider effort from the native controller before the trigger
   // 子任务触发器属性（medium）滞后于控制器推导状态（max）时，控制器值必须优先。
   assert.match(
     source,
-    /const nativeModel = nativeCatalogModelFor\(identity\);\n\s*const selectedEffort = nativeModel\?\.defaultReasoningLevel[\s\S]*?getAttribute\("data-selected-reasoning-effort"\)/,
+    /const nativeModel = nativeCatalogModelFor\(identity\);\n\s*const selectedEffort = nativeModel\?\.currentReasoningLevel[\s\S]*?getAttribute\("data-selected-reasoning-effort"\)/,
   );
   assert.match(
     source,
-    /nativeModel\?\.defaultReasoningLevel\s*\?\?[\s\S]*?\?\? model\.defaultReasoningLevel\s*\?\? efforts\[0\]\.effort/,
+    /nativeModel\?\.currentReasoningLevel\s*\?\?[\s\S]*?\?\? model\.defaultReasoningLevel\s*\?\? efforts\[0\]\.effort/,
   );
+  assert.match(source, /const currentReasoningLevel = String\(controller\?\.reasoningEffort \?\? ""\)\.toLowerCase\(\)/);
   // 已解析 effort 决定最终滑杆索引：max 落在最右档。
   assert.match(source, /const selectedIndex = Math\.max\(0, efforts\.indexOf\(selectedEffort\)\)/);
   // 任务切换时按可控状态重建：key 包含已解析 effort，key 变化即重建菜单。

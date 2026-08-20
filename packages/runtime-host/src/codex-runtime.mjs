@@ -936,14 +936,16 @@ export function createInjectionSource(features, {
         (option) => String(option.thinkingEffort ?? "") === String(selected.thinkingEffort ?? ""),
       );
       const selectedEffort = selectedOption ? effortFor(selectedOption) : (efforts[0] ?? "instant");
+      const defaultEffort = String(version.defaultReasoningEffort ?? efforts[0] ?? "instant").toLowerCase();
       const models = [{
         model: String(selected.slug ?? ""),
         displayName: String(version?.label ?? selected.slug ?? ""),
-        defaultReasoningEffort: selectedEffort,
+        defaultReasoningEffort: defaultEffort,
         supportedReasoningEfforts: efforts.map((effort) => ({ reasoningEffort: effort })),
       }];
       return {
         models,
+        reasoningEffort: selectedEffort,
         onSelectReasoningEffort(effort) {
           const target = options.find((option) => effortFor(option) === String(effort).toLowerCase());
           if (!target) return;
@@ -956,7 +958,8 @@ export function createInjectionSource(features, {
     }
 
     function nativeCatalogModelFor(identity) {
-      const models = nativeComposerModelController()?.models ?? [];
+      const controller = nativeComposerModelController();
+      const models = controller?.models ?? [];
       const exact = models.find((model) => String(model.model ?? "").toLowerCase() === identity.raw.toLowerCase());
       const target = comparableModelLabel(identity.backend);
       const aliases = exact ? [] : models.filter((model) => (
@@ -964,13 +967,18 @@ export function createInjectionSource(features, {
       ));
       const model = exact ?? (aliases.length === 1 ? aliases[0] : null);
       if (!model) return null;
+      const supportedReasoningLevels = (model.supportedReasoningEfforts ?? []).map((level) => ({
+        effort: String(level?.reasoningEffort ?? level?.effort ?? level ?? "").toLowerCase(),
+      })).filter((level) => level.effort);
+      const currentReasoningLevel = String(controller?.reasoningEffort ?? "").toLowerCase();
       return {
         slug: String(model.model ?? ""),
         displayName: String(model.displayName ?? model.model ?? ""),
-        defaultReasoningLevel: String(model.defaultReasoningEffort ?? ""),
-        supportedReasoningLevels: (model.supportedReasoningEfforts ?? []).map((level) => ({
-          effort: String(level?.reasoningEffort ?? level?.effort ?? level ?? ""),
-        })).filter((level) => level.effort),
+        currentReasoningLevel: supportedReasoningLevels.some(
+          (level) => level.effort === currentReasoningLevel,
+        ) ? currentReasoningLevel : null,
+        defaultReasoningLevel: String(model.defaultReasoningEffort ?? "").toLowerCase(),
+        supportedReasoningLevels,
       };
     }
 
@@ -2011,7 +2019,7 @@ export function createInjectionSource(features, {
       // 控制器推导的任务内实际 effort 优先，避免子任务/主任务切换后触发器属性滞后；
       // 触发器属性仅在控制器无法解析时作为实时回退，静态目录默认值最后兜底。
       const nativeModel = nativeCatalogModelFor(identity);
-      const selectedEffort = nativeModel?.defaultReasoningLevel
+      const selectedEffort = nativeModel?.currentReasoningLevel
         ?? document.querySelector("[data-codex-intelligence-trigger]")
           ?.getAttribute("data-selected-reasoning-effort")
         ?? model.defaultReasoningLevel
