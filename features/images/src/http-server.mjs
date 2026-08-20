@@ -2,6 +2,7 @@ import { createReadStream } from "node:fs";
 import { readFile, stat } from "node:fs/promises";
 import { createServer as createNodeServer } from "node:http";
 import path from "node:path";
+import { MAX_IMPORTED_IMAGE_BYTES } from "./image-library.mjs";
 import { saveImageAs } from "./save-as.mjs";
 
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
@@ -9,6 +10,7 @@ const CODEX_EMBED_ORIGIN = "app://-";
 const DEFAULT_PAGE_LIMIT = 36;
 const MAX_PAGE_LIMIT = 72;
 const MAX_PAGE_OFFSET = Number.MAX_SAFE_INTEGER;
+const MAX_IMPORT_BODY_BYTES = Math.ceil(MAX_IMPORTED_IMAGE_BYTES * 4 / 3) + 64 * 1024;
 
 const STATIC_FILES = new Map([
   ["/", ["index.html", "text/html; charset=utf-8"]],
@@ -41,7 +43,7 @@ function publicImage(image, { includePrompt = false } = {}) {
     archived: image.archived,
     fileUrl: `/api/images/${image.id}/file`,
     downloadUrl: `/api/images/${image.id}/download`,
-    sourceUrl: `codex://threads/${image.threadId}`,
+    sourceUrl: image.threadId.startsWith("chatgpt:") ? null : `codex://threads/${image.threadId}`,
   };
   if (includePrompt) result.prompt = image.prompt;
   return result;
@@ -68,6 +70,82 @@ function formatHost(host) {
 
 function mutationError(message, code) {
   return Object.assign(new Error(message), { status: 403, code });
+}
+
+async function readRequestBody(request, maxBytes) {
+  const declaredLength = Number(request.headers["content-length"] ?? 0);
+  if (Number.isSafeInteger(declaredLength) && declaredLength > maxBytes) {
+    throw Object.assign(new Error("Request body exceeds the Images import limit"), {
+      status: 413,
+      code: "BODY_TOO_LARGE",
+    });
+  }
+  const chunks = [];
+  let total = 0;
+  for await (const chunk of request) {
+    total += chunk.length;
+    if (total > maxBytes) {
+      throw Object.assign(new Error("Request body exceeds the Images import limit"), {
+        status: 413,
+        code: "BODY_TOO_LARGE",
+      });
+    }
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks, total);
+}
+
+async function readImportPayload(request) {
+  if (!String(request.headers["content-type"] ?? "").toLowerCase().startsWith("application/json")) {
+    throw Object.assign(new Error("Images import requires application/json"), {
+      status: 415,
+      code: "UNSUPPORTED_CONTENT_TYPE",
+    });
+  }
+  let payload;
+  try {
+    payload = JSON.parse((await readRequestBody(request, MAX_IMPORT_BODY_BYTES)).toString("utf8"));
+  } catch (error) {
+    if (error.code === "BODY_TOO_LARGE") throw error;
+    throw Object.assign(new Error("Images import body must be valid JSON"), {
+      status: 400,
+      code: "INVALID_JSON",
+    });
+  }
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    throw Object.assign(new Error("Images import body must be an object"), {
+      status: 400,
+      code: "INVALID_BODY",
+    });
+  }
+  if (typeof payload.bytesBase64 !== "string" || payload.bytesBase64.length > MAX_IMPORT_BODY_BYTES) {
+    throw Object.assign(new Error("Images import requires bounded base64 image bytes"), {
+      status: 400,
+      code: "INVALID_IMAGE_BYTES",
+    });
+  }
+  const bytes = Buffer.from(payload.bytesBase64, "base64");
+  if (!bytes.length || bytes.toString("base64") !== payload.bytesBase64.replace(/\s/g, "")) {
+    throw Object.assign(new Error("Images import image bytes are not valid base64"), {
+      status: 400,
+      code: "INVALID_IMAGE_BYTES",
+    });
+  }
+  return { ...payload, bytes };
+}
+
+function contentTypeForPath(sourcePath) {
+  const extension = path.extname(sourcePath).toLowerCase();
+  return extension === ".jpg" || extension === ".jpeg"
+    ? "image/jpeg"
+    : extension === ".webp" ? "image/webp" : "image/png";
+}
+
+function downloadFilename(image, sourcePath) {
+  const stem = String(image.imageGenerationItemId ?? "generated-image")
+    .replace(/[^a-zA-Z0-9._-]/g, "_")
+    .slice(0, 128) || "generated-image";
+  return `${stem}${path.extname(sourcePath)}`;
 }
 
 function applyCodexEmbedCors(request, response) {
@@ -235,6 +313,17 @@ export async function createHttpServer({
         return;
       }
 
+      if (request.method === "POST" && url.pathname === "/api/import-generated-image") {
+        const payload = await readImportPayload(request);
+        const result = await library.importExternalImage({ ...payload, bytes: payload.bytes });
+        if (!result.imported && result.reason !== "DUPLICATE") {
+          json(response, 400, { ...result, imported: false });
+          return;
+        }
+        json(response, result.reason === "DUPLICATE" ? 200 : 201, result);
+        return;
+      }
+
       const saveAsMatch = url.pathname.match(/^\/api\/images\/([a-f0-9]{24})\/save-as$/);
       if (request.method === "POST" && saveAsMatch) {
         const image = library.get(saveAsMatch[1]);
@@ -266,12 +355,12 @@ export async function createHttpServer({
         }
         const sourceStat = await stat(image.sourcePath);
         const headers = {
-          "Content-Type": "image/png",
+          "Content-Type": contentTypeForPath(image.sourcePath),
           "Content-Length": sourceStat.size,
           "Cache-Control": "public, max-age=31536000, immutable",
         };
         if (imageMatch[2] === "download") {
-          headers["Content-Disposition"] = `attachment; filename="${image.imageGenerationItemId}.png"`;
+          headers["Content-Disposition"] = `attachment; filename="${downloadFilename(image, image.sourcePath)}"`;
         }
         response.writeHead(200, headers);
         createReadStream(image.sourcePath).pipe(response);

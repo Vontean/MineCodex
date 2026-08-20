@@ -128,6 +128,41 @@ test("discovers sibling Codex features and orders them by placement", async () =
   }
 });
 
+test("derives loopback feature URLs from the declared runtime port environment", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "codex-runtime-port-environment-"));
+  try {
+    const project = path.join(root, "Images");
+    await mkdir(project);
+    await writeFile(path.join(project, "codex-feature.json"), JSON.stringify({
+      schemaVersion: 1,
+      id: "images",
+      label: "Images",
+      surfaceUrl: "http://127.0.0.1:47831/",
+      healthUrl: "http://127.0.0.1:47831/api/health",
+      runtimePortEnvironment: "CODEX_IMAGE_HOST_PORT",
+    }));
+
+    const [feature] = await discoverFeatures(root, { env: { CODEX_IMAGE_HOST_PORT: "49123" } });
+    assert.equal(feature.surfaceUrl, "http://127.0.0.1:49123/");
+    assert.equal(feature.healthUrl, "http://127.0.0.1:49123/api/health");
+
+    await writeFile(path.join(project, "codex-feature.json"), JSON.stringify({
+      schemaVersion: 1,
+      id: "images",
+      label: "Images",
+      surfaceUrl: "https://example.test/",
+      healthUrl: "https://example.test/api/health",
+      runtimePortEnvironment: "CODEX_IMAGE_HOST_PORT",
+    }));
+    await assert.rejects(
+      discoverFeatures(root, { env: { CODEX_IMAGE_HOST_PORT: "49123" } }),
+      /runtimePortEnvironment may only override loopback http URLs/,
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("normalizes a service-free page-script feature with an inlined script source", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "codex-runtime-page-script-"));
   try {

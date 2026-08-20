@@ -9,6 +9,7 @@ import {
   CodexRuntime,
   RESPONSIVE_SUMMARY_LAYOUT,
   createInjectionSource,
+  pageScriptServiceOrigin,
   responsiveSummaryContentShift,
   responsiveSummaryDisplayMode,
   responsiveSummaryVisibleSurface,
@@ -32,6 +33,24 @@ test("matches Codex Summary responsive thresholds and content-shift behavior", (
   );
   assert.equal(responsiveSummaryContentShift({ displayMode: "overlay", isPinned: true }), 0);
   assert.equal(responsiveSummaryContentShift({ displayMode: "gutter", isPinned: true }), 0);
+});
+
+test("only grants page scripts their declared loopback service origin", () => {
+  assert.equal(pageScriptServiceOrigin({
+    pageScript: { source: "return () => {};" },
+    surfaceUrl: "http://127.0.0.1:49123/",
+    healthUrl: "http://127.0.0.1:49123/api/health",
+  }), "http://127.0.0.1:49123");
+  assert.equal(pageScriptServiceOrigin({
+    pageScript: { source: "return () => {};" },
+    surfaceUrl: "https://example.test/",
+    healthUrl: "https://example.test/api/health",
+  }), null);
+  assert.equal(pageScriptServiceOrigin({
+    pageScript: { source: "return () => {};" },
+    surfaceUrl: "http://127.0.0.1:49123/",
+    healthUrl: "http://127.0.0.1:49124/api/health",
+  }), null);
 });
 
 test("releases thread content to native Summary when a personal panel needs no shift", () => {

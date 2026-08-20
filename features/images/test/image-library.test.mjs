@@ -144,6 +144,7 @@ test("imports ImageGen files across Thread directories and remains idempotent", 
   assert.deepEqual(library.facets(), {
     total: 2,
     chats: 1,
+    works: 0,
     projects: [{
       scope: "project-name:Images",
       name: "Images",

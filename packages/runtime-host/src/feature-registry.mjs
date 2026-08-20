@@ -14,6 +14,7 @@ const HOST_ACTIONS = new Set([
 ]);
 
 const PAGE_SCRIPT_ENTRY_KINDS = new Set(["page-script"]);
+const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]"]);
 
 export const FEATURE_PROTOCOL_VERSION = 1;
 export const FEATURE_HEALTH_TIMEOUT_MS = 750;
@@ -28,6 +29,37 @@ function normalizeUrl(value, field) {
     throw new Error(`${field} must use http or https`);
   }
   return url.href;
+}
+
+function normalizeRuntimeUrls(manifest, env) {
+  let surfaceUrl = manifest.surfaceUrl ? normalizeUrl(manifest.surfaceUrl, "surfaceUrl") : null;
+  let healthUrl = manifest.healthUrl || surfaceUrl
+    ? normalizeUrl(manifest.healthUrl ?? surfaceUrl, "healthUrl")
+    : null;
+  const portEnvironment = manifest.runtimePortEnvironment;
+  if (!portEnvironment) return { surfaceUrl, healthUrl };
+  if (!/^[A-Z][A-Z0-9_]*$/.test(portEnvironment)) {
+    throw new Error("runtimePortEnvironment must be an environment variable name");
+  }
+  if (!surfaceUrl || !healthUrl) {
+    throw new Error("runtimePortEnvironment requires surfaceUrl and healthUrl");
+  }
+  const urls = [new URL(surfaceUrl), new URL(healthUrl)];
+  if (urls.some((url) => url.protocol !== "http:" || !LOOPBACK_HOSTS.has(url.hostname))) {
+    throw new Error("runtimePortEnvironment may only override loopback http URLs");
+  }
+  if (urls[0].origin !== urls[1].origin) {
+    throw new Error("runtimePortEnvironment requires surfaceUrl and healthUrl to share an origin");
+  }
+  const configuredPort = env?.[portEnvironment];
+  if (configuredPort === undefined || configuredPort === "") return { surfaceUrl, healthUrl };
+  const port = Number(configuredPort);
+  if (!Number.isInteger(port) || port < 1 || port > 65_535) {
+    throw new Error(`${portEnvironment} must be an integer from 1 to 65535`);
+  }
+  for (const url of urls) url.port = String(port);
+  [surfaceUrl, healthUrl] = urls.map((url) => url.href);
+  return { surfaceUrl, healthUrl };
 }
 
 function normalizeLocaleKey(value) {
@@ -146,7 +178,7 @@ async function normalizePageScript(manifest, projectDir) {
   return { resource, source };
 }
 
-async function normalizeFeature(manifest, projectDir) {
+async function normalizeFeature(manifest, projectDir, env) {
   if (manifest.schemaVersion !== 1) throw new Error("schemaVersion must be 1");
   if (!manifest.id || !manifest.label) {
     throw new Error("id and label are required");
@@ -194,7 +226,11 @@ async function normalizeFeature(manifest, projectDir) {
     throw new Error("hostActions contains an unsupported action");
   }
 
-  const surfaceUrl = manifest.surfaceUrl ? normalizeUrl(manifest.surfaceUrl, "surfaceUrl") : null;
+  const pageScript = manifest.pageScript
+    ? await normalizePageScript({ ...manifest, entry: { ...(manifest.entry ?? {}), script: manifest.pageScript.resource } }, projectDir)
+    : null;
+
+  const { surfaceUrl, healthUrl } = normalizeRuntimeUrls(manifest, env);
   const entryLabel = normalizeLocalizedText(manifest.entry?.ariaLabel ?? manifest.label, "entry.ariaLabel");
   const summaryLabel = manifest.pinnedSummary
     ? normalizeLocalizedText(manifest.pinnedSummary.label ?? manifest.label, "pinnedSummary.label")
@@ -218,9 +254,7 @@ async function normalizeFeature(manifest, projectDir) {
     label: label.value,
     labels: label.locales,
     surfaceUrl,
-    healthUrl: manifest.healthUrl || surfaceUrl
-      ? normalizeUrl(manifest.healthUrl ?? surfaceUrl, "healthUrl")
-      : null,
+    healthUrl,
     icon: await normalizeIcon(manifest.icon, projectDir),
     entry: {
       kind: entryKind,
@@ -242,9 +276,7 @@ async function normalizeFeature(manifest, projectDir) {
     modelSelector: isModelSelector
       ? await normalizeModelSelector(manifest.modelSelector, projectDir)
       : null,
-    pageScript: isPageScript
-      ? await normalizePageScript(manifest, projectDir)
-      : null,
+    pageScript: isPageScript ? await normalizePageScript(manifest, projectDir) : pageScript,
     placement: {
       after: manifest.placement?.after ?? "sites",
       order: Number(manifest.placement?.order ?? 100),
@@ -254,7 +286,7 @@ async function normalizeFeature(manifest, projectDir) {
   };
 }
 
-export async function discoverFeatures(featuresRoot) {
+export async function discoverFeatures(featuresRoot, { env = process.env } = {}) {
   const entries = await readdir(featuresRoot, { withFileTypes: true });
   const features = [];
 
@@ -270,7 +302,7 @@ export async function discoverFeatures(featuresRoot) {
     }
     try {
       const manifest = JSON.parse(source);
-      features.push(await normalizeFeature(manifest, projectDir));
+      features.push(await normalizeFeature(manifest, projectDir, env));
     } catch (error) {
       throw new Error(`Invalid ${entry.name}/${MANIFEST_NAME}: ${error.message}`);
     }

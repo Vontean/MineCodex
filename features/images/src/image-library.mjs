@@ -2,10 +2,14 @@ import { watch } from "node:fs";
 import {
   mkdir,
   open,
+  readFile,
   readdir,
+  rename,
   stat,
+  unlink,
+  writeFile,
 } from "node:fs/promises";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { ThreadPromptIndex } from "./prompt-index.mjs";
@@ -13,6 +17,8 @@ import { ThreadPromptIndex } from "./prompt-index.mjs";
 const PNG_EXTENSION = ".png";
 const FALLBACK_RESCAN_INITIAL_DELAY_MS = 30_000;
 const FALLBACK_RESCAN_MAX_DELAY_MS = 5 * 60_000;
+export const MAX_IMPORTED_IMAGE_BYTES = 32 * 1024 * 1024;
+export const MAX_IMPORTED_IMAGE_DIMENSION = 16_384;
 
 function isPng(filePath) {
   return path.extname(filePath).toLowerCase() === PNG_EXTENSION;
@@ -31,8 +37,8 @@ function buildWhere({ query = "", source = "all", threadId = null } = {}) {
     parameters.push(threadId);
   }
 
-  if (source === "chat") {
-    clauses.push("thread_sources.source_kind = 'chat'");
+  if (source === "chat" || source === "work") {
+    clauses.push(`thread_sources.source_kind = '${source}'`);
   } else if (source.startsWith("project:")) {
     clauses.push("thread_sources.source_kind = 'project' AND thread_sources.project_id = ?");
     parameters.push(source.slice("project:".length));
@@ -74,6 +80,53 @@ async function readPngSize(filePath) {
   } finally {
     await handle.close();
   }
+}
+
+function imageSizeFromBuffer(bytes, mimeType) {
+  if (mimeType === "image/png") {
+    if (bytes.length < 24 || bytes.subarray(0, 8).toString("hex") !== "89504e470d0a1a0a") return null;
+    return { width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20) };
+  }
+  if (mimeType === "image/jpeg") {
+    if (bytes.length < 4 || bytes.readUInt16BE(0) !== 0xffd8) return null;
+    let offset = 2;
+    while (offset + 9 < bytes.length) {
+      if (bytes[offset] !== 0xff) return null;
+      const marker = bytes[offset + 1];
+      offset += 2;
+      if (marker === 0xd8 || marker === 0xd9) continue;
+      if (offset + 2 > bytes.length) return null;
+      const segmentLength = bytes.readUInt16BE(offset);
+      if (segmentLength < 2 || offset + segmentLength > bytes.length) return null;
+      if ((marker >= 0xc0 && marker <= 0xc3) || (marker >= 0xc5 && marker <= 0xc7)
+        || (marker >= 0xc9 && marker <= 0xcb) || (marker >= 0xcd && marker <= 0xcf)) {
+        if (segmentLength < 7) return null;
+        return { width: bytes.readUInt16BE(offset + 5), height: bytes.readUInt16BE(offset + 3) };
+      }
+      offset += segmentLength;
+    }
+    return null;
+  }
+  if (mimeType === "image/webp") {
+    if (bytes.length < 30 || bytes.toString("ascii", 0, 4) !== "RIFF" || bytes.toString("ascii", 8, 12) !== "WEBP") {
+      return null;
+    }
+    if (bytes.toString("ascii", 12, 16) !== "VP8X") return null;
+    return {
+      width: 1 + bytes[24] + (bytes[25] << 8) + (bytes[26] << 16),
+      height: 1 + bytes[27] + (bytes[28] << 8) + (bytes[29] << 16),
+    };
+  }
+  return null;
+}
+
+function normalizedImportMime(mimeType) {
+  const normalized = String(mimeType ?? "").split(";", 1)[0].trim().toLowerCase();
+  return new Set(["image/png", "image/jpeg", "image/webp"]).has(normalized) ? normalized : null;
+}
+
+function extensionForMime(mimeType) {
+  return mimeType === "image/jpeg" ? "jpg" : mimeType.slice("image/".length);
 }
 
 async function collectPngFiles(directory, output = []) {
@@ -282,6 +335,12 @@ export class ImageLibrary {
       JOIN thread_sources ON thread_sources.thread_id = images.thread_id
       WHERE thread_sources.source_kind = 'chat'
     `).get().count;
+    const works = this.database.prepare(`
+      SELECT COUNT(*) AS count
+      FROM images
+      JOIN thread_sources ON thread_sources.thread_id = images.thread_id
+      WHERE thread_sources.source_kind = 'work'
+    `).get().count;
     const projects = this.database.prepare(`
       SELECT thread_sources.project_name,
         COUNT(*) AS count, MAX(images.created_at) AS latest_created_at
@@ -296,7 +355,7 @@ export class ImageLibrary {
       count: row.count,
       latestCreatedAt: row.latest_created_at,
     }));
-    return { total: this.count(), chats, projects };
+    return { total: this.count(), chats, works, projects };
   }
 
   countGroups({ source = "all" } = {}) {
@@ -560,6 +619,112 @@ export class ImageLibrary {
     this.promptIndex.invalidate(threadId);
     await this.syncThreadMetadata([threadId]);
     return true;
+  }
+
+  async importExternalImage({
+    bytes,
+    mimeType,
+    itemId,
+    conversationId = null,
+    conversationTitle = null,
+    sourceKind,
+    prompt = null,
+    createdAt = null,
+  } = {}) {
+    if (!this.isLifecycleActive() || !Buffer.isBuffer(bytes)) return { imported: false, reason: "INVALID_BYTES" };
+    const normalizedMime = normalizedImportMime(mimeType);
+    if (!normalizedMime) return { imported: false, reason: "UNSUPPORTED_MIME" };
+    if (bytes.length === 0 || bytes.length > MAX_IMPORTED_IMAGE_BYTES) {
+      return { imported: false, reason: "IMAGE_TOO_LARGE" };
+    }
+    const size = imageSizeFromBuffer(bytes, normalizedMime);
+    if (!size || size.width < 1 || size.height < 1
+      || size.width > MAX_IMPORTED_IMAGE_DIMENSION || size.height > MAX_IMPORTED_IMAGE_DIMENSION) {
+      return { imported: false, reason: "INVALID_DIMENSIONS" };
+    }
+    if (!new Set(["chat", "work"]).has(sourceKind)) {
+      return { imported: false, reason: "INVALID_SOURCE_KIND" };
+    }
+    const safeItemId = String(itemId ?? "").trim();
+    if (!safeItemId || safeItemId.length > 256 || /[\\/\u0000]/.test(safeItemId)) {
+      return { imported: false, reason: "INVALID_ITEM_ID" };
+    }
+    const safeConversationId = conversationId == null ? null : String(conversationId).trim().slice(0, 256) || null;
+    const safeTitle = conversationTitle == null ? "" : String(conversationTitle).trim().slice(0, 512);
+    const safePrompt = prompt == null ? null : String(prompt).trim().slice(0, 8_192) || null;
+    const logicalThreadId = `chatgpt:${sourceKind}:${safeConversationId ?? "unknown"}`;
+    const id = imageIdFor(`external:${sourceKind}:${safeConversationId ?? ""}:${safeItemId}`);
+    const extension = extensionForMime(normalizedMime);
+    const assetDir = path.join(this.dataDir, "external-images");
+    const sourcePath = path.join(assetDir, `${id}.${extension}`);
+    const existing = this.database.prepare("SELECT source_path, byte_length FROM images WHERE id = ?").get(id);
+    if (existing && existing.byte_length === bytes.length) {
+      try {
+        const existingBytes = await readFile(existing.source_path);
+        if (existingBytes.equals(bytes)) return { imported: false, id, reason: "DUPLICATE" };
+      } catch (error) {
+        if (error.code !== "ENOENT") throw error;
+      }
+    }
+    await mkdir(assetDir, { recursive: true });
+    const temporaryPath = path.join(assetDir, `.${id}.${randomUUID()}.tmp`);
+    try {
+      await writeFile(temporaryPath, bytes, { flag: "wx", mode: 0o600 });
+      await rename(temporaryPath, sourcePath);
+    } finally {
+      await unlink(temporaryPath).catch((error) => {
+        if (error.code !== "ENOENT") throw error;
+      });
+    }
+    const importedAt = new Date().toISOString();
+    const normalizedCreatedAt = createdAt && !Number.isNaN(Date.parse(createdAt))
+      ? new Date(createdAt).toISOString()
+      : importedAt;
+    this.database
+      .prepare(`
+        INSERT INTO images (
+          id, thread_id, image_generation_item_id, source_path,
+          prompt, width, height, byte_length, source_mtime_ms,
+          created_at, imported_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          source_path = excluded.source_path,
+          prompt = excluded.prompt,
+          width = excluded.width,
+          height = excluded.height,
+          byte_length = excluded.byte_length,
+          source_mtime_ms = excluded.source_mtime_ms,
+          created_at = excluded.created_at,
+          imported_at = excluded.imported_at
+      `)
+      .run(
+        id,
+        logicalThreadId,
+        safeItemId,
+        sourcePath,
+        safePrompt,
+        size.width,
+        size.height,
+        bytes.length,
+        0,
+        normalizedCreatedAt,
+        importedAt,
+      );
+    this.database
+      .prepare(`
+        INSERT INTO thread_sources (
+          thread_id, source_kind, project_id, project_name, thread_title, archived, updated_at
+        ) VALUES (?, ?, NULL, NULL, ?, 0, ?)
+        ON CONFLICT(thread_id) DO UPDATE SET
+          source_kind = excluded.source_kind,
+          thread_title = CASE
+            WHEN excluded.thread_title <> '' THEN excluded.thread_title
+            ELSE thread_sources.thread_title
+          END,
+          updated_at = excluded.updated_at
+      `)
+      .run(logicalThreadId, sourceKind, safeTitle, importedAt);
+    return { imported: true, id };
   }
 
   close() {

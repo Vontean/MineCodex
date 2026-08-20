@@ -78,6 +78,18 @@ function requireDeclaredLoopbackSurface(feature, value) {
   return url;
 }
 
+export function pageScriptServiceOrigin(feature) {
+  if (!feature.pageScript || !feature.surfaceUrl || !feature.healthUrl) return null;
+  const surfaceUrl = new URL(feature.surfaceUrl);
+  const healthUrl = new URL(feature.healthUrl);
+  if (
+    surfaceUrl.origin !== healthUrl.origin
+    || surfaceUrl.protocol !== "http:"
+    || !LOOPBACK_SURFACE_HOSTS.has(surfaceUrl.hostname)
+  ) return null;
+  return surfaceUrl.origin;
+}
+
 function findFrameByName(frameTree, frameName) {
   if (frameTree.frame?.name === frameName) return frameTree.frame;
   for (const child of frameTree.childFrames ?? []) {
@@ -254,7 +266,7 @@ export function createInjectionSource(features, {
     const modelSelectorFeature = features.find(
       (feature) => feature.entry?.kind === "composer-model-selector",
     ) ?? null;
-    const pageScriptFeatures = features.filter((feature) => feature.entry?.kind === "page-script");
+    const pageScriptFeatures = features.filter((feature) => feature.pageScript);
     const pageSurfaces = new Map();
     const pinnedSurfaces = new Map();
     const surfaceRecords = new Map();
@@ -404,9 +416,16 @@ export function createInjectionSource(features, {
           "window",
           "document",
           "MutationObserver",
+          "config",
           `"use strict";\n${source}`,
         );
-        const cleanup = installer(lifetime.signal, window, document, MutationObserver);
+        const cleanup = installer(
+          lifetime.signal,
+          window,
+          document,
+          MutationObserver,
+          feature.pageScript.config ?? {},
+        );
         if (typeof cleanup === "function") pageScriptCleanups.push(cleanup);
       } catch (error) {
         console.warn(`[codex-personal] page-script feature failed: ${feature.id}`, error);
@@ -3864,7 +3883,10 @@ export function createInjectionSource(features, {
     detailTabs: feature.detailTabs ?? [],
     hostActions: feature.hostActions ?? [],
     modelSelector: feature.modelSelector ?? null,
-    pageScript: feature.pageScript ?? null,
+    pageScript: feature.pageScript ? {
+      ...feature.pageScript,
+      config: { serviceOrigin: pageScriptServiceOrigin(feature) },
+    } : null,
   }));
   return `(${install.toString()})(${JSON.stringify({
     version: RUNTIME_VERSION,

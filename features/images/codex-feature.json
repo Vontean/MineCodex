@@ -12,6 +12,10 @@
   },
   "surfaceUrl": "http://127.0.0.1:47831/",
   "healthUrl": "http://127.0.0.1:47831/api/health",
+  "runtimePortEnvironment": "CODEX_IMAGE_HOST_PORT",
+  "pageScript": {
+    "resource": "src/chatgpt-image-source-page.mjs"
+  },
   "placement": {
     "after": "sites",
     "order": 10

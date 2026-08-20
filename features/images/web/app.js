@@ -46,9 +46,10 @@ const SOURCE_ICON_MARKUP = {
   ].join(""),
   project: '<path fill-rule="evenodd" clip-rule="evenodd" d="M4.75488 2.1416C5.30942 2.14164 5.74594 2.23705 6.11816 2.38965C6.48323 2.53934 6.76728 2.73817 7.00391 2.9043L7.02148 2.91699C7.47057 3.23238 7.8162 3.47463 8.55176 3.47461H11.333C12.7194 3.47484 13.8311 4.61217 13.8311 6L13.875 6.38281H13.8594C14.8729 6.38292 15.5982 7.3629 15.3018 8.33203L14.0068 12.5586C13.7703 13.3297 13.0576 13.8563 12.251 13.8564H3.83984C3.4199 13.8564 3.04144 13.7174 2.73828 13.4883L2.67383 13.4346C1.99907 12.9811 1.55577 12.2065 1.55566 11.3311L0.941406 4.66699C0.941406 3.2792 2.05315 2.1419 3.43945 2.1416H4.75488ZM4.7627 7.42969C4.56039 7.42972 4.3807 7.5625 4.32129 7.75586L3.08594 11.7891C2.96123 12.1965 3.18214 12.6072 3.54883 12.7529C3.63476 12.7768 3.74102 12.7958 3.88184 12.8086H12.251C12.5974 12.8085 12.9033 12.5821 13.0049 12.251L14.2998 8.02539C14.3901 7.72947 14.1688 7.42979 13.8594 7.42969H4.7627ZM3.43945 3.19141C2.64724 3.1917 1.99121 3.84481 1.99121 4.66699L2.49316 10.1201L3.32031 7.44922C3.51452 6.81571 4.10008 6.38284 4.7627 6.38281H12.8252L12.7812 6C12.7812 5.22902 12.2045 4.607 11.4795 4.53223L11.333 4.52441H8.55176C8.05756 4.52442 7.64464 4.44062 7.2666 4.2793C6.91453 4.12896 6.6274 3.92345 6.41797 3.77637L6.40039 3.76367C6.16212 3.59639 5.96404 3.46151 5.71973 3.36133C5.54113 3.28812 5.32754 3.2289 5.05176 3.2041L4.75488 3.19141H3.43945Z" fill="currentColor"></path>',
   chat: '<path d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"></path>',
+  work: '<path d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"></path>',
 };
 
-let facets = { total: 0, chats: 0, projects: [] };
+let facets = { total: 0, chats: 0, works: 0, projects: [] };
 let selectedScope = "all";
 let groupByThread = false;
 let viewContext = "browse";
@@ -155,6 +156,9 @@ function sourcePresentation(image) {
   if (image.sourceKind === "project") {
     return { kind: "project", label: image.projectName || "Project" };
   }
+  if (image.sourceKind === "work") {
+    return { kind: "work", label: image.threadTitle || "Work" };
+  }
   return { kind: "chat", label: image.threadTitle || "Untitled chat" };
 }
 
@@ -170,6 +174,7 @@ function createSourceValue(kind, label, className = "") {
 function selectedFacet() {
   if (selectedScope === "all") return { label: "All images", count: facets.total, kind: "all" };
   if (selectedScope === "chat") return { label: "Chats", count: facets.chats, kind: "chat" };
+  if (selectedScope === "work") return { label: "Work", count: facets.works, kind: "work" };
   const project = facets.projects.find((item) => item.scope === selectedScope);
   return project
     ? { label: project.name, count: project.count, kind: "project" }
@@ -210,6 +215,7 @@ function createSourceOption({ scope, label, count, kind }) {
 function renderSourceMenu() {
   const all = createSourceOption({ scope: "all", label: "All images", count: facets.total, kind: "all" });
   const chats = createSourceOption({ scope: "chat", label: "Chats", count: facets.chats, kind: "chat" });
+  const work = createSourceOption({ scope: "work", label: "Work", count: facets.works, kind: "work" });
   const divider = document.createElement("div");
   divider.className = "source-menu-divider";
   divider.setAttribute("role", "separator");
@@ -219,7 +225,7 @@ function renderSourceMenu() {
     count: project.count,
     kind: "project",
   }));
-  sourceMenu.replaceChildren(all, chats, ...(projects.length ? [divider, ...projects] : []));
+  sourceMenu.replaceChildren(all, chats, work, ...(projects.length ? [divider, ...projects] : []));
   updateFilterTrigger();
 }
 
@@ -259,6 +265,7 @@ async function loadFacets() {
   if (
     selectedScope !== "all"
     && selectedScope !== "chat"
+    && selectedScope !== "work"
     && !facets.projects.some((project) => project.scope === selectedScope)
   ) {
     selectedScope = "all";
@@ -362,8 +369,12 @@ function createThreadBoard(group) {
   button.className = "thread-board";
   button.type = "button";
   button.dataset.threadId = group.threadId;
-  const sourceLabel = group.sourceKind === "project" ? (group.projectName || "Project") : "Chat";
-  const threadTitle = group.threadTitle || (group.sourceKind === "project" ? "Untitled task" : "Untitled chat");
+  const sourceLabel = group.sourceKind === "project"
+    ? (group.projectName || "Project")
+    : group.sourceKind === "work" ? "Work" : "Chat";
+  const threadTitle = group.threadTitle || (
+    group.sourceKind === "project" ? "Untitled task" : group.sourceKind === "work" ? "Untitled work" : "Untitled chat"
+  );
   button.setAttribute("aria-label", `Open ${threadTitle}, ${group.imageCount} images`);
 
   const preview = document.createElement("span");
@@ -392,7 +403,11 @@ function createThreadBoard(group) {
 
   const caption = document.createElement("span");
   caption.className = "thread-board-caption";
-  caption.append(createSourceValue(group.sourceKind === "project" ? "project" : "chat", sourceLabel, "card-source"));
+  caption.append(createSourceValue(
+    group.sourceKind === "project" ? "project" : group.sourceKind === "work" ? "work" : "chat",
+    sourceLabel,
+    "card-source",
+  ));
   const title = document.createElement("span");
   title.className = "thread-board-title";
   title.textContent = threadTitle;
@@ -609,12 +624,18 @@ function resetCopyFeedback() {
 
 function updateSourceAction(image) {
   const archived = Boolean(image.archived);
-  sourceButton.disabled = archived;
-  sourceAction.classList.toggle("is-disabled", archived);
-  sourceTooltip.hidden = !archived;
-  if (archived) {
+  const unavailable = archived || !image.sourceUrl;
+  sourceButton.disabled = unavailable;
+  sourceAction.classList.toggle("is-disabled", unavailable);
+  sourceTooltip.hidden = !unavailable;
+  if (unavailable) {
     sourceButton.setAttribute("aria-describedby", sourceTooltip.id);
-    sourceButton.setAttribute("aria-label", "Open Thread unavailable: this Thread has been archived");
+    sourceTooltip.textContent = archived
+      ? "This Thread has been archived and can’t be opened."
+      : "This ChatGPT conversation cannot be opened from Images.";
+    sourceButton.setAttribute("aria-label", archived
+      ? "Open Thread unavailable: this Thread has been archived"
+      : "Open conversation unavailable");
   } else {
     sourceButton.removeAttribute("aria-describedby");
     sourceButton.removeAttribute("aria-label");
@@ -719,10 +740,11 @@ function trapDetailContextFocus(event) {
 function showImageDetails(image) {
   activeImage = image;
   const isProject = image.sourceKind === "project";
+  const isWork = image.sourceKind === "work";
   drawerProjectRow.hidden = !isProject;
   if (isProject) drawerProject.textContent = image.projectName || "Project";
-  drawerTaskLabel.textContent = isProject ? "Thread" : "Chat";
-  drawerThread.textContent = image.threadTitle || (isProject ? "Untitled task" : "Untitled chat");
+  drawerTaskLabel.textContent = isProject ? "Thread" : isWork ? "Work" : "Chat";
+  drawerThread.textContent = image.threadTitle || (isProject ? "Untitled task" : isWork ? "Untitled work" : "Untitled chat");
   drawerImage.src = image.fileUrl;
   drawerImage.alt = image.prompt || "Generated image";
   if (image.width && image.height) {
@@ -959,7 +981,7 @@ rescan.addEventListener("click", async () => {
 
 drawer.querySelector(".drawer-close").addEventListener("click", closeDrawer);
 sourceButton.addEventListener("click", () => {
-  if (activeImage && !activeImage.archived) openSourceThread(activeImage.threadId);
+  if (activeImage && !activeImage.archived && activeImage.sourceUrl) openSourceThread(activeImage.threadId);
 });
 
 promptCopyButton.addEventListener("click", async () => {
