@@ -299,6 +299,9 @@ async function executeModelSliderInjection({
     `window.__toolbarProbe = {
       active: () => Boolean(toolbarReadiness),
       ensure: ensureToolbarEntries,
+      hostActionFailure: (error) => typeof hostActionFailure === "function"
+        ? hostActionFailure(error)
+        : null,
       flush: flushEnsure,
     };
     const runtimeApi = {`,
@@ -381,6 +384,10 @@ async function executeModelSliderInjection({
         for (const callback of resizeCallbacks) callback();
       },
       entryCount: () => document.querySelectorAll('[data-codex-personal-feature="notes"]').length,
+    },
+    hostActionFailure: (error) => {
+      const value = window.__toolbarProbe.hostActionFailure(error);
+      return value ? JSON.parse(JSON.stringify(value)) : null;
     },
     probe: probe ? JSON.parse(JSON.stringify(probe)) : null,
     runtimeInstalled: Boolean(window.__codexPersonalRuntime),
@@ -1075,10 +1082,23 @@ test("opens detail views only in Codex native right-panel tabs", () => {
   assert.doesNotMatch(source, /presentation: "fallback"/);
   assert.doesNotMatch(source, /data-codex-personal-tab-host/);
   assert.match(source, /const result = await openNativeDetailTab\(feature, detail\)/);
-  assert.match(source, /if \(!result\) throw nativeTabCapabilityError/);
+  assert.match(source, /error\.code = "NATIVE_TAB_UNAVAILABLE"/);
+  assert.match(source, /error: hostActionFailure\(error\)/);
   assert.match(source, /result: await openDetailTab\(feature\.id, payload\.surface\)/);
   assert.match(source, /detailTabCapability/);
   assert.match(source, /closeNativeDetailTabs\(\)/);
+});
+
+test("preserves the native Tab capability reason across the Host-action surface", async () => {
+  const result = await executeModelSliderInjection({ features: [notesFeatureFixture()] });
+
+  assert.deepEqual(result.hostActionFailure(Object.assign(
+    new Error("Codex right-panel controller is unavailable"),
+    { code: "NATIVE_TAB_UNAVAILABLE" },
+  )), {
+    code: "NATIVE_TAB_UNAVAILABLE",
+    message: "Codex right-panel controller is unavailable",
+  });
 });
 
 test("ignores native Host bindings with the wrong target token", async () => {

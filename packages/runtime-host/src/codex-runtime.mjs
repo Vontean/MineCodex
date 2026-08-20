@@ -3439,8 +3439,12 @@ export function createInjectionSource(features, {
       const detail = feature?.detailTabs?.find((candidate) => candidate.id === detailId);
       if (!feature || !detail) throw new Error("The requested detail Tab is not registered");
       const result = await openNativeDetailTab(feature, detail);
-      if (!result) throw nativeTabCapabilityError
-        ?? new Error("Codex native right-panel tabs are unavailable");
+      if (!result) {
+        const error = nativeTabCapabilityError
+          ?? new Error("Codex native right-panel tabs are unavailable");
+        error.code = "NATIVE_TAB_UNAVAILABLE";
+        throw error;
+      }
       return result;
     }
 
@@ -3681,6 +3685,13 @@ export function createInjectionSource(features, {
       }, record.origin);
     }
 
+    function hostActionFailure(error) {
+      return {
+        code: typeof error?.code === "string" ? error.code : "HOST_ACTION_FAILED",
+        message: error?.message ?? "Host action failed",
+      };
+    }
+
     async function handleSurfaceHostAction(record, message) {
       const feature = featureById.get(record.featureId);
       const { requestId, action, payload = {} } = message;
@@ -3744,7 +3755,7 @@ export function createInjectionSource(features, {
       } catch (error) {
         respondToSurface(record, requestId, {
           ok: false,
-          error: { code: "HOST_ACTION_FAILED", message: error.message },
+          error: hostActionFailure(error),
         });
       }
     }
