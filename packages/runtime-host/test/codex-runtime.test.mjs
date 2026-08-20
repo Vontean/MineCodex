@@ -1799,16 +1799,22 @@ test("replaces the current page runtime without reloading the Codex page", async
   await runtime.refreshTargets();
   assert.deepEqual(runtime.getRendererStatus(), {
     discovered: false,
+    discoveredTargets: 0,
     injectedTargets: 0,
     active: false,
+    healthy: false,
+    targetFailures: [],
     runtimeSessionId: "runtime-session-current",
   });
   targets = [];
   await runtime.refreshTargets();
   assert.deepEqual(runtime.getRendererStatus(), {
     discovered: false,
+    discoveredTargets: 0,
     injectedTargets: 0,
     active: false,
+    healthy: false,
+    targetFailures: [],
     runtimeSessionId: "runtime-session-current",
   });
   assert.equal(statuses.at(-1).active, false);
@@ -1883,6 +1889,74 @@ test("bootstraps the current Codex document without reloading it", async () => {
   await runtime.stop();
 });
 
+test("isolates renderer injection failures and retries only the failed target", async () => {
+  const closed = [];
+  let failTargetB = true;
+  const targets = ["target-a", "target-b"].map((id) => ({
+    id,
+    type: "page",
+    url: "app://-/index.html",
+    webSocketDebuggerUrl: `ws://${id}`,
+  }));
+  const runtime = new CodexRuntime({
+    features: [{ id: "notes", hostActions: [] }],
+    profileDir: "/tmp/codex-runtime-target-isolation-profile",
+    cdpPort: 9250,
+    runtimeSessionId: "runtime-session-target-isolation",
+    fetchImpl: async () => cdpResponse(targets),
+    connectClient: async (url) => {
+      const targetId = url.slice("ws://".length);
+      return {
+        socket: { close() { closed.push(targetId); } },
+        on() { return () => {}; },
+        async send(method, params = {}) {
+          if (method === "Page.addScriptToEvaluateOnNewDocument") {
+            return { identifier: `script-${targetId}` };
+          }
+          if (
+            targetId === "target-b"
+            && failTargetB
+            && method === "Runtime.evaluate"
+            && params.expression?.includes("function install")
+          ) {
+            throw new Error("Execution context was destroyed");
+          }
+          if (method === "Runtime.evaluate") return { result: { value: true } };
+          return {};
+        },
+      };
+    },
+    logger: { log() {}, warn() {} },
+  });
+
+  await runtime.refreshTargets();
+  assert.equal(runtime.injectedTargets.has("target-a"), true);
+  assert.equal(runtime.injectedTargets.has("target-b"), false);
+  assert.deepEqual(closed, ["target-b"]);
+  assert.deepEqual(runtime.getRendererStatus(), {
+    discovered: true,
+    discoveredTargets: 2,
+    injectedTargets: 1,
+    active: true,
+    healthy: false,
+    targetFailures: [{
+      targetId: "target-b",
+      attempts: 1,
+      state: "retrying",
+      lastFailure: "Execution context was destroyed",
+    }],
+    runtimeSessionId: "runtime-session-target-isolation",
+  });
+
+  failTargetB = false;
+  runtime.targetFailures.get("target-b").nextRetryAt = 0;
+  await runtime.refreshTargets();
+  assert.equal(runtime.injectedTargets.size, 2);
+  assert.equal(closed.includes("target-a"), false);
+  assert.deepEqual(runtime.getRendererStatus().targetFailures, []);
+  assert.equal(runtime.getRendererStatus().healthy, true);
+});
+
 test("clears injected target state when the current target list disappears", async () => {
   const closed = [];
   const runtime = new CodexRuntime({
@@ -1909,8 +1983,11 @@ test("clears injected target state when the current target list disappears", asy
   await assert.rejects(runtime.refreshTargets(), /CDP target list unavailable/);
   assert.deepEqual(runtime.getRendererStatus(), {
     discovered: false,
+    discoveredTargets: 0,
     injectedTargets: 0,
     active: false,
+    healthy: false,
+    targetFailures: [],
     runtimeSessionId: runtime.runtimeSessionId,
   });
   assert.deepEqual(closed, ["target-stale"]);
@@ -1952,8 +2029,11 @@ test("clears stale renderer state for non-OK and invalid target-list responses",
     await assert.rejects(runtime.refreshTargets(), scenario.error);
     assert.deepEqual(runtime.getRendererStatus(), {
       discovered: false,
+      discoveredTargets: 0,
       injectedTargets: 0,
       active: false,
+      healthy: false,
+      targetFailures: [],
       runtimeSessionId: runtime.runtimeSessionId,
     });
     assert.deepEqual(closed, ["target-stale"]);
@@ -2013,8 +2093,11 @@ test("reports renderer absence as inactive and reconciles service-free plugins o
   });
   assert.deepEqual(runtime.getRendererStatus(), {
     discovered: false,
+    discoveredTargets: 0,
     injectedTargets: 0,
     active: false,
+    healthy: false,
+    targetFailures: [],
     runtimeSessionId: runtime.runtimeSessionId,
   });
 
@@ -2028,13 +2111,27 @@ test("reports renderer absence as inactive and reconciles service-free plugins o
       { featureId: "images", state: "failed", owned: true, health: null, failure: { code: "DOWN" } },
     ],
     failures: [{ featureId: "images", message: "down" }],
-    renderer: { discovered: true, injectedTargets: 1, active: true },
+    renderer: {
+      discovered: true,
+      discoveredTargets: 2,
+      injectedTargets: 1,
+      active: true,
+      targetFailures: [{
+        targetId: "renderer-b",
+        attempts: 1,
+        state: "retrying",
+        lastFailure: "Execution context was destroyed",
+      }],
+    },
     runtimeSessionId: "runtime-session-contract",
   });
   assert.equal(contract.plugins.find((plugin) => plugin.featureId === "model-slider").state, "injected");
   assert.equal(contract.plugins.find((plugin) => plugin.featureId === "notes").state, "injected");
   assert.equal(contract.plugins.find((plugin) => plugin.featureId === "images").state, "failed");
   assert.equal(contract.renderer.active, true);
+  assert.equal(contract.renderer.healthy, false);
+  assert.equal(contract.renderer.discoveredTargets, 2);
+  assert.equal(contract.renderer.targetFailures.length, 1);
 
   const inactiveContract = createRuntimeReadyContract({
     pid: 1,
@@ -2068,6 +2165,12 @@ test("disposes the current document before removing future scripts and closing C
   runtime.scriptIds.set("target-1", "script-1");
   runtime.bindingTokens.set("target-1", "binding-1");
   runtime.injectedTargets.add("target-1");
+  runtime.rendererTargetIds.add("target-1");
+  runtime.targetFailures.set("target-failed", {
+    attempts: 1,
+    lastFailure: "context destroyed",
+    nextRetryAt: Date.now() + 250,
+  });
 
   await runtime.stop();
   assert.deepEqual(calls, [
@@ -2076,4 +2179,6 @@ test("disposes the current document before removing future scripts and closing C
     "Runtime.removeBinding",
     "socket.close",
   ]);
+  assert.equal(runtime.rendererTargetIds.size, 0);
+  assert.equal(runtime.targetFailures.size, 0);
 });

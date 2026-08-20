@@ -3981,7 +3981,9 @@ export function createRuntimeReadyContract({
   runtimeSessionId,
 }) {
   const discovered = Boolean(renderer.discovered);
+  const discoveredTargets = Math.max(0, Number(renderer.discoveredTargets) || 0);
   const injectedTargets = Math.max(0, Number(renderer.injectedTargets) || 0);
+  const targetFailures = Array.isArray(renderer.targetFailures) ? renderer.targetFailures : [];
   const active = Boolean(renderer.active) && discovered && injectedTargets > 0;
   return {
     pid,
@@ -3999,8 +4001,11 @@ export function createRuntimeReadyContract({
     })),
     renderer: {
       discovered,
+      discoveredTargets,
       injectedTargets,
       active,
+      healthy: active && targetFailures.length === 0 && injectedTargets === discoveredTargets,
+      targetFailures,
       runtimeSessionId: renderer.runtimeSessionId ?? runtimeSessionId,
     },
   };
@@ -4201,6 +4206,8 @@ export class CodexRuntime {
     this.onStatusChange = onStatusChange;
     this.onManagedCodexPidChange = onManagedCodexPidChange;
     this.injectedTargets = new Set();
+    this.rendererTargetIds = new Set();
+    this.targetFailures = new Map();
     this.clients = new Map();
     this.scriptIds = new Map();
     this.bindingTokens = new Map();
@@ -4254,10 +4261,21 @@ export class CodexRuntime {
 
   getRendererStatus() {
     const injectedTargets = this.injectedTargets.size;
+    const discoveredTargets = this.rendererTargetIds.size;
+    const targetFailures = Array.from(this.targetFailures, ([targetId, failure]) => ({
+      targetId,
+      attempts: failure.attempts,
+      state: "retrying",
+      lastFailure: failure.lastFailure,
+    })).sort((left, right) => left.targetId.localeCompare(right.targetId));
+    const active = !this.stopping && this.rendererDiscovered && injectedTargets > 0;
     return {
       discovered: this.rendererDiscovered,
+      discoveredTargets,
       injectedTargets,
-      active: !this.stopping && this.rendererDiscovered && injectedTargets > 0,
+      active,
+      healthy: active && targetFailures.length === 0 && injectedTargets === discoveredTargets,
+      targetFailures,
       runtimeSessionId: this.runtimeSessionId,
     };
   }
@@ -4268,8 +4286,11 @@ export class CodexRuntime {
     if (
       previous
       && previous.discovered === status.discovered
+      && previous.discoveredTargets === status.discoveredTargets
       && previous.injectedTargets === status.injectedTargets
       && previous.active === status.active
+      && previous.healthy === status.healthy
+      && JSON.stringify(previous.targetFailures) === JSON.stringify(status.targetFailures)
       && previous.runtimeSessionId === status.runtimeSessionId
     ) return;
     this.lastRendererStatus = status;
@@ -4313,6 +4334,8 @@ export class CodexRuntime {
     this.bindingTokens.clear();
     this.hostActionChains.clear();
     this.injectedTargets.clear();
+    this.rendererTargetIds.clear();
+    this.targetFailures.clear();
     this.rendererDiscovered = false;
     this.browserClient?.socket.close();
     this.browserClient = null;
@@ -4714,8 +4737,14 @@ export class CodexRuntime {
         .filter((target) => target.type === "page" && target.url === "app://-/index.html")
         .map((target) => target.id),
     );
+    this.rendererTargetIds = liveRendererIds;
     let removedTarget = false;
-    for (const id of this.injectedTargets) {
+    const trackedTargetIds = new Set([
+      ...this.injectedTargets,
+      ...this.clients.keys(),
+      ...this.targetFailures.keys(),
+    ]);
+    for (const id of trackedTargetIds) {
       if (liveRendererIds.has(id)) continue;
       removedTarget = true;
       this.clients.get(id)?.socket.close();
@@ -4724,6 +4753,7 @@ export class CodexRuntime {
       this.bindingTokens.delete(id);
       this.hostActionChains.delete(id);
       this.injectedTargets.delete(id);
+      this.targetFailures.delete(id);
     }
     const rendererDiscovered = liveRendererIds.size > 0;
     const rendererChanged = rendererDiscovered !== this.rendererDiscovered;
@@ -4734,8 +4764,12 @@ export class CodexRuntime {
       if (target.type !== "page" || target.url !== "app://-/index.html" || this.injectedTargets.has(target.id)) {
         continue;
       }
-      const client = await this.connectClient(target.webSocketDebuggerUrl);
+      const previousFailure = this.targetFailures.get(target.id);
+      if (previousFailure && Date.now() < previousFailure.nextRetryAt) continue;
+      let client;
+      let scriptIdentifier = null;
       try {
+        client = await this.connectClient(target.webSocketDebuggerUrl);
         await Promise.all([
           client.send("Page.enable"),
           client.send("Runtime.enable"),
@@ -4757,6 +4791,7 @@ export class CodexRuntime {
         const script = await client.send("Page.addScriptToEvaluateOnNewDocument", {
           source: createDocumentBootstrapSource(source),
         });
+        scriptIdentifier = script.identifier;
         await waitForExpression(
           client,
           `document.readyState === "interactive" || document.readyState === "complete"`,
@@ -4769,15 +4804,33 @@ export class CodexRuntime {
             + ` && window.__codexPersonalRuntime?.sessionId === ${JSON.stringify(this.runtimeSessionId)}`,
         );
         this.clients.set(target.id, client);
-        this.scriptIds.set(target.id, script.identifier);
+        this.scriptIds.set(target.id, scriptIdentifier);
         this.injectedTargets.add(target.id);
+        this.targetFailures.delete(target.id);
         this.notifyStatusChange();
       } catch (error) {
         this.bindingTokens.delete(target.id);
-        client.socket.close();
-        throw error;
+        if (client) {
+          if (scriptIdentifier) {
+            await client.send("Page.removeScriptToEvaluateOnNewDocument", {
+              identifier: scriptIdentifier,
+            }).catch(() => {});
+          }
+          await client.send("Runtime.removeBinding", { name: HOST_BINDING_NAME }).catch(() => {});
+          client.socket.close();
+        }
+        const attempts = (previousFailure?.attempts ?? 0) + 1;
+        const retryDelay = Math.min(5_000, 250 * (2 ** Math.min(attempts - 1, 5)));
+        this.targetFailures.set(target.id, {
+          attempts,
+          lastFailure: error.message,
+          nextRetryAt: Date.now() + retryDelay,
+        });
+        this.logger.warn?.(`Renderer injection failed for ${target.id}; retrying`, error.message);
+        this.notifyStatusChange();
       }
     }
+    this.notifyStatusChange();
   }
 
   async stop() {
@@ -4807,6 +4860,8 @@ export class CodexRuntime {
       this.bindingTokens.clear();
       this.hostActionChains.clear();
       this.injectedTargets.clear();
+      this.rendererTargetIds.clear();
+      this.targetFailures.clear();
       this.rendererDiscovered = false;
       this.notifyStatusChange();
       this.monitorPromise = null;
