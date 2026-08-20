@@ -613,18 +613,6 @@ export class MacPlatformAdapter {
     return true;
   }
 
-  async codexProcessStartedMsAgo(processInfo) {
-    if (!processInfo || !Number.isInteger(processInfo.pid) || processInfo.pid <= 1) return null;
-    const { stdout } = await this.execFile("/bin/ps", ["-axo", "pid=,lstart="]);
-    const line = String(stdout).split("\n").find((row) => {
-      const match = row.match(/\s*(\d+)\s+(.*)/);
-      return match?.[1] === String(processInfo.pid);
-    });
-    const startedAt = line ? Date.parse(line.replace(/^\s*\d+\s+/, "")) : Number.NaN;
-    if (!line || !Number.isFinite(startedAt)) return null;
-    return Math.max(0, Date.now() - startedAt);
-  }
-
   async terminateNativeCodex(pid, expectedCommand = null) {
     if (!Number.isInteger(pid) || pid <= 1) {
       throw new Error("MineCodex requires an exact ChatGPT PID to terminate.");

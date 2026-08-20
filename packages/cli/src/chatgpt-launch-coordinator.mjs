@@ -65,7 +65,33 @@ export class ChatGPTLaunchCoordinator {
       throw new Error(`MineCodex refused to replace ChatGPT pid ${processInfo.pid} after identity changed.`);
     }
     const launched = await this.platform.openNativeCodex({ cdpPort: this.cdpPort });
-    return this.attach(launched, true, { startRuntime, waitForHealthy });
+    try {
+      return await this.attach(launched, true, { startRuntime, waitForHealthy });
+    } catch (error) {
+      const rollbackErrors = [];
+      try {
+        await stopRuntime();
+      } catch (rollbackError) {
+        rollbackErrors.push(rollbackError);
+      }
+      try {
+        const rolledBack = await this.platform.terminateNativeCodex(launched?.pid, launched?.command);
+        if (rolledBack !== 1) {
+          throw new Error(`MineCodex could not roll back LaunchServices ChatGPT pid ${launched?.pid}.`);
+        }
+      } catch (rollbackError) {
+        rollbackErrors.push(rollbackError);
+      }
+      if (rollbackErrors.length) {
+        const rollbackFailure = new Error(
+          `${error.message}; ChatGPT launch rollback failed: ${rollbackErrors.map(({ message }) => message).join("; ")}`,
+          { cause: error },
+        );
+        rollbackFailure.retryProcessPids = Number.isInteger(launched?.pid) ? [launched.pid] : [];
+        throw rollbackFailure;
+      }
+      throw error;
+    }
   }
 
   async relaunchOwned({ stopRuntime, terminateOwned, startRuntime, waitForHealthy }) {

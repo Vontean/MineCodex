@@ -1289,7 +1289,7 @@ test("multiple new ChatGPT processes fail closed and are not retried as a launch
   assert.equal(manager.status().failures.at(-1).code, "MULTIPLE_CHATGPT_LAUNCHES");
 });
 
-test("replaces a freshly woken ChatGPT instance but yields to one already in use", async (t) => {
+test("enhances a restored ChatGPT instance even when its process is older than the grace period", async (t) => {
   const root = await mkdtemp(path.join(os.tmpdir(), "minecodex-runtime-takeover-gate-"));
   const paths = {
     packageRoot: root,
@@ -1351,7 +1351,6 @@ test("replaces a freshly woken ChatGPT instance but yields to one already in use
       startedMsPerPid.delete(pid);
       return 1;
     },
-    codexProcessStartedMsAgo: async (processInfo) => startedMsPerPid.get(processInfo.pid) ?? null,
     assertNativeCodexCdp: async () => true,
     openNativeCodex: async () => {
       startedMsPerPid.set(5_100, 0);
@@ -1366,7 +1365,6 @@ test("replaces a freshly woken ChatGPT instance but yields to one already in use
     logger: { error() {}, warn() {} },
     cdpPort: 9231,
     manualLaunchPollMs: 60_000,
-    manualTakeoverGraceMs: 60_000,
     stopTimeoutMs: 100,
   });
   t.after(() => manager.stop());
@@ -1379,14 +1377,157 @@ test("replaces a freshly woken ChatGPT instance but yields to one already in use
   assert.equal(startedMsPerPid.has(5_001), false, "fresh wake should be replaced");
   assert.equal(startedMsPerPid.has(5_100), true, "replacement CDP instance should be running");
 
-  // The existing official instance now ages past the grace period.
+  // A session-restored instance may already be older than the former grace period.
   startedMsPerPid.set(5_002, 120_000);
   await manager.reconcileManualCodexLaunch();
-  assert.equal(startedMsPerPid.has(5_002), true, "in-use official instance must not be terminated");
-  assert.equal(manager.status().failures.at(-1).code, "OFFICIAL_CHATGPT_IN_USE");
+  assert.equal(startedMsPerPid.has(5_002), false, "restored official instance must enter enhancement");
+  assert.equal(startedMsPerPid.has(5_100), true, "restored instance should receive a replacement CDP session");
+  assert.equal(manager.status().failures.length, 0);
+});
 
-  // Yielding is sticky: the same instance is not retried on the next reconciliation.
-  await manager.reconcileManualCodexLaunch();
-  assert.equal(startedMsPerPid.has(5_002), true);
-  assert.equal(manager.status().failures.at(-1).code, "OFFICIAL_CHATGPT_IN_USE");
+test("rolls back the exact LaunchServices PID when attachment proof fails", async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "minecodex-runtime-launch-rollback-"));
+  const paths = {
+    packageRoot: root,
+    supportDir: path.join(root, "support"),
+    configPath: path.join(root, "support", "config.json"),
+    runtimeEntry: path.join(root, "runtime.mjs"),
+    featuresRoot: path.join(root, "features"),
+    profileDir: path.join(root, "profile"),
+    imagesDataDir: path.join(root, "images"),
+    notesDataDir: path.join(root, "notes"),
+    codexPidPath: path.join(root, "codex.pid"),
+    runtimeReadyPath: path.join(root, "runtime-ready.json"),
+  };
+  const children = [];
+  const spawnProcess = (_command, _args, options) => {
+    const child = new EventEmitter();
+    child.pid = 6_000 + children.length;
+    child.exitCode = null;
+    child.signalCode = null;
+    child.kill = (signal) => {
+      child.exitCode = 0;
+      child.signalCode = signal;
+      queueMicrotask(() => child.emit("exit", 0, signal));
+    };
+    children.push(child);
+    queueMicrotask(() => writeFile(options.env.MINECODEX_RUNTIME_READY_FILE, JSON.stringify({
+      pid: child.pid,
+      runtimeSessionId: `rollback-${child.pid}`,
+      features: ["notes"],
+      plugins: [{ featureId: "notes", state: "injected", owned: true, failure: null }],
+      renderer: { discovered: true, injectedTargets: 1, active: true, runtimeSessionId: `rollback-${child.pid}` },
+      failures: [],
+    })));
+    return child;
+  };
+  const nativeProcesses = new Map();
+  const terminatedPids = [];
+  const rollbackFails = { value: false };
+  const command = "/Applications/ChatGPT.app/Contents/MacOS/ChatGPT";
+  const cdpCommand = `${command} --remote-debugging-address=127.0.0.1 --remote-debugging-port=9231 --remote-allow-origins=http://127.0.0.1:9231`;
+  const platform = {
+    snapshotNativeCodexState: async () => ({
+      count: nativeProcesses.size,
+      processes: [...nativeProcesses.entries()].map(([pid, processCommand]) => ({
+        pid,
+        command: processCommand,
+        verified: true,
+      })),
+    }),
+    terminateNativeCodex: async (pid) => {
+      terminatedPids.push(pid);
+      if (pid === 6_200 && rollbackFails.value) return 0;
+      if (!nativeProcesses.delete(pid)) return 0;
+      return 1;
+    },
+    openNativeCodex: async () => {
+      nativeProcesses.set(6_200, cdpCommand);
+      return { pid: 6_200, command: cdpCommand, verified: true };
+    },
+    assertNativeCodexCdp: async (processInfo) => {
+      if (processInfo.pid === 6_200) throw new Error("renderer proof failed");
+    },
+  };
+  const manager = new RuntimeManager({
+    paths,
+    platform,
+    spawnProcess,
+    logger: { error() {}, warn() {} },
+    cdpPort: 9231,
+    manualLaunchPollMs: 60_000,
+    stopTimeoutMs: 100,
+  });
+  t.after(() => manager.stop());
+
+  await manager.start();
+  nativeProcesses.set(6_100, command);
+  await assert.rejects(manager.reconcileManualCodexLaunch(), /renderer proof failed/);
+
+  assert.deepEqual(terminatedPids, [6_100, 6_200]);
+  assert.equal(nativeProcesses.has(6_100), false);
+  assert.equal(nativeProcesses.has(6_200), false, "failed LaunchServices PID must not leak");
+  assert.equal(manager.status().codex, null);
+
+  rollbackFails.value = true;
+  nativeProcesses.set(6_300, command);
+  await assert.rejects(manager.reconcileManualCodexLaunch(), /ChatGPT launch rollback failed/);
+  assert.equal(nativeProcesses.has(6_200), true, "an unrolled-back exact PID must remain retry-visible");
+  await assert.rejects(manager.reconcileManualCodexLaunch(), /renderer proof failed/);
+  assert.equal(nativeProcesses.has(6_200), true, "retry-visible PID must not be hidden by baseline refresh");
+});
+
+test("writes a complete owner marker through a synced temporary file and atomic rename", async () => {
+  const calls = [];
+  const paths = { codexPidPath: "/tmp/minecodex-owner-marker/codex.pid" };
+  const manager = new RuntimeManager({
+    paths,
+    platform: {},
+    fileSystem: {
+      open: async (filePath, flags, mode) => {
+        calls.push(["open", filePath, flags, mode]);
+        return {
+          writeFile: async (content) => calls.push(["write", filePath, content]),
+          sync: async () => calls.push(["sync", filePath]),
+          close: async () => calls.push(["close", filePath]),
+        };
+      },
+      rename: async (from, to) => calls.push(["rename", from, to]),
+      unlink: async (filePath) => calls.push(["unlink", filePath]),
+    },
+  });
+
+  await manager.writeOwnedCodexPid({ pid: 6_300, command: "/Applications/ChatGPT.app/Contents/MacOS/ChatGPT --remote-debugging-port=9231" });
+
+  assert.equal(calls[0][0], "open");
+  assert.match(calls[0][1], /codex\.pid\./);
+  assert.deepEqual(calls.slice(1, 3).map(([operation]) => operation), ["write", "sync"]);
+  assert.equal(calls[3][0], "close");
+  assert.deepEqual(calls[4], ["rename", calls[0][1], paths.codexPidPath]);
+});
+
+test("keeps the existing owner marker path untouched when temporary marker writing fails", async () => {
+  const calls = [];
+  const paths = { codexPidPath: "/tmp/minecodex-owner-marker/codex.pid" };
+  const manager = new RuntimeManager({
+    paths,
+    platform: {},
+    fileSystem: {
+      open: async (filePath) => {
+        calls.push(["open", filePath]);
+        return {
+          writeFile: async () => { throw new Error("simulated marker write interruption"); },
+          close: async () => calls.push(["close", filePath]),
+        };
+      },
+      rename: async (...args) => calls.push(["rename", ...args]),
+      unlink: async (filePath) => calls.push(["unlink", filePath]),
+    },
+  });
+
+  await assert.rejects(
+    manager.writeOwnedCodexPid({ pid: 6_301, command: "/Applications/ChatGPT.app/Contents/MacOS/ChatGPT" }),
+    /simulated marker write interruption/,
+  );
+  assert.deepEqual(calls.map(([operation]) => operation), ["open", "close", "unlink"]);
 });

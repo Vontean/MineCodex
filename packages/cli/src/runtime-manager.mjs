@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
+import { mkdir, open, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { ChatGPTLaunchCoordinator } from "./chatgpt-launch-coordinator.mjs";
 import { readConfig, FEATURE_IDS } from "./config.mjs";
 
@@ -121,9 +121,9 @@ export class RuntimeManager {
     sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
     stopTimeoutMs = 5_000,
     manualLaunchPollMs = 150,
-    manualTakeoverGraceMs = 60_000,
     cdpPort = Number(process.env.CODEX_RUNTIME_CDP_PORT ?? 9231),
     launchCoordinator = null,
+    fileSystem = { open, rename, unlink },
   }) {
     this.paths = paths;
     this.platform = platform;
@@ -133,8 +133,8 @@ export class RuntimeManager {
     this.sleep = sleep;
     this.stopTimeoutMs = stopTimeoutMs;
     this.manualLaunchPollMs = manualLaunchPollMs;
-    this.manualTakeoverGraceMs = manualTakeoverGraceMs;
     this.cdpPort = cdpPort;
+    this.fileSystem = fileSystem;
     this.child = null;
     this.appliedFeatures = [];
     this.plugins = [];
@@ -265,10 +265,11 @@ export class RuntimeManager {
     };
   }
 
-  async syncManualLaunchBaseline() {
+  async syncManualLaunchBaseline({ excludePids = [] } = {}) {
     const snapshot = await this.nativeCodexSnapshot();
     if (!snapshot) return;
-    this.manualLaunchBaselinePids = new Set(snapshot.pids);
+    const excluded = new Set(excludePids);
+    this.manualLaunchBaselinePids = new Set([...snapshot.pids].filter((pid) => !excluded.has(pid)));
     this.manualLaunchArmed = true;
   }
 
@@ -329,19 +330,6 @@ export class RuntimeManager {
     this.manualLaunchArmed = false;
   }
 
-  async isManualTakeoverAllowed(processInfo) {
-    if (typeof this.platform?.codexProcessStartedMsAgo !== "function") return true;
-    let startedMsAgo;
-    try {
-      startedMsAgo = await this.platform.codexProcessStartedMsAgo(processInfo);
-    } catch (error) {
-      this.logger.warn?.("MineCodex could not read the ChatGPT start time", error.message);
-      return true;
-    }
-    if (!Number.isInteger(startedMsAgo) || startedMsAgo < 0) return true;
-    return startedMsAgo < this.manualTakeoverGraceMs;
-  }
-
   async reconcileManualCodexLaunch() {
     if (this.manualLaunchMonitorStopped || this.manualLaunchSuppressionDepth > 0) return false;
     const snapshot = await this.nativeCodexSnapshot();
@@ -375,6 +363,7 @@ export class RuntimeManager {
     this.enhancementFailure = null;
     this.manualLaunchSuppressionDepth += 1;
     return this.enqueue(async () => {
+      const retryProcessPids = new Set();
       try {
         if (this.manualLaunchMonitorStopped) return false;
         const latest = await this.nativeCodexSnapshot();
@@ -387,14 +376,6 @@ export class RuntimeManager {
           return false;
         }
         try {
-          if (!(await this.isManualTakeoverAllowed(currentProcess))) {
-            this.enhancementFailure = {
-              code: "OFFICIAL_CHATGPT_IN_USE",
-              message: "MineCodex left the official ChatGPT instance running because it was already in use.",
-              phase: "launch",
-            };
-            return null;
-          }
           const result = await this.launchCoordinator.ensureObservedLaunch(currentProcess, {
             stopRuntime: () => this.stopInternal(),
             startRuntime: () => this.startInternal(),
@@ -406,6 +387,8 @@ export class RuntimeManager {
           await this.syncManualLaunchBaseline();
           return result;
         } catch (error) {
+          retryProcessPids.add(observedProcess.pid);
+          for (const pid of error.retryProcessPids ?? []) retryProcessPids.add(pid);
           this.enhancementFailure = normalizedFailure({
             code: error.code ?? "CHATGPT_ENHANCEMENT_FAILED",
             message: error.message,
@@ -423,7 +406,7 @@ export class RuntimeManager {
         }
       } finally {
         this.manualLaunchArmed = true;
-        await this.syncManualLaunchBaseline().catch((error) => {
+        await this.syncManualLaunchBaseline({ excludePids: retryProcessPids }).catch((error) => {
           this.logger.warn?.("MineCodex could not refresh the ChatGPT launch baseline", error.message);
         });
         this.manualLaunchSuppressionDepth -= 1;
@@ -441,7 +424,21 @@ export class RuntimeManager {
     if (!Number.isInteger(marker.pid) || marker.pid <= 1 || typeof marker.command !== "string" || !marker.command) {
       throw new Error("MineCodex cannot persist incomplete ChatGPT ownership identity.");
     }
-    await writeFile(this.paths.codexPidPath, `${JSON.stringify(marker)}\n`, { mode: 0o600 });
+    const temporaryPath = `${this.paths.codexPidPath}.${process.pid}.${Date.now()}.tmp`;
+    let committed = false;
+    try {
+      const handle = await this.fileSystem.open(temporaryPath, "wx", 0o600);
+      try {
+        await handle.writeFile(`${JSON.stringify(marker)}\n`);
+        await handle.sync?.();
+      } finally {
+        await handle.close();
+      }
+      await this.fileSystem.rename(temporaryPath, this.paths.codexPidPath);
+      committed = true;
+    } finally {
+      if (!committed) await this.fileSystem.unlink(temporaryPath).catch(() => {});
+    }
   }
 
   async waitForHealthyRuntime(initialStatus = null, timeoutMs = 25_000) {
