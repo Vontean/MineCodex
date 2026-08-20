@@ -285,6 +285,7 @@ export function createInjectionSource(features, {
     let shiftedConversationOwner = null;
     let shiftedConversationOriginal = null;
     let mainContentObserver = null;
+    let toolbarReadiness = null;
     const domObservers = [];
     const pageScriptCleanups = [];
     const pendingHostActions = new Map();
@@ -486,6 +487,57 @@ export function createInjectionSource(features, {
         if (!/temporary chat/i.test(button.getAttribute("aria-label") ?? "")) return false;
         return isVisibleToolbarControl(button);
       }) ?? null;
+    }
+
+    function structuralToolbarAnchor() {
+      const buttons = Array.from(document.querySelectorAll("button"));
+      return buttons.find((button) => /temporary chat/i.test(button.getAttribute("aria-label") ?? ""))
+        ?? buttons.find((button) => new Set(["Toggle summary", "Toggle pinned summary"])
+          .has(button.getAttribute("aria-label")))
+        ?? buttons.find((button) => button.getAttribute("aria-label") === "Toggle bottom panel")
+        ?? buttons.find((button) => button.getAttribute("aria-label") === "Toggle side panel")
+        ?? null;
+    }
+
+    function stopToolbarReadiness() {
+      if (!toolbarReadiness) return;
+      toolbarReadiness.observer.disconnect();
+      if (toolbarReadiness.retryTimer != null) clearTimeout(toolbarReadiness.retryTimer);
+      if (toolbarReadiness.deadlineTimer != null) clearTimeout(toolbarReadiness.deadlineTimer);
+      toolbarReadiness = null;
+    }
+
+    function ensureToolbarReadiness(candidate) {
+      const thread = threadIdentity();
+      if (toolbarReadiness?.candidate === candidate && toolbarReadiness.thread === thread) return;
+      stopToolbarReadiness();
+      const record = {
+        candidate,
+        thread,
+        attempts: 0,
+        retryTimer: null,
+        deadlineTimer: null,
+        observer: null,
+      };
+      const wake = () => {
+        if (toolbarReadiness !== record) return;
+        queueEnsure();
+      };
+      record.observer = new ResizeObserver(wake);
+      record.observer.observe(candidate);
+      const header = candidate.closest("header");
+      if (header) record.observer.observe(header);
+      const retry = () => {
+        if (toolbarReadiness !== record || record.attempts >= 8) return;
+        record.attempts += 1;
+        wake();
+        record.retryTimer = setTimeout(retry, 75);
+      };
+      record.retryTimer = setTimeout(retry, 75);
+      record.deadlineTimer = setTimeout(() => {
+        if (toolbarReadiness === record) stopToolbarReadiness();
+      }, 1_500);
+      toolbarReadiness = record;
     }
 
     function toolbarControlRoot(button) {
@@ -2387,9 +2439,11 @@ export function createInjectionSource(features, {
       }
       if (next === currentThread) return;
       currentThread = next;
+      stopToolbarReadiness();
       savedComposerRange = null;
       savedComposerThread = null;
       hidePinnedSurfaces();
+      queueEnsure();
     }
 
     function currentComposer() {
@@ -3501,13 +3555,20 @@ export function createInjectionSource(features, {
     }
 
     function ensureToolbarEntries() {
-      if (!toolbarFeatures.length) return;
+      if (!toolbarFeatures.length) {
+        stopToolbarReadiness();
+        return;
+      }
       const temporaryChatButton = nativeTemporaryChatButton();
       const summaryButton = nativeSummaryButton();
       const bottomPanelButton = nativeBottomPanelButton();
       const sidePanelButton = nativeSidePanelButton();
       const anchorButton = temporaryChatButton ?? summaryButton ?? bottomPanelButton ?? sidePanelButton;
-      if (!anchorButton) return;
+      if (!anchorButton) {
+        const candidate = structuralToolbarAnchor();
+        if (candidate) ensureToolbarReadiness(candidate);
+        return;
+      }
       const anchorRoot = toolbarControlRoot(anchorButton);
       // The bottom/side-panel toggles sit in narrow fixed containers that
       // travel with the native panels. Entries anchored to them must live in
@@ -3518,7 +3579,10 @@ export function createInjectionSource(features, {
       const useFallbackAnchor = anchorButton === sidePanelButton || anchorButton === bottomPanelButton;
       const summaryGroup = useFallbackAnchor ? null : nativeSummaryToolbarGroup(anchorButton);
       let targetGroup = summaryGroup ?? ensureFallbackSummaryToolbarGroup(anchorButton);
-      if (!targetGroup) return;
+      if (!targetGroup) {
+        ensureToolbarReadiness(anchorButton);
+        return;
+      }
       let cursor = useFallbackAnchor ? null : anchorRoot;
       for (const feature of toolbarFeatures) {
         const entries = Array.from(document.querySelectorAll(`[${entryMarker}="${feature.id}"]`));
@@ -3553,6 +3617,11 @@ export function createInjectionSource(features, {
           const used = [...group.querySelectorAll(`[${entryMarker}]`)].some((entry) => entry.isConnected);
           if (!used) group.remove();
         });
+      }
+      if (toolbarFeatures.every((feature) => findEntry(feature.id)?.isConnected)) {
+        stopToolbarReadiness();
+      } else {
+        ensureToolbarReadiness(anchorButton);
       }
     }
 
@@ -3843,6 +3912,7 @@ export function createInjectionSource(features, {
         if (ensureFrame != null) cancelAnimationFrame(ensureFrame);
         if (ensureTimer != null) clearTimeout(ensureTimer);
         for (const observer of domObservers) observer.disconnect();
+        stopToolbarReadiness();
         mainContentObserver?.observer.disconnect();
         restoreThreadContentShift();
         for (const root of document.querySelectorAll("[data-codex-personal-toolbar-entry]")) root.remove();

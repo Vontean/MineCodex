@@ -44,8 +44,30 @@ function modelSliderFeatureFixture() {
   };
 }
 
+function notesFeatureFixture() {
+  return {
+    id: "notes",
+    label: "Notes",
+    labels: { en: "Notes", "zh-CN": "笔记" },
+    surfaceUrl: "http://127.0.0.1:47832/?surface=summary",
+    icon: { viewBox: "0 0 24 24", markup: "<path></path>" },
+    entry: {
+      kind: "conversation-toolbar",
+      ariaLabel: "Toggle pinned notes",
+      ariaLabels: { en: "Toggle pinned notes", "zh-CN": "切换固定笔记" },
+    },
+    pinnedSummary: {
+      surfaceUrl: "http://127.0.0.1:47832/?surface=summary",
+      label: "Notes",
+      labels: { en: "Notes", "zh-CN": "笔记" },
+    },
+    hostActions: [],
+  };
+}
+
 async function executeModelSliderInjection({
   controllerProps,
+  features = [modelSliderFeatureFixture()],
   mainContentShift,
   storageValue,
   exposeLocalStorage = true,
@@ -56,6 +78,8 @@ async function executeModelSliderInjection({
       this.tagName = tagName.toUpperCase();
       this.attributes = new Map();
       this.children = [];
+      this.parentElement = null;
+      this._rect = { left: 0, right: 0, top: 0, bottom: 0, width: 0, height: 0 };
       const styleProperties = new Map();
       this.style = {
         setProperty(name, value, priority = "") {
@@ -87,19 +111,62 @@ async function executeModelSliderInjection({
       if (force) this.setAttribute(name, "");
       else this.removeAttribute(name);
     }
-    append(...children) { this.children.push(...children); }
+    append(...children) {
+      for (const child of children) {
+        child.parentElement = this;
+        this.children.push(child);
+      }
+    }
     appendChild(child) { this.append(child); return child; }
-    querySelector() { return null; }
-    querySelectorAll() { return []; }
-    cloneNode() {
+    matches(selector) {
+      if (selector === this.tagName.toLowerCase()) return true;
+      const attribute = selector.match(/^\[([^=\]]+)(?:="([^"]*)")?\]$/);
+      if (!attribute) return false;
+      return this.attributes.has(attribute[1])
+        && (attribute[2] === undefined || this.getAttribute(attribute[1]) === attribute[2]);
+    }
+    closest(selector) {
+      if (selector === "header" && this._header) return this._header;
+      for (let node = this; node; node = node.parentElement) {
+        if (node.matches(selector)) return node;
+      }
+      return null;
+    }
+    querySelector(selector) { return this.querySelectorAll(selector)[0] ?? null; }
+    querySelectorAll(selector) {
+      return this.children.flatMap((child) => [
+        ...(child.matches(selector) ? [child] : []),
+        ...child.querySelectorAll(selector),
+      ]);
+    }
+    cloneNode(deep = false) {
       const clone = new FixtureElement(this.tagName.toLowerCase());
       clone.outerHTML = this.outerHTML;
+      clone._rect = { ...this._rect };
+      for (const [name, value] of this.attributes) clone.setAttribute(name, value);
+      if (deep) clone.append(...this.children.map((child) => child.cloneNode(true)));
       return clone;
     }
-    remove() { this.isConnected = false; }
+    remove() {
+      this.isConnected = false;
+      if (this.parentElement) {
+        this.parentElement.children = this.parentElement.children.filter((child) => child !== this);
+      }
+      this.parentElement = null;
+    }
+    after(element) {
+      if (!this.parentElement) return;
+      const index = this.parentElement.children.indexOf(this);
+      element.parentElement = this.parentElement;
+      this.parentElement.children.splice(index + 1, 0, element);
+    }
     addEventListener() {}
-    getBoundingClientRect() {
-      return { left: 0, right: 0, top: 0, bottom: 0, width: 0, height: 0 };
+    getBoundingClientRect() { return this._rect; }
+    setRect(rect) { this._rect = { ...this._rect, ...rect }; }
+    get lastElementChild() { return this.children.at(-1) ?? null; }
+    get nextElementSibling() {
+      if (!this.parentElement) return null;
+      return this.parentElement.children[this.parentElement.children.indexOf(this) + 1] ?? null;
     }
   }
 
@@ -141,6 +208,15 @@ async function executeModelSliderInjection({
       mainContentShift.priority,
     );
   }
+  const header = new FixtureElement("header");
+  header.setRect({ left: 0, right: 1000, width: 1000, height: 48, bottom: 48 });
+  const toolbarHost = new FixtureElement("div");
+  toolbarHost._computedStyle = { display: "flex", visibility: "visible", flexGrow: "1" };
+  toolbarHost.setRect({ left: 0, right: 1000, width: 1000, height: 48, bottom: 48 });
+  header.append(toolbarHost);
+  const toolbarAnchor = new FixtureElement("button");
+  toolbarAnchor.setAttribute("aria-label", "Toggle bottom panel");
+  toolbarAnchor._header = header;
   const documentElement = new FixtureElement("html");
   documentElement.lang = "en";
   const document = {
@@ -157,7 +233,16 @@ async function executeModelSliderInjection({
       if (selector === "[data-app-shell-main-content-layout]") return mainContent;
       return selector === 'link[href*="/assets/app-initial-"][href$=".js"]' ? sourceLink : null;
     },
-    querySelectorAll() { return []; },
+    querySelectorAll(selector) {
+      if (selector === "button") {
+        return [toolbarAnchor, ...header.querySelectorAll("button")];
+      }
+      return [documentElement, header, toolbarAnchor]
+        .flatMap((root) => [
+          ...(root.matches(selector) ? [root] : []),
+          ...root.querySelectorAll(selector),
+        ]);
+    },
     getElementById() { return null; },
     addEventListener() {},
     getSelection() { return null; },
@@ -177,7 +262,7 @@ async function executeModelSliderInjection({
     },
     setItem() {},
   };
-  const source = createInjectionSource([modelSliderFeatureFixture()], {
+  const source = createInjectionSource(features, {
     runtimeSessionId: "fast-icon-fixture",
   }).replace(
     "void loadNativeFastIconFromBundle();",
@@ -209,13 +294,27 @@ async function executeModelSliderInjection({
       restore: restoreThreadContentShift,
     };
     void loadNativeFastIconFromBundle();`,
+  ).replace(
+    "const runtimeApi = {",
+    `window.__toolbarProbe = {
+      active: () => Boolean(toolbarReadiness),
+      ensure: ensureToolbarEntries,
+      flush: flushEnsure,
+    };
+    const runtimeApi = {`,
   );
+  const resizeCallbacks = [];
   const context = {
     AbortController,
     Element: FixtureElement,
     HTMLElement: FixtureElement,
     File: class FixtureFile {},
     MutationObserver: class FixtureMutationObserver {
+      observe() {}
+      disconnect() {}
+    },
+    ResizeObserver: class FixtureResizeObserver {
+      constructor(callback) { this.callback = callback; resizeCallbacks.push(callback); }
       observe() {}
       disconnect() {}
     },
@@ -228,8 +327,14 @@ async function executeModelSliderInjection({
       fetchCalls += 1;
       return { async text() { return ""; } };
     },
-    getComputedStyle() {
-      return { display: "block", visibility: "visible", getPropertyValue() { return ""; } };
+    getComputedStyle(element) {
+      return {
+        display: "block",
+        visibility: "visible",
+        flexGrow: "0",
+        getPropertyValue() { return ""; },
+        ...(element?._computedStyle ?? {}),
+      };
     },
     innerHeight: 900,
     innerWidth: 1200,
@@ -266,6 +371,16 @@ async function executeModelSliderInjection({
           marker: scrollContent.getAttribute("data-codex-personal-summary-shift"),
         },
       }),
+    },
+    toolbarReadiness: {
+      active: () => window.__toolbarProbe.active(),
+      dispose: () => window.__codexPersonalRuntime.dispose(),
+      flush: () => window.__toolbarProbe.flush(),
+      resizeAnchor: (rect) => {
+        toolbarAnchor.setRect(rect);
+        for (const callback of resizeCallbacks) callback();
+      },
+      entryCount: () => document.querySelectorAll('[data-codex-personal-feature="notes"]').length,
     },
     probe: probe ? JSON.parse(JSON.stringify(probe)) : null,
     runtimeInstalled: Boolean(window.__codexPersonalRuntime),
@@ -715,6 +830,32 @@ test("normalizes Composer trigger effort-label alignment under Model Slider", ()
   );
 });
 
+test("attaches Notes after a zero-size toolbar anchor becomes layout-ready", async () => {
+  const result = await executeModelSliderInjection({ features: [notesFeatureFixture()] });
+
+  result.toolbarReadiness.flush();
+  assert.equal(result.toolbarReadiness.entryCount(), 0);
+  assert.equal(result.toolbarReadiness.active(), true);
+  result.toolbarReadiness.resizeAnchor({
+    left: 900,
+    right: 932,
+    top: 8,
+    bottom: 40,
+    width: 32,
+    height: 32,
+  });
+  result.toolbarReadiness.flush();
+
+  assert.equal(result.toolbarReadiness.entryCount(), 1);
+  assert.equal(result.toolbarReadiness.active(), false);
+
+  const disposed = await executeModelSliderInjection({ features: [notesFeatureFixture()] });
+  disposed.toolbarReadiness.flush();
+  assert.equal(disposed.toolbarReadiness.active(), true);
+  disposed.toolbarReadiness.dispose();
+  assert.equal(disposed.toolbarReadiness.active(), false);
+});
+
 test("emits an isolated conversation-toolbar Adapter with strict Surface and Host-action boundaries", () => {
   const source = createInjectionSource([{
     id: "notes",
@@ -790,7 +931,13 @@ test("emits an isolated conversation-toolbar Adapter with strict Surface and Hos
   assert.match(source, /toolbarHost\.append\(group\)/);
   assert.match(source, /function ensureToolbarEntries\(\)[\s\S]*?const summaryButton = nativeSummaryButton\(\)/s);
   assert.match(source, /const anchorButton = temporaryChatButton \?\? summaryButton \?\? bottomPanelButton \?\? sidePanelButton/);
-  assert.match(source, /if \(!anchorButton\) return/);
+  assert.match(source, /function structuralToolbarAnchor\(\)/);
+  assert.match(source, /function ensureToolbarReadiness\(candidate\)/);
+  assert.match(source, /record\.attempts >= 8/);
+  assert.match(source, /}, 1_500\)/);
+  assert.match(source, /record\.observer = new ResizeObserver\(wake\)/);
+  assert.match(source, /if \(candidate\) ensureToolbarReadiness\(candidate\)/);
+  assert.match(source, /stopToolbarReadiness\(\)/);
   assert.match(source, /const useFallbackAnchor = anchorButton === sidePanelButton \|\| anchorButton === bottomPanelButton/);
   assert.match(source, /const summaryGroup = useFallbackAnchor \? null : nativeSummaryToolbarGroup\(anchorButton\)/);
   assert.match(source, /let targetGroup = summaryGroup \?\? ensureFallbackSummaryToolbarGroup\(anchorButton\)/);
