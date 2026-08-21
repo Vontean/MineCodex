@@ -1287,6 +1287,50 @@ test("ignores native Host bindings with the wrong target token", async () => {
   assert.equal(nativeCalls, 0);
 });
 
+test("forwards exact generated-image payloads through the token-scoped Host binding", async () => {
+  const requests = [];
+  const runtime = new CodexRuntime({
+    features: [{
+      id: "images",
+      surfaceUrl: "http://127.0.0.1:47831/",
+      healthUrl: "http://127.0.0.1:47831/api/health",
+      pageScript: { source: "return () => {};" },
+      hostActions: ["import-generated-image"],
+    }],
+    profileDir: "/tmp/codex-runtime-generated-image-profile",
+    fetchImpl: async (url, options) => {
+      requests.push({ url: String(url), options });
+      return new Response(JSON.stringify({ imported: true }), { status: 201 });
+    },
+  });
+  runtime.bindingTokens.set("renderer", "images-token");
+  const payload = {
+    itemId: "file_fixture",
+    conversationId: "conversation-fixture",
+    sourceKind: "chat",
+    mimeType: "image/png",
+    bytesBase64: "aW1hZ2U=",
+  };
+
+  await runtime.handleBindingCalled("renderer", { send: async () => ({}) }, {
+    name: "__codexPersonalHostAction",
+    payload: JSON.stringify({
+      token: "images-token",
+      featureId: "images",
+      requestId: "generated-image-request",
+      action: "import-generated-image",
+      payload,
+    }),
+  });
+
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].url, "http://127.0.0.1:47831/api/import-generated-image");
+  assert.equal(requests[0].options.method, "POST");
+  assert.equal(requests[0].options.headers.Origin, "app://-");
+  assert.equal("Authorization" in requests[0].options.headers, false);
+  assert.deepEqual(JSON.parse(requests[0].options.body), payload);
+});
+
 test("loads only declared loopback Surface documents and same-document query variants into named blank frames", async () => {
   const calls = [];
   let documentHtml = "";

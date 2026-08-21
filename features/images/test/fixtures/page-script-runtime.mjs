@@ -25,6 +25,42 @@ function generatedImage({ role = "assistant" } = {}) {
   };
 }
 
+function currentGeneratedImage() {
+  const imageRecord = {
+    id: "file_fixture-generated-image",
+    src: "sediment://file_fixture-generated-image",
+    width: 1,
+    height: 1,
+  };
+  const image = {
+    currentSrc: "blob:app://-/fixture-generated-image",
+    src: "",
+    complete: true,
+    naturalWidth: 1,
+    naturalHeight: 1,
+    dataset: {},
+    matches() { return false; },
+    getAttribute() { return null; },
+  };
+  const preview = {};
+  const gallery = {
+    __reactFiber$fixture: {
+      return: {
+        pendingProps: {
+          conversationId: "conversation-current",
+          images: [imageRecord],
+        },
+      },
+    },
+    querySelectorAll(selector) {
+      return selector === '[data-testid="generated-image-preview"] img' ? [image] : [];
+    },
+  };
+  image.closest = (selector) => selector === '[data-testid="generated-image-preview"]' ? preview : null;
+  preview.closest = (selector) => selector === '[data-testid="generated-image-gallery"]' ? gallery : null;
+  return image;
+}
+
 async function waitFor(predicate) {
   for (let attempt = 0; attempt < 50; attempt += 1) {
     if (predicate()) return;
@@ -33,8 +69,17 @@ async function waitFor(predicate) {
   assert.fail("page-script fixture did not settle");
 }
 
-export async function runPageScriptFixture({ source, serviceOrigin, role = "assistant", bytes }) {
-  const image = generatedImage({ role });
+export async function runPageScriptFixture({
+  source,
+  serviceOrigin,
+  role = "assistant",
+  bytes,
+  currentContract = false,
+  currentSurface = "Chat",
+  blobFetchFails = false,
+  hostBridge = false,
+}) {
+  const image = currentContract ? currentGeneratedImage() : generatedImage({ role });
   const activeTab = {
     textContent: "Chat",
     getAttribute(name) {
@@ -43,9 +88,27 @@ export async function runPageScriptFixture({ source, serviceOrigin, role = "assi
   };
   const document = {
     documentElement: {},
+    createElement(name) {
+      assert.equal(name, "canvas");
+      return {
+        getContext(type) {
+          assert.equal(type, "2d");
+          return { drawImage() {} };
+        },
+        toBlob(callback, mimeType) {
+          callback(new Blob([bytes], { type: mimeType }));
+        },
+      };
+    },
+    querySelector(selector) {
+      if (selector === '[role="button"][aria-current="page"]' && currentContract) {
+        return { textContent: `Fixture conversation ${currentSurface}` };
+      }
+      return null;
+    },
     querySelectorAll(selector) {
       if (selector === "img") return [image];
-      if (selector === '[aria-selected="true"], [data-state="active"]') return [activeTab];
+      if (selector === '[aria-selected="true"], [data-state="active"]') return currentContract ? [] : [activeTab];
       return [];
     },
   };
@@ -64,6 +127,7 @@ export async function runPageScriptFixture({ source, serviceOrigin, role = "assi
     }
   }
   const calls = [];
+  const hostCalls = [];
   const window = {
     location: new URL("https://chatgpt.com/chat/fixture-conversation"),
     btoa(value) {
@@ -72,6 +136,7 @@ export async function runPageScriptFixture({ source, serviceOrigin, role = "assi
     async fetch(url, options) {
       calls.push({ url: String(url), options });
       if (calls.length === 1) {
+        if (blobFetchFails) throw new TypeError("Failed to fetch");
         return {
           ok: true,
           status: 200,
@@ -90,6 +155,7 @@ export async function runPageScriptFixture({ source, serviceOrigin, role = "assi
       return { ok: true, status: 201 };
     },
   };
+  window.__fixtureHostAction = (payload) => hostCalls.push(JSON.parse(payload));
   const controller = new AbortController();
   const installer = new Function(
     "signal",
@@ -104,12 +170,21 @@ export async function runPageScriptFixture({ source, serviceOrigin, role = "assi
     window,
     document,
     FixtureMutationObserver,
-    { serviceOrigin },
+    {
+      serviceOrigin,
+      ...(hostBridge ? {
+        bindingName: "__fixtureHostAction",
+        bindingToken: "fixture-token",
+        featureId: "images",
+      } : {}),
+    },
   );
-  if (role) await waitFor(() => calls.length === 2);
+  if (hostBridge) await waitFor(() => calls.length === 1 && hostCalls.length === 1);
+  else if (role || currentContract) await waitFor(() => calls.length === 2);
   else await new Promise((resolve) => setTimeout(resolve, 10));
   return {
     calls,
+    hostCalls,
     cleanup() {
       cleanup?.();
       controller.abort();

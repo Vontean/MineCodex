@@ -11,6 +11,7 @@ const HOST_ACTIONS = new Set([
   "open-detail-tab",
   "open-editor-modal",
   "resolve-file-paths",
+  "import-generated-image",
 ]);
 
 const PAGE_SCRIPT_ENTRY_KINDS = new Set(["page-script"]);

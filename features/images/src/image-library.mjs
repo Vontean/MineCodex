@@ -652,7 +652,9 @@ export class ImageLibrary {
     const safeConversationId = conversationId == null ? null : String(conversationId).trim().slice(0, 256) || null;
     const safeTitle = conversationTitle == null ? "" : String(conversationTitle).trim().slice(0, 512);
     const safePrompt = prompt == null ? null : String(prompt).trim().slice(0, 8_192) || null;
-    const logicalThreadId = `chatgpt:${sourceKind}:${safeConversationId ?? "unknown"}`;
+    const logicalThreadId = safeConversationId?.startsWith("chatgpt:")
+      ? safeConversationId
+      : `chatgpt:${sourceKind}:${safeConversationId ?? "unknown"}`;
     const id = imageIdFor(`external:${sourceKind}:${safeConversationId ?? ""}:${safeItemId}`);
     const extension = extensionForMime(normalizedMime);
     const assetDir = path.join(this.dataDir, "external-images");

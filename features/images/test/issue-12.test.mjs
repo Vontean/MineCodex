@@ -114,6 +114,15 @@ test("external imports are validated, atomically owned by Images, and idempotent
     itemId: "bad-image",
     sourceKind: "work",
   })).reason, "INVALID_DIMENSIONS");
+
+  const namespaced = await library.importExternalImage({
+    bytes: ONE_PIXEL_PNG,
+    mimeType: "image/png",
+    itemId: "chat-image-2",
+    conversationId: "chatgpt:local-chatgpt:conversation-2",
+    sourceKind: "chat",
+  });
+  assert.equal(library.get(namespaced.id).threadId, "chatgpt:local-chatgpt:conversation-2");
 });
 
 test("renderer import endpoint accepts only the exact embedded origin and never receives a source URL", async (context) => {
@@ -198,5 +207,57 @@ test("page script derives its endpoint, forwards Content-Type, and requires an a
     assert.equal(missingRole.calls.length, 0);
   } finally {
     missingRole.cleanup();
+  }
+});
+
+test("page script imports the current Generated Image gallery contract without generated class names", async () => {
+  const features = await discoverFeatures(fileURLToPath(new URL("../..", import.meta.url)), {
+    env: { CODEX_IMAGE_HOST_PORT: "49123" },
+  });
+  const images = features.find((feature) => feature.id === "images");
+  const fixture = await runPageScriptFixture({
+    source: images.pageScript.source,
+    serviceOrigin: pageScriptServiceOrigin(images),
+    currentContract: true,
+    blobFetchFails: true,
+    hostBridge: true,
+    bytes: ONE_PIXEL_PNG,
+  });
+  try {
+    assert.equal(fixture.calls[0].url, "blob:app://-/fixture-generated-image");
+    assert.equal(fixture.calls.length, 1);
+    assert.equal(fixture.hostCalls.length, 1);
+    assert.equal(fixture.hostCalls[0].token, "fixture-token");
+    assert.equal(fixture.hostCalls[0].featureId, "images");
+    assert.equal(fixture.hostCalls[0].action, "import-generated-image");
+    const payload = fixture.hostCalls[0].payload;
+    assert.equal(payload.itemId, "file_fixture-generated-image");
+    assert.equal(payload.conversationId, "conversation-current");
+    assert.equal(payload.conversationTitle, "Fixture conversation");
+    assert.equal(payload.sourceKind, "chat");
+    assert.equal("source" in payload, false);
+  } finally {
+    fixture.cleanup();
+  }
+});
+
+test("current gallery contract records Work as the source without changing the import path", async () => {
+  const features = await discoverFeatures(fileURLToPath(new URL("../..", import.meta.url)));
+  const images = features.find((feature) => feature.id === "images");
+  const fixture = await runPageScriptFixture({
+    source: images.pageScript.source,
+    serviceOrigin: pageScriptServiceOrigin(images),
+    currentContract: true,
+    currentSurface: "Work",
+    blobFetchFails: true,
+    hostBridge: true,
+    bytes: ONE_PIXEL_PNG,
+  });
+  try {
+    assert.equal(fixture.hostCalls.length, 1);
+    assert.equal(fixture.hostCalls[0].payload.sourceKind, "work");
+    assert.equal(fixture.hostCalls[0].payload.conversationTitle, "Fixture conversation");
+  } finally {
+    fixture.cleanup();
   }
 });

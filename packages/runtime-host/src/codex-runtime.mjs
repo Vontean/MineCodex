@@ -4013,7 +4013,12 @@ export function createInjectionSource(features, {
     modelSelector: feature.modelSelector ?? null,
     pageScript: feature.pageScript ? {
       ...feature.pageScript,
-      config: { serviceOrigin: pageScriptServiceOrigin(feature) },
+      config: {
+        serviceOrigin: pageScriptServiceOrigin(feature),
+        bindingName,
+        bindingToken,
+        featureId: feature.id,
+      },
     } : null,
   }));
   return `(${install.toString()})(${JSON.stringify({
@@ -4754,6 +4759,10 @@ export class CodexRuntime {
       });
       return;
     }
+    if (request.action === "import-generated-image") {
+      await this.importGeneratedImage(feature, request.payload);
+      return;
+    }
     try {
       if (request.action !== "attach-file") throw new Error("Unsupported native Host action");
       const result = await this.attachFileToComposer(client, request.payload?.path, request.requestId);
@@ -4763,6 +4772,22 @@ export class CodexRuntime {
         ok: false,
         error: { code: error.code ?? "ATTACH_FAILED", message: error.message },
       });
+    }
+  }
+
+  async importGeneratedImage(feature, payload) {
+    const origin = pageScriptServiceOrigin(feature);
+    if (!origin) throw new Error("Generated image import service is unavailable");
+    const response = await this.fetchImpl(new URL("/api/import-generated-image", origin), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: CODEX_APP_ORIGIN,
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!response?.ok) {
+      throw new Error(`Generated image import returned HTTP ${response?.status ?? "error"}`);
     }
   }
 
