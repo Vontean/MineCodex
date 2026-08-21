@@ -847,7 +847,7 @@ test("applies exact model effort caps as native-ladder intersections", async () 
   assert.deepEqual(result.effortProbe("opencode-go/muse-spark-similar").efforts, ["low", "max"]);
 });
 
-test("keeps a stale capped current effort honest and does not map it to Low", async () => {
+test("keeps a stale capped current effort honest and does not map it to Light", async () => {
   const controller = {
     models: [{ model: "opencode-go/hy3", supportedReasoningEfforts: ["low", "medium", "high", "max"].map((effort) => ({ reasoningEffort: effort })) }],
     reasoningEffort: "max",
@@ -859,7 +859,9 @@ test("keeps a stale capped current effort honest and does not map it to Low", as
   const probe = result.effortProbe("opencode-go/hy3");
   assert.equal(probe.current, "max");
   assert.equal(probe.selectedIndex, -1);
-  assert.match(createInjectionSource([feature]), /data-stale-reasoning-effort/);
+  const source = createInjectionSource([feature]);
+  assert.match(source, /\["low", "Light"\]/);
+  assert.match(source, /data-stale-reasoning-effort/);
 });
 
 test("neutralizes stale rail geometry instead of leaving a valid-looking thumb", async () => {
