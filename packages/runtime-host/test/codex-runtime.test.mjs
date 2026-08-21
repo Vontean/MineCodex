@@ -872,27 +872,46 @@ test("maps current controller effort separately from the model default", async (
   });
 });
 
+const reasoningEffortCases = [
+  {
+    identity: "opencode-go/hy3",
+    native: ["low", "medium", "high", "xhigh", "max"],
+    allowed: ["low", "medium", "high"],
+  },
+  {
+    identity: "opencode-go/muse-spark-1.2-contributor",
+    native: ["low", "medium", "high", "xhigh", "max"],
+    allowed: ["low", "medium", "high", "xhigh"],
+  },
+  {
+    identity: "other-provider/hy3",
+    native: ["low", "max"],
+    allowed: null,
+  },
+  {
+    identity: "opencode-go/muse-spark-similar",
+    native: ["low", "max"],
+    allowed: null,
+  },
+];
+
 test("applies exact model effort caps as native-ladder intersections", async () => {
   const controller = {
-    models: [
-      { model: "opencode-go/hy3", supportedReasoningEfforts: ["low", "medium", "high", "xhigh", "max"].map((effort) => ({ reasoningEffort: effort })) },
-      { model: "opencode-go/muse-spark-1.2-contributor", supportedReasoningEfforts: ["low", "medium", "high", "xhigh", "max"].map((effort) => ({ reasoningEffort: effort })) },
-      { model: "other-provider/hy3", supportedReasoningEfforts: [{ reasoningEffort: "low" }, { reasoningEffort: "max" }] },
-      { model: "opencode-go/muse-spark-similar", supportedReasoningEfforts: [{ reasoningEffort: "low" }, { reasoningEffort: "max" }] },
-    ],
+    models: reasoningEffortCases.map(({ identity, native }) => ({
+      model: identity,
+      supportedReasoningEfforts: native.map((effort) => ({ reasoningEffort: effort })),
+    })),
     reasoningEffort: "high",
     onSelectReasoningEffort() {},
   };
   const feature = modelSliderFeatureFixture();
-  feature.modelSelector.reasoningEffortOverrides = {
-    "opencode-go/hy3": ["low", "medium", "high"],
-    "opencode-go/muse-spark-1.2-contributor": ["low", "medium", "high", "xhigh"],
-  };
+  feature.modelSelector.reasoningEffortOverrides = Object.fromEntries(
+    reasoningEffortCases.filter(({ allowed }) => allowed).map(({ identity, allowed }) => [identity, allowed]),
+  );
   const result = await executeModelSliderInjection({ controllerProps: controller, features: [feature] });
-  assert.deepEqual(result.effortProbe("opencode-go/hy3").efforts, ["low", "medium", "high"]);
-  assert.deepEqual(result.effortProbe("opencode-go/muse-spark-1.2-contributor").efforts, ["low", "medium", "high", "xhigh"]);
-  assert.deepEqual(result.effortProbe("other-provider/hy3").efforts, ["low", "max"]);
-  assert.deepEqual(result.effortProbe("opencode-go/muse-spark-similar").efforts, ["low", "max"]);
+  for (const { identity, native, allowed } of reasoningEffortCases) {
+    assert.deepEqual(result.effortProbe(identity).efforts, allowed ?? native);
+  }
 });
 
 test("keeps a stale capped current effort honest and does not map it to Low", async () => {
