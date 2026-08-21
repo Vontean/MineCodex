@@ -223,6 +223,11 @@ async function executeModelSliderInjection({
   }
   let activeMainSurface = mainContent;
   let activeComposer = composer;
+  const ownerSnapshot = (element) => ({
+    value: element.style.getPropertyValue("--thread-wide-block-inline-shift"),
+    priority: element.style.getPropertyPriority("--thread-wide-block-inline-shift"),
+    marker: element.getAttribute("data-codex-personal-summary-shift"),
+  });
   const header = new FixtureElement("header");
   header.setRect({ left: 0, right: 1000, width: 1000, height: 48, bottom: 48 });
   const toolbarHost = new FixtureElement("div");
@@ -380,11 +385,9 @@ async function executeModelSliderInjection({
       apply: (value) => window.__summaryShiftProbe.apply(value),
       restore: () => window.__summaryShiftProbe.restore(),
       snapshot: () => ({
-        owner: {
-          value: mainContent.style.getPropertyValue("--thread-wide-block-inline-shift"),
-          priority: mainContent.style.getPropertyPriority("--thread-wide-block-inline-shift"),
-          marker: mainContent.getAttribute("data-codex-personal-summary-shift"),
-        },
+        owner: ownerSnapshot(activeMainSurface),
+        previousOwner: ownerSnapshot(mainContent),
+        currentOwner: ownerSnapshot(activeMainSurface),
         layout: {
           value: mainContentLayout.style.getPropertyValue("--thread-wide-block-inline-shift"),
           marker: mainContentLayout.getAttribute("data-codex-personal-summary-shift"),
@@ -510,6 +513,8 @@ test("shifts and restores the shared conversation column through the native Summ
   result.summaryShift.apply(-158);
   assert.deepEqual(result.summaryShift.snapshot(), {
     owner: { value: "158px", priority: "important", marker: "-158" },
+    previousOwner: { value: "158px", priority: "important", marker: "-158" },
+    currentOwner: { value: "158px", priority: "important", marker: "-158" },
     layout: { value: "", marker: null },
     scrollContent: { left: "", position: "", marker: null },
   });
@@ -524,6 +529,8 @@ test("shifts and restores the shared conversation column through the native Summ
   result.summaryShift.restore();
   assert.deepEqual(result.summaryShift.snapshot(), {
     owner: { value: "23px", priority: "important", marker: null },
+    previousOwner: { value: "23px", priority: "important", marker: null },
+    currentOwner: { value: "23px", priority: "important", marker: null },
     layout: { value: "", marker: null },
     scrollContent: { left: "", position: "", marker: null },
   });
@@ -555,22 +562,35 @@ test("moves the live-like Composer owner, restores on owner replacement, and dis
   });
 
   result.summaryShift.apply(-158);
-  assert.equal(result.summaryShift.snapshot().owner.marker, "-158");
-  assert.equal(result.summaryShift.snapshot().layout.marker, null);
+  assert.deepEqual(result.summaryShift.snapshot().currentOwner, {
+    value: "158px",
+    priority: "important",
+    marker: "-158",
+  });
 
   result.summaryShift.replaceOwner();
   result.summaryShift.apply(-158);
-  assert.deepEqual(result.summaryShift.snapshot().owner, {
+  assert.deepEqual(result.summaryShift.snapshot().previousOwner, {
     value: "11px",
     priority: "important",
     marker: null,
   });
+  assert.deepEqual(result.summaryShift.snapshot().currentOwner, {
+    value: "158px",
+    priority: "important",
+    marker: "-158",
+  });
 
   result.summaryShift.apply(-120);
-  result.toolbarReadiness.dispose();
-  assert.deepEqual(result.summaryShift.snapshot().owner, {
-    value: "11px",
+  assert.deepEqual(result.summaryShift.snapshot().currentOwner, {
+    value: "120px",
     priority: "important",
+    marker: "-120",
+  });
+  result.toolbarReadiness.dispose();
+  assert.deepEqual(result.summaryShift.snapshot().currentOwner, {
+    value: "",
+    priority: "",
     marker: null,
   });
 });
