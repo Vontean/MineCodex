@@ -37,7 +37,7 @@ export function responsiveSummaryVisibleSurface({ displayMode, isPinned, isPopov
 }
 
 export function responsiveSummaryContentShift({ displayMode, isPinned }, layout = RESPONSIVE_SUMMARY_LAYOUT) {
-  return displayMode === "shift" && isPinned
+  return displayMode !== "overlay" && isPinned
     ? -(layout.panelWidth + layout.panelInset) / 2
     : 0;
 }
@@ -594,8 +594,10 @@ export function createInjectionSource(features, {
     }
 
     function mainContentViewport() {
-      return document.querySelector("[data-app-shell-main-content-layout]")
+      const composer = currentComposer();
+      return composer?.closest("main[data-app-shell-main-surface]")
         ?? document.querySelector("main[data-app-shell-main-surface]")
+        ?? document.querySelector("[data-app-shell-main-content-layout]")
         ?? document.querySelector("main");
     }
 
@@ -2794,7 +2796,7 @@ export function createInjectionSource(features, {
       surface.setAttribute("data-codex-personal-summary-presentation", displayMode);
       setSummarySurfaceVisible(surface, true, displayMode);
 
-      const shift = displayMode === "shift"
+      const shift = displayMode !== "overlay"
         ? -(layout.panelWidth + layout.panelInset) / 2
         : 0;
       applyThreadContentShift(shift);

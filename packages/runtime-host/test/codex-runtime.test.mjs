@@ -194,12 +194,25 @@ async function executeModelSliderInjection({
   if (controllerProps) {
     trigger.__reactFiber$fixture = { memoizedProps: controllerProps, return: null };
   }
+  const mainContentLayout = new FixtureElement("div");
+  mainContentLayout.setAttribute("data-app-shell-main-content-layout", "true");
   const mainContent = new FixtureElement("main");
+  mainContent.setAttribute("data-app-shell-main-surface", "true");
+  mainContentLayout.append(mainContent);
   const scrollContainer = new FixtureElement("div");
+  scrollContainer.setAttribute("class", "thread-scroll-container");
   const scrollContent = new FixtureElement("div");
+  const conversation = new FixtureElement("section");
+  conversation.setAttribute("data-conversation-column", "true");
+  const composer = new FixtureElement("div");
+  composer.setAttribute("data-codex-composer", "true");
+  composer.setAttribute("contenteditable", "true");
+  composer.setAttribute("role", "textbox");
   scrollContainer.firstElementChild = scrollContent;
+  conversation.append(composer);
+  mainContent.append(scrollContainer, conversation);
   mainContent.querySelector = (selector) => (
-    selector === ".thread-scroll-container" ? scrollContainer : null
+    selector === ".thread-scroll-container" ? scrollContainer : mainContent.querySelectorAll(selector)[0] ?? null
   );
   if (mainContentShift) {
     mainContent.style.setProperty(
@@ -208,6 +221,8 @@ async function executeModelSliderInjection({
       mainContentShift.priority,
     );
   }
+  let activeMainSurface = mainContent;
+  let activeComposer = composer;
   const header = new FixtureElement("header");
   header.setRect({ left: 0, right: 1000, width: 1000, height: 48, bottom: 48 });
   const toolbarHost = new FixtureElement("div");
@@ -230,14 +245,16 @@ async function executeModelSliderInjection({
     createElementNS(_namespace, tagName) { return new FixtureElement(tagName); },
     querySelector(selector) {
       if (selector === "[data-codex-intelligence-trigger]") return trigger;
-      if (selector === "[data-app-shell-main-content-layout]") return mainContent;
+      if (selector === '[data-codex-composer="true"][contenteditable="true"]') return activeComposer;
+      if (selector === "[data-app-shell-main-content-layout]") return mainContentLayout;
+      if (selector === "main[data-app-shell-main-surface]") return activeMainSurface;
       return selector === 'link[href*="/assets/app-initial-"][href$=".js"]' ? sourceLink : null;
     },
     querySelectorAll(selector) {
       if (selector === "button") {
         return [toolbarAnchor, ...header.querySelectorAll("button")];
       }
-      return [documentElement, header, toolbarAnchor]
+      return [documentElement, mainContentLayout, header, toolbarAnchor]
         .flatMap((root) => [
           ...(root.matches(selector) ? [root] : []),
           ...root.querySelectorAll(selector),
@@ -368,12 +385,25 @@ async function executeModelSliderInjection({
           priority: mainContent.style.getPropertyPriority("--thread-wide-block-inline-shift"),
           marker: mainContent.getAttribute("data-codex-personal-summary-shift"),
         },
+        layout: {
+          value: mainContentLayout.style.getPropertyValue("--thread-wide-block-inline-shift"),
+          marker: mainContentLayout.getAttribute("data-codex-personal-summary-shift"),
+        },
         scrollContent: {
           left: scrollContent.style.getPropertyValue("left"),
           position: scrollContent.style.getPropertyValue("position"),
           marker: scrollContent.getAttribute("data-codex-personal-summary-shift"),
         },
       }),
+      replaceOwner: () => {
+        activeMainSurface = new FixtureElement("main");
+        activeMainSurface.setAttribute("data-app-shell-main-surface", "true");
+        activeComposer = new FixtureElement("div");
+        activeComposer.setAttribute("data-codex-composer", "true");
+        activeComposer.setAttribute("contenteditable", "true");
+        activeComposer.setAttribute("role", "textbox");
+        activeMainSurface.append(activeComposer);
+      },
     },
     toolbarReadiness: {
       active: () => window.__toolbarProbe.active(),
@@ -410,7 +440,10 @@ test("matches Codex Summary responsive thresholds and content-shift behavior", (
     -(RESPONSIVE_SUMMARY_LAYOUT.panelWidth + RESPONSIVE_SUMMARY_LAYOUT.panelInset) / 2,
   );
   assert.equal(responsiveSummaryContentShift({ displayMode: "overlay", isPinned: true }), 0);
-  assert.equal(responsiveSummaryContentShift({ displayMode: "gutter", isPinned: true }), 0);
+  assert.equal(
+    responsiveSummaryContentShift({ displayMode: "gutter", isPinned: true }),
+    -(RESPONSIVE_SUMMARY_LAYOUT.panelWidth + RESPONSIVE_SUMMARY_LAYOUT.panelInset) / 2,
+  );
 });
 
 test("only grants page scripts their declared loopback service origin", () => {
@@ -477,6 +510,7 @@ test("shifts and restores the shared conversation column through the native Summ
   result.summaryShift.apply(-158);
   assert.deepEqual(result.summaryShift.snapshot(), {
     owner: { value: "158px", priority: "important", marker: "-158" },
+    layout: { value: "", marker: null },
     scrollContent: { left: "", position: "", marker: null },
   });
 
@@ -490,6 +524,7 @@ test("shifts and restores the shared conversation column through the native Summ
   result.summaryShift.restore();
   assert.deepEqual(result.summaryShift.snapshot(), {
     owner: { value: "23px", priority: "important", marker: null },
+    layout: { value: "", marker: null },
     scrollContent: { left: "", position: "", marker: null },
   });
 
@@ -512,6 +547,32 @@ test("uses the native Summary variable without an isolated scroll-child offset",
   assert.match(source, /element\.style\.removeProperty\("--thread-wide-block-inline-shift"\)/);
   assert.doesNotMatch(source, /threadShiftStyle/);
   assert.doesNotMatch(source, /style\.setProperty\("(?:position|left)"/);
+});
+
+test("moves the live-like Composer owner, restores on owner replacement, and disposes cleanly", async () => {
+  const result = await executeModelSliderInjection({
+    mainContentShift: { value: "11px", priority: "important" },
+  });
+
+  result.summaryShift.apply(-158);
+  assert.equal(result.summaryShift.snapshot().owner.marker, "-158");
+  assert.equal(result.summaryShift.snapshot().layout.marker, null);
+
+  result.summaryShift.replaceOwner();
+  result.summaryShift.apply(-158);
+  assert.deepEqual(result.summaryShift.snapshot().owner, {
+    value: "11px",
+    priority: "important",
+    marker: null,
+  });
+
+  result.summaryShift.apply(-120);
+  result.toolbarReadiness.dispose();
+  assert.deepEqual(result.summaryShift.snapshot().owner, {
+    value: "11px",
+    priority: "important",
+    marker: null,
+  });
 });
 
 test("renders 24px outline feature icons at Codex's 1px visual weight", () => {
