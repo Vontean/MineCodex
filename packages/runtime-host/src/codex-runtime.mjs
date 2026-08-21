@@ -1760,6 +1760,24 @@ export function createInjectionSource(features, {
       rail.setAttribute("aria-valuenow", String(index));
     }
 
+    function neutralizeStaleSliderVisual(rail) {
+      for (const selector of [
+        "[data-codex-model-slider-native-range]",
+        "[data-codex-model-slider-native-thumb]",
+        "[data-codex-model-slider-range]",
+        "[data-codex-model-slider-thumb]",
+      ]) {
+        rail.querySelectorAll(selector).forEach((element) => {
+          element.style.setProperty("visibility", "hidden");
+        });
+      }
+      rail.querySelectorAll("[data-codex-model-slider-tick]").forEach((tick) => {
+        tick.removeAttribute("data-selected");
+      });
+      rail.removeAttribute("aria-valuenow");
+      rail.style.removeProperty("--codex-model-slider-progress");
+    }
+
     function nativeParticleSeed(index, salt) {
       const value = Math.sin((index + 1) * 12.9898 + salt * 78.233) * 43758.5453;
       return value - Math.floor(value);
@@ -1992,6 +2010,7 @@ export function createInjectionSource(features, {
       if (!selectedEffortVisible) {
         rail.setAttribute("aria-disabled", "true");
         rail.removeAttribute("tabindex");
+        neutralizeStaleSliderVisual(rail);
         const staleView = document.createElement("div");
         staleView.className = classes.SimpleView;
         staleView.append(nativeSlider ?? rail);

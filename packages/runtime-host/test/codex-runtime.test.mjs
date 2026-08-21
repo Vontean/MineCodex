@@ -303,6 +303,36 @@ async function executeModelSliderInjection({
       menu.querySelectorAll = () => [row];
       selectNativeEffort(menu, effort);
     };
+    window.__staleVisualProbe = () => {
+      const rail = document.createElement("div");
+      const nativeRange = document.createElement("span");
+      nativeRange.setAttribute("data-codex-model-slider-native-range", "");
+      nativeRange.style.setProperty("left", "calc(25% + 6.5px)");
+      const nativeThumb = document.createElement("span");
+      nativeThumb.setAttribute("data-codex-model-slider-native-thumb", "");
+      nativeThumb.style.setProperty("left", "calc(25% + 6.5px)");
+      const fallbackRange = document.createElement("span");
+      fallbackRange.setAttribute("data-codex-model-slider-range", "");
+      const fallbackThumb = document.createElement("span");
+      fallbackThumb.setAttribute("data-codex-model-slider-thumb", "");
+      const tick = document.createElement("span");
+      tick.setAttribute("data-codex-model-slider-tick", "");
+      tick.setAttribute("data-selected", "true");
+      rail.append(nativeRange, nativeThumb, fallbackRange, fallbackThumb, tick);
+      rail.setAttribute("aria-valuenow", "1");
+      rail.style.setProperty("--codex-model-slider-progress", "25%");
+      neutralizeStaleSliderVisual(rail);
+      return {
+        nativeRangeVisibility: nativeRange.style.getPropertyValue("visibility"),
+        nativeThumbVisibility: nativeThumb.style.getPropertyValue("visibility"),
+        fallbackRangeVisibility: fallbackRange.style.getPropertyValue("visibility"),
+        fallbackThumbVisibility: fallbackThumb.style.getPropertyValue("visibility"),
+        selectedTick: tick.getAttribute("data-selected"),
+        ariaValueNow: rail.getAttribute("aria-valuenow"),
+        progress: rail.style.getPropertyValue("--codex-model-slider-progress"),
+        nativeThumbLeft: nativeThumb.style.getPropertyValue("left"),
+      };
+    };
     window.__modelSliderEffortProbe = (raw) => {
       const identity = modelIdentity(raw);
       const model = modelDefinitionFor(identity, modelSelectorFeature.modelSelector);
@@ -391,6 +421,10 @@ async function executeModelSliderInjection({
       return value ? JSON.parse(JSON.stringify(value)) : null;
     },
     selectNativeEffort: (raw, effort) => window.__selectNativeEffortProbe?.(raw, effort),
+    staleVisual: () => {
+      const value = window.__staleVisualProbe?.();
+      return value ? JSON.parse(JSON.stringify(value)) : null;
+    },
     fetchCalls,
     summaryShift: {
       apply: (value) => window.__summaryShiftProbe.apply(value),
@@ -874,6 +908,34 @@ test("keeps a stale capped current effort honest and does not map it to Low", as
   assert.equal(probe.current, "max");
   assert.equal(probe.selectedIndex, -1);
   assert.match(createInjectionSource([feature]), /data-stale-reasoning-effort/);
+});
+
+test("neutralizes stale rail geometry instead of leaving a valid-looking thumb", async () => {
+  const result = await executeModelSliderInjection({
+    controllerProps: {
+      models: [{
+        model: "opencode-go/muse-spark-1.2-contributor",
+        supportedReasoningEfforts: ["low", "medium", "high", "xhigh", "max"].map(
+          (effort) => ({ reasoningEffort: effort }),
+        ),
+      }],
+      reasoningEffort: "max",
+      onSelectReasoningEffort() {},
+    },
+  });
+  assert.deepEqual(result.staleVisual(), {
+    nativeRangeVisibility: "hidden",
+    nativeThumbVisibility: "hidden",
+    fallbackRangeVisibility: "hidden",
+    fallbackThumbVisibility: "hidden",
+    selectedTick: null,
+    ariaValueNow: null,
+    progress: "",
+    nativeThumbLeft: "calc(25% + 6.5px)",
+  });
+  const source = createInjectionSource([modelSliderFeatureFixture()]);
+  assert.match(source, /neutralizeStaleSliderVisual\(rail\);/);
+  assert.match(source, /setGenericSliderVisual\(rail, selectedIndex, efforts\.length\);/);
 });
 
 test("only forwards an allowed effort selection to the native controller", async () => {
