@@ -1008,7 +1008,7 @@ export function createInjectionSource(features, {
       };
     }
 
-    function nativeCatalogModelFor(identity) {
+    function nativeCatalogModelFor(identity, selector = modelSelectorFeature?.modelSelector) {
       const controller = nativeComposerModelController();
       const models = controller?.models ?? [];
       const exact = models.find((model) => String(model.model ?? "").toLowerCase() === identity.raw.toLowerCase());
@@ -1018,16 +1018,23 @@ export function createInjectionSource(features, {
       ));
       const model = exact ?? (aliases.length === 1 ? aliases[0] : null);
       if (!model) return null;
-      const supportedReasoningLevels = (model.supportedReasoningEfforts ?? []).map((level) => ({
+      const nativeReasoningLevels = (model.supportedReasoningEfforts ?? []).map((level) => ({
         effort: String(level?.reasoningEffort ?? level?.effort ?? level ?? "").toLowerCase(),
       })).filter((level) => level.effort);
+      const allowed = selector?.reasoningEffortOverrides?.[identity.raw.toLowerCase()];
+      const supportedReasoningLevels = allowed
+        ? nativeReasoningLevels.filter((level) => allowed.includes(level.effort))
+        : nativeReasoningLevels;
       const currentReasoningLevel = String(controller?.reasoningEffort ?? "").toLowerCase();
       return {
         slug: String(model.model ?? ""),
         displayName: String(model.displayName ?? model.model ?? ""),
-        currentReasoningLevel: supportedReasoningLevels.some(
+        currentReasoningLevel: nativeReasoningLevels.some(
           (level) => level.effort === currentReasoningLevel,
         ) ? currentReasoningLevel : null,
+        currentReasoningLevelVisible: supportedReasoningLevels.some(
+          (level) => level.effort === currentReasoningLevel,
+        ),
         defaultReasoningLevel: String(model.defaultReasoningEffort ?? "").toLowerCase(),
         supportedReasoningLevels,
       };
@@ -1675,6 +1682,9 @@ export function createInjectionSource(features, {
     }
 
     function selectNativeEffort(parentMenu, effort) {
+      const identity = modelIdentity(nativeModelValue(parentMenu));
+      const model = modelDefinitionFor(identity, modelSelectorFeature?.modelSelector);
+      if (!model?.supportedReasoningLevels?.some((level) => level.effort === String(effort).toLowerCase())) return;
       const controller = nativeComposerModelController();
       if (typeof controller?.onSelectReasoningEffort === "function") {
         controller.onSelectReasoningEffort(effort);
@@ -1876,7 +1886,8 @@ export function createInjectionSource(features, {
 
     function createGenericModelSlider(parentMenu, selector, identity, model, selectedEffort) {
       const efforts = model.supportedReasoningLevels.map((level) => level.effort);
-      const selectedIndex = Math.max(0, efforts.indexOf(selectedEffort));
+      const selectedIndex = efforts.indexOf(selectedEffort);
+      const selectedEffortVisible = selectedIndex >= 0;
       const classes = Object.fromEntries([
         "Menu",
         "ViewToggle",
@@ -1974,7 +1985,19 @@ export function createInjectionSource(features, {
       rail.setAttribute("aria-label", locale === "zh-CN" ? "推理强度" : "Reasoning effort");
       rail.setAttribute("aria-valuemin", "0");
       rail.setAttribute("aria-valuemax", String(efforts.length - 1));
-      rail.setAttribute("aria-valuetext", effortLabel(efforts[selectedIndex]));
+      rail.setAttribute("aria-valuetext", selectedEffortVisible
+        ? effortLabel(selectedEffort)
+        : (locale === "zh-CN" ? "当前档位不可用" : "Current effort unavailable"));
+      rail.toggleAttribute("data-stale-reasoning-effort", !selectedEffortVisible);
+      if (!selectedEffortVisible) {
+        rail.setAttribute("aria-disabled", "true");
+        rail.removeAttribute("tabindex");
+        const staleView = document.createElement("div");
+        staleView.className = classes.SimpleView;
+        staleView.append(nativeSlider ?? rail);
+        shell.append(viewControls, staleView);
+        return shell;
+      }
       if (!nativeSlider) {
         const track = document.createElement("div");
         track.setAttribute("data-codex-model-slider-track", "");

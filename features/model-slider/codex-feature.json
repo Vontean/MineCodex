@@ -16,6 +16,10 @@
   "modelSelector": {
     "maxVisibleItems": 6,
     "favoriteStorageKey": "codex-model-slider:favorites:v1",
+    "reasoningEffortOverrides": {
+      "opencode-go/hy3": ["low", "medium", "high"],
+      "opencode-go/muse-spark-1.2-contributor": ["low", "medium", "high", "xhigh"]
+    },
     "providerAliases": {
       "opencode-go": "OpenCode Go",
       "packyapi": "PackyAPI",

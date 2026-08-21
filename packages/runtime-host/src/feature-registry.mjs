@@ -117,6 +117,18 @@ async function normalizeModelSelector(modelSelector, projectDir) {
     throw new Error("modelSelector.favoriteStorageKey is required");
   }
 
+  const reasoningEffortOverrides = {};
+  for (const [identity, efforts] of Object.entries(modelSelector.reasoningEffortOverrides ?? {})) {
+    const exactIdentity = String(identity).trim().toLowerCase();
+    const allowedEfforts = Array.isArray(efforts)
+      ? efforts.map((effort) => String(effort).trim().toLowerCase()).filter(Boolean)
+      : [];
+    if (!exactIdentity || !allowedEfforts.length || new Set(allowedEfforts).size !== allowedEfforts.length) {
+      throw new Error("modelSelector.reasoningEffortOverrides must map exact identities to unique efforts");
+    }
+    reasoningEffortOverrides[exactIdentity] = allowedEfforts;
+  }
+
   const providerAliases = {};
   for (const [provider, label] of Object.entries(modelSelector.providerAliases ?? {})) {
     if (!String(provider).trim() || !String(label).trim()) {
@@ -150,6 +162,7 @@ async function normalizeModelSelector(modelSelector, projectDir) {
   return {
     maxVisibleItems,
     favoriteStorageKey,
+    reasoningEffortOverrides,
     providerAliases,
     strings,
     icons: {

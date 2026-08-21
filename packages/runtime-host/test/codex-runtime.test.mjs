@@ -106,6 +106,7 @@ async function executeModelSliderInjection({
 
     setAttribute(name, value) { this.attributes.set(name, String(value)); }
     getAttribute(name) { return this.attributes.get(name) ?? null; }
+    hasAttribute(name) { return this.attributes.has(name); }
     removeAttribute(name) { this.attributes.delete(name); }
     toggleAttribute(name, force) {
       if (force) this.setAttribute(name, "");
@@ -293,6 +294,15 @@ async function executeModelSliderInjection({
       states: Object.keys(modelSelectorNativeFastIcons ?? {}),
       dirty: modelSelectorNativeFastIconsDirty,
     });
+    window.__selectNativeEffortProbe = (raw, effort) => {
+      const menu = document.createElement("div");
+      const row = document.createElement("div");
+      row.setAttribute("role", "menuitem");
+      row.setAttribute("aria-haspopup", "menu");
+      row.innerText = "Model\\n" + raw;
+      menu.querySelectorAll = () => [row];
+      selectNativeEffort(menu, effort);
+    };
     window.__modelSliderEffortProbe = (raw) => {
       const identity = modelIdentity(raw);
       const model = modelDefinitionFor(identity, modelSelectorFeature.modelSelector);
@@ -307,7 +317,7 @@ async function executeModelSliderInjection({
         current: nativeModel?.currentReasoningLevel ?? null,
         default: nativeModel?.defaultReasoningLevel ?? null,
         selectedEffort,
-        selectedIndex: Math.max(0, efforts.findIndex((level) => level.effort === selectedEffort)),
+        selectedIndex: efforts.findIndex((level) => level.effort === selectedEffort),
         efforts: efforts.map((level) => level.effort),
       };
     };
@@ -380,6 +390,7 @@ async function executeModelSliderInjection({
       const value = window.__modelSliderEffortProbe?.(raw);
       return value ? JSON.parse(JSON.stringify(value)) : null;
     },
+    selectNativeEffort: (raw, effort) => window.__selectNativeEffortProbe?.(raw, effort),
     fetchCalls,
     summaryShift: {
       apply: (value) => window.__summaryShiftProbe.apply(value),
@@ -827,6 +838,59 @@ test("maps current controller effort separately from the model default", async (
   });
 });
 
+test("applies exact model effort caps as native-ladder intersections", async () => {
+  const controller = {
+    models: [
+      { model: "opencode-go/hy3", supportedReasoningEfforts: ["low", "medium", "high", "xhigh", "max"].map((effort) => ({ reasoningEffort: effort })) },
+      { model: "opencode-go/muse-spark-1.2-contributor", supportedReasoningEfforts: ["low", "medium", "high", "xhigh", "max"].map((effort) => ({ reasoningEffort: effort })) },
+      { model: "other-provider/hy3", supportedReasoningEfforts: [{ reasoningEffort: "low" }, { reasoningEffort: "max" }] },
+      { model: "opencode-go/muse-spark-similar", supportedReasoningEfforts: [{ reasoningEffort: "low" }, { reasoningEffort: "max" }] },
+    ],
+    reasoningEffort: "high",
+    onSelectReasoningEffort() {},
+  };
+  const feature = modelSliderFeatureFixture();
+  feature.modelSelector.reasoningEffortOverrides = {
+    "opencode-go/hy3": ["low", "medium", "high"],
+    "opencode-go/muse-spark-1.2-contributor": ["low", "medium", "high", "xhigh"],
+  };
+  const result = await executeModelSliderInjection({ controllerProps: controller, features: [feature] });
+  assert.deepEqual(result.effortProbe("opencode-go/hy3").efforts, ["low", "medium", "high"]);
+  assert.deepEqual(result.effortProbe("opencode-go/muse-spark-1.2-contributor").efforts, ["low", "medium", "high", "xhigh"]);
+  assert.deepEqual(result.effortProbe("other-provider/hy3").efforts, ["low", "max"]);
+  assert.deepEqual(result.effortProbe("opencode-go/muse-spark-similar").efforts, ["low", "max"]);
+});
+
+test("keeps a stale capped current effort honest and does not map it to Low", async () => {
+  const controller = {
+    models: [{ model: "opencode-go/hy3", supportedReasoningEfforts: ["low", "medium", "high", "max"].map((effort) => ({ reasoningEffort: effort })) }],
+    reasoningEffort: "max",
+    onSelectReasoningEffort() {},
+  };
+  const feature = modelSliderFeatureFixture();
+  feature.modelSelector.reasoningEffortOverrides = { "opencode-go/hy3": ["low", "medium", "high"] };
+  const result = await executeModelSliderInjection({ controllerProps: controller, features: [feature] });
+  const probe = result.effortProbe("opencode-go/hy3");
+  assert.equal(probe.current, "max");
+  assert.equal(probe.selectedIndex, -1);
+  assert.match(createInjectionSource([feature]), /data-stale-reasoning-effort/);
+});
+
+test("only forwards an allowed effort selection to the native controller", async () => {
+  const selections = [];
+  const controller = {
+    models: [{ model: "opencode-go/hy3", supportedReasoningEfforts: ["low", "medium", "high", "max"].map((effort) => ({ reasoningEffort: effort })) }],
+    reasoningEffort: "medium",
+    onSelectReasoningEffort(effort) { selections.push(effort); },
+  };
+  const feature = modelSliderFeatureFixture();
+  feature.modelSelector.reasoningEffortOverrides = { "opencode-go/hy3": ["low", "medium", "high"] };
+  const result = await executeModelSliderInjection({ controllerProps: controller, features: [feature] });
+  result.selectNativeEffort("opencode-go/hy3", "high");
+  result.selectNativeEffort("opencode-go/hy3", "max");
+  assert.deepEqual(selections, ["high"]);
+});
+
 test("recomputes Model Slider effort when the active Composer controller changes", async () => {
   const controller = {
     models: [{
@@ -884,7 +948,7 @@ test("resolves Model Slider effort from the native controller before the trigger
   );
   assert.match(source, /const currentReasoningLevel = String\(controller\?\.reasoningEffort \?\? ""\)\.toLowerCase\(\)/);
   // 已解析 effort 决定最终滑杆索引：max 落在最右档。
-  assert.match(source, /const selectedIndex = Math\.max\(0, efforts\.indexOf\(selectedEffort\)\)/);
+  assert.match(source, /const selectedIndex = efforts\.indexOf\(selectedEffort\)/);
   // 任务切换时按可控状态重建：key 包含已解析 effort，key 变化即重建菜单。
   assert.match(source, /const key = `\$\{identity\.raw\}:\$\{selectedEffort\}:/);
   assert.match(source, /existing\?\.getAttribute\("data-codex-model-slider-generic"\) === key/);

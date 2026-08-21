@@ -15,6 +15,10 @@ test("registers a service-free Composer model selector", () => {
   assert.equal(manifest.command, undefined);
   assert.equal(manifest.modelSelector.maxVisibleItems, 6);
   assert.equal(manifest.modelSelector.favoriteStorageKey, "codex-model-slider:favorites:v1");
+  assert.deepEqual(manifest.modelSelector.reasoningEffortOverrides, {
+    "opencode-go/hy3": ["low", "medium", "high"],
+    "opencode-go/muse-spark-1.2-contributor": ["low", "medium", "high", "xhigh"],
+  });
 });
 
 test("keeps provider identity and brand identity separate", () => {
