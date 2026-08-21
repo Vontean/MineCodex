@@ -282,8 +282,7 @@ export function createInjectionSource(features, {
     let savedComposerThread = null;
     let currentThread = null;
     let currentSummaryDisplayMode = null;
-    let shiftedConversationOwner = null;
-    let shiftedConversationOriginal = null;
+    let shiftedConversationOwners = [];
     let mainContentObserver = null;
     let toolbarReadiness = null;
     const domObservers = [];
@@ -2689,9 +2688,8 @@ export function createInjectionSource(features, {
     }
 
     function restoreThreadContentShift() {
-      if (!shiftedConversationOwner || !shiftedConversationOriginal) return;
-      const { element, shift } = shiftedConversationOriginal;
-      if (element.isConnected) {
+      for (const { element, shift, translate } of shiftedConversationOwners) {
+        if (!element.isConnected) continue;
         if (shift.value) {
           element.style.setProperty(
             "--thread-wide-block-inline-shift",
@@ -2701,10 +2699,11 @@ export function createInjectionSource(features, {
         } else {
           element.style.removeProperty("--thread-wide-block-inline-shift");
         }
+        if (translate.value) element.style.setProperty("translate", translate.value, translate.priority);
+        else element.style.removeProperty("translate");
         element.removeAttribute("data-codex-personal-summary-shift");
       }
-      shiftedConversationOwner = null;
-      shiftedConversationOriginal = null;
+      shiftedConversationOwners = [];
     }
 
     function applyThreadContentShift(value) {
@@ -2712,28 +2711,40 @@ export function createInjectionSource(features, {
         restoreThreadContentShift();
         return;
       }
-      const owner = mainContentViewport();
-      if (!(owner instanceof HTMLElement)) {
+      const viewport = mainContentViewport();
+      const owners = viewport
+        ? Array.from(viewport.querySelectorAll('[style*="--thread-wide-block-inline-shift"]'))
+        : [];
+      if (!owners.length) {
         restoreThreadContentShift();
         return;
       }
-      if (shiftedConversationOwner !== owner) {
+      if (
+        shiftedConversationOwners.length !== owners.length
+        || owners.some((owner, index) => shiftedConversationOwners[index]?.element !== owner)
+      ) {
         restoreThreadContentShift();
-        shiftedConversationOwner = owner;
-        shiftedConversationOriginal = {
+        shiftedConversationOwners = owners.map((owner) => ({
           element: owner,
           shift: {
             value: owner.style.getPropertyValue("--thread-wide-block-inline-shift"),
             priority: owner.style.getPropertyPriority("--thread-wide-block-inline-shift"),
           },
-        };
+          translate: {
+            value: owner.style.getPropertyValue("translate"),
+            priority: owner.style.getPropertyPriority("translate"),
+          },
+        }));
       }
-      owner.style.setProperty(
-        "--thread-wide-block-inline-shift",
-        `${Math.max(0, -Number(value))}px`,
-        "important",
-      );
-      owner.setAttribute("data-codex-personal-summary-shift", String(value));
+      for (const owner of owners) {
+        owner.style.setProperty(
+          "--thread-wide-block-inline-shift",
+          `${Number(value)}px`,
+          "important",
+        );
+        owner.style.setProperty("translate", `${Number(value)}px 0`, "important");
+        owner.setAttribute("data-codex-personal-summary-shift", String(value));
+      }
     }
 
     function setSummarySurfaceVisible(surface, visible, mode) {

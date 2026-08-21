@@ -121,6 +121,9 @@ async function executeModelSliderInjection({
     appendChild(child) { this.append(child); return child; }
     matches(selector) {
       if (selector === this.tagName.toLowerCase()) return true;
+      if (selector === '[style*="--thread-wide-block-inline-shift"]') {
+        return Boolean(this.style.getPropertyValue("--thread-wide-block-inline-shift"));
+      }
       const attribute = selector.match(/^\[([^=\]]+)(?:="([^"]*)")?\]$/);
       if (!attribute) return false;
       return this.attributes.has(attribute[1])
@@ -203,31 +206,31 @@ async function executeModelSliderInjection({
   const scrollContainer = new FixtureElement("div");
   scrollContainer.setAttribute("class", "thread-scroll-container");
   const scrollContent = new FixtureElement("div");
+  scrollContent.style.setProperty("--thread-wide-block-inline-shift", mainContentShift?.value ?? "0px", mainContentShift?.priority ?? "");
   const conversation = new FixtureElement("section");
   conversation.setAttribute("data-conversation-column", "true");
   const composer = new FixtureElement("div");
   composer.setAttribute("data-codex-composer", "true");
   composer.setAttribute("contenteditable", "true");
   composer.setAttribute("role", "textbox");
+  const footerOwner = new FixtureElement("div");
+  footerOwner.setAttribute("data-thread-scroll-footer", "true");
+  footerOwner.style.setProperty("--thread-wide-block-inline-shift", mainContentShift?.value ?? "0px", mainContentShift?.priority ?? "");
+  scrollContainer.append(scrollContent);
   scrollContainer.firstElementChild = scrollContent;
   conversation.append(composer);
-  mainContent.append(scrollContainer, conversation);
+  footerOwner.append(conversation);
+  mainContent.append(scrollContainer, footerOwner);
   mainContent.querySelector = (selector) => (
     selector === ".thread-scroll-container" ? scrollContainer : mainContent.querySelectorAll(selector)[0] ?? null
   );
-  if (mainContentShift) {
-    mainContent.style.setProperty(
-      "--thread-wide-block-inline-shift",
-      mainContentShift.value,
-      mainContentShift.priority,
-    );
-  }
   let activeMainSurface = mainContent;
   let activeComposer = composer;
   const ownerSnapshot = (element) => ({
     value: element.style.getPropertyValue("--thread-wide-block-inline-shift"),
     priority: element.style.getPropertyPriority("--thread-wide-block-inline-shift"),
     marker: element.getAttribute("data-codex-personal-summary-shift"),
+    translate: element.style.getPropertyValue("translate"),
   });
   const header = new FixtureElement("header");
   header.setRect({ left: 0, right: 1000, width: 1000, height: 48, bottom: 48 });
@@ -430,17 +433,11 @@ async function executeModelSliderInjection({
       apply: (value) => window.__summaryShiftProbe.apply(value),
       restore: () => window.__summaryShiftProbe.restore(),
       snapshot: () => ({
-        owner: ownerSnapshot(activeMainSurface),
-        previousOwner: ownerSnapshot(mainContent),
-        currentOwner: ownerSnapshot(activeMainSurface),
+        streamOwner: ownerSnapshot(scrollContent),
+        footerOwner: ownerSnapshot(footerOwner),
         layout: {
           value: mainContentLayout.style.getPropertyValue("--thread-wide-block-inline-shift"),
           marker: mainContentLayout.getAttribute("data-codex-personal-summary-shift"),
-        },
-        scrollContent: {
-          left: scrollContent.style.getPropertyValue("left"),
-          position: scrollContent.style.getPropertyValue("position"),
-          marker: scrollContent.getAttribute("data-codex-personal-summary-shift"),
         },
       }),
       replaceOwner: () => {
@@ -450,7 +447,13 @@ async function executeModelSliderInjection({
         activeComposer.setAttribute("data-codex-composer", "true");
         activeComposer.setAttribute("contenteditable", "true");
         activeComposer.setAttribute("role", "textbox");
-        activeMainSurface.append(activeComposer);
+        const replacementStream = new FixtureElement("div");
+        replacementStream.style.setProperty("--thread-wide-block-inline-shift", "0px");
+        const replacementFooter = new FixtureElement("div");
+        replacementFooter.setAttribute("data-thread-scroll-footer", "true");
+        replacementFooter.style.setProperty("--thread-wide-block-inline-shift", "0px");
+        replacementFooter.append(activeComposer);
+        activeMainSurface.append(replacementStream, replacementFooter);
       },
     },
     toolbarReadiness: {
@@ -550,94 +553,43 @@ test("releases thread content to native Summary when a personal panel needs no s
   );
 });
 
-test("shifts and restores the shared conversation column through the native Summary variable", async () => {
+test("shifts and restores both stable native conversation owners", async () => {
   const result = await executeModelSliderInjection({
     mainContentShift: { value: "23px", priority: "important" },
   });
 
   result.summaryShift.apply(-158);
   assert.deepEqual(result.summaryShift.snapshot(), {
-    owner: { value: "158px", priority: "important", marker: "-158" },
-    previousOwner: { value: "158px", priority: "important", marker: "-158" },
-    currentOwner: { value: "158px", priority: "important", marker: "-158" },
+    streamOwner: { value: "-158px", priority: "important", marker: "-158", translate: "-158px 0" },
+    footerOwner: { value: "-158px", priority: "important", marker: "-158", translate: "-158px 0" },
     layout: { value: "", marker: null },
-    scrollContent: { left: "", position: "", marker: null },
   });
 
   result.summaryShift.apply(-120);
-  assert.deepEqual(result.summaryShift.snapshot().owner, {
-    value: "120px",
+  assert.deepEqual(result.summaryShift.snapshot().footerOwner, {
+    value: "-120px",
     priority: "important",
     marker: "-120",
+    translate: "-120px 0",
   });
 
   result.summaryShift.restore();
   assert.deepEqual(result.summaryShift.snapshot(), {
-    owner: { value: "23px", priority: "important", marker: null },
-    previousOwner: { value: "23px", priority: "important", marker: null },
-    currentOwner: { value: "23px", priority: "important", marker: null },
+    streamOwner: { value: "23px", priority: "important", marker: null, translate: "" },
+    footerOwner: { value: "23px", priority: "important", marker: null, translate: "" },
     layout: { value: "", marker: null },
-    scrollContent: { left: "", position: "", marker: null },
-  });
-
-  const emptyOriginal = await executeModelSliderInjection();
-  emptyOriginal.summaryShift.apply(-158);
-  emptyOriginal.summaryShift.restore();
-  assert.deepEqual(emptyOriginal.summaryShift.snapshot().owner, {
-    value: "",
-    priority: "",
-    marker: null,
   });
 });
 
-test("uses the native Summary variable without an isolated scroll-child offset", () => {
+test("uses stable native owner attributes without generated Codex class names", () => {
   const source = createInjectionSource([]);
 
-  assert.match(source, /const owner = mainContentViewport\(\)/);
+  assert.match(source, /\[style\*="--thread-wide-block-inline-shift"\]/);
   assert.match(source, /owner\.style\.setProperty\(\s*"--thread-wide-block-inline-shift"/);
+  assert.match(source, /owner\.style\.setProperty\("translate"/);
   assert.match(source, /getPropertyPriority\("--thread-wide-block-inline-shift"\)/);
   assert.match(source, /element\.style\.removeProperty\("--thread-wide-block-inline-shift"\)/);
-  assert.doesNotMatch(source, /threadShiftStyle/);
-  assert.doesNotMatch(source, /style\.setProperty\("(?:position|left)"/);
-});
-
-test("moves the live-like Composer owner, restores on owner replacement, and disposes cleanly", async () => {
-  const result = await executeModelSliderInjection({
-    mainContentShift: { value: "11px", priority: "important" },
-  });
-
-  result.summaryShift.apply(-158);
-  assert.deepEqual(result.summaryShift.snapshot().currentOwner, {
-    value: "158px",
-    priority: "important",
-    marker: "-158",
-  });
-
-  result.summaryShift.replaceOwner();
-  result.summaryShift.apply(-158);
-  assert.deepEqual(result.summaryShift.snapshot().previousOwner, {
-    value: "11px",
-    priority: "important",
-    marker: null,
-  });
-  assert.deepEqual(result.summaryShift.snapshot().currentOwner, {
-    value: "158px",
-    priority: "important",
-    marker: "-158",
-  });
-
-  result.summaryShift.apply(-120);
-  assert.deepEqual(result.summaryShift.snapshot().currentOwner, {
-    value: "120px",
-    priority: "important",
-    marker: "-120",
-  });
-  result.toolbarReadiness.dispose();
-  assert.deepEqual(result.summaryShift.snapshot().currentOwner, {
-    value: "",
-    priority: "",
-    marker: null,
-  });
+  assert.doesNotMatch(source, /_ComposerLayout|_[a-zA-Z]+_[a-z0-9]+_/);
 });
 
 test("renders 24px outline feature icons at Codex's 1px visual weight", () => {
