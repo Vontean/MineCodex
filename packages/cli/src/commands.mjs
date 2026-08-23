@@ -4,6 +4,7 @@ import { createInterface } from "node:readline/promises";
 import { assertNodeSupported, MacPlatformAdapter } from "./platform.mjs";
 import { ensureConfig, ensureControlToken, readConfig } from "./config.mjs";
 import { createControlServer } from "./control-server.mjs";
+import { createInstallReporter } from "./install-progress.mjs";
 import { createNpmAdapter } from "./npm-adapter.mjs";
 import { resolvePaths } from "./paths.mjs";
 import { RuntimeManager, writeServicePid } from "./runtime-manager.mjs";
@@ -118,20 +119,37 @@ export async function confirmRestartNow({ input = process.stdin, terminalOutput 
 }
 
 async function installCommand({ paths, platform, cliPath, output, serviceProbe, fetchImpl, confirmRestart, nodeVersion = process.versions.node }) {
-  assertNodeSupported(nodeVersion);
-  platform.assertInstallSupported();
-  await platform.assertCodexInstalled();
-  const previousService = await serviceSnapshot(platform, paths);
-  await ensureConfig(paths.configPath);
-  await ensureControlToken(paths.tokenPath);
+  const reporter = createInstallReporter({ output });
+  reporter.heading("Installing MineCodex");
+  let previousService = null;
   try {
-    await platform.installService({ cliPath, paths, start: true });
-    const waitForServiceImpl = serviceProbe?.waitForService ?? waitForService;
-    const waitForManagedReadyImpl = serviceProbe?.waitForManagedReady ?? waitForManagedReady;
-    if (!(await waitForServiceImpl(DEFAULT_CONTROL_PORT, { fetchImpl }))
-      || !(await waitForManagedReadyImpl(paths, { fetchImpl }))) {
-      throw new Error(`MineCodex service did not become ready. Check ${paths.serviceErrorLogPath}`);
-    }
+    await reporter.step(1, 6, "Checking your system", async () => {
+      assertNodeSupported(nodeVersion);
+      platform.assertInstallSupported();
+      await platform.assertCodexInstalled();
+    });
+    await reporter.step(2, 6, "Preparing your settings", async () => {
+      await ensureConfig(paths.configPath);
+      await ensureControlToken(paths.tokenPath);
+    });
+    previousService = await reporter.step(3, 6, "Checking your current setup", async () => {
+      return serviceSnapshot(platform, paths);
+    });
+    await reporter.step(4, 6, "Installing the background helper", async () => {
+      await platform.installService({ cliPath, paths, start: true });
+    });
+    await reporter.step(5, 6, "Waiting for the background helper (up to 20 seconds)", async () => {
+      const waitForServiceImpl = serviceProbe?.waitForService ?? waitForService;
+      if (!(await waitForServiceImpl(DEFAULT_CONTROL_PORT, { fetchImpl }))) {
+        throw new Error("MineCodex service did not become ready. Check " + paths.serviceErrorLogPath);
+      }
+    });
+    await reporter.step(6, 6, "Waiting for MineCodex to be ready (up to 30 seconds)", async () => {
+      const waitForManagedReadyImpl = serviceProbe?.waitForManagedReady ?? waitForManagedReady;
+      if (!(await waitForManagedReadyImpl(paths, { fetchImpl }))) {
+        throw new Error("MineCodex service did not become ready. Check " + paths.serviceErrorLogPath);
+      }
+    });
   } catch (error) {
     let rollbackError = null;
     try {
@@ -141,12 +159,12 @@ async function installCommand({ paths, platform, cliPath, output, serviceProbe, 
     }
     throw appendRollbackError(error, rollbackError);
   }
-  output("MineCodex installed. It will be enabled the next time Codex restarts.");
+  reporter.heading("MineCodex installed. It will be enabled the next time Codex restarts.");
   if (await confirmRestart()) {
     await restartCommand({ paths, output, fetchImpl });
   } else {
-    output("Run `mcx restart` when you are ready.");
-  }
+    reporter.heading("Run `mcx restart` when you are ready.");
+}
 }
 
 async function openCommand({ paths, platform, serviceProbe, fetchImpl }) {
