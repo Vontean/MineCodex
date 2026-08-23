@@ -966,7 +966,7 @@ test("resolves Model Slider effort from the native controller before the trigger
   // 已解析 effort 决定最终滑杆索引：max 落在最右档。
   assert.match(source, /const selectedIndex = efforts\.indexOf\(selectedEffort\)/);
   // 任务切换时按可控状态重建：key 包含已解析 effort，key 变化即重建菜单。
-  assert.match(source, /const key = `\$\{identity\.raw\}:\$\{selectedEffort\}:/);
+  assert.match(source, /const key = `\$\{identity\.raw\}:\$\{selectedEffortValue\}:/);
   assert.match(source, /existing\?\.getAttribute\("data-codex-model-slider-generic"\) === key/);
 });
 

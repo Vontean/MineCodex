@@ -1093,6 +1093,19 @@ export function createInjectionSource(features, {
       return formatIdentifier(identity.backend).toLowerCase() === nativeLabel ? native : thirdParty;
     }
 
+    function visibleReasoningLevelsFor(model) {
+      if (!model) return [];
+      const capability = model.modelSelectorCapability;
+      if (capability && Array.isArray(capability.levels)) {
+        const allowed = new Set(capability.levels);
+        return (model.supportedReasoningLevels ?? []).filter((level) => {
+          const effort = String(level?.effort ?? level ?? "").toLowerCase();
+          return allowed.has(effort);
+        });
+      }
+      return model.supportedReasoningLevels ?? [];
+    }
+
     function loadModelFavorites(selector) {
       try {
         const value = JSON.parse(localStorage.getItem(selector.favoriteStorageKey) ?? "[]");
@@ -2106,7 +2119,13 @@ export function createInjectionSource(features, {
     function enhanceGenericModelPicker(parentMenu, selector) {
       const identity = modelIdentity(nativeModelValue(parentMenu));
       const model = modelDefinitionFor(identity, selector);
-      const efforts = model?.supportedReasoningLevels ?? [];
+      const catalogModel = catalogModelFor(identity, selector);
+      const modelWithCapability = model?.modelSelectorCapability ? model : {
+        ...(model ?? {}),
+        ...(catalogModel ?? {}),
+        supportedReasoningLevels: model?.supportedReasoningLevels ?? catalogModel?.supportedReasoningLevels ?? [],
+      };
+      const efforts = visibleReasoningLevelsFor(modelWithCapability);
       if (!model || efforts.length < 2) return false;
       // 控制器推导的任务内实际 effort 优先，避免子任务/主任务切换后触发器属性滞后；
       // 触发器属性仅在控制器无法解析时作为实时回退，静态目录默认值最后兜底。
@@ -2116,9 +2135,19 @@ export function createInjectionSource(features, {
           ?.getAttribute("data-selected-reasoning-effort")
         ?? model.defaultReasoningLevel
         ?? efforts[0].effort;
+      const effortRank = (value) => {
+        const order = ["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"];
+        const index = order.indexOf(String(value ?? "").toLowerCase());
+        return index < 0 ? -1 : index;
+      };
+      const visibleEffort = efforts.find((level) => level.effort === selectedEffort)?.effort
+        ?? efforts.filter((level) => effortRank(level.effort) <= effortRank(selectedEffort))
+          .sort((left, right) => effortRank(right.effort) - effortRank(left.effort))[0]?.effort
+        ?? efforts[0].effort;
+      const selectedEffortValue = visibleEffort;
       const selectedServiceTier = nativeComposerModelController()?.selectedServiceTier;
       const serviceTierKey = selectedServiceTier?.id ?? selectedServiceTier ?? "standard";
-      const key = `${identity.raw}:${selectedEffort}:${serviceTierKey}:${efforts.map((level) => level.effort).join(",")}`;
+      const key = `${identity.raw}:${selectedEffortValue}:${serviceTierKey}:${efforts.map((level) => level.effort).join(",")}`;
       const existing = parentMenu.querySelector(":scope > [data-codex-model-slider-generic]");
       const nativeTemplateReady = Boolean(
         parentMenu.firstElementChild
@@ -2140,7 +2169,7 @@ export function createInjectionSource(features, {
       existing?.remove();
       const nativeContainer = parentMenu.firstElementChild;
       if (!nativeContainer) return false;
-      const shell = createGenericModelSlider(parentMenu, selector, identity, model, selectedEffort);
+      const shell = createGenericModelSlider(parentMenu, selector, identity, model, selectedEffortValue);
       if (!shell) return false;
       if (!modelSelectorGenericContainers.has(nativeContainer)) {
         modelSelectorGenericContainers.set(nativeContainer, nativeContainer.style.display);
