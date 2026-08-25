@@ -1,6 +1,6 @@
 const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 
-function createInstallReporter({ output = console.log, terminalOutput = process.stdout } = {}) {
+function createProgressReporter({ output = console.log, terminalOutput = process.stdout } = {}) {
   // 只有真实终端才显示 spinner；测试或脚本环境保持普通逐行文本。
   const interactive = output === console.log && Boolean(terminalOutput?.isTTY);
   let timer = null;
@@ -53,4 +53,4 @@ function createInstallReporter({ output = console.log, terminalOutput = process.
   };
 }
 
-export { createInstallReporter };
+export { createProgressReporter };

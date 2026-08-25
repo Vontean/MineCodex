@@ -187,6 +187,7 @@ test("successful install restarts Codex only after explicit confirmation", async
 
   assert.deepEqual(events, ["install-service", "confirm-restart", "/api/restart"]);
   assert.match(output.join("\n"), /will be enabled the next time Codex restarts/i);
+  assert.match(output.join("\n"), /\[1\/1\] Restarting Codex and applying plugin changes/);
   assert.match(output.join("\n"), /restarted/i);
 });
 
@@ -359,13 +360,14 @@ test("successful update restores a previously running service and waits for mana
     installGlobal: async (spec) => { calls.push(["install", spec]); },
     cleanup: async () => { calls.push("cleanup"); },
   };
+  const output = [];
 
   await runCli(["update"], {
     paths,
     platform,
     npm,
     cliPath: "/tmp/mcx.mjs",
-    output() {},
+    output: (line) => output.push(line),
     serviceProbe: {
       waitForService: async () => true,
       waitForManagedReady: async () => ({ runtime: { running: true } }),
@@ -378,6 +380,11 @@ test("successful update restores a previously running service and waits for mana
     ["install-service", true],
     "cleanup",
   ]);
+  assert.match(output.join("\n"), /\[1\/5\] Checking for updates/);
+  assert.match(output.join("\n"), /\[2\/5\] Backing up the current version/);
+  assert.match(output.join("\n"), /\[3\/5\] Pausing the background helper/);
+  assert.match(output.join("\n"), /\[4\/5\] Installing MineCodex 9\.9\.9/);
+  assert.match(output.join("\n"), /\[5\/5\] Restoring the background helper/);
 });
 
 test("uninstall does not purge when managed Codex shutdown fails and restores service state", async () => {
@@ -399,9 +406,17 @@ test("uninstall does not purge when managed Codex shutdown fails and restores se
     terminateOwnedCodex: async () => { calls.push("terminate-owned"); throw new Error("managed Codex did not exit"); },
     restoreServiceState: async (snapshot) => { calls.push(["restore-service", snapshot]); },
   };
+  const output = [];
 
-  await assert.rejects(runCli(["uninstall", "--purge"], { paths, platform, output() {} }), /managed Codex did not exit/);
+  await assert.rejects(runCli(["uninstall", "--purge"], {
+    paths,
+    platform,
+    output: (line) => output.push(line),
+  }), /managed Codex did not exit/);
   assert.deepEqual(calls, ["remove-service", "terminate-owned", ["restore-service", previous]]);
+  assert.match(output.join("\n"), /\[1\/2\] Checking the current installation/);
+  assert.match(output.join("\n"), /\[2\/2\] Removing MineCodex and its data/);
+  assert.match(output.join("\n"), /\[1\/1\] Restoring the background helper/);
   assert.equal(await readFile(path.join(supportDir, "keep-check"), "utf8"), "data");
   assert.equal(await readFile(path.join(notesDataDir, "keep-check"), "utf8"), "data");
   assert.equal(await readFile(path.join(imagesDataDir, "keep-check"), "utf8"), "data");
@@ -428,6 +443,7 @@ test("mcx open starts an installed stopped service and uses a fresh exchange URL
   const previousPort = process.env.MINECODEX_CONTROL_PORT;
   process.env.MINECODEX_CONTROL_PORT = String(control.port);
   const opened = [];
+  const output = [];
   const launchAgentPath = path.join(root, "LaunchAgents", "minecodex.plist");
   await mkdir(path.dirname(launchAgentPath), { recursive: true });
   await writeFile(launchAgentPath, "plist");
@@ -443,11 +459,13 @@ test("mcx open starts an installed stopped service and uses a fresh exchange URL
     await runCli(["open"], {
       paths: openPaths,
       platform,
+      output: (line) => output.push(line),
       serviceProbe: { waitForService: async () => serviceResults.shift() },
     });
     await runCli(["open"], {
       paths: openPaths,
       platform,
+      output: (line) => output.push(line),
       serviceProbe: { waitForService: async () => serviceResults.shift() },
     });
     assert.equal(startServiceCalls, 1);
@@ -459,6 +477,8 @@ test("mcx open starts an installed stopped service and uses a fresh exchange URL
       assert.doesNotMatch(url, /long-lived-secret|[?&]token=/);
     }
     assert.deepEqual(serviceResults, []);
+    assert.match(output.join("\n"), /\[1\/2\] Starting the background helper/);
+    assert.match(output.join("\n"), /\[2\/2\] Opening the control panel/);
   } finally {
     if (previousPort === undefined) delete process.env.MINECODEX_CONTROL_PORT;
     else process.env.MINECODEX_CONTROL_PORT = previousPort;

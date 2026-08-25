@@ -26,6 +26,8 @@ mcx install
 
 运行 `mcx install` 不会强制关闭或启动 Codex，也不会影响当前打开的窗口。安装完成后，终端会说明更改将在下一次重启 Codex 时生效，并询问是否立即重启；默认选项为 **No**。只有在您明确确认，或后续手动运行 `mcx restart` 时，才会重新打开 Codex。安装完成后，macOS 的“登录项与扩展”中会添加名为 **MineCodex** 的后台项目。
 
+`mcx install`、`mcx update`、`mcx restart` 和 `mcx uninstall` 会在终端持续显示当前阶段；`mcx open` 仅在需要启动后台服务时显示进度。查询类命令保持简洁，便于直接阅读或用于脚本。
+
 MineCodex 只以后台辅助服务运行，前台应用始终是 OpenAI 签名的官方 `ChatGPT.app`，并继续使用官方默认用户数据。通过 Dock、Finder、Spotlight、登录项或会话恢复打开 ChatGPT 时，后台服务会验证官方应用与对应进程；若该进程尚未开放兼容的本机调试端口，则确认其完整退出后再通过 LaunchServices 重新打开官方应用并注入功能。MineCodex 不修改 `ChatGPT.app`、`app.asar`、Dock 项目或默认打开方式。
 
 打开本地控制台：

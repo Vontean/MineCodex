@@ -4,7 +4,7 @@ import { createInterface } from "node:readline/promises";
 import { assertNodeSupported, MacPlatformAdapter } from "./platform.mjs";
 import { ensureConfig, ensureControlToken, readConfig } from "./config.mjs";
 import { createControlServer } from "./control-server.mjs";
-import { createInstallReporter } from "./install-progress.mjs";
+import { createProgressReporter } from "./progress.mjs";
 import { createNpmAdapter } from "./npm-adapter.mjs";
 import { resolvePaths } from "./paths.mjs";
 import { RuntimeManager, writeServicePid } from "./runtime-manager.mjs";
@@ -119,7 +119,7 @@ export async function confirmRestartNow({ input = process.stdin, terminalOutput 
 }
 
 async function installCommand({ paths, platform, cliPath, output, serviceProbe, fetchImpl, confirmRestart, nodeVersion = process.versions.node }) {
-  const reporter = createInstallReporter({ output });
+  const reporter = createProgressReporter({ output });
   reporter.heading("Installing MineCodex");
   let previousService = null;
   try {
@@ -167,21 +167,30 @@ async function installCommand({ paths, platform, cliPath, output, serviceProbe, 
 }
 }
 
-async function openCommand({ paths, platform, serviceProbe, fetchImpl }) {
+async function openCommand({ paths, platform, output, serviceProbe, fetchImpl }) {
   const waitForServiceImpl = serviceProbe?.waitForService ?? waitForService;
+  let reporter = null;
   if (!(await waitForServiceImpl(DEFAULT_CONTROL_PORT, { fetchImpl, timeoutMs: 750 }))) {
     if (!(await serviceInstalled(platform, paths))) throw new Error("MineCodex is not installed. Run `mcx install` first.");
-    await platform.startService(paths);
-    if (!(await waitForServiceImpl(DEFAULT_CONTROL_PORT, { fetchImpl }))) throw new Error("MineCodex service could not be started.");
+    reporter = createProgressReporter({ output });
+    reporter.heading("Opening MineCodex");
+    await reporter.step(1, 2, "Starting the background helper", async () => {
+      await platform.startService(paths);
+      if (!(await waitForServiceImpl(DEFAULT_CONTROL_PORT, { fetchImpl }))) throw new Error("MineCodex service could not be started.");
+    });
   }
-  const exchangeResponse = await authorizedFetch(paths, "/api/auth/exchange", {
-    method: "POST",
-    body: "{}",
-  }, { fetchImpl });
-  if (!exchangeResponse.ok) throw new Error(`MineCodex browser exchange failed: HTTP ${exchangeResponse.status}`);
-  const { exchange } = await exchangeResponse.json();
-  if (!exchange) throw new Error("MineCodex browser exchange did not return a short-lived value.");
-  await platform.openBrowser(`${controlOrigin()}/auth?exchange=${encodeURIComponent(exchange)}`);
+  const openControlPanel = async () => {
+    const exchangeResponse = await authorizedFetch(paths, "/api/auth/exchange", {
+      method: "POST",
+      body: "{}",
+    }, { fetchImpl });
+    if (!exchangeResponse.ok) throw new Error(`MineCodex browser exchange failed: HTTP ${exchangeResponse.status}`);
+    const { exchange } = await exchangeResponse.json();
+    if (!exchange) throw new Error("MineCodex browser exchange did not return a short-lived value.");
+    await platform.openBrowser(`${controlOrigin()}/auth?exchange=${encodeURIComponent(exchange)}`);
+  };
+  if (reporter) await reporter.step(2, 2, "Opening the control panel", openControlPanel);
+  else await openControlPanel();
 }
 
 function featureStatusText(feature) {
@@ -239,95 +248,130 @@ async function statusCommand({ paths, platform, jsonOutput, output, fetchImpl })
 }
 
 async function restartCommand({ paths, output, fetchImpl }) {
-  const response = await authorizedFetch(paths, "/api/restart", { method: "POST", body: "{}" }, { fetchImpl });
-  if (!response.ok) throw new Error(`MineCodex restart failed: HTTP ${response.status}`);
-  output("MineCodex restarted and saved plugin switches are now applied.");
+  const reporter = createProgressReporter({ output });
+  reporter.heading("Restarting MineCodex");
+  await reporter.step(1, 1, "Restarting Codex and applying plugin changes", async () => {
+    const response = await authorizedFetch(paths, "/api/restart", { method: "POST", body: "{}" }, { fetchImpl });
+    if (!response.ok) throw new Error(`MineCodex restart failed: HTTP ${response.status}`);
+  });
+  reporter.heading("MineCodex restarted and saved plugin switches are now applied.");
 }
 
 async function uninstallCommand({ paths, platform, purge, output, cliPath }) {
-  platform.assertInstallSupported();
-  const previousService = await serviceSnapshot(platform, paths);
+  const reporter = createProgressReporter({ output });
+  reporter.heading("Uninstalling MineCodex");
+  const previousService = await reporter.step(1, 2, "Checking the current installation", async () => {
+    platform.assertInstallSupported();
+    return serviceSnapshot(platform, paths);
+  });
   let wasManaged = false;
   try {
-    await platform.removeService(paths);
-    wasManaged = await platform.terminateOwnedCodex(paths);
-    await platform.assertServiceStopped?.();
-    await platform.assertOwnedCodexStopped?.(paths);
-    if (purge) {
-      const targets = [paths.supportDir, paths.notesDataDir, paths.imagesDataDir];
-      for (const target of targets) {
-        if (!path.isAbsolute(target) || target === paths.homeDir || target.length <= paths.homeDir.length + 2) {
-          throw new Error(`Refusing unsafe purge target: ${target}`);
+    await reporter.step(2, 2, purge ? "Removing MineCodex and its data" : "Removing the MineCodex integration", async () => {
+      await platform.removeService(paths);
+      wasManaged = await platform.terminateOwnedCodex(paths);
+      await platform.assertServiceStopped?.();
+      await platform.assertOwnedCodexStopped?.(paths);
+      if (purge) {
+        const targets = [paths.supportDir, paths.notesDataDir, paths.imagesDataDir];
+        for (const target of targets) {
+          if (!path.isAbsolute(target) || target === paths.homeDir || target.length <= paths.homeDir.length + 2) {
+            throw new Error(`Refusing unsafe purge target: ${target}`);
+          }
         }
+        for (const target of targets) await rm(target, { recursive: true, force: true });
       }
-      for (const target of targets) await rm(target, { recursive: true, force: true });
-      output("MineCodex integration and MineCodex-owned data were removed.");
-    } else {
-      output("MineCodex integration was removed. Plugin data was preserved.");
-    }
+    });
   } catch (error) {
     let rollbackError = null;
+    reporter.heading("Uninstall failed. Restoring the background helper.");
     try {
-      await restoreService(platform, previousService, { cliPath, paths });
+      await reporter.step(1, 1, "Restoring the background helper", async () => {
+        await restoreService(platform, previousService, { cliPath, paths });
+      });
     } catch (failure) {
       rollbackError = failure;
     }
     throw appendRollbackError(error, rollbackError);
   }
-  if (wasManaged) await platform.openNativeCodex();
-  output("Codex generated images and files referenced by Notes were not modified.");
+  reporter.heading(purge
+    ? "MineCodex integration and MineCodex-owned data were removed."
+    : "MineCodex integration was removed. Plugin data was preserved.");
+  if (wasManaged) {
+    await reporter.step(1, 1, "Reopening Codex", async () => platform.openNativeCodex());
+  }
+  reporter.heading("Codex generated images and files referenced by Notes were not modified.");
 }
 
 async function updateCommand({ paths, platform, cliPath, output, npm = createNpmAdapter(), serviceProbe, fetchImpl }) {
-  platform.assertInstallSupported();
-  const latest = await npm.viewLatestVersion();
-  if (!latest) throw new Error("Could not resolve the latest MineCodex version.");
+  const reporter = createProgressReporter({ output });
+  reporter.heading("Updating MineCodex");
+  const latest = await reporter.step(1, 5, "Checking for updates", async () => {
+    platform.assertInstallSupported();
+    const version = await npm.viewLatestVersion();
+    if (!version) throw new Error("Could not resolve the latest MineCodex version.");
+    return version;
+  });
   if (latest === packageMetadata.version) {
-    output(`MineCodex ${packageMetadata.version} is already up to date.`);
+    reporter.heading(`MineCodex ${packageMetadata.version} is already up to date.`);
     return;
   }
-  const wasInstalled = await serviceInstalled(platform, paths);
-  const previousService = wasInstalled
-    ? (await serviceSnapshot(platform, paths) ?? { running: true, plist: { exists: true } })
-    : null;
-  const rollback = await npm.createRollbackArchive(paths.packageRoot);
+  let wasInstalled;
+  let previousService;
+  const rollback = await reporter.step(2, 5, "Backing up the current version", async () => {
+    wasInstalled = await serviceInstalled(platform, paths);
+    previousService = wasInstalled
+      ? (await serviceSnapshot(platform, paths) ?? { running: true, plist: { exists: true } })
+      : null;
+    return npm.createRollbackArchive(paths.packageRoot);
+  });
   const rollbackPath = typeof rollback === "string" ? rollback : rollback.archivePath;
   if (!rollbackPath) throw new Error("Could not create a rollback archive for the installed MineCodex version.");
   try {
-    if (wasInstalled && previousService?.running) {
-      await platform.stopService(paths, { ignoreErrors: false });
-      await platform.assertServiceStopped?.();
-    }
-    await npm.installGlobal("minecodex@latest");
-    if (wasInstalled) {
-      await platform.installService({ cliPath, paths, start: previousService.running });
-      if (previousService.running) {
-        const waitForServiceImpl = serviceProbe?.waitForService ?? waitForService;
-        const waitForManagedReadyImpl = serviceProbe?.waitForManagedReady ?? waitForManagedReady;
-        if (!(await waitForServiceImpl(DEFAULT_CONTROL_PORT, { fetchImpl }))
-          || !(await waitForManagedReadyImpl(paths, { fetchImpl }))) {
-          throw new Error("MineCodex service did not become ready after update.");
-        }
-      } else {
+    await reporter.step(3, 5, "Pausing the background helper", async () => {
+      if (wasInstalled && previousService?.running) {
+        await platform.stopService(paths, { ignoreErrors: false });
         await platform.assertServiceStopped?.();
       }
-    }
-    output(`MineCodex updated from ${packageMetadata.version} to ${latest}.`);
+    });
+    await reporter.step(4, 5, `Installing MineCodex ${latest}`, async () => {
+      await npm.installGlobal("minecodex@latest");
+    });
+    await reporter.step(5, 5, "Restoring the background helper", async () => {
+      if (wasInstalled) {
+        await platform.installService({ cliPath, paths, start: previousService.running });
+        if (previousService.running) {
+          const waitForServiceImpl = serviceProbe?.waitForService ?? waitForService;
+          const waitForManagedReadyImpl = serviceProbe?.waitForManagedReady ?? waitForManagedReady;
+          if (!(await waitForServiceImpl(DEFAULT_CONTROL_PORT, { fetchImpl }))
+            || !(await waitForManagedReadyImpl(paths, { fetchImpl }))) {
+            throw new Error("MineCodex service did not become ready after update.");
+          }
+        } else {
+          await platform.assertServiceStopped?.();
+        }
+      }
+    });
+    reporter.heading(`MineCodex updated from ${packageMetadata.version} to ${latest}.`);
   } catch (error) {
     let rollbackError = null;
+    reporter.heading("Update failed. Restoring the previous version.");
     try {
-      await npm.installGlobal(rollbackPath);
-      await restoreService(platform, previousService, { cliPath, paths });
-      if (wasInstalled && previousService?.running) {
-        const waitForServiceImpl = serviceProbe?.waitForService ?? waitForService;
-        const waitForManagedReadyImpl = serviceProbe?.waitForManagedReady ?? waitForManagedReady;
-        if (!(await waitForServiceImpl(DEFAULT_CONTROL_PORT, { fetchImpl }))
-          || !(await waitForManagedReadyImpl(paths, { fetchImpl }))) {
-          throw new Error("Rolled-back MineCodex service did not become ready.");
+      await reporter.step(1, 2, "Restoring the previous version", async () => {
+        await npm.installGlobal(rollbackPath);
+      });
+      await reporter.step(2, 2, "Restoring the background helper", async () => {
+        await restoreService(platform, previousService, { cliPath, paths });
+        if (wasInstalled && previousService?.running) {
+          const waitForServiceImpl = serviceProbe?.waitForService ?? waitForService;
+          const waitForManagedReadyImpl = serviceProbe?.waitForManagedReady ?? waitForManagedReady;
+          if (!(await waitForServiceImpl(DEFAULT_CONTROL_PORT, { fetchImpl }))
+            || !(await waitForManagedReadyImpl(paths, { fetchImpl }))) {
+            throw new Error("Rolled-back MineCodex service did not become ready.");
+          }
+        } else if (wasInstalled && !previousService?.running) {
+          await platform.assertServiceStopped?.();
         }
-      } else if (wasInstalled && !previousService?.running) {
-        await platform.assertServiceStopped?.();
-      }
+      });
     } catch (failure) {
       rollbackError = failure;
     }
@@ -397,7 +441,7 @@ export async function runCli(argv, {
   if (["--help", "-h", "help"].includes(command)) return printHelp(output);
   if (["--version", "-v"].includes(command)) return output(packageMetadata.version);
   if (command === "install") return installCommand({ paths, platform, cliPath, output, serviceProbe, fetchImpl, confirmRestart, nodeVersion });
-  if (command === "open" || command === "gui") return openCommand({ paths, platform, serviceProbe, fetchImpl });
+  if (command === "open" || command === "gui") return openCommand({ paths, platform, output, serviceProbe, fetchImpl });
   if (command === "status") return statusCommand({ paths, platform, jsonOutput: args.includes("--json"), output, fetchImpl });
   if (command === "restart") return restartCommand({ paths, output, fetchImpl });
   if (command === "uninstall" || command === "remove") {
