@@ -725,13 +725,12 @@ test("emits a fail-closed native Composer model selector Adapter", () => {
   assert.match(source, /data-codex-model-slider-star\]::after \{/);
   assert.match(source, /top: 0; right: 0; bottom: 0; width: 40px/);
   assert.match(source, /data-codex-model-slider-star\] svg \{ position: relative; z-index: 2;.*pointer-events: none/);
-  assert.match(source, /item\.toggleAttribute\("data-codex-model-slider-selected", Boolean\(item\.querySelector\("svg"\)\)\)/);
+  assert.match(source, /selected \?\? Boolean\(item\.querySelector\("svg"\)\)/);
   assert.doesNotMatch(source, /data-codex-model-slider-check/);
   assert.doesNotMatch(source, /star\.addEventListener\("click"/);
   assert.match(source, /menu\.addEventListener\("click", \(event\) => \{/);
   assert.match(source, /toggleModelFavorite\(event, menu, selector, raw, label\)/);
   assert.match(source, /for \(const type of \["mousedown", "pointerup", "mouseup"\]\)/);
-  assert.doesNotMatch(source, /menu\.addEventListener\("pointerdown"[\s\S]*toggleModelFavorite/);
   assert.match(source, /function sizeModelMenuViewport\(menu, maxVisibleItems\)/);
   assert.match(source, /const lastVisibleItem = items\[maxVisibleItems - 1\]/);
   assert.doesNotMatch(source, /data-codex-model-slider-title/);
@@ -757,6 +756,13 @@ test("emits a fail-closed native Composer model selector Adapter", () => {
   assert.match(source, /const shell = createGenericModelSlider[\s\S]*?if \(!shell\) return false/);
   assert.doesNotMatch(source, /_1ryrb_/);
   assert.match(source, /const canUpgradeFallback = Boolean/);
+  assert.match(source, /if \(efforts\.length < 2\) \{\s*shell\.append\(viewControls\);\s*return shell;/);
+  assert.doesNotMatch(source, /if \(!model \|\| efforts\.length < 2\) return false/);
+  assert.match(source, /modelSelectorTriggerObserver\.observe\(trigger, \{ childList: true, subtree: true, characterData: true \}\)/);
+  assert.match(
+    source,
+    /modelSelectorPendingReturn[\s\S]*?nativeModelPickerSubmenus\(\)\.length === 0[\s\S]*?clearTimeout\(modelSelectorReturnTimer\)[\s\S]*?returnToNativeModelSlider\(\)/,
+  );
   assert.match(source, /characterData: true/);
   assert.match(source, /ensureFrame = requestAnimationFrame\(flushEnsure\)/);
   assert.match(source, /ensureTimer = setTimeout\(flushEnsure, 50\)/);
@@ -797,6 +803,16 @@ test("emits a fail-closed native Composer model selector Adapter", () => {
   assert.doesNotMatch(source, /"zh-CN":"搜索模型"/);
   assert.doesNotMatch(source, /model_catalog_json/);
 });
+
+test("keeps the generic model menu on the Composer controller lifecycle", () => {
+  const source = createInjectionSource([modelSliderFeatureFixture()]);
+
+  assert.match(source, /function openControllerModelMenu\(parentMenu, modelButton, selector\)/);
+  assert.match(source, /currentController\.onSelectModel\(raw, reasoningEffort\)/);
+  assert.match(source, /querySelector\('\[data-codex-model-slider-selected\]'\)\s*\?\? menu\.querySelector\('\[role="menuitem"\]'\)/);
+  assert.doesNotMatch(source, /const openModels = \(\) => openNativeModelSubmenu\(parentMenu\)/);
+});
+
 test("maps current controller effort separately from the model default", async () => {
   const controller = {
     models: [{
@@ -960,7 +976,7 @@ test("resolves Model Slider effort from the native controller before the trigger
   );
   assert.match(
     source,
-    /nativeModel\?\.currentReasoningLevel\s*\?\?[\s\S]*?\?\? model\.defaultReasoningLevel\s*\?\? efforts\[0\]\.effort/,
+    /nativeModel\?\.currentReasoningLevel\s*\?\?[\s\S]*?\?\? model\.defaultReasoningLevel\s*\?\? efforts\[0\]\?\.effort/,
   );
   assert.match(source, /const currentReasoningLevel = String\(controller\?\.reasoningEffort \?\? ""\)\.toLowerCase\(\)/);
   // 已解析 effort 决定最终滑杆索引：max 落在最右档。

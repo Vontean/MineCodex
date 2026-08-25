@@ -359,6 +359,12 @@ export async function loadConfiguredModelCatalog(
         id: String(tier.id ?? "").trim(),
         name: String(tier.name ?? "").trim(),
       })),
+      capabilityKey: [
+        model.opencodex_capability_provenance?.provider,
+        model.opencodex_capability_provenance?.model_id,
+      ].every((value) => typeof value === "string" && value.trim())
+        ? `${model.opencodex_capability_provenance.provider.trim()}/${model.opencodex_capability_provenance.model_id.trim()}`
+        : null,
     })).filter((model) => model.slug);
   } catch (error) {
     if (error.code === "ENOENT") return [];

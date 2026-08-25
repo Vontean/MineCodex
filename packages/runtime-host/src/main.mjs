@@ -29,7 +29,7 @@ for (const feature of features) {
     feature.modelSelector.models = modelCatalog.map((model) => (
       applyVisibleReasoningLevels(
         model,
-        modelCapabilities.get(String(model.slug ?? "").toLowerCase()),
+        modelCapabilities.get(String(model.capabilityKey ?? model.slug ?? "").toLowerCase()),
         model.supportedReasoningLevels,
       )
     ));

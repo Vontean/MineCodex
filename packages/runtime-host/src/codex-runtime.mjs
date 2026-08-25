@@ -306,6 +306,7 @@ export function createInjectionSource(features, {
     let modelSelectorSuppressOutsidePointerSequence = false;
     let modelSelectorTriggerObserver = null;
     let modelSelectorObservedTrigger = null;
+    let modelSelectorControllerMenu = null;
     let modelSelectorNativeFastIcons = null;
     // Fast 图标来源标记：bundle 静态提取 vs DOM 克隆，DOM 克隆优先以保持像素一致。
     let modelSelectorNativeFastIconSources = null;
@@ -318,6 +319,7 @@ export function createInjectionSource(features, {
     modelSelectorStyle.setAttribute("data-codex-model-slider-style", "");
     modelSelectorStyle.textContent = `
       [data-codex-model-slider-menu] { width: 264px !important; min-width: 264px; overflow-x: hidden; }
+      [data-codex-model-slider-controller-menu] { position: absolute !important; right: 0; bottom: 0; z-index: 1; }
       [data-codex-model-slider-menu][data-codex-model-slider-overflow] {
         max-height: var(--codex-model-slider-menu-max-height) !important;
         overflow-y: auto;
@@ -952,10 +954,21 @@ export function createInjectionSource(features, {
         .trim();
     }
 
+    function currentReactFiber(element) {
+      const fiberKey = Object.getOwnPropertyNames(element ?? {}).find((key) => key.startsWith("__reactFiber$"));
+      const propsKey = Object.getOwnPropertyNames(element ?? {}).find((key) => key.startsWith("__reactProps$"));
+      let fiber = fiberKey ? element[fiberKey] : null;
+      if (
+        propsKey
+        && fiber?.alternate?.memoizedProps === element[propsKey]
+        && fiber.memoizedProps !== element[propsKey]
+      ) return fiber.alternate;
+      return fiber;
+    }
+
     function nativeComposerModelController() {
       const trigger = document.querySelector("[data-codex-intelligence-trigger]");
-      const fiberKey = Object.getOwnPropertyNames(trigger ?? {}).find((key) => key.startsWith("__reactFiber$"));
-      let fiber = fiberKey ? trigger[fiberKey] : null;
+      let fiber = currentReactFiber(trigger);
       for (let depth = 0; fiber && depth < 40; depth += 1, fiber = fiber.return) {
         const props = fiber.memoizedProps;
         if (Array.isArray(props?.models) && typeof props.onSelectReasoningEffort === "function") return props;
@@ -1480,8 +1493,12 @@ export function createInjectionSource(features, {
       renderEnhancedModelMenu(menu, selector);
     }
 
-    function enhanceModelItem(item, menu, selector, index) {
-      const observedRaw = modelItemRawValue(item);
+    function enhanceModelItem(item, menu, selector, index, {
+      rawValue = null,
+      selected = null,
+      scheduleReturn = true,
+    } = {}) {
+      const observedRaw = rawValue ?? modelItemRawValue(item);
       if (!observedRaw) return;
       const observedIdentity = modelIdentity(observedRaw);
       const nativeDescriptor = nativeModelDescriptorForItem(item, observedRaw);
@@ -1499,7 +1516,10 @@ export function createInjectionSource(features, {
       const display = modelDisplayLabel(identity, selector);
       const provider = providerLabel(identity.provider, selector);
       const brand = brandForModel(identity, selector);
-      item.toggleAttribute("data-codex-model-slider-selected", Boolean(item.querySelector("svg")));
+      item.toggleAttribute(
+        "data-codex-model-slider-selected",
+        selected ?? Boolean(item.querySelector("svg")),
+      );
       const favorites = loadModelFavorites(selector);
       const starred = favorites.has(raw);
       const row = document.createElement("span");
@@ -1528,7 +1548,7 @@ export function createInjectionSource(features, {
       star.append(createModelSelectorIcon(starred ? selector.icons.unstar : selector.icons.star));
       row.append(star);
       item.replaceChildren(row);
-      if (!item.hasAttribute("data-codex-model-slider-return-listener")) {
+      if (scheduleReturn && !item.hasAttribute("data-codex-model-slider-return-listener")) {
         item.setAttribute("data-codex-model-slider-return-listener", "");
         item.addEventListener("click", (event) => {
           if (!event.target.closest?.("[data-codex-model-slider-star]")) scheduleModelSliderReturn();
@@ -1663,6 +1683,106 @@ export function createInjectionSource(features, {
         record.resizeObserver.disconnect();
         modelSelectorPositionObservers.delete(wrapper);
       }
+    }
+
+    function closeControllerModelMenu() {
+      const record = modelSelectorControllerMenu;
+      if (!record) return false;
+      record.button.setAttribute("aria-expanded", "false");
+      record.parentMenu.style.position = record.position;
+      record.parentMenu.style.overflow = record.overflow;
+      for (const item of modelMenuItems(record.menu)) modelSelectorOriginalItems.delete(item);
+      record.menu.remove();
+      modelSelectorControllerMenu = null;
+      return true;
+    }
+
+    function controllerModelReasoningEffort(controller, model) {
+      const current = String(controller?.reasoningEffort ?? "").toLowerCase();
+      const supported = (model?.supportedReasoningEfforts ?? []).map((entry) => (
+        String(entry?.reasoningEffort ?? entry ?? "").toLowerCase()
+      )).filter(Boolean);
+      return supported.includes(current)
+        ? current
+        : String(model?.defaultReasoningEffort ?? supported[0] ?? "none").toLowerCase();
+    }
+
+    function openControllerModelMenu(parentMenu, modelButton, selector) {
+      if (modelSelectorControllerMenu) {
+        closeControllerModelMenu();
+        return;
+      }
+      const controller = nativeComposerModelController();
+      if (!Array.isArray(controller?.models) || typeof controller.onSelectModel !== "function") return;
+      const models = controller.models.filter((model) => !model.hidden && String(model.model ?? "").trim());
+      if (!models.length) return;
+
+      const menu = document.createElement("div");
+      menu.className = parentMenu.className;
+      menu.setAttribute("role", "menu");
+      menu.setAttribute("data-state", "open");
+      menu.setAttribute("data-codex-model-slider-menu", "");
+      menu.setAttribute("data-codex-model-slider-controller-menu", "");
+      models.forEach((model, index) => {
+        const item = document.createElement("div");
+        item.className = "no-drag outline-hidden rounded-lg px-[var(--padding-row-x)] py-[var(--padding-row-y)] text-sm text-default group hover:bg-primary-ghost-hover focus:bg-primary-ghost-hover cursor-interaction flex flex-col";
+        item.setAttribute("role", "menuitem");
+        item.setAttribute("tabindex", "-1");
+        enhanceModelItem(item, menu, selector, index, {
+          rawValue: String(model.model),
+          selected: String(model.model) === String(controller.model),
+          scheduleReturn: false,
+        });
+        menu.append(item);
+      });
+      menu.addEventListener("click", (event) => {
+        const star = event.target.closest?.("[data-codex-model-slider-star]");
+        const item = event.target.closest?.("[data-codex-model-slider-item]");
+        if (!item) return;
+        if (star) {
+          const raw = item.dataset.codexModelSliderRaw;
+          const label = item.querySelector("[data-codex-model-slider-name]")?.textContent ?? raw;
+          toggleModelFavorite(event, menu, selector, raw, label);
+          return;
+        }
+        const currentController = nativeComposerModelController();
+        const raw = item.dataset.codexModelSliderRaw;
+        const model = currentController?.models?.find((candidate) => String(candidate.model) === raw);
+        if (!model || typeof currentController.onSelectModel !== "function") return;
+        const reasoningEffort = controllerModelReasoningEffort(currentController, model);
+        currentController.onSelectModel(raw, reasoningEffort);
+        closeControllerModelMenu();
+        queueEnsure();
+      });
+      menu.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          closeControllerModelMenu();
+          modelButton.focus();
+          return;
+        }
+        if (event.key !== "Enter" && event.key !== " ") return;
+        const item = event.target.closest?.("[data-codex-model-slider-item]");
+        if (!item) return;
+        event.preventDefault();
+        item.click();
+      });
+      renderEnhancedModelMenu(menu, selector);
+
+      modelSelectorControllerMenu = {
+        menu,
+        parentMenu,
+        button: modelButton,
+        position: parentMenu.style.position,
+        overflow: parentMenu.style.overflow,
+      };
+      parentMenu.style.position = "relative";
+      parentMenu.style.overflow = "visible";
+      parentMenu.append(menu);
+      sizeModelMenuViewport(menu, selector.maxVisibleItems);
+      modelButton.setAttribute("aria-expanded", "true");
+      (menu.querySelector('[data-codex-model-slider-selected]')
+        ?? menu.querySelector('[role="menuitem"]'))?.focus();
     }
 
     function openNativeModelSubmenu(parentMenu) {
@@ -1942,6 +2062,8 @@ export function createInjectionSource(features, {
       modelButton.setAttribute("tabindex", "0");
       modelButton.setAttribute("data-codex-model-slider-model-button", "");
       modelButton.setAttribute("aria-label", `Model ${modelDisplayLabel(identity, selector)}`);
+      modelButton.setAttribute("aria-haspopup", "menu");
+      modelButton.setAttribute("aria-expanded", "false");
       const buttonContent = document.createElement("span");
       buttonContent.className = classes.ViewToggleContent;
       const buttonLabel = document.createElement("span");
@@ -1955,7 +2077,7 @@ export function createInjectionSource(features, {
         buttonContent.append(buttonLabel);
       }
       modelButton.append(buttonContent);
-      const openModels = () => openNativeModelSubmenu(parentMenu);
+      const openModels = () => openControllerModelMenu(parentMenu, modelButton, selector);
       modelButton.addEventListener("click", openModels);
       modelButton.addEventListener("keydown", (event) => {
         if (event.key !== "Enter" && event.key !== " ") return;
@@ -2004,6 +2126,11 @@ export function createInjectionSource(features, {
         viewControls.append(modelButton, fastButton);
       } else {
         viewControls.append(modelButton);
+      }
+
+      if (efforts.length < 2) {
+        shell.append(viewControls);
+        return shell;
       }
 
       const nativeSlider = cloneNativePowerSlider(parentMenu, efforts.length, fastEnabled);
@@ -2126,7 +2253,7 @@ export function createInjectionSource(features, {
         supportedReasoningLevels: model?.supportedReasoningLevels ?? catalogModel?.supportedReasoningLevels ?? [],
       };
       const efforts = visibleReasoningLevelsFor(modelWithCapability);
-      if (!model || efforts.length < 2) return false;
+      if (!model) return false;
       // 控制器推导的任务内实际 effort 优先，避免子任务/主任务切换后触发器属性滞后；
       // 触发器属性仅在控制器无法解析时作为实时回退，静态目录默认值最后兜底。
       const nativeModel = nativeCatalogModelFor(identity);
@@ -2134,7 +2261,8 @@ export function createInjectionSource(features, {
         ?? document.querySelector("[data-codex-intelligence-trigger]")
           ?.getAttribute("data-selected-reasoning-effort")
         ?? model.defaultReasoningLevel
-        ?? efforts[0].effort;
+        ?? efforts[0]?.effort
+        ?? "none";
       const effortRank = (value) => {
         const order = ["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"];
         const index = order.indexOf(String(value ?? "").toLowerCase());
@@ -2143,7 +2271,8 @@ export function createInjectionSource(features, {
       const visibleEffort = efforts.find((level) => level.effort === selectedEffort)?.effort
         ?? efforts.filter((level) => effortRank(level.effort) <= effortRank(selectedEffort))
           .sort((left, right) => effortRank(right.effort) - effortRank(left.effort))[0]?.effort
-        ?? efforts[0].effort;
+        ?? efforts[0]?.effort
+        ?? "none";
       const selectedEffortValue = visibleEffort;
       const selectedServiceTier = nativeComposerModelController()?.selectedServiceTier;
       const serviceTierKey = selectedServiceTier?.id ?? selectedServiceTier ?? "standard";
@@ -2252,12 +2381,18 @@ export function createInjectionSource(features, {
       if (!modelSelectorStyle.isConnected) document.head?.append(modelSelectorStyle);
       enhanceComposerModelTrigger(selector);
       const parentMenu = nativeModelPickerMenu();
+      if (modelSelectorControllerMenu && modelSelectorControllerMenu.parentMenu !== parentMenu) {
+        closeControllerModelMenu();
+      }
       if (!parentMenu) {
-        if (modelSelectorPendingReturn && !visibleBlockingDialog() && modelSelectorReturnTimer == null) {
-          modelSelectorReturnTimer = setTimeout(() => {
-            modelSelectorReturnTimer = null;
-            returnToNativeModelSlider();
-          }, 80);
+        if (
+          modelSelectorPendingReturn
+          && !visibleBlockingDialog()
+          && nativeModelPickerSubmenus().length === 0
+        ) {
+          clearTimeout(modelSelectorReturnTimer);
+          modelSelectorReturnTimer = null;
+          returnToNativeModelSlider();
         }
       } else {
         enhanceNativeModelPicker(parentMenu, selector);
@@ -2273,6 +2408,7 @@ export function createInjectionSource(features, {
     }
 
     function restoreModelSelectorEnhancements() {
+      closeControllerModelMenu();
       clearTimeout(modelSelectorReturnTimer);
       clearTimeout(modelSelectorEffortTransactionTimer);
       modelSelectorTriggerObserver?.disconnect();
@@ -3863,6 +3999,11 @@ export function createInjectionSource(features, {
     document.addEventListener(
       "click",
       (event) => {
+        if (
+          modelSelectorControllerMenu
+          && !modelSelectorControllerMenu.menu.contains(event.target)
+          && !modelSelectorControllerMenu.button.contains(event.target)
+        ) closeControllerModelMenu();
         if (isNativeSummaryButton(event.target) && activePinnedFeatureId) hidePinnedSurfaces();
         if (activePinnedFeatureId && summaryDisplayMode() === "overlay") {
           const state = summaryState(activePinnedFeatureId);

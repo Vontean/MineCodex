@@ -48,3 +48,26 @@ test("applyVisibleReasoningLevels filters only declared capabilities and keeps f
   const open = applyVisibleReasoningLevels(model, null, model.supportedReasoningLevels);
   assert.deepEqual(open.supportedReasoningLevels.map((x) => x.effort), ["low", "medium", "high", "max"]);
 });
+
+test("applyVisibleReasoningLevels accepts the catalog provenance capability key", async () => {
+  const capabilities = await loadModelCapabilities({
+    read: async () => JSON.stringify({
+      providers: {
+        "command-code": {
+          modelReasoningEfforts: { "deepseek/deepseek-v4-flash": ["high", "max"] },
+        },
+      },
+    }),
+  });
+  const model = {
+    slug: "command-code/deepseek-deepseek-v4-flash",
+    capabilityKey: "command-code/deepseek/deepseek-v4-flash",
+    supportedReasoningLevels: [{ effort: "high" }, { effort: "max" }, { effort: "ultra" }],
+  };
+  const filtered = applyVisibleReasoningLevels(
+    model,
+    capabilities.get(model.capabilityKey),
+    model.supportedReasoningLevels,
+  );
+  assert.deepEqual(filtered.supportedReasoningLevels.map((level) => level.effort), ["high", "max"]);
+});
