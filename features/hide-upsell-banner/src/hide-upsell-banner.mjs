@@ -15,7 +15,8 @@ function isUpsellBanner(element) {
   if (!text) return false;
   const isCard = element.classList.contains("rounded-2xl")
     && element.classList.contains("border")
-    && element.classList.contains("bg-token-main-surface-primary");
+    && (element.classList.contains("bg-token-main-surface-primary")
+      || element.classList.contains("bg-surface"));
   if (!isCard) return false;
   const titleMatch = /out of Codex and Work usage/i.test(text)
     || /out of Codex messages/i.test(text)
