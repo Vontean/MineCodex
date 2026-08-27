@@ -319,7 +319,15 @@ export function createInjectionSource(features, {
     modelSelectorStyle.setAttribute("data-codex-model-slider-style", "");
     modelSelectorStyle.textContent = `
       [data-codex-model-slider-menu] { width: 264px !important; min-width: 264px; overflow-x: hidden; }
-      [data-codex-model-slider-controller-menu] { position: absolute !important; right: 0; bottom: 0; z-index: 1; }
+      [data-codex-model-slider-controller-menu] {
+        position: absolute !important;
+        right: 0;
+        bottom: 0;
+        z-index: 1;
+        background-color: var(--color-surface-elevated-secondary);
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
+      }
       [data-codex-model-slider-menu][data-codex-model-slider-overflow] {
         max-height: var(--codex-model-slider-menu-max-height) !important;
         overflow-y: auto;
@@ -937,7 +945,7 @@ export function createInjectionSource(features, {
     function modelDisplayLabel(identity, selector) {
       const model = catalogModelFor(identity, selector) ?? nativeCatalogModelFor(identity);
       const source = model?.displayName || model?.slug || identity.backend;
-      return formatIdentifier(modelIdentity(source).backend);
+      return formatIdentifier(source.slice(source.lastIndexOf("/") + 1));
     }
 
     function brandForModel(identity, selector) {

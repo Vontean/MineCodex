@@ -354,6 +354,10 @@ async function executeModelSliderInjection({
         efforts: efforts.map((level) => level.effort),
       };
     };
+    window.__modelSliderDisplayProbe = (raw, models) => modelDisplayLabel(
+      modelIdentity(raw),
+      { ...modelSelectorFeature.modelSelector, models },
+    );
     window.__summaryShiftProbe = {
       apply: applyThreadContentShift,
       restore: restoreThreadContentShift,
@@ -419,6 +423,7 @@ async function executeModelSliderInjection({
   await Promise.resolve();
   const probe = window.__fastIconProbe?.();
   return {
+    displayLabel: (raw, models = []) => window.__modelSliderDisplayProbe?.(raw, models) ?? null,
     effortProbe: (raw) => {
       const value = window.__modelSliderEffortProbe?.(raw);
       return value ? JSON.parse(JSON.stringify(value)) : null;
@@ -663,6 +668,8 @@ test("emits a fail-closed native Composer model selector Adapter", () => {
   assert.match(source, /data-model-picker-view-toggle/);
   assert.match(source, /function modelIdentity\(rawValue\)/);
   assert.match(source, /function modelDisplayLabel\(identity, selector\)/);
+  assert.match(source, /background-color: var\(--color-surface-elevated-secondary\);/);
+  assert.match(source, /-webkit-backdrop-filter: none;\s+backdrop-filter: none;/);
   assert.match(source, /catalogModelFor\(identity, selector\) \?\? nativeCatalogModelFor\(identity\)/);
   assert.match(source, /const label = modelDisplayLabel\(modelIdentity\(raw\), selector\)/);
   assert.match(source, /function enhanceNativeModelSubmenu\(menu, selector\)/);
@@ -802,6 +809,26 @@ test("emits a fail-closed native Composer model selector Adapter", () => {
   assert.match(source, /"favoriteStorageKey":"codex-model-slider:favorites:v1"/);
   assert.doesNotMatch(source, /"zh-CN":"搜索模型"/);
   assert.doesNotMatch(source, /model_catalog_json/);
+});
+
+test("shows only the final model-id segment while preserving provider identity", async () => {
+  const feature = modelSliderFeatureFixture();
+  const models = [
+    {
+      slug: "command-code/z-ai-glm-5.3-flash",
+      displayName: "commandcode-auth/z-ai/glm-5.3-flash",
+      supportedReasoningLevels: [],
+    },
+    {
+      slug: "command-code/Qwen-Qwen3.8-Flash",
+      displayName: "commandcode-auth/Qwen/Qwen3.8-Flash",
+      supportedReasoningLevels: [],
+    },
+  ];
+  const result = await executeModelSliderInjection({ features: [feature] });
+
+  assert.equal(result.displayLabel("command-code/z-ai/glm-5.3-flash", models), "GLM 5.3 Flash");
+  assert.equal(result.displayLabel("command-code/Qwen/Qwen3.8-Flash", models), "Qwen3.8 Flash");
 });
 
 test("keeps the generic model menu on the Composer controller lifecycle", () => {
