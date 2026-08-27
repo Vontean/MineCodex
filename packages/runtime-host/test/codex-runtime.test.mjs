@@ -1332,6 +1332,76 @@ test("ignores native Host bindings with the wrong target token", async () => {
   assert.equal(nativeCalls, 0);
 });
 
+test("image edit binding is allowlisted and creates a fresh native Chat through the runtime", async () => {
+  const runtime = new CodexRuntime({
+    features: [{ id: "images", surfaceUrl: "http://127.0.0.1:47831/", hostActions: ["create-image-edit-thread"] }],
+    profileDir: "/tmp/codex-runtime-image-edit-profile",
+  });
+  runtime.bindingTokens.set("renderer", "images-token");
+  const received = [];
+  runtime.createImageEditThread = async (_client, feature, payload, requestId) => {
+    received.push({ featureId: feature.id, payload, requestId });
+    return { attached: [{ mode: "attach" }] };
+  };
+  const evaluations = [];
+  await runtime.handleBindingCalled("renderer", { send: async (_method, params) => {
+    evaluations.push(params.expression);
+    return { result: { value: true } };
+  } }, {
+    name: "__codexPersonalHostAction",
+    payload: JSON.stringify({
+      token: "images-token", featureId: "images", requestId: "image-edit-request",
+      action: "create-image-edit-thread",
+      payload: { draftId: "b99d9a2a-3a01-4f89-8ed1-fbfdcf23a0b8", prompt: "Remove the marked area." },
+    }),
+  });
+  assert.deepEqual(received, [{
+    requestId: "image-edit-request",
+    featureId: "images",
+    payload: { draftId: "b99d9a2a-3a01-4f89-8ed1-fbfdcf23a0b8", prompt: "Remove the marked area." },
+  }]);
+  assert.equal(evaluations.some((expression) => expression.includes("image-edit-request")), true);
+});
+
+test("image edit runtime consumes a one-shot Images draft before it opens a new Chat", async (context) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "minecodex-runtime-image-edit-"));
+  const sourcePath = path.join(root, "source.png");
+  const maskPath = path.join(root, "mask.png");
+  await Promise.all([writeFile(sourcePath, "source"), writeFile(maskPath, "mask")]);
+  context.after(() => rm(root, { recursive: true, force: true }));
+  const fetches = [];
+  const runtime = new CodexRuntime({
+    features: [], profileDir: "/tmp/codex-runtime-image-edit-flow-profile",
+    fetchImpl: async (url, options) => {
+      fetches.push({ url: String(url), options });
+      return new Response(JSON.stringify({ sourcePath, auxiliaryPath: maskPath }), { status: 200 });
+    },
+  });
+  const attachments = [];
+  runtime.attachFileToComposer = async (_client, filePath) => {
+    attachments.push(filePath);
+    return { mode: "attach" };
+  };
+  const expressions = [];
+  const client = { send: async (_method, params) => {
+    expressions.push(params.expression);
+    if (params.expression === "window.location.href") return { result: { value: "app://-/old" } };
+    return { result: { value: true } };
+  } };
+  const result = await runtime.createImageEditThread(client, {
+    id: "images", surfaceUrl: "http://127.0.0.1:47831/",
+  }, {
+    draftId: "b99d9a2a-3a01-4f89-8ed1-fbfdcf23a0b8",
+    prompt: "Remove the marked area.",
+  }, "image-edit-flow");
+  assert.equal(fetches[0].url, "http://127.0.0.1:47831/api/image-edit-draft/b99d9a2a-3a01-4f89-8ed1-fbfdcf23a0b8");
+  assert.equal(fetches[0].options.headers.Origin, "app://-");
+  assert.deepEqual(attachments, [sourcePath, maskPath]);
+  assert.equal(result.attached.length, 2);
+  assert.equal(expressions.some((expression) => expression.includes("window.location.href !==")), true);
+  assert.equal(expressions.some((expression) => expression.includes("Send message")), true);
+});
+
 test("forwards exact generated-image payloads through the token-scoped Host binding", async () => {
   const requests = [];
   const runtime = new CodexRuntime({

@@ -114,7 +114,20 @@
           </header>
 
           <div class="drawer-scroll">
-            <figure class="drawer-figure"><img alt="" decoding="async" /></figure>
+            <section class="image-editor" aria-label="Image editor" hidden>
+              <div class="image-editor-toolbar">
+                <div class="image-edit-actions" data-edit-actions>
+                  <button type="button" class="image-edit-action" data-edit-action="comment"><svg class="lucide" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"></path></svg><span>Comment</span></button>
+                  <button type="button" class="image-edit-action" data-edit-action="remove"><svg class="lucide" viewBox="0 0 24 24" aria-hidden="true"><path d="m7 21 10-10"></path><path d="m10 4 10 10"></path><path d="m4 10 10 10"></path></svg><span>Remove</span></button>
+                  <button type="button" class="image-edit-action" data-edit-action="resize" aria-haspopup="menu" aria-expanded="false"><svg class="lucide" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5"></path><path d="M20 15v5h-5"></path><path d="M9 4 4 9"></path><path d="m15 20 5-5"></path></svg><span>Resize</span></button>
+                </div>
+                <div class="image-edit-mode" data-edit-mode hidden></div>
+                <button type="button" class="image-zoom-trigger" data-zoom-trigger aria-haspopup="menu" aria-expanded="false">Fit</button>
+              </div>
+              <div class="image-edit-menu" data-resize-menu role="menu" hidden></div>
+              <div class="image-edit-menu image-zoom-menu" data-zoom-menu role="menu" hidden></div>
+              <figure class="drawer-figure image-editor-stage"><img alt="" decoding="async" /><canvas class="image-edit-mask" hidden></canvas><div class="image-comment-layer" hidden></div><div class="image-comment-popover" hidden></div><div class="image-brush-slider" hidden><input type="range" min="5" max="130" value="70" aria-label="Brush size" /></div></figure>
+            </section>
 
             <section class="detail-section prompt-section">
               <div class="detail-section-heading">

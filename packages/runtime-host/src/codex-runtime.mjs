@@ -3965,7 +3965,7 @@ export function createInjectionSource(features, {
           respondToSurface(record, requestId, { ok: true, result: { paths } });
           return;
         }
-        if (action === "attach-file") {
+        if (["attach-file", "create-image-edit-thread"].includes(action)) {
           if (typeof globalThis[config.bindingName] !== "function") {
             throw new Error("The native file bridge is unavailable");
           }
@@ -4808,6 +4808,73 @@ export class CodexRuntime {
     }
   }
 
+  async createImageEditThread(client, feature, payload, requestId) {
+    const draftId = typeof payload?.draftId === "string" ? payload.draftId : "";
+    const prompt = typeof payload?.prompt === "string" ? payload.prompt.trim() : "";
+    if (!/^[a-f0-9-]{36}$/.test(draftId) || !prompt || prompt.length > 2_000 || !feature?.surfaceUrl) {
+      throw Object.assign(new Error("The image edit request is incomplete"), { code: "INVALID_EDIT_REQUEST" });
+    }
+    const draftResponse = await this.fetchImpl(new URL(`/api/image-edit-draft/${draftId}`, feature.surfaceUrl), {
+      headers: { Origin: CODEX_APP_ORIGIN },
+    });
+    if (!draftResponse?.ok) {
+      throw Object.assign(new Error("The image edit draft is unavailable"), { code: "EDIT_DRAFT_UNAVAILABLE" });
+    }
+    const draft = await draftResponse.json();
+    const paths = [draft?.sourcePath, draft?.auxiliaryPath].filter(Boolean);
+    if (!paths.length || paths.length > 2) {
+      throw Object.assign(new Error("The image edit attachments are unavailable"), { code: "INVALID_EDIT_ATTACHMENT" });
+    }
+    for (const filePath of paths) {
+      if (typeof filePath !== "string" || !path.isAbsolute(filePath) || !(await stat(filePath)).isFile()) {
+        throw Object.assign(new Error("The image edit attachment is unavailable"), { code: "INVALID_EDIT_ATTACHMENT" });
+      }
+    }
+
+    const initialUrl = evaluationValue(await client.send("Runtime.evaluate", {
+      expression: "window.location.href",
+      returnByValue: true,
+    }));
+    const opened = evaluationValue(await client.send("Runtime.evaluate", {
+      expression: `(() => {
+        const candidates = Array.from(document.querySelectorAll('button, [role="button"]'));
+        const trigger = candidates.find((element) => /^new chat$/i.test(
+          (element.getAttribute('aria-label') || element.textContent || '').trim(),
+        ));
+        if (!trigger) return false;
+        trigger.click();
+        return true;
+      })()`,
+      returnByValue: true,
+    }));
+    if (!opened) throw Object.assign(new Error("The native New chat control is unavailable"), {
+      code: "NEW_CHAT_UNAVAILABLE",
+    });
+    await waitForExpression(client, `window.location.href !== ${JSON.stringify(initialUrl)} && Boolean(document.querySelector('[data-codex-composer="true"][contenteditable="true"]'))`);
+    const attached = [];
+    for (let index = 0; index < paths.length; index += 1) {
+      attached.push(await this.attachFileToComposer(client, paths[index], `${requestId}-${index}`));
+    }
+    evaluationValue(await client.send("Runtime.evaluate", {
+      expression: `window.__codexPersonalRuntime?.insertText(${JSON.stringify(prompt)})`,
+      returnByValue: true,
+    }));
+    const sent = evaluationValue(await client.send("Runtime.evaluate", {
+      expression: `(() => {
+        const send = document.querySelector('button[aria-label="Send message"]')
+          || document.querySelector('button[data-testid="send-button"]');
+        if (!send || send.disabled) return false;
+        send.click();
+        return true;
+      })()`,
+      returnByValue: true,
+    }));
+    if (!sent) throw Object.assign(new Error("The new Chat is ready but its Send button is unavailable"), {
+      code: "SEND_UNAVAILABLE",
+    });
+    return { attached };
+  }
+
   async fetchSurfaceResource(url, label) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.surfaceLoadTimeoutMs);
@@ -4942,8 +5009,9 @@ export class CodexRuntime {
       return;
     }
     try {
-      if (request.action !== "attach-file") throw new Error("Unsupported native Host action");
-      const result = await this.attachFileToComposer(client, request.payload?.path, request.requestId);
+      const result = request.action === "create-image-edit-thread"
+        ? await this.createImageEditThread(client, feature, request.payload, request.requestId)
+        : await this.attachFileToComposer(client, request.payload?.path, request.requestId);
       await this.resolveHostAction(client, request.requestId, { ok: true, result });
     } catch (error) {
       await this.resolveHostAction(client, request.requestId, {

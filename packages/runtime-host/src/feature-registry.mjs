@@ -12,6 +12,7 @@ const HOST_ACTIONS = new Set([
   "open-editor-modal",
   "resolve-file-paths",
   "import-generated-image",
+  "create-image-edit-thread",
 ]);
 
 const PAGE_SCRIPT_ENTRY_KINDS = new Set(["page-script"]);

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { request as httpRequest } from "node:http";
 import os from "node:os";
 import path from "node:path";
@@ -166,6 +166,37 @@ test("renderer import endpoint accepts only the exact embedded origin and never 
   assert.match(pageScript, /referrerPolicy: "no-referrer"/);
   assert.match(pageScript, /delete payload\.source/);
   assert.doesNotMatch(pageScript, /localStorage|sessionStorage|document\.cookie|Authorization/);
+});
+
+test("image edit drafts only expose the selected source plus a bounded PNG auxiliary", async (context) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "minecodex-images-edit-draft-"));
+  const library = new ImageLibrary({ sourceRoot: path.join(root, "generated_images"), dataDir: path.join(root, "library"), watchSource: false });
+  const server = await createHttpServer({ library, port: 0 });
+  context.after(async () => { await server.close(); library.close(); await rm(root, { recursive: true, force: true }); });
+  await library.start();
+  const imported = await library.importExternalImage({ bytes: ONE_PIXEL_PNG, mimeType: "image/png", itemId: "edit-image", sourceKind: "chat" });
+  const draft = await postJson(server.origin, "/api/image-edit-draft", {
+    imageId: imported.id,
+    auxiliaryPngBase64: ONE_PIXEL_PNG.toString("base64"),
+  });
+  assert.equal(draft.status, 201);
+  assert.match(draft.payload.draftId, /^[a-f0-9-]{36}$/);
+  const consumed = await fetch(`${server.origin}/api/image-edit-draft/${draft.payload.draftId}`, {
+    headers: { Origin: "app://-" },
+  });
+  const attachments = await consumed.json();
+  assert.equal(attachments.sourcePath, library.get(imported.id).sourcePath);
+  assert.equal((await stat(attachments.auxiliaryPath)).isFile(), true);
+  assert.equal((await fetch(`${server.origin}/api/image-edit-draft/${draft.payload.draftId}`, {
+    headers: { Origin: "app://-" },
+  })).status, 404);
+  const invalid = await postJson(server.origin, "/api/image-edit-draft", {
+    imageId: imported.id,
+    auxiliaryPngBase64: Buffer.from("not-png").toString("base64"),
+  });
+  assert.equal(invalid.status, 400);
+  const foreign = await postJson(server.origin, "/api/image-edit-draft", { imageId: imported.id }, { Origin: "https://example.test" });
+  assert.equal(foreign.status, 403);
 });
 
 test("page script derives its endpoint, forwards Content-Type, and requires an assistant/tool role", async () => {

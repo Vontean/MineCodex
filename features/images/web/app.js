@@ -33,6 +33,17 @@ const sourceButton = drawer.querySelector(".source-button");
 const saveButton = drawer.querySelector(".save-button");
 const statusAnnouncer = document.querySelector(".status-announcer");
 const root = document.documentElement;
+const editor = document.querySelector(".image-editor");
+const editorStage = editor.querySelector(".image-editor-stage");
+const editActions = editor.querySelector("[data-edit-actions]");
+const editModeRoot = editor.querySelector("[data-edit-mode]");
+const resizeMenu = editor.querySelector("[data-resize-menu]");
+const zoomMenu = editor.querySelector("[data-zoom-menu]");
+const zoomTrigger = editor.querySelector("[data-zoom-trigger]");
+const editMask = editor.querySelector(".image-edit-mask");
+const commentLayer = editor.querySelector(".image-comment-layer");
+const commentPopover = editor.querySelector(".image-comment-popover");
+const brushSlider = editor.querySelector(".image-brush-slider input");
 
 const PAGE_SIZE = 36;
 const DENSITY_STORAGE_KEY = "codex-image-host:grid-density";
@@ -78,6 +89,13 @@ let drawerOriginThreadId = null;
 let groupOrigin = null;
 let groupOriginImageId = null;
 let groupOriginThreadId = null;
+let editMode = null;
+let editComments = [];
+let editStrokes = [];
+let editUndo = [];
+let editRedo = [];
+let editDrawing = false;
+let zoomScale = null;
 
 try {
   const storedDensity = Number.parseInt(localStorage.getItem(DENSITY_STORAGE_KEY) ?? "", 10);
@@ -100,6 +118,15 @@ function applyHostTheme(payload) {
     root.style.setProperty(name, value);
     appliedHostTokens.add(name);
   }
+  const editorTokens = [
+    "--color-token-bg-tertiary", "--color-background-elevated-primary-opaque",
+    "--color-token-main-surface-primary", "--color-token-input-foreground",
+    "--color-text-foreground", "--color-text-foreground-tertiary", "--color-text-on-accent",
+    "--color-border", "--color-border-focus", "--color-token-list-hover-background",
+    "--color-text-accent", "--font-sans-default", "--font-weight-normal", "--text-sm", "--text-sm--line-height",
+    "--radius-md", "--radius-xl", "--shadow-md", "--shadow-xl", "--elevation-stroke",
+  ];
+  editor.hidden = !editorTokens.every((name) => appliedHostTokens.has(name));
 }
 
 function announce(message) {
@@ -738,6 +765,7 @@ function trapDetailContextFocus(event) {
 }
 
 function showImageDetails(image) {
+  if (activeImage?.id !== image.id) resetImageEditor();
   activeImage = image;
   const isProject = image.sourceKind === "project";
   const isWork = image.sourceKind === "work";
@@ -1029,6 +1057,16 @@ document.addEventListener("keydown", (event) => {
     trapDetailContextFocus(event);
   }
   if (event.key !== "Escape") return;
+  if (!resizeMenu.hidden || !zoomMenu.hidden) {
+    event.preventDefault();
+    closeEditorMenus();
+    return;
+  }
+  if (editMode === "comment" && !commentPopover.hidden) {
+    event.preventDefault();
+    commentPopover.hidden = true;
+    return;
+  }
   if (!sourceMenu.hidden) {
     event.preventDefault();
     closeSourceMenu({ restoreFocus: true });
@@ -1037,6 +1075,301 @@ document.addEventListener("keydown", (event) => {
     closeDrawer();
   }
 });
+
+const RESIZE_OPTIONS = [["Square", "1:1"], ["Portrait", "3:4"], ["Story", "9:16"], ["Landscape", "4:3"], ["Widescreen", "16:9"]];
+const ZOOM_OPTIONS = [25, 50, 100, 150, 200];
+
+function resetImageEditor() {
+  editMode = null;
+  editComments = [];
+  editStrokes = [];
+  editUndo = [];
+  editRedo = [];
+  resetZoom();
+  closeEditorMenus();
+  editActions.hidden = false;
+  editModeRoot.hidden = true;
+  editMask.hidden = true;
+  commentLayer.hidden = true;
+  commentPopover.hidden = true;
+  brushSlider.closest(".image-brush-slider").hidden = true;
+}
+
+function resetZoom() {
+  zoomScale = null;
+  drawerImage.style.transform = "";
+  zoomTrigger.textContent = "Fit";
+}
+
+function requestHostAction(action, payload) {
+  if (window.parent === window) return Promise.reject(new Error("Image editing is available inside Codex only."));
+  const requestId = crypto.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      window.removeEventListener("message", onResult);
+      reject(new Error("Codex did not respond to the image edit request."));
+    }, 30_000);
+    function onResult(event) {
+      if (event.source !== window.parent || event.data?.type !== "codex-personal:host-result" || event.data?.requestId !== requestId) return;
+      clearTimeout(timeout);
+      window.removeEventListener("message", onResult);
+      if (event.data.ok) resolve(event.data.result);
+      else reject(new Error(event.data.error?.message || "Codex could not start the image edit."));
+    }
+    window.addEventListener("message", onResult);
+    window.parent.postMessage({ type: "codex-personal:host-action", requestId, action, payload }, "*");
+  });
+}
+
+function canvasBase64(canvas) {
+  return canvas.toDataURL("image/png").replace(/^data:image\/png;base64,/, "");
+}
+
+function annotationPng(comments) {
+  const canvas = document.createElement("canvas");
+  canvas.width = drawerImage.naturalWidth;
+  canvas.height = drawerImage.naturalHeight;
+  const context = canvas.getContext("2d");
+  context.drawImage(drawerImage, 0, 0);
+  const radius = Math.max(14, Math.round(Math.min(canvas.width, canvas.height) / 28));
+  context.font = `700 ${Math.round(radius * 1.05)}px ui-sans-serif, system-ui`;
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  for (const [index, comment] of comments.entries()) {
+    context.fillStyle = "#111";
+    context.beginPath();
+    context.arc(comment.x * canvas.width, comment.y * canvas.height, radius, 0, Math.PI * 2);
+    context.fill();
+    context.fillStyle = "#fff";
+    context.fillText(String(index + 1), comment.x * canvas.width, comment.y * canvas.height + 1);
+  }
+  return canvasBase64(canvas);
+}
+
+function removeMaskPng() {
+  const canvas = document.createElement("canvas");
+  canvas.width = drawerImage.naturalWidth;
+  canvas.height = drawerImage.naturalHeight;
+  const context = canvas.getContext("2d");
+  context.fillStyle = "#000";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.strokeStyle = "#fff";
+  context.lineCap = context.lineJoin = "round";
+  for (const stroke of editStrokes) {
+    context.lineWidth = Math.min(canvas.width, canvas.height) * stroke.size / 250;
+    context.beginPath();
+    context.moveTo(stroke.points[0].x * canvas.width, stroke.points[0].y * canvas.height);
+    for (const point of stroke.points.slice(1)) context.lineTo(point.x * canvas.width, point.y * canvas.height);
+    context.stroke();
+  }
+  return canvasBase64(canvas);
+}
+
+async function sendImageEdit(kind, detail) {
+  if (!activeImage || !drawerImage.naturalWidth) throw new Error("The original image is not ready.");
+  let auxiliaryPngBase64 = null;
+  let prompt;
+  if (kind === "comment") {
+    const comments = editComments.filter((comment) => comment.text);
+    if (!comments.length) throw new Error("Add at least one comment before sending.");
+    auxiliaryPngBase64 = annotationPng(comments);
+    prompt = `Edit the attached image according to the numbered comments. The second attachment is an annotated visual reference.\n${comments.map((comment, index) => `${index + 1}. ${comment.text}`).join("\n")}`;
+  } else if (kind === "remove") {
+    auxiliaryPngBase64 = removeMaskPng();
+    prompt = "Remove the areas marked white in the attached black-and-white mask. Preserve everything outside the mask and fill the removed areas naturally.";
+  } else {
+    prompt = `Resize and recompose the attached image to the ${detail} aspect ratio. Preserve the subject and visual intent.`;
+  }
+  const draft = await fetch("/api/image-edit-draft", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ imageId: activeImage.id, auxiliaryPngBase64 }),
+  });
+  if (!draft.ok) throw new Error((await draft.json().catch(() => null))?.error || "Could not prepare the image edit.");
+  const { draftId } = await draft.json();
+  await requestHostAction("create-image-edit-thread", {
+    draftId,
+    prompt,
+  });
+}
+
+function closeEditorMenus() {
+  resizeMenu.hidden = true;
+  zoomMenu.hidden = true;
+  editActions.querySelector('[data-edit-action="resize"]').setAttribute("aria-expanded", "false");
+  zoomTrigger.setAttribute("aria-expanded", "false");
+}
+
+function setEditMode(next) {
+  editMode = next;
+  closeEditorMenus();
+  editActions.hidden = Boolean(next);
+  editModeRoot.hidden = !next;
+  editMask.hidden = next !== "remove";
+  commentLayer.hidden = next !== "comment";
+  brushSlider.closest(".image-brush-slider").hidden = next !== "remove";
+  commentPopover.hidden = true;
+  if (next) {
+    resetZoom();
+  }
+  if (!next) {
+    editComments = [];
+    editStrokes = [];
+    editUndo = [];
+    editRedo = [];
+    repaintMask();
+  }
+  renderEditMode();
+}
+
+function renderEditMode() {
+  editModeRoot.replaceChildren();
+  if (!editMode) return;
+  const helper = document.createElement("span");
+  helper.textContent = editMode === "comment" ? "Click on the image to add comments" : "Brush over what you want to remove";
+  const send = document.createElement("button");
+  send.textContent = "Send";
+  send.disabled = editMode === "comment" ? !editComments.some((comment) => comment.text) : editStrokes.length === 0;
+  send.addEventListener("click", async () => {
+    send.disabled = true;
+    try {
+      await sendImageEdit(editMode);
+    } catch (error) {
+      announce(error.message);
+      send.disabled = editMode === "comment" ? !editComments.some((comment) => comment.text) : editStrokes.length === 0;
+    }
+  });
+  const cancel = document.createElement("button");
+  cancel.type = "button";
+  cancel.setAttribute("aria-label", "Cancel");
+  cancel.textContent = "×";
+  cancel.addEventListener("click", () => setEditMode(null));
+  editModeRoot.append(helper);
+  if (editMode === "remove") {
+    const undo = document.createElement("button"); undo.type = "button"; undo.setAttribute("aria-label", "Undo"); undo.textContent = "↶";
+    undo.disabled = editUndo.length === 0;
+    undo.addEventListener("click", () => { const previous = editUndo.pop(); if (!previous) return; editRedo.push(editStrokes); editStrokes = previous; repaintMask(); renderEditMode(); });
+    const redo = document.createElement("button"); redo.type = "button"; redo.setAttribute("aria-label", "Redo"); redo.textContent = "↷";
+    redo.disabled = editRedo.length === 0;
+    redo.addEventListener("click", () => { const next = editRedo.pop(); if (!next) return; editUndo.push(editStrokes); editStrokes = next; repaintMask(); renderEditMode(); });
+    editModeRoot.append(undo, redo);
+  }
+  editModeRoot.append(send, cancel);
+}
+
+function imagePoint(event) {
+  const rect = drawerImage.getBoundingClientRect();
+  if (!rect.width || !rect.height) return null;
+  return { x: (event.clientX - rect.left) / rect.width, y: (event.clientY - rect.top) / rect.height };
+}
+
+function syncEditorOverlay() {
+  const stageRect = editorStage.getBoundingClientRect();
+  const imageRect = drawerImage.getBoundingClientRect();
+  if (!stageRect.width || !imageRect.width) return;
+  const bounds = {
+    left: `${imageRect.left - stageRect.left}px`,
+    top: `${imageRect.top - stageRect.top}px`,
+    width: `${imageRect.width}px`,
+    height: `${imageRect.height}px`,
+  };
+  for (const overlay of [editMask, commentLayer]) Object.assign(overlay.style, bounds);
+  brushSlider.closest(".image-brush-slider").style.left = `${imageRect.left - stageRect.left + 16}px`;
+}
+
+function renderComments() {
+  syncEditorOverlay();
+  commentLayer.replaceChildren();
+  for (const [index, comment] of editComments.entries()) {
+    const marker = document.createElement("span");
+    marker.className = "image-comment-marker";
+    marker.style.left = `${comment.x * 100}%`; marker.style.top = `${comment.y * 100}%`;
+    marker.textContent = String(index + 1);
+    commentLayer.append(marker);
+  }
+}
+
+function repaintMask() {
+  const context = editMask.getContext("2d");
+  if (!context || !drawerImage.naturalWidth) return;
+  editMask.width = drawerImage.naturalWidth; editMask.height = drawerImage.naturalHeight;
+  context.clearRect(0, 0, editMask.width, editMask.height);
+  context.strokeStyle = context.fillStyle = getComputedStyle(root).getPropertyValue("--color-text-accent");
+  context.lineCap = context.lineJoin = "round";
+  for (const stroke of editStrokes) {
+    context.lineWidth = Math.min(editMask.width, editMask.height) * stroke.size / 250;
+    context.beginPath(); context.moveTo(stroke.points[0].x * editMask.width, stroke.points[0].y * editMask.height);
+    for (const point of stroke.points.slice(1)) context.lineTo(point.x * editMask.width, point.y * editMask.height);
+    context.stroke();
+  }
+}
+
+for (const button of editActions.querySelectorAll("[data-edit-action]")) {
+  button.addEventListener("click", () => {
+    const action = button.dataset.editAction;
+    if (action === "resize") {
+      resetZoom();
+      closeEditorMenus();
+      resizeMenu.hidden = false;
+      button.setAttribute("aria-expanded", "true");
+      return;
+    }
+    setEditMode(action);
+  });
+}
+
+for (const [label, ratio] of RESIZE_OPTIONS) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.innerHTML = `<span class="image-ratio-icon" data-ratio="${ratio}" aria-hidden="true"></span><span>${label}<small>${ratio}</small></span>`;
+  button.setAttribute("role", "menuitem");
+  button.addEventListener("click", async () => {
+    closeEditorMenus();
+    try { await sendImageEdit("resize", ratio); } catch (error) { announce(error.message); }
+  });
+  resizeMenu.append(button);
+}
+for (const value of ZOOM_OPTIONS) {
+  const button = document.createElement("button"); button.type = "button"; button.textContent = `${value}%`; button.setAttribute("role", "menuitem");
+  button.addEventListener("click", () => { zoomScale = value / 100; drawerImage.style.transform = `scale(${zoomScale})`; zoomTrigger.textContent = `${value}%`; closeEditorMenus(); });
+  zoomMenu.append(button);
+}
+const fit = document.createElement("button"); fit.type = "button"; fit.textContent = "Zoom to fit"; fit.setAttribute("role", "menuitem");
+fit.addEventListener("click", () => { zoomScale = null; drawerImage.style.transform = ""; zoomTrigger.textContent = "Fit"; closeEditorMenus(); });
+zoomMenu.append(fit);
+zoomTrigger.addEventListener("click", () => { const open = zoomMenu.hidden; closeEditorMenus(); zoomMenu.hidden = !open; zoomTrigger.setAttribute("aria-expanded", String(open)); });
+
+editorStage.addEventListener("click", (event) => {
+  if (editMode !== "comment" || event.target !== drawerImage) return;
+  const point = imagePoint(event); if (!point) return;
+  const comment = { ...point, text: "" }; editComments.push(comment); renderComments();
+  syncEditorOverlay();
+  const imageRect = drawerImage.getBoundingClientRect();
+  const stageRect = editorStage.getBoundingClientRect();
+  commentPopover.replaceChildren();
+  commentPopover.style.left = `${imageRect.left - stageRect.left + point.x * imageRect.width}px`;
+  commentPopover.style.top = `${imageRect.top - stageRect.top + point.y * imageRect.height}px`;
+  const input = document.createElement("input"); input.placeholder = "Add a comment…";
+  input.addEventListener("input", () => { comment.text = input.value.trim(); renderEditMode(); });
+  input.addEventListener("keydown", (keyEvent) => {
+    if (keyEvent.key !== "Escape") return;
+    keyEvent.stopPropagation();
+    commentPopover.hidden = true;
+    input.blur();
+  });
+  commentPopover.append(input); commentPopover.hidden = false; input.focus();
+});
+editMask.addEventListener("pointerdown", (event) => {
+  if (editMode !== "remove") return;
+  const point = imagePoint(event); if (!point) return;
+  editMask.setPointerCapture(event.pointerId); editDrawing = true; editUndo.push(editStrokes.map((stroke) => ({ ...stroke, points: stroke.points.slice() }))); editRedo = [];
+  editStrokes.push({ size: Number(brushSlider.value), points: [point] }); repaintMask(); renderEditMode();
+});
+editMask.addEventListener("pointermove", (event) => { if (!editDrawing) return; const point = imagePoint(event); if (!point) return; editStrokes.at(-1)?.points.push(point); repaintMask(); });
+editMask.addEventListener("pointerup", () => { editDrawing = false; });
+document.addEventListener("pointerdown", (event) => { if (!editor.contains(event.target)) closeEditorMenus(); });
+drawerImage.addEventListener("load", () => { syncEditorOverlay(); repaintMask(); renderComments(); });
+new ResizeObserver(syncEditorOverlay).observe(editorStage);
 
 drawer.inert = true;
 applyDensity();

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "images",
-  "version": "0.1.11",
+  "version": "0.1.12",
   "label": {
     "en": "Images",
     "zh-CN": "图片"
@@ -16,7 +16,7 @@
   "pageScript": {
     "resource": "src/chatgpt-image-source-page.mjs"
   },
-  "hostActions": ["import-generated-image"],
+  "hostActions": ["import-generated-image", "create-image-edit-thread"],
   "placement": {
     "after": "sites",
     "order": 10

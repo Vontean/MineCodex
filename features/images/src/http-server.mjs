@@ -1,6 +1,7 @@
 import { createReadStream } from "node:fs";
-import { readFile, stat } from "node:fs/promises";
+import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { createServer as createNodeServer } from "node:http";
+import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { MAX_IMPORTED_IMAGE_BYTES } from "./image-library.mjs";
 import { saveImageAs } from "./save-as.mjs";
@@ -11,6 +12,7 @@ const DEFAULT_PAGE_LIMIT = 36;
 const MAX_PAGE_LIMIT = 72;
 const MAX_PAGE_OFFSET = Number.MAX_SAFE_INTEGER;
 const MAX_IMPORT_BODY_BYTES = Math.ceil(MAX_IMPORTED_IMAGE_BYTES * 4 / 3) + 64 * 1024;
+const MAX_EDIT_AUXILIARY_BYTES = 8 * 1024 * 1024;
 
 const STATIC_FILES = new Map([
   ["/", ["index.html", "text/html; charset=utf-8"]],
@@ -134,6 +136,34 @@ async function readImportPayload(request) {
   return { ...payload, bytes };
 }
 
+async function readEditDraftPayload(request) {
+  if (!String(request.headers["content-type"] ?? "").toLowerCase().startsWith("application/json")) {
+    throw Object.assign(new Error("Image edit draft requires application/json"), { status: 415, code: "UNSUPPORTED_CONTENT_TYPE" });
+  }
+  let payload;
+  try {
+    payload = JSON.parse((await readRequestBody(request, Math.ceil(MAX_EDIT_AUXILIARY_BYTES * 4 / 3) + 8 * 1024)).toString("utf8"));
+  } catch (error) {
+    if (error.code === "BODY_TOO_LARGE") throw error;
+    throw Object.assign(new Error("Image edit draft must be valid JSON"), { status: 400, code: "INVALID_JSON" });
+  }
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)
+    || !/^[a-f0-9]{24}$/.test(payload.imageId ?? "")) {
+    throw Object.assign(new Error("Image edit draft requires an image id"), { status: 400, code: "INVALID_EDIT_DRAFT" });
+  }
+  if (payload.auxiliaryPngBase64 === undefined) return { imageId: payload.imageId, auxiliary: null };
+  if (typeof payload.auxiliaryPngBase64 !== "string") {
+    throw Object.assign(new Error("Image edit auxiliary image must be base64"), { status: 400, code: "INVALID_EDIT_AUXILIARY" });
+  }
+  const auxiliary = Buffer.from(payload.auxiliaryPngBase64, "base64");
+  if (!auxiliary.length || auxiliary.length > MAX_EDIT_AUXILIARY_BYTES
+    || auxiliary.toString("base64") !== payload.auxiliaryPngBase64.replace(/\s/g, "")
+    || auxiliary.readUInt32BE(0) !== 0x89504e47) {
+    throw Object.assign(new Error("Image edit auxiliary image must be a bounded PNG"), { status: 400, code: "INVALID_EDIT_AUXILIARY" });
+  }
+  return { imageId: payload.imageId, auxiliary };
+}
+
 function contentTypeForPath(sourcePath) {
   const extension = path.extname(sourcePath).toLowerCase();
   return extension === ".jpg" || extension === ".jpeg"
@@ -225,6 +255,7 @@ export async function createHttpServer({
 }) {
   if (!library) throw new Error("library is required");
   if (!LOOPBACK_HOSTS.has(host)) throw new Error("Images only supports loopback hosts");
+  const editDrafts = new Map();
   const server = createNodeServer(async (request, response) => {
     try {
       applyCodexEmbedCors(request, response);
@@ -321,6 +352,41 @@ export async function createHttpServer({
           return;
         }
         json(response, result.reason === "DUPLICATE" ? 200 : 201, result);
+        return;
+      }
+
+      if (request.method === "POST" && url.pathname === "/api/image-edit-draft") {
+        const payload = await readEditDraftPayload(request);
+        const image = library.get(payload.imageId);
+        if (!image) {
+          json(response, 404, { error: "Image not found" });
+          return;
+        }
+        let auxiliaryPath = null;
+        if (payload.auxiliary) {
+          const editDir = path.join(library.dataDir, "edit-drafts");
+          await mkdir(editDir, { recursive: true });
+          auxiliaryPath = path.join(editDir, `${randomUUID()}.png`);
+          await writeFile(auxiliaryPath, payload.auxiliary, { mode: 0o600 });
+        }
+        const draftId = randomUUID();
+        editDrafts.set(draftId, { sourcePath: image.sourcePath, auxiliaryPath });
+        json(response, 201, { draftId });
+        return;
+      }
+
+      const editDraftMatch = url.pathname.match(/^\/api\/image-edit-draft\/([a-f0-9-]{36})$/);
+      if (request.method === "GET" && editDraftMatch) {
+        if (request.headers.origin !== CODEX_EMBED_ORIGIN) {
+          throw mutationError("Image edit attachments are available only to RuntimeHost", "ORIGIN_NOT_ALLOWED");
+        }
+        const draft = editDrafts.get(editDraftMatch[1]);
+        if (!draft) {
+          json(response, 404, { error: "Image edit draft not found" });
+          return;
+        }
+        editDrafts.delete(editDraftMatch[1]);
+        json(response, 200, draft);
         return;
       }
 
