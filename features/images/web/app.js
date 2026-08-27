@@ -34,6 +34,7 @@ const saveButton = drawer.querySelector(".save-button");
 const statusAnnouncer = document.querySelector(".status-announcer");
 const root = document.documentElement;
 const editor = document.querySelector(".image-editor");
+const editorControls = editor.querySelector(".image-editor-controls");
 const editorStage = editor.querySelector(".image-editor-stage");
 const editActions = editor.querySelector("[data-edit-actions]");
 const editModeRoot = editor.querySelector("[data-edit-mode]");
@@ -126,7 +127,7 @@ function applyHostTheme(payload) {
     "--color-text-accent", "--font-sans-default", "--font-weight-normal", "--text-sm", "--text-sm--line-height",
     "--radius-md", "--radius-xl", "--shadow-md", "--shadow-xl", "--elevation-stroke",
   ];
-  editor.hidden = !editorTokens.every((name) => appliedHostTokens.has(name));
+  editorControls.hidden = !editorTokens.every((name) => appliedHostTokens.has(name));
 }
 
 function announce(message) {

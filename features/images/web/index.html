@@ -114,7 +114,8 @@
           </header>
 
           <div class="drawer-scroll">
-            <section class="image-editor" aria-label="Image editor" hidden>
+            <section class="image-editor" aria-label="Image editor">
+              <div class="image-editor-controls" hidden>
               <div class="image-editor-toolbar">
                 <div class="image-edit-actions" data-edit-actions>
                   <button type="button" class="image-edit-action" data-edit-action="comment"><svg class="lucide" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"></path></svg><span>Comment</span></button>
@@ -126,6 +127,7 @@
               </div>
               <div class="image-edit-menu" data-resize-menu role="menu" hidden></div>
               <div class="image-edit-menu image-zoom-menu" data-zoom-menu role="menu" hidden></div>
+              </div>
               <figure class="drawer-figure image-editor-stage"><img alt="" decoding="async" /><canvas class="image-edit-mask" hidden></canvas><div class="image-comment-layer" hidden></div><div class="image-comment-popover" hidden></div><div class="image-brush-slider" hidden><input type="range" min="5" max="130" value="70" aria-label="Brush size" /></div></figure>
             </section>
 

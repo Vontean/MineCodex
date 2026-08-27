@@ -2576,6 +2576,8 @@ export function createInjectionSource(features, {
       const dialogShadow = "0 16px 32px -8px rgba(0,0,0,.19)";
       const surfaceTokens = {
         ...tokens,
+        // 部分 Codex 版本仅提供等价的正文前景 token。
+        "--color-token-input-foreground": tokens["--color-token-input-foreground"] ?? tokens["--color-text-foreground"],
         "--codex-summary-section-title-font-size": "14px",
         "--codex-summary-section-title-line-height": "21px",
         "--codex-summary-section-title-font-weight": tokens["--font-weight-normal"] ?? "400",

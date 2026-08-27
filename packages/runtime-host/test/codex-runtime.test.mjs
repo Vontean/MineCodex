@@ -1123,6 +1123,7 @@ test("emits an isolated conversation-toolbar Adapter with strict Surface and Hos
   assert.match(source, /label: localizedText\(feature\.label, feature\.labels\)/);
   assert.match(source, /label: localizedText\(detail\.label, detail\.labels\)/);
   assert.match(source, /\{ type: "codex-personal:theme", theme: mode, mode, locale, tokens: surfaceTokens \}/);
+  assert.match(source, /"--color-token-input-foreground": tokens\["--color-token-input-foreground"\] \?\? tokens\["--color-text-foreground"\]/);
   assert.match(source, /data-codex-personal-pinned-summary/);
   assert.match(source, /data-codex-personal-summary-presentation/);
   assert.doesNotMatch(source, /data-codex-personal-tab-host/);
