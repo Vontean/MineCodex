@@ -165,7 +165,11 @@ export function createInjectionSource(features, {
       "--color-token-bg-primary",
       "--color-token-bg-secondary",
       "--color-token-bg-tertiary",
+      "--color-surface-tertiary",
+      "--color-surface-elevated-secondary",
       "--color-background-elevated-primary-opaque",
+      "--color-background-primary-ghost-hover",
+      "--color-chart-blue",
       "--color-background-panel",
       "--color-background-control",
       "--color-background-primary-solid",
@@ -181,11 +185,13 @@ export function createInjectionSource(features, {
       "--color-text-foreground",
       "--color-text-foreground-secondary",
       "--color-text-foreground-tertiary",
+      "--color-text-inverse",
       "--color-text-on-accent",
       "--color-text-button-primary",
       "--color-text-accent",
       "--color-token-text-link-foreground",
       "--color-border",
+      "--color-border-subtle",
       "--color-border-heavy",
       "--color-border-focus",
       "--color-token-scrollbar-slider-background",
@@ -2833,8 +2839,9 @@ export function createInjectionSource(features, {
         postSurfaceActive(record, false);
       }
       const existing = pageSurfaces.get(featureId);
-      const surface = existing ?? createPageSurface(feature);
-      if (existing) reloadSurfaceIfUnready(surfaceKey(feature.id, "page"), feature.surfaceUrl);
+      const reusable = existing?.isConnected ? existing : null;
+      const surface = reusable ?? createPageSurface(feature);
+      if (reusable) reloadSurfaceIfUnready(surfaceKey(feature.id, "page"), feature.surfaceUrl);
       surface.hidden = false;
       activePageFeatureId = featureId;
       const record = surfaceRecords.get(surfaceKey(feature.id, "page"));
@@ -4161,6 +4168,7 @@ export function createInjectionSource(features, {
         stopToolbarReadiness();
         mainContentObserver?.observer.disconnect();
         restoreThreadContentShift();
+        for (const entry of document.querySelectorAll(`[${entryMarker}]`)) entry.remove();
         for (const root of document.querySelectorAll("[data-codex-personal-toolbar-entry]")) root.remove();
         for (const group of document.querySelectorAll("[data-codex-personal-summary-toolbar-group]")) group.remove();
         for (const surface of pageSurfaces.values()) surface.remove();
@@ -4810,6 +4818,81 @@ export class CodexRuntime {
     }
   }
 
+  async attachFilesToComposer(client, filePaths, requestId) {
+    if (!Array.isArray(filePaths) || !filePaths.length || filePaths.length > 2) {
+      throw new Error("One or two image edit attachments are required");
+    }
+    for (const filePath of filePaths) {
+      if (typeof filePath !== "string" || !path.isAbsolute(filePath) || !(await stat(filePath)).isFile()) {
+        throw new Error("Only absolute regular files can be attached");
+      }
+    }
+    const fileNames = filePaths.map((filePath) => path.basename(filePath));
+    const requiredLabels = fileNames.reduce((counts, fileName) => {
+      const label = `Remove ${fileName}`;
+      counts[label] = (counts[label] ?? 0) + 1;
+      return counts;
+    }, {});
+    const marker = `codex-personal-${requestId}-batch`;
+
+    try {
+      evaluationValue(await client.send("Runtime.evaluate", {
+        expression: `(() => {
+          document.querySelectorAll('[data-codex-personal-file-input]').forEach((input) => input.remove());
+          const input = document.createElement("input");
+          input.type = "file";
+          input.multiple = true;
+          input.dataset.codexPersonalFileInput = ${JSON.stringify(marker)};
+          input.style.display = "none";
+          document.body.append(input);
+          return true;
+        })()`,
+        returnByValue: true,
+      }));
+      const { root } = await client.send("DOM.getDocument", { depth: 0 });
+      const { nodeId } = await client.send("DOM.querySelector", {
+        nodeId: root.nodeId,
+        selector: `[data-codex-personal-file-input="${marker}"]`,
+      });
+      if (!nodeId) throw new Error("The temporary multi-file bridge could not be resolved");
+      await client.send("DOM.setFileInputFiles", { files: filePaths, nodeId });
+      const dropped = evaluationValue(await client.send("Runtime.evaluate", {
+        expression: `(() => {
+          const input = document.querySelector(${JSON.stringify(`[data-codex-personal-file-input="${marker}"]`)});
+          const composer = document.querySelector('[data-codex-composer="true"][contenteditable="true"]');
+          if (!input?.files?.length || !composer) return false;
+          const transfer = new DataTransfer();
+          for (const file of input.files) transfer.items.add(file);
+          for (const type of ["dragenter", "dragover", "drop"]) {
+            composer.dispatchEvent(new DragEvent(type, {
+              bubbles: true,
+              cancelable: true,
+              composed: true,
+              dataTransfer: transfer,
+            }));
+          }
+          return transfer.files.length === ${filePaths.length};
+        })()`,
+        returnByValue: true,
+      }));
+      if (!dropped) throw new Error("The native Composer rejected the image edit drop");
+      await waitForExpression(client, `(() => {
+        const required = ${JSON.stringify(requiredLabels)};
+        const observed = {};
+        for (const button of document.querySelectorAll('button[aria-label^="Remove "]')) {
+          const label = button.getAttribute("aria-label");
+          observed[label] = (observed[label] ?? 0) + 1;
+        }
+        return Object.entries(required).every(([label, count]) => (observed[label] ?? 0) >= count);
+      })()`, 10_000);
+      return fileNames.map((name) => ({ mode: "attach", name }));
+    } finally {
+      await client.send("Runtime.evaluate", {
+        expression: `document.querySelectorAll('[data-codex-personal-file-input]').forEach((input) => input.remove())`,
+      }).catch(() => {});
+    }
+  }
+
   async createImageEditThread(client, feature, payload, requestId) {
     const draftId = typeof payload?.draftId === "string" ? payload.draftId : "";
     const prompt = typeof payload?.prompt === "string" ? payload.prompt.trim() : "";
@@ -4833,10 +4916,6 @@ export class CodexRuntime {
       }
     }
 
-    const initialUrl = evaluationValue(await client.send("Runtime.evaluate", {
-      expression: "window.location.href",
-      returnByValue: true,
-    }));
     const opened = evaluationValue(await client.send("Runtime.evaluate", {
       expression: `(() => {
         const candidates = Array.from(document.querySelectorAll('button, [role="button"]'));
@@ -4852,11 +4931,8 @@ export class CodexRuntime {
     if (!opened) throw Object.assign(new Error("The native New chat control is unavailable"), {
       code: "NEW_CHAT_UNAVAILABLE",
     });
-    await waitForExpression(client, `window.location.href !== ${JSON.stringify(initialUrl)} && Boolean(document.querySelector('[data-codex-composer="true"][contenteditable="true"]'))`);
-    const attached = [];
-    for (let index = 0; index < paths.length; index += 1) {
-      attached.push(await this.attachFileToComposer(client, paths[index], `${requestId}-${index}`));
-    }
+    await waitForExpression(client, `Boolean(document.querySelector('[data-testid="home-icon"]')) && Boolean(document.querySelector('[data-codex-composer="true"][contenteditable="true"]'))`);
+    const attached = await this.attachFilesToComposer(client, paths, requestId);
     evaluationValue(await client.send("Runtime.evaluate", {
       expression: `window.__codexPersonalRuntime?.insertText(${JSON.stringify(prompt)})`,
       returnByValue: true,
@@ -4864,6 +4940,7 @@ export class CodexRuntime {
     const sent = evaluationValue(await client.send("Runtime.evaluate", {
       expression: `(() => {
         const send = document.querySelector('button[aria-label="Send message"]')
+          || document.querySelector('button[aria-label="Send"]')
           || document.querySelector('button[data-testid="send-button"]');
         if (!send || send.disabled) return false;
         send.click();
@@ -4874,7 +4951,8 @@ export class CodexRuntime {
     if (!sent) throw Object.assign(new Error("The new Chat is ready but its Send button is unavailable"), {
       code: "SEND_UNAVAILABLE",
     });
-    return { attached };
+    await waitForExpression(client, `!document.querySelector('[data-testid="home-icon"]') && Boolean(document.querySelector('[data-codex-composer="true"][contenteditable="true"]'))`);
+    return { attached, threadStarted: true };
   }
 
   async fetchSurfaceResource(url, label) {

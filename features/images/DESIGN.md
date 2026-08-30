@@ -16,9 +16,12 @@ areas. Its only added controls are the native-isomorphic floating toolbar:
 
 | Element | Token mapping | Contract |
 | --- | --- | --- |
-| ActionBar | `--color-token-bg-tertiary`, `--shadow-md`, `--elevation-stroke` | 32px pill, 28px controls, centered above the stage |
-| Buttons / menus | `--color-text-foreground`, `--color-token-list-hover-background`, `--color-border-focus` | Hover/open/focus are semantic tokens, never literal colors |
-| Zoom | `--color-text-foreground-tertiary` | Right aligned; affects only the local stage |
+| ActionBar | `--color-surface-tertiary`, `--color-border-subtle`, `--shadow-md` | 32px pill, 2px inset padding, 28px controls, centered above the stage |
+| Buttons / menus | `--color-text-foreground`, `--color-background-primary-ghost-hover`, `--color-border-focus` | Native source SVGs render at 16px (Comment/Remove/ratios) and 18px (Resize); hover/open/focus use semantic tokens |
+| Menus | `--color-surface-elevated-secondary`, `--color-border`, `--shadow-xl` | Resize is 160px; Zoom is 136px with 6px padding and 10px radius |
+| Zoom | `--color-text-foreground-tertiary` | Right aligned; shows the measured fit percentage and preserves the native check-mark menu |
+| Active edit mode | `--color-chart-blue`, `--color-text-inverse` | Native SVG Cancel and Undo/Redo controls; history controls remain hidden until a stroke exists |
+| Comment draft / edit | `--color-text-accent`, `--color-surface-elevated-secondary` | New drafts use the 30px marker and 294×44 input; the input flips to the marker's left when the right edge lacks room, so it never covers the spatial anchor. Empty Enter keeps the draft editor active, while Escape or leaving the surface discards it. Committed comments reopen in the native 294×120 editor with Delete, Cancel, and Save; empty edits disable Save rather than deleting implicitly |
 | Comment markers / brush preview | `--color-text-accent`, `--color-text-on-accent` | Position and size remain expressed in source-image coordinates |
 
 At narrow widths action labels collapse to their existing icon controls; their

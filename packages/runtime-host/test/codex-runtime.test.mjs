@@ -1124,6 +1124,14 @@ test("emits an isolated conversation-toolbar Adapter with strict Surface and Hos
   assert.match(source, /label: localizedText\(detail\.label, detail\.labels\)/);
   assert.match(source, /\{ type: "codex-personal:theme", theme: mode, mode, locale, tokens: surfaceTokens \}/);
   assert.match(source, /"--color-token-input-foreground": tokens\["--color-token-input-foreground"\] \?\? tokens\["--color-text-foreground"\]/);
+  assert.match(source, /"--color-surface-tertiary"/);
+  assert.match(source, /"--color-surface-elevated-secondary"/);
+  assert.match(source, /"--color-background-primary-ghost-hover"/);
+  assert.match(source, /"--color-border-subtle"/);
+  assert.match(source, /"--color-chart-blue"/);
+  assert.match(source, /"--color-text-inverse"/);
+  assert.match(source, /document\.querySelectorAll\(`\[\$\{entryMarker\}\]`\)\) entry\.remove\(\)/);
+  assert.match(source, /const reusable = existing\?\.isConnected \? existing : null/);
   assert.match(source, /data-codex-personal-pinned-summary/);
   assert.match(source, /data-codex-personal-summary-presentation/);
   assert.doesNotMatch(source, /data-codex-personal-tab-host/);
@@ -1378,15 +1386,14 @@ test("image edit runtime consumes a one-shot Images draft before it opens a new 
       return new Response(JSON.stringify({ sourcePath, auxiliaryPath: maskPath }), { status: 200 });
     },
   });
-  const attachments = [];
-  runtime.attachFileToComposer = async (_client, filePath) => {
-    attachments.push(filePath);
-    return { mode: "attach" };
+  const attachmentBatches = [];
+  runtime.attachFilesToComposer = async (_client, filePaths) => {
+    attachmentBatches.push(filePaths);
+    return filePaths.map((filePath) => ({ mode: "attach", name: path.basename(filePath) }));
   };
   const expressions = [];
   const client = { send: async (_method, params) => {
     expressions.push(params.expression);
-    if (params.expression === "window.location.href") return { result: { value: "app://-/old" } };
     return { result: { value: true } };
   } };
   const result = await runtime.createImageEditThread(client, {
@@ -1397,10 +1404,39 @@ test("image edit runtime consumes a one-shot Images draft before it opens a new 
   }, "image-edit-flow");
   assert.equal(fetches[0].url, "http://127.0.0.1:47831/api/image-edit-draft/b99d9a2a-3a01-4f89-8ed1-fbfdcf23a0b8");
   assert.equal(fetches[0].options.headers.Origin, "app://-");
-  assert.deepEqual(attachments, [sourcePath, maskPath]);
+  assert.deepEqual(attachmentBatches, [[sourcePath, maskPath]]);
   assert.equal(result.attached.length, 2);
-  assert.equal(expressions.some((expression) => expression.includes("window.location.href !==")), true);
+  assert.equal(result.threadStarted, true);
+  assert.equal(expressions.some((expression) => expression.includes('[data-testid="home-icon"]')), true);
+  assert.equal(expressions.some((expression) => expression.includes("!document.querySelector")), true);
   assert.equal(expressions.some((expression) => expression.includes("Send message")), true);
+  assert.equal(expressions.some((expression) => expression.includes('aria-label="Send"')), true);
+});
+
+test("image edit runtime drops the source and auxiliary image as one native attachment batch", async (context) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "minecodex-runtime-image-edit-batch-"));
+  const sourcePath = path.join(root, "source.png");
+  const annotationPath = path.join(root, "annotation.png");
+  await Promise.all([writeFile(sourcePath, "source"), writeFile(annotationPath, "annotation")]);
+  context.after(() => rm(root, { recursive: true, force: true }));
+  const runtime = new CodexRuntime({ features: [], profileDir: "/tmp/codex-runtime-image-edit-batch-profile" });
+  const calls = [];
+  const client = { send: async (method, params) => {
+    calls.push({ method, params });
+    if (method === "DOM.getDocument") return { root: { nodeId: 1 } };
+    if (method === "DOM.querySelector") return { nodeId: 2 };
+    return { result: { value: true } };
+  } };
+
+  const result = await runtime.attachFilesToComposer(client, [sourcePath, annotationPath], "batch-request");
+
+  assert.deepEqual(result, [
+    { mode: "attach", name: "source.png" },
+    { mode: "attach", name: "annotation.png" },
+  ]);
+  assert.deepEqual(calls.find(({ method }) => method === "DOM.setFileInputFiles")?.params.files, [sourcePath, annotationPath]);
+  assert.equal(calls.some(({ params }) => params?.expression?.includes("new DataTransfer()")), true);
+  assert.equal(calls.some(({ params }) => params?.expression?.includes("Remove annotation.png")), true);
 });
 
 test("forwards exact generated-image payloads through the token-scoped Host binding", async () => {
