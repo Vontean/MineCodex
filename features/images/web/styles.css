@@ -829,9 +829,10 @@ h1,
 }
 
 /* Native-token image editor: tokens arrive from RuntimeHost with the active Codex theme. */
-.image-editor { position: relative; }
+.image-editor { position: relative; background: var(--color-token-bg-primary); }
 .image-editor [hidden] { display: none !important; }
-.image-editor-toolbar { position: relative; display: flex; justify-content: center; min-height: 40px; padding: 8px 16px 0; }
+.image-editor-controls { position: sticky; z-index: 6; top: 0; background: var(--color-token-bg-primary); }
+.image-editor-toolbar { position: relative; display: flex; justify-content: center; min-height: 48px; padding: 8px 16px; }
 .image-edit-actions, .image-edit-mode { display: flex; min-width: 0; align-items: center; gap: 2px; padding: 2px; overflow: hidden; border-radius: 9999px; background: color-mix(in srgb, var(--color-surface-tertiary) 95%, transparent); box-shadow: 0 0 0 1px var(--color-border-subtle), var(--shadow-md); backdrop-filter: blur(4px); }
 .image-edit-action, .image-edit-mode button { display: inline-flex; height: 28px; align-items: center; justify-content: center; gap: 4px; border: 1px solid transparent; border-radius: 999px; padding: 0 6px; background: transparent; color: var(--color-text-foreground); font-family: var(--font-sans-default); font-size: var(--text-base); font-weight: var(--font-weight-normal); line-height: 18px; white-space: nowrap; cursor: pointer; }
 .image-edit-action:hover, .image-edit-action[aria-expanded="true"], .image-edit-mode button:hover { background: var(--color-background-primary-ghost-hover); }
@@ -883,8 +884,8 @@ button.image-comment-marker { pointer-events: auto; cursor: pointer; }
 .image-comment-editor-footer button:disabled { cursor: default; opacity: .4; }
 .image-brush-slider { position: absolute; z-index: 3; top: 50%; left: 16px; transform: translateY(-50%) rotate(-90deg); transform-origin: center; }
 .image-brush-slider input { accent-color: var(--color-text-accent); }
-.image-edit-menu[data-resize-menu] { top: 40px; left: 50%; transform: translateX(-50%); }
-.image-zoom-menu { top: 40px; right: 10px; }
+.image-edit-menu[data-resize-menu] { top: 48px; left: 50%; transform: translateX(-50%); }
+.image-zoom-menu { top: 48px; right: 10px; }
 .image-edit-action > svg { width: 16px; height: 16px; flex: 0 0 auto; fill: currentColor; }
 .image-edit-action > [data-native-image-icon="resize"] { width: 18px; height: 18px; }
 @media (max-width: 520px) { .image-edit-action span { display: none; } .image-edit-action { width: 28px; padding: 0; } }

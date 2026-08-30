@@ -16,7 +16,7 @@ areas. Its only added controls are the native-isomorphic floating toolbar:
 
 | Element | Token mapping | Contract |
 | --- | --- | --- |
-| ActionBar | `--color-surface-tertiary`, `--color-border-subtle`, `--shadow-md` | 32px pill, 2px inset padding, 28px controls, centered above the stage |
+| ActionBar | `--color-surface-tertiary`, `--color-border-subtle`, `--shadow-md` | 32px pill, 2px inset padding, 28px controls, centered inside a 48px sticky gray strip with 8px breathing room above and below; the image editor bounds its sticky lifetime before prompt or metadata content |
 | Buttons / menus | `--color-text-foreground`, `--color-background-primary-ghost-hover`, `--color-border-focus` | Native source SVGs render at 16px (Comment/Remove/ratios) and 18px (Resize); hover/open/focus use semantic tokens |
 | Menus | `--color-surface-elevated-secondary`, `--color-border`, `--shadow-xl` | Resize is 160px; Zoom is 136px with 6px padding and 10px radius |
 | Zoom | `--color-text-foreground-tertiary` | Right aligned; shows the measured fit percentage and preserves the native check-mark menu |

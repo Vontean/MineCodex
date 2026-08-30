@@ -22,26 +22,61 @@ async function findThreadLogs(directory, threadId, output = []) {
   return output;
 }
 
-function promptFromEventLine(line) {
-  if (!line.includes('"image_generation_end"')) return null;
+function legacyPromptFromPayload(payload) {
+  if (payload?.type !== "image_generation_end") return null;
+  if (typeof payload.call_id !== "string" || typeof payload.revised_prompt !== "string") return null;
+  return { imageGenerationItemId: payload.call_id, prompt: payload.revised_prompt };
+}
+
+function wrappedImagegenPrompt(payload) {
+  if (payload?.type !== "custom_tool_call" || payload.name !== "exec") return null;
+  if (typeof payload.call_id !== "string" || typeof payload.input !== "string") return null;
+  const marker = "tools.image_gen__imagegen";
+  const markerIndex = payload.input.indexOf(marker);
+  if (markerIndex < 0) return null;
+  const generatedImageIndex = payload.input.indexOf("generatedImage(", markerIndex + marker.length);
+  const callSource = payload.input.slice(markerIndex, generatedImageIndex < 0 ? undefined : generatedImageIndex);
+  const match = callSource.match(/\bprompt\s*:\s*("(?:\\.|[^"\\])*")/s);
+  if (!match) return null;
   try {
-    const event = JSON.parse(line);
-    const payload = event?.payload ?? event;
-    if (payload?.type !== "image_generation_end") return null;
-    if (typeof payload.call_id !== "string" || typeof payload.revised_prompt !== "string") return null;
-    return { imageGenerationItemId: payload.call_id, prompt: payload.revised_prompt };
+    const prompt = JSON.parse(match[1]);
+    return typeof prompt === "string" ? { callId: payload.call_id, prompt } : null;
   } catch {
     return null;
   }
 }
 
+function generatedItemIdsFromOutputLine(line) {
+  if (!line.includes('"type":"custom_tool_call_output"') || !line.includes("generated_images")) return null;
+  const callId = line.match(/"call_id":"([a-zA-Z0-9_-]+)"/)?.[1];
+  if (!callId) return null;
+  const itemIds = new Set();
+  const pattern = /generated_images[\\/][^\\/\s]+[\\/]([a-zA-Z0-9_-]+)\.png\b/g;
+  for (const match of line.matchAll(pattern)) itemIds.add(match[1]);
+  return { callId, itemIds };
+}
+
 async function readPrompts(logPath, prompts) {
   const input = createReadStream(logPath, { encoding: "utf8" });
   const lines = createInterface({ input, crlfDelay: Infinity });
+  const wrappedPrompts = new Map();
   for await (const line of lines) {
-    const entry = promptFromEventLine(line);
-    if (entry && !prompts.has(entry.imageGenerationItemId)) {
-      prompts.set(entry.imageGenerationItemId, entry.prompt);
+    if (line.includes('"image_generation_end"') || line.includes("image_gen__imagegen")) {
+      let event;
+      try { event = JSON.parse(line); } catch { continue; }
+      const payload = event?.payload ?? event;
+      const legacy = legacyPromptFromPayload(payload);
+      if (legacy && !prompts.has(legacy.imageGenerationItemId)) {
+        prompts.set(legacy.imageGenerationItemId, legacy.prompt);
+      }
+      const wrapped = wrappedImagegenPrompt(payload);
+      if (wrapped) wrappedPrompts.set(wrapped.callId, wrapped.prompt);
+    }
+    const generated = generatedItemIdsFromOutputLine(line);
+    const prompt = generated ? wrappedPrompts.get(generated.callId) : null;
+    if (!prompt) continue;
+    for (const itemId of generated.itemIds) {
+      if (!prompts.has(itemId)) prompts.set(itemId, prompt);
     }
   }
 }
