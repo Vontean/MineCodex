@@ -1101,11 +1101,15 @@ function menuCheck(selected) {
   return `<svg class="image-menu-check${selected ? "" : " is-hidden"}" viewBox="0 0 17 17" aria-hidden="true"><path d="M12.8961 3.64101C13.1297 3.41418 13.4984 3.37523 13.7779 3.56581C14.0571 3.75635 14.1554 4.11331 14.0299 4.41347L13.9615 4.53847L7.71151 13.7045C7.59411 13.8767 7.4063 13.9877 7.19881 14.0072C6.99136 14.0267 6.78564 13.9533 6.63826 13.806L2.88826 10.056C2.6192 9.67407 2.64927 9.30496 2.88826 9.06581C3.12738 8.82669 3.49647 8.79676 3.76815 8.97597L7.03084 12.2182L12.8053 3.74941Z" /></svg>`;
 }
 
-function fitZoomPercent() {
-  if (!drawerImage.naturalWidth || !drawerImage.naturalHeight) return 100;
+function fitZoomScale() {
+  if (!drawerImage.naturalWidth || !drawerImage.naturalHeight) return 1;
   const widthScale = drawerImage.clientWidth / drawerImage.naturalWidth;
   const heightScale = drawerImage.clientHeight / drawerImage.naturalHeight;
-  return Math.max(1, Math.round(Math.min(widthScale, heightScale) * 100));
+  return Math.min(widthScale, heightScale);
+}
+
+function fitZoomPercent() {
+  return Math.max(1, Math.round(fitZoomScale() * 100));
 }
 
 function updateZoomLabel() {
@@ -1423,7 +1427,7 @@ function renderZoomMenu() {
     button.innerHTML = `<span class="image-ratio-label"><span>${value}%</span>${menuCheck(zoomScale === value / 100)}</span>`;
     button.addEventListener("click", () => {
       zoomScale = value / 100;
-      drawerImage.style.transform = `scale(${zoomScale})`;
+      drawerImage.style.transform = `scale(${zoomScale / fitZoomScale()})`;
       updateZoomLabel();
       closeEditorMenus();
     });

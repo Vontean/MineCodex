@@ -70,6 +70,7 @@ test("native Image Details editor matches the measured Codex image toolbar and m
   assert.match(app, /!hostSurfaceActive && editMode === "comment" && !commentPopover\.hidden/);
   assert.match(app, /committedComments\.length/);
   assert.match(app, /event\.target\.closest\('\.image-edit-menu, \[data-zoom-trigger\], \[data-edit-action="resize"\]'/);
+  assert.match(app, /drawerImage\.style\.transform = `scale\(\$\{zoomScale \/ fitZoomScale\(\)\}\)`/);
   assert.doesNotMatch(app, /textContent = "[×↶↷]"/);
   assert.match(css, /\.image-edit-menu \{[^}]*width: 160px[^}]*padding: 4px/s);
   assert.match(css, /\.image-edit-menu\[data-resize-menu\] \{[^}]*top: 48px/s);
