@@ -329,7 +329,7 @@ export function createInjectionSource(features, {
         position: absolute !important;
         right: 0;
         bottom: 0;
-        z-index: 1;
+        z-index: 10;
         background-color: var(--color-surface-elevated-secondary);
         -webkit-backdrop-filter: none;
         backdrop-filter: none;
