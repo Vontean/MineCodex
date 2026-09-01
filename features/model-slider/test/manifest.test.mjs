@@ -32,7 +32,7 @@ test("keeps provider identity and brand identity separate", () => {
   assert.equal(muse.icon.resource, "assets/providers/muse.svg");
 });
 
-test("maps OpenCode Go HY3 to Hunyuan without broad HY matching", () => {
+test("maps Tencent and OpenCode Go HY models to Hunyuan without broad HY matching", () => {
   const identity = (raw) => {
     const slash = raw.indexOf("/");
     return {
@@ -50,6 +50,9 @@ test("maps OpenCode Go HY3 to Hunyuan without broad HY matching", () => {
 
   assert.equal(brandForModel("opencode-go/hy3"), "hunyuan");
   assert.equal(brandForModel("opencode-go/hunyuan-3"), "hunyuan");
+  assert.equal(brandForModel("tencent/model-3"), "hunyuan");
+  assert.equal(brandForModel("tencent/hy-3"), "hunyuan");
+  assert.equal(brandForModel("tencent/hunyuan-3"), "hunyuan");
   assert.equal(brandForModel("other-provider/hy3"), null);
   assert.equal(brandForModel("opencode-go/hyphen-3"), null);
   assert.ok(!manifest.modelSelector.brands

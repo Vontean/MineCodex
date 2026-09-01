@@ -54,7 +54,7 @@
       { "id": "kimi", "keywords": ["kimi", "moonshot"], "icon": { "resource": "assets/providers/kimi.svg" } },
       { "id": "minimax", "keywords": ["minimax"], "icon": { "resource": "assets/providers/minimax.svg" } },
       { "id": "qwen", "keywords": ["qwen", "qwq"], "icon": { "resource": "assets/providers/qwen.svg" } },
-      { "id": "hunyuan", "keywords": ["hunyuan", "opencode-go/hy3"], "icon": { "resource": "assets/providers/hunyuan.svg" } },
+      { "id": "hunyuan", "keywords": ["tencent", "hunyuan", "opencode-go/hy3"], "icon": { "resource": "assets/providers/hunyuan.svg" } },
       { "id": "muse", "keywords": ["muse", "muse-spark"], "icon": { "resource": "assets/providers/muse.svg" } },
       { "id": "zhipu", "keywords": ["zhipu", "chatglm", "glm"], "icon": { "resource": "assets/providers/zhipu.svg" } },
       { "id": "openai", "keywords": ["openai", "gpt", "codex", "o1", "o3", "o4"], "icon": { "resource": "assets/providers/openai.svg" } }
