@@ -10,6 +10,7 @@ const HOST_ACTIONS = new Set([
   "attach-file",
   "open-detail-tab",
   "open-editor-modal",
+  "open-sidebar",
   "resolve-file-paths",
   "import-generated-image",
   "create-image-edit-thread",

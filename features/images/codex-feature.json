@@ -16,7 +16,7 @@
   "pageScript": {
     "resource": "src/chatgpt-image-source-page.mjs"
   },
-  "hostActions": ["import-generated-image", "create-image-edit-thread"],
+  "hostActions": ["import-generated-image", "create-image-edit-thread", "open-sidebar"],
   "placement": {
     "after": "sites",
     "order": 10

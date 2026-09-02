@@ -240,6 +240,15 @@ button { color: inherit; }
   gap: 7px;
 }
 
+.sidebar-open-button { flex: 0 0 auto; }
+.sidebar-open-button[hidden] { display: none; }
+
+.sidebar-toggle-icon {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+}
+
 h1,
 h2,
 h3,

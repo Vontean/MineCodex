@@ -1,4 +1,6 @@
 const shell = document.querySelector(".library-shell");
+const libraryHeader = document.querySelector(".library-header");
+const sidebarOpenButton = document.querySelector(".sidebar-open-button");
 const scrollArea = document.querySelector(".library-scroll");
 const grid = document.querySelector(".image-grid");
 const pageSentinel = document.querySelector(".page-sentinel");
@@ -141,9 +143,26 @@ function announce(message) {
   });
 }
 
+function applySidebarState(payload) {
+  const available = Boolean(payload?.available);
+  const open = Boolean(payload?.open);
+  const label = typeof payload?.label === "string" && payload.label.trim()
+    ? payload.label.trim()
+    : "Show sidebar";
+  const visible = available && !open;
+  const leading = Number(payload?.leading);
+  sidebarOpenButton.hidden = !visible;
+  sidebarOpenButton.setAttribute("aria-label", label);
+  sidebarOpenButton.title = label;
+  libraryHeader.style.paddingLeft = visible && Number.isFinite(leading)
+    ? `${Math.max(8, leading)}px`
+    : "";
+}
+
 window.addEventListener("message", (event) => {
   if (event.source !== window.parent) return;
   if (event.data?.type === "codex-personal:theme") applyHostTheme(event.data);
+  if (event.data?.type === "codex-personal:sidebar-state") applySidebarState(event.data);
   if (["codex-personal:surface-active", "codex-personal:surface-visibility"].includes(event.data?.type)) {
     setHostSurfaceActive(event.data.active ?? event.data.visible);
   }
@@ -974,6 +993,17 @@ densitySlider.addEventListener("input", () => {
 });
 
 groupButton.addEventListener("click", () => toggleThreadGrouping().catch(console.error));
+sidebarOpenButton.addEventListener("click", async () => {
+  sidebarOpenButton.disabled = true;
+  try {
+    await requestHostAction("open-sidebar", {});
+    applySidebarState({ available: true, open: true, label: sidebarOpenButton.title });
+  } catch (error) {
+    announce(error.message);
+  } finally {
+    sidebarOpenButton.disabled = false;
+  }
+});
 
 document.addEventListener("click", (event) => {
   if (!event.target.closest(".source-filter")) closeToolbarPopups();

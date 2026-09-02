@@ -79,6 +79,7 @@ HTTP + Images UI
 - 支持 Codex 的明亮 / 暗黑主题，并监听根节点 theme class 与 style 变化。
 - 用户修改 accent、ink 或 surface 后，新的 resolved tokens 会同步到 iframe，不需要重新读取或猜测内部配置文件位置。
 - 侧边栏 Images 入口克隆原生 Plugins 控件的布局与状态，再替换为 Codex 图标体系中的独立 Image 图标；iframe 内不导入 Codex 私有 React 模块或 hashed CSS bundle，以免 Codex 更新后直接失效。
+- 原生左侧栏隐藏时，Images 标题左侧显示同源图标入口；点击由 RuntimeHost 转发给原生侧栏开关，恢复后入口自动隐藏。
 
 取证、token Interface 和代码复用边界见 [`docs/CODEX_DESIGN_LANGUAGE.md`](docs/CODEX_DESIGN_LANGUAGE.md)。
 

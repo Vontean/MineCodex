@@ -2718,6 +2718,33 @@ export function createInjectionSource(features, {
       }, record.origin);
     }
 
+    function nativeSidebarTrigger() {
+      const triggers = Array.from(document.querySelectorAll(
+        'button[data-app-shell-sidebar-trigger="true"]',
+      ));
+      return triggers.find((button) => isVisibleToolbarControl(button)) ?? triggers[0] ?? null;
+    }
+
+    function sidebarState() {
+      const trigger = nativeSidebarTrigger();
+      const expanded = trigger?.getAttribute("aria-expanded");
+      const triggerRect = trigger?.getBoundingClientRect();
+      return {
+        available: Boolean(trigger),
+        open: expanded === null ? sidebarRight() > 0 : expanded === "true",
+        label: trigger?.getAttribute("aria-label") ?? "Show sidebar",
+        leading: triggerRect?.left ?? 16,
+      };
+    }
+
+    function postSidebarState(record, state = sidebarState()) {
+      if (!record || record.kind !== "page") return;
+      record.frame.contentWindow?.postMessage({
+        type: "codex-personal:sidebar-state",
+        ...state,
+      }, record.origin);
+    }
+
     function registerSurface(key, feature, kind, surfaceUrl, element, frame, detailId = null) {
       const record = {
         key,
@@ -2737,6 +2764,7 @@ export function createInjectionSource(features, {
       frame.addEventListener("load", () => {
         queueTheme();
         postSurfaceActive(record, activePageFeatureId === record.featureId && !record.element.hidden);
+        postSidebarState(record);
       });
       requestSurfaceLoad(record);
       return record;
@@ -2845,8 +2873,16 @@ export function createInjectionSource(features, {
     }
 
     function updatePageSurfacePositions() {
-      const left = `${Math.max(0, sidebarRight())}px`;
-      for (const surface of pageSurfaces.values()) surface.style.left = left;
+      const state = sidebarState();
+      const left = `${state.open ? Math.max(0, sidebarRight()) : 0}px`;
+      for (const [featureId, surface] of pageSurfaces) {
+        surface.style.left = left;
+        postSidebarState(surfaceRecords.get(surfaceKey(featureId, "page")), state);
+      }
+    }
+
+    function syncAfterNativeSidebarToggle() {
+      queueMicrotask(updatePageSurfacePositions);
     }
 
     function threadIdentity() {
@@ -4160,6 +4196,15 @@ export function createInjectionSource(features, {
           });
           return;
         }
+        if (action === "open-sidebar") {
+          const trigger = nativeSidebarTrigger();
+          if (!trigger) throw new Error("The native sidebar control was not found");
+          const state = sidebarState();
+          if (!state.open) trigger.click();
+          queueMicrotask(() => postSidebarState(record, { ...state, open: true }));
+          respondToSurface(record, requestId, { ok: true, result: { opened: true } });
+          return;
+        }
         if (action === "resolve-file-paths") {
           const getPathForFile = window.electronBridge?.getPathForFile;
           if (typeof getPathForFile !== "function") {
@@ -4218,6 +4263,9 @@ export function createInjectionSource(features, {
     document.addEventListener(
       "click",
       (event) => {
+        if (event.target.closest?.('[data-app-shell-sidebar-trigger="true"]')) {
+          syncAfterNativeSidebarToggle();
+        }
         if (
           modelSelectorControllerMenu
           && !modelSelectorControllerMenu.menu.contains(event.target)
@@ -4283,6 +4331,7 @@ export function createInjectionSource(features, {
       if (event.data.type === "codex-personal:ready") {
         record.ready = true;
         queueTheme();
+        postSidebarState(record);
         if (record.kind === "modal") {
           record.frame.focus();
           record.frame.contentWindow?.postMessage({
@@ -4320,7 +4369,24 @@ export function createInjectionSource(features, {
       updatePageSurfacePositions();
       updateResponsiveSummaryPresentation();
     }, { signal: lifetime.signal });
-    const ensureObserver = new MutationObserver(queueEnsure);
+    const ensureObserver = new MutationObserver((mutations) => {
+      queueEnsure();
+      const sidebarTriggerChanged = mutations.some((mutation) => {
+        if (
+          mutation.type === "attributes"
+          && mutation.target.matches?.('[data-app-shell-sidebar-trigger="true"]')
+        ) return true;
+        return mutation.type === "childList"
+          && [...mutation.addedNodes, ...mutation.removedNodes].some((node) => (
+            node instanceof Element
+            && (
+              node.matches?.('[data-app-shell-sidebar-trigger="true"]')
+              || node.querySelector?.('[data-app-shell-sidebar-trigger="true"]')
+            )
+          ));
+      });
+      if (sidebarTriggerChanged) updatePageSurfacePositions();
+    });
     ensureObserver.observe(document.documentElement, {
       childList: true,
       subtree: true,

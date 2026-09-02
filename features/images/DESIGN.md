@@ -9,6 +9,15 @@ variables on the surface root. The editor is intentionally hidden by the host
 when the surface identity/token handshake is unavailable, rather than drawing a
 look-alike palette.
 
+## Page header
+
+When Codex's native left sidebar is hidden, the Images title row exposes the
+native sidebar glyph at its leading edge. RuntimeHost owns sidebar state and the
+native click; the iframe only mirrors availability, visibility, and the native
+localized accessible label. Its 28px hit area, 16px rendered glyph, and leading
+position mirror the live native trigger so it clears the macOS traffic lights in
+windowed mode. The control disappears again when the sidebar opens.
+
 ## Image Details editor
 
 The image stage keeps the existing prompt, metadata, Open Thread, and Save as
