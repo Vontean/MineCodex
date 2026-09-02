@@ -16,13 +16,13 @@ Model Slider 延续 Codex 原生的克制、紧凑和功能优先。增强层只
 
 ## 3. Typography Rules
 
-沿用 Codex 原生字体与字号。Composer 收起时模型名完整显示（热区 hug 内容），仅在宽度不足时名称先省略，reasoning effort 始终完整可见；展开后触发器收缩对齐 264px slider 面板，此时名称才截断。Slider 顶部的模型名最多显示两行。
+沿用 Codex 原生字体与字号。Composer 触发器区分两种状态：占位态（"Select model" / "Select effort"）沿用原生 160px Content 宽度；真实模型态让芯片 HUG 完整模型名，长名称不被截断，reasoning effort 始终完整可见。Slider 顶部的模型名最多显示两行。
 
 ## 4. Component Stylings
 
-- **Composer Trigger:** 收起时单行完整显示、热区 hug（解除原生按 "Select effort" 测量的 min/max-width 钉定）；宽度不足时名称先省略、effort 不收缩。展开时与原生一致，芯片收缩为 placeholder 自然宽度（hug），内容组居中，头部保留原生可点击 chevron。
-- **Slider Header:** 模型名最多两行，容器高度随内容自然撑开；effort 与 chevron 不收缩。
-- **Model List:** 保持 264px 原生宽度、Provider 副文本、收藏与最多六项可视高度。
+- **Composer Trigger:** 占位态恢复原生 160px Content 宽度；真实模型态 HUG 完整名称，头部保留原生可点击 chevron。
+- **Slider Header:** 模型名最多两行，容器高度随内容自然撑开；effort 与 chevron 不收缩。无 Fast 时移除原生 12px 预留占位，让按钮与面板严格居中。
+- **Model List:** 保持 264px 原生宽度、Provider 副文本、收藏与最多六项可视高度；收藏与未收藏之间保留分隔线，弹窗内容四周保留约 6px 内边距；模型弹窗与原生 Slider 一致地水平居中于触发器。列表打开期间，Composer 占位文案从 `Select effort` 切为原生语义 `Select model`，关闭后恢复。
 
 ## 5. Layout Principles
 

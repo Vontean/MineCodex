@@ -754,8 +754,7 @@ test("emits a fail-closed native Composer model selector Adapter", () => {
   assert.match(source, /function closeNativeModelPickerSubmenus\(\)/);
   assert.match(source, /function enhanceComposerModelTrigger\(selector\)/);
   assert.match(source, /data-codex-model-slider-trigger/);
-  assert.doesNotMatch(source, /max-width: 110px/);
-  assert.match(source, /data-codex-model-slider-trigger\]\[data-state="open"\]/);
+  assert.match(source, /max-width: 110px/);
   assert.match(source, /overflow: hidden; text-overflow: ellipsis/);
   assert.match(source, /data-codex-model-slider-selecting-effort/);
   assert.match(source, /function nativeCssModuleClass\(tokenName, root = document\)/);
@@ -769,7 +768,7 @@ test("emits a fail-closed native Composer model selector Adapter", () => {
   assert.match(source, /const canUpgradeFallback = Boolean/);
   assert.match(source, /if \(efforts\.length < 2\) \{\s*shell\.append\(viewControls\);\s*return shell;/);
   assert.doesNotMatch(source, /if \(!model \|\| efforts\.length < 2\) return false/);
-  assert.match(source, /modelSelectorTriggerObserver\.observe\(trigger, \{[\s\S]*?attributeFilter: \["data-state"\][\s\S]*?\}\)/);
+  assert.match(source, /modelSelectorTriggerObserver\.observe\(trigger, \{ childList: true, subtree: true, characterData: true \}\)/);
   assert.match(
     source,
     /modelSelectorPendingReturn[\s\S]*?nativeModelPickerSubmenus\(\)\.length === 0[\s\S]*?clearTimeout\(modelSelectorReturnTimer\)[\s\S]*?returnToNativeModelSlider\(\)/,
@@ -1085,53 +1084,47 @@ test("rebuilds the upgraded native slider from the selected model capabilities",
   );
 });
 
-test("uses native semantic effort colors and adaptive composer labels", () => {
+test("distinguishes placeholder from real model label, hugging real names", () => {
   const source = createInjectionSource([modelSliderFeatureFixture()]);
 
-  // Composer 触发器收起时完整显示模型名（热区 hug），展开后才对齐 slider 宽度并截断。
+  // 占位态（Select model / Select effort）沿用原生 110px 上限省略规则。
   assert.match(
     source,
-    /data-codex-model-slider-trigger\] \[data-codex-model-slider-trigger-label\] \{[\s\S]*?max-width: none;/,
+    /data-codex-model-slider-trigger-label\] \{[\s\S]*?max-width: 110px;[\s\S]*?overflow: hidden;[\s\S]*?text-overflow: ellipsis;[\s\S]*?white-space: nowrap;/,
   );
+  // 真实模型态：芯片 HUG 完整名称，长名称不被 110px 截断；effort 不收缩。
   assert.match(
     source,
-    /data-codex-model-slider-trigger\]\[data-state="open"\] \{\s*min-width: 0; justify-content: center;/,
-  );
-  assert.doesNotMatch(
-    source,
-    /\[data-codex-model-slider-trigger\]\[data-state="open"\] \{[^}]*width: 264px/,
+    /:not\(\[data-codex-model-slider-trigger-placeholder\]\) \[data-codex-model-slider-trigger-label\] \{\s*max-width: none; overflow: visible; text-overflow: clip; flex-shrink: 0;/,
   );
   assert.match(
     source,
-    /data-codex-model-slider-trigger\]\[data-state="open"\] \[[\s\S]*?flex-shrink: 1;[\s\S]*?overflow: hidden;[\s\S]*?text-overflow: ellipsis;/,
+    /:not\(\[data-codex-model-slider-trigger-placeholder\]\) \[class\*="_ModelPickerTriggerModelLabel_"\] \{\s*max-width: none; overflow: visible; flex-shrink: 0;/,
   );
-  // 原生 Content 的类样式 max-width 钉定必须解除；min-width 开合动画由 JS 管理。
   assert.match(
     source,
-    /data-codex-model-slider-trigger\] \[class\*="_ModelPickerTriggerContent_"\] \{\s*max-width: none !important;/,
+    /data-codex-model-slider-trigger-placeholder\] \[class\*="_ModelPickerTriggerContent_"\] \{\s*width: 160px; min-width: 160px !important; max-width: 160px;/,
   );
-  assert.match(source, /function animateTriggerChipForState\(trigger, state\)/);
+  assert.ok(source.includes("select\\s+(model|effort)"));
+  assert.match(source, /placeholder\.textContent = locale === "zh-CN" \? "选择模型" : "Select model";/);
+  assert.match(source, /placeholder\.textContent = record\.placeholderText;/);
+  assert.match(source, /data-codex-model-slider-trigger-placeholder/);
   assert.match(source, /function restoreTriggerLabelWithoutNative\(trigger, selector\)/);
-  assert.match(source, /attributeFilter: \["data-state"\]/);
-  // Slider 头部内容组水平居中，与原生一致。
-  assert.match(
-    source,
-    /data-codex-model-slider-model-button\] \{\s*margin-inline: auto; justify-content: center;/,
-  );
+  // 原生开合钉定与弹层居中都依赖 Measurement 探针，MCX 标签必须同步探针文本。
+  assert.match(source, /_ModelPickerTriggerMeasurement_/);
+  assert.match(source, /measurement\.textContent !== label/);
   // 0.152.1 的 _ModelPickerTriggerModelLabel_ 是名称行容器而非名称本身，
   // 绝不能对它做隐藏或标签匹配，否则整行名称连 MCX 标签一起消失。
   assert.doesNotMatch(
     source,
     /\[class\*="_ModelPickerTriggerModelLabel_"\]:not\(\[data-codex-model-slider-trigger-label\]\) \{/,
   );
+  // 无 Fast 时去掉原生预留的 12px 伪元素；二级模型菜单以 Slider 中心定位。
+  assert.match(source, /data-codex-model-slider-has-fast="false"[\s\S]*?::before \{\s*display: none !important; content: none !important;/);
+  assert.match(source, /data-codex-model-slider-controller-menu[\s\S]*?transform: translateX\(-50%\) !important;/);
   assert.doesNotMatch(
     source,
     /data-codex-model-slider-trigger\]\[data-state="closed"\] \[class\*="_ModelPickerTriggerContent_"\]/,
-  );
-  // effort 标签不参与收缩，避免被长名称挤出触发器。
-  assert.match(
-    source,
-    /_ModelPickerTriggerEffortLabel_"\] \{\s*display: inline-flex; align-items: center; align-self: center; flex-shrink: 0;/,
   );
   // Slider 顶部的模型名可显示两行，并随内容撑高。
   assert.match(

@@ -1,6 +1,16 @@
 # ocx / Codex handoff
 
-更新时间：2026-09-02 16:55（Asia/Shanghai）
+更新时间：2026-09-03（Asia/Taipei）
+
+## 2026-09-03 真实隔离窗口复验
+
+在独立 profile + CDP 9233 的 Codex 0.152.1 窗口中逐项点击和截图，确认上一版只真正修好了菜单 6px padding 与收藏分割线；另外三项仍有实际布局问题。本轮按实测几何修复：
+
+- Composer 收起态解除 `_ModelPickerTriggerModelLabel_` 的 110px 外层上限，第三方长模型名完整 HUG；开盒后的 `Select model / Select effort` 恢复原生 160px Content 宽度。
+- 无 Fast 模式时移除原生 `ViewControls::before` 的 12px 占位，模型按钮与 Slider 面板中心完全重合，长名称在头部最多两行。
+- Slider 面板跟随占位 chip 宽度重新计算水平中心；二级模型菜单用强制 `translateX(-50%)` 保持同一中心线，不再向右偏移 132px。
+
+9233 实测：占位 chip、Slider 面板、无 Fast 头部和二级模型菜单中心误差均不超过 1px；菜单 padding 为 6px，收藏分割线为 1px。
 
 ## 2026-09-02 家中电脑 QA：Codex 0.152.1 两处补充修复
 
@@ -9,15 +19,14 @@
 1. Slider 头部缺少原生可点击 chevron：0.152.1 起原生头行 aria-label 为 "Select model" 且带 `data-model-picker-view-toggle`，`nativeModelPickerRow` 不再命中，chevron 克隆被静默跳过。现优先从 view-toggle 行克隆 svg，旧结构走原路径兜底。
 2. Composer 收起态改为 hug 契约（QA 反馈：固定 110px 截断不符预期）：原生按自身 label（路由模型为 "Select effort"）给 `_ModelPickerTriggerContent_` 钉了 inline min-width（约 139-160px），类样式又钉 max-width: 160px，长名称被截断、effort 被挤出盖在麦克风下。现收起态（data-state="closed"）解除两个方向的钉定，模型名完整显示、热区 hug；宽度不足时名称先省略（ellipsis 回退），effort `flex-shrink: 0` 永远完整可见；展开态触发器 max-width: 264px 对齐 slider 面板，此时名称才截断。
 
-追加（同日）：QA 反馈开盒缺少原生的丝滑收缩，且收起态芯片仍被钉死。最终实现：
+追加（同日）：家中电脑 QA 发现 0.152.1 还有两处回归（头部 chevron 消失、收起态宽度被钉死），并要求触发器宽度规则完全跟随原生。从 app.asar 提取 0.152.1 渲染层源码后确认原生契约并重写：
 
-- 类样式钉定解除改为无条件 `max-width: none !important`（Content 层）；inline min-width 的开合动画交给 JS 按状态管理：开盒后 50ms 释放钉定，芯片借 Content 自带 `transition: all` 平滑收缩到 placeholder 自然宽度；关盒先按当前宽度保持、标签恢复后放行，消除恢复空窗期的宽度闪烁。注意后台/被遮挡窗口 rAF 会被节流，调度必须用 setTimeout。
-- 原生 ModelText 重建前的空窗期，enhance 会立即插回 MCX 标签；enhance 复用已存在的孤儿标签而不是新建，避免恢复后出现两个名称把芯片撑宽。
-- Slider 头部内容组水平居中（`margin-inline: auto; justify-content: center`），与原生一致。
-- 展开态触发器与原生一致：收缩为 placeholder 自然宽度（hug）、内容组居中；此前按 264px 固定宽实现是误读，已回退。
-- 重要教训：0.152.1 的 `_ModelPickerTriggerModelLabel_` 是包住整行名称的容器 span，不是名称本身（名称仍是 `_ModelPickerTriggerModelText_`）。对容器做隐藏或标签匹配会让名称连 MCX 标签一起消失，测试已加反向断言锁死。
+- 原生名称 span（`_ModelPickerTriggerModelText_`/`_ModelPickerTriggerModelLabel_`）本就带 `max-width: 110px` + ellipsis + `flex-shrink: 1`；Content 为 `flex + justify-content: center + max-width: 160px`，其 inline min-width 由 JS 按 Measurement 探针测量动态设置；弹层（`_ModelPickerDropdownContent_`）宽 224px 且原生自带相对芯片的水平居中补偿。此前多版 CSS/JS 覆盖（hug、264px 固定宽、自研开合动画）全部回退。
+- chevron：0.152.1 原生头行 aria-label 为 "Select model"，旧 `nativeModelPickerRow` 不再命中；改为优先从 `data-model-picker-view-toggle` 行克隆 svg，旧结构保留兜底。
+- MCX 唯一新增职责：enhance 时把显示标签同步进 Measurement 探针文本，原生测量、临时钉定、弹层居中即可自动得到真实显示宽度。原生 ModelText 重建空窗期保留立即回插逻辑，并复用孤儿标签避免双名称。
+- 重要教训：`_ModelPickerTriggerModelLabel_` 是包住名称行的容器 span，不是名称本身；对容器做隐藏或标签匹配会让名称连 MCX 标签一起消失，测试已加反向断言锁死。
 
-验证：`npm run check` 通过，runtime 56/56，全量 215/215；隔离实例 DOM 测量（名称 184px 无裁剪、effort 右缘在触发器内、触发器 251px hug）与截图目检通过。QA 期间全局安装的 mcx 1.0.4 与 9231 主实例未受影响；9232 隔离实例与 QA runtime host 仍在本机运行供人工复验。
+验证：`npm run check` 通过，runtime 56/56，全量 215/215；隔离实例目检确认收起/展开/居中/chevron 均与原生一致。QA 期间全局安装的 mcx 1.0.4 与 9231 主实例未受影响；9232 隔离实例与 QA runtime host 仍在本机运行供人工复验。
 
 ## MCX Model Slider / Codex 0.152.0 兼容修复
 
