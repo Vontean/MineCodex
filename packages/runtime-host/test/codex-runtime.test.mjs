@@ -754,7 +754,8 @@ test("emits a fail-closed native Composer model selector Adapter", () => {
   assert.match(source, /function closeNativeModelPickerSubmenus\(\)/);
   assert.match(source, /function enhanceComposerModelTrigger\(selector\)/);
   assert.match(source, /data-codex-model-slider-trigger/);
-  assert.match(source, /max-width: none/);
+  assert.match(source, /max-width: 110px/);
+  assert.match(source, /overflow: hidden; text-overflow: ellipsis/);
   assert.match(source, /data-codex-model-slider-selecting-effort/);
   assert.match(source, /function nativeCssModuleClass\(tokenName, root = document\)/);
   for (const tokenName of ["ViewControls", "ViewToggleContent", "ViewToggleIcon", "SimpleView"]) {
@@ -844,7 +845,7 @@ test("keeps the generic model menu on the Composer controller lifecycle", () => 
   assert.doesNotMatch(source, /const openModels = \(\) => openNativeModelSubmenu\(parentMenu\)/);
 });
 
-test("keeps the upgraded native Slider and routes its compact model entry to MCX", () => {
+test("rebuilds the upgraded native Slider and routes its compact model entry to MCX", () => {
   const source = createInjectionSource([modelSliderFeatureFixture()]);
 
   assert.match(
@@ -857,7 +858,7 @@ test("keeps the upgraded native Slider and routes its compact model entry to MCX
   );
   assert.match(
     source,
-    /const toggle = parentMenu\.querySelector\("\[data-model-picker-view-toggle\]"\);[\s\S]*?if \(toggle\) \{[\s\S]*?restoreGenericModelPicker\(parentMenu\)/,
+    /function enhanceNativeModelPicker\(parentMenu, selector\) \{\s*if \(enhanceGenericModelPicker\(parentMenu, selector\)\) return;/,
   );
   assert.match(source, /const label = compactModelLabel\(raw\)/);
   assert.match(source, /openControllerModelMenu\(parentMenu, toggle, selector\)/);
@@ -1067,6 +1068,41 @@ test("normalizes Composer trigger effort-label alignment under Model Slider", ()
     source,
     /data-codex-model-slider-trigger\] \[class\*="_ModelPickerTriggerEffortLabel_"\]\s*\{[\s\S]*?display: inline-flex; align-items: center; align-self: center;/,
   );
+});
+
+test("rebuilds the upgraded native slider from the selected model capabilities", () => {
+  const source = createInjectionSource([modelSliderFeatureFixture()]);
+
+  // 新版原生 powerSelections 会混入其他模型的档位；必须先进入 MCX 的单模型 shell。
+  assert.match(
+    source,
+    /function enhanceNativeModelPicker\(parentMenu, selector\) \{\s*if \(enhanceGenericModelPicker\(parentMenu, selector\)\) return;/,
+  );
+  assert.doesNotMatch(
+    source,
+    /if \(toggle\) \{[\s\S]*?restoreGenericModelPicker\(parentMenu\)/,
+  );
+});
+
+test("uses native semantic effort colors and bounded model labels", () => {
+  const source = createInjectionSource([modelSliderFeatureFixture()]);
+
+  // Composer 触发器保持单行有界，避免长模型名侵占 effort 标签。
+  assert.match(
+    source,
+    /data-codex-model-slider-trigger-label\] \{[\s\S]*?max-width: 110px;[\s\S]*?overflow: hidden;[\s\S]*?text-overflow: ellipsis;[\s\S]*?white-space: nowrap;/,
+  );
+  // Slider 顶部的模型名可显示两行，并随内容撑高。
+  assert.match(
+    source,
+    /data-codex-model-slider-model-label\] \{[\s\S]*?-webkit-line-clamp: 2;[\s\S]*?white-space: normal;/,
+  );
+  // 只解析原生语义类名；稳定 data 属性承载蓝色与 Ultra 紫色状态。
+  assert.match(source, /"ViewToggleModelLabel",\s*"ViewToggleEffortLabel"/);
+  assert.match(source, /buttonLabel\.setAttribute\("data-codex-model-slider-model-label", ""\)/);
+  assert.match(source, /effortText\.setAttribute\("data-accent", "true"\)/);
+  assert.match(source, /effortText\.setAttribute\("data-maximum", String\(selectedEffort === "ultra"\)\)/);
+  assert.doesNotMatch(source, /_ViewToggleEffortLabel_[a-z0-9]+_/i);
 });
 
 test("attaches Notes after a zero-size toolbar anchor becomes layout-ready", async () => {

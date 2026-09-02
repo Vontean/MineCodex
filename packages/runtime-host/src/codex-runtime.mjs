@@ -170,6 +170,7 @@ export function createInjectionSource(features, {
       "--color-background-elevated-primary-opaque",
       "--color-background-primary-ghost-hover",
       "--color-chart-blue",
+      "--color-chart-purple",
       "--color-background-panel",
       "--color-background-control",
       "--color-background-primary-solid",
@@ -340,10 +341,10 @@ export function createInjectionSource(features, {
         overflow-y: auto;
       }
       [data-codex-model-slider-trigger] [class*="_ModelPickerTriggerModelLabel_"] {
-        max-width: none; flex-shrink: 0; overflow: visible; text-overflow: clip;
+        min-width: 0; max-width: 110px; flex-shrink: 1; overflow: hidden; text-overflow: ellipsis;
       }
       [data-codex-model-slider-trigger] [class*="_ModelPickerTriggerModelText_"] {
-        overflow: visible; text-overflow: clip;
+        min-width: 0; max-width: 110px; overflow: hidden; text-overflow: ellipsis;
       }
       html[data-codex-model-slider-catalog-ready]
       [data-codex-intelligence-trigger]
@@ -351,7 +352,8 @@ export function createInjectionSource(features, {
         display: none !important;
       }
       [data-codex-model-slider-trigger-label] {
-        display: inline; overflow: visible; text-overflow: clip; white-space: nowrap;
+        display: inline-block; min-width: 0; max-width: 110px;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
       }
       [data-codex-model-slider-trigger] [class*="_ModelPickerTriggerEffortLabel_"] {
         display: inline-flex; align-items: center; align-self: center;
@@ -365,6 +367,10 @@ export function createInjectionSource(features, {
       [data-codex-model-slider-copy] { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 1px; }
       [data-codex-model-slider-name] { overflow: hidden; color: var(--color-text-foreground); text-overflow: ellipsis; white-space: nowrap; }
       [data-codex-model-slider-provider] { overflow: hidden; color: var(--color-text-foreground-tertiary); font-size: 11px; line-height: 14px; text-overflow: ellipsis; white-space: nowrap; }
+      [data-codex-model-slider-model-label] {
+        display: -webkit-box; min-width: 0; overflow: hidden; overflow-wrap: anywhere;
+        -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal;
+      }
       [data-codex-model-slider-item] { position: relative; }
       [data-codex-model-slider-item][data-codex-model-slider-selected] { background: var(--color-token-list-hover-background); }
       [data-codex-model-slider-star] {
@@ -2083,6 +2089,8 @@ export function createInjectionSource(features, {
         "ViewToggle",
         "ViewToggleContent",
         "ViewToggleIcon",
+        "ViewToggleModelLabel",
+        "ViewToggleEffortLabel",
         "ViewControls",
         "FastModeToggle",
         "FastModeToggleContent",
@@ -2107,14 +2115,26 @@ export function createInjectionSource(features, {
       const buttonContent = document.createElement("span");
       buttonContent.className = classes.ViewToggleContent;
       const buttonLabel = document.createElement("span");
+      buttonLabel.className = classes.ViewToggleModelLabel;
+      buttonLabel.setAttribute("data-codex-model-slider-model-label", "");
       buttonLabel.textContent = modelDisplayLabel(identity, selector);
+      const effortText = selectedEffortVisible ? document.createElement("span") : null;
+      if (effortText) {
+        effortText.className = classes.ViewToggleEffortLabel;
+        effortText.textContent = effortLabel(selectedEffort);
+        effortText.setAttribute("data-accent", "true");
+        effortText.setAttribute("data-maximum", String(selectedEffort === "ultra"));
+      }
       const nativeChevron = nativeRow?.querySelector("svg")?.cloneNode(true);
       if (nativeChevron) {
         nativeChevron.className.baseVal = classes.ViewToggleIcon;
         nativeChevron.setAttribute("aria-hidden", "true");
-        buttonContent.append(buttonLabel, nativeChevron);
+        buttonContent.append(buttonLabel);
+        if (effortText) buttonContent.append(effortText);
+        buttonContent.append(nativeChevron);
       } else {
         buttonContent.append(buttonLabel);
+        if (effortText) buttonContent.append(effortText);
       }
       modelButton.append(buttonContent);
       const openModels = () => openControllerModelMenu(parentMenu, modelButton, selector);
@@ -2361,10 +2381,10 @@ export function createInjectionSource(features, {
     }
 
     function enhanceNativeModelPicker(parentMenu, selector) {
+      if (enhanceGenericModelPicker(parentMenu, selector)) return;
       const toggle = parentMenu.querySelector("[data-model-picker-view-toggle]");
       if (toggle) {
-        // 新版 Codex 保留原生 Slider；MCX 只精简模型名并接管模型入口。
-        restoreGenericModelPicker(parentMenu);
+        // 私有 DOM 无法满足 MCX shell 契约时，保留原生菜单作为降级路径。
         const raw = nativeModelValue(parentMenu);
         const textNode = firstVisibleTextNode(toggle);
         if (raw && textNode) {
@@ -2393,7 +2413,6 @@ export function createInjectionSource(features, {
         }
         return;
       }
-      if (enhanceGenericModelPicker(parentMenu, selector)) return;
     }
 
     function enhanceComposerModelTrigger(selector) {
