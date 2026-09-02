@@ -322,6 +322,8 @@ export function createInjectionSource(features, {
     let modelSelectorFastControlVisible = false;
     // 持久化脏标记：仅在图标实际变化时写一次 localStorage。
     let modelSelectorNativeFastIconsDirty = false;
+    // 触发器开合状态跟踪：仅在状态实际翻转时触发一次芯片宽度动画。
+    let modelSelectorTriggerChipState = null;
     const modelSelectorFastIconStorageKey = "codex-model-slider:fast-icons:v1";
     const modelSelectorStyle = document.createElement("style");
     modelSelectorStyle.setAttribute("data-codex-model-slider-style", "");
@@ -340,11 +342,13 @@ export function createInjectionSource(features, {
         max-height: var(--codex-model-slider-menu-max-height) !important;
         overflow-y: auto;
       }
-      [data-codex-model-slider-trigger] [class*="_ModelPickerTriggerModelLabel_"] {
-        min-width: 0; max-width: 110px; flex-shrink: 1; overflow: hidden; text-overflow: ellipsis;
-      }
-      [data-codex-model-slider-trigger] [class*="_ModelPickerTriggerModelText_"] {
-        min-width: 0; max-width: 110px; overflow: hidden; text-overflow: ellipsis;
+      /* 收起态：模型名完整显示（热区 hug）；宽度不足时名称先省略，
+         effort 始终完整可见。 */
+      [data-codex-model-slider-trigger] [class*="_ModelPickerTriggerModelLabel_"],
+      [data-codex-model-slider-trigger] [class*="_ModelPickerTriggerModelText_"],
+      [data-codex-model-slider-trigger] [data-codex-model-slider-trigger-label] {
+        max-width: none; min-width: 0;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
       }
       html[data-codex-model-slider-catalog-ready]
       [data-codex-intelligence-trigger]
@@ -352,11 +356,30 @@ export function createInjectionSource(features, {
         display: none !important;
       }
       [data-codex-model-slider-trigger-label] {
-        display: inline-block; min-width: 0; max-width: 110px;
-        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        display: inline-block; min-width: 0; white-space: nowrap;
+      }
+      /* 展开态：与原生一致，芯片收缩为 placeholder 自然宽度（hug），
+         内容组居中。 */
+      [data-codex-model-slider-trigger][data-state="open"] {
+        min-width: 0; justify-content: center;
+      }
+      [data-codex-model-slider-trigger][data-state="open"] [class*="_ModelPickerTriggerModelLabel_"],
+      [data-codex-model-slider-trigger][data-state="open"] [class*="_ModelPickerTriggerModelText_"],
+      [data-codex-model-slider-trigger][data-state="open"] [data-codex-model-slider-trigger-label] {
+        flex-shrink: 1; overflow: hidden; text-overflow: ellipsis;
+      }
+      /* Slider 头部与原生一致：内容组在弹层内水平居中。 */
+      [data-codex-model-slider-model-button] {
+        margin-inline: auto; justify-content: center;
       }
       [data-codex-model-slider-trigger] [class*="_ModelPickerTriggerEffortLabel_"] {
-        display: inline-flex; align-items: center; align-self: center;
+        display: inline-flex; align-items: center; align-self: center; flex-shrink: 0;
+      }
+      /* 原生类样式把 Content 钉在测量宽度（路由模型按 "Select effort" 测得
+         约 160px），长名称会被截断、把 effort 挤出。解除类样式钉定让收起态
+         热区 hug；min-width 开合动画由 JS 按状态管理。 */
+      [data-codex-model-slider-trigger] [class*="_ModelPickerTriggerContent_"] {
+        max-width: none !important;
       }
       html[data-codex-model-slider-selecting-effort] [role="menu"][data-state="open"]:not(:has([data-reasoning-slider])) {
         visibility: hidden !important; opacity: 0 !important; animation: none !important; pointer-events: none !important;
@@ -2125,7 +2148,12 @@ export function createInjectionSource(features, {
         effortText.setAttribute("data-accent", "true");
         effortText.setAttribute("data-maximum", String(selectedEffort === "ultra"));
       }
-      const nativeChevron = nativeRow?.querySelector("svg")?.cloneNode(true);
+      // 0.152.1 起原生头行 aria-label 为 "Select model"，nativeModelPickerRow
+      // 不再命中；优先从 view-toggle 行取 chevron，旧结构走原路径兜底。
+      const nativeChevron = (
+        parentMenu?.querySelector("[data-model-picker-view-toggle] svg")
+        ?? nativeRow?.querySelector("svg")
+      )?.cloneNode(true);
       if (nativeChevron) {
         nativeChevron.className.baseVal = classes.ViewToggleIcon;
         nativeChevron.setAttribute("aria-hidden", "true");
@@ -2415,6 +2443,42 @@ export function createInjectionSource(features, {
       }
     }
 
+    // 触发器开合宽度动画：开盒后下一帧释放原生临时钉定（Content 自带
+    // transition: all 负责补间），芯片平滑收缩到 placeholder 自然宽度；
+    // 关盒先按当前宽度保持，标签恢复后由 enhance 放行，消除恢复空窗期
+    // 的宽度闪烁。
+    function animateTriggerChipForState(trigger, state) {
+      const content = trigger.querySelector('[class*="_ModelPickerTriggerContent_"]');
+      if (!content) return;
+      if (state === "open") {
+        // 后台/被遮挡窗口的 rAF 会被节流，setTimeout 保证释放逻辑总能执行。
+      setTimeout(() => {
+          if (trigger.getAttribute("data-state") === "open") content.style.minWidth = "0px";
+      }, 50);
+        return;
+      }
+      if (state === "closed") {
+        const held = content.getBoundingClientRect().width;
+        if (held > 0) content.style.minWidth = `${held}px`;
+      }
+    }
+
+    // 原生 ModelText 重建前的空窗期：立即插回 MCX 标签，避免关盒后芯片
+    // 长时间失去模型名。
+    function restoreTriggerLabelWithoutNative(trigger, selector) {
+      if (trigger.getAttribute("data-state") !== "closed") return;
+      if (trigger.querySelector("[data-codex-model-slider-trigger-label]")) return;
+      const raw = trigger.getAttribute("data-codex-model-slider-trigger-raw");
+      if (!raw) return;
+      const anchor = trigger.querySelector('[class*="_ModelPickerTriggerLabel_"]')
+        ?? trigger.querySelector('[class*="_ModelPickerTriggerContent_"]');
+      if (!anchor) return;
+      const displayLabel = document.createElement("span");
+      displayLabel.setAttribute("data-codex-model-slider-trigger-label", "");
+      displayLabel.textContent = modelDisplayLabel(modelIdentity(raw), selector);
+      anchor.prepend(displayLabel);
+    }
+
     function enhanceComposerModelTrigger(selector) {
       const trigger = document.querySelector("[data-codex-intelligence-trigger]");
       if (!trigger) return;
@@ -2422,12 +2486,24 @@ export function createInjectionSource(features, {
         modelSelectorTriggerObserver?.disconnect();
         modelSelectorObservedTrigger = trigger;
         modelSelectorTriggerObserver = new MutationObserver(queueEnsure);
-        modelSelectorTriggerObserver.observe(trigger, { childList: true, subtree: true, characterData: true });
+        modelSelectorTriggerObserver.observe(trigger, {
+          childList: true, subtree: true, characterData: true,
+          attributes: true, attributeFilter: ["data-state"],
+        });
+      }
+      const chipState = trigger.getAttribute("data-state");
+      if (chipState !== modelSelectorTriggerChipState) {
+        const previousChipState = modelSelectorTriggerChipState;
+        modelSelectorTriggerChipState = chipState;
+        if (previousChipState !== null) animateTriggerChipForState(trigger, chipState);
       }
       const nativeLabels = Array.from(trigger.querySelectorAll(
         '[class*="_ModelPickerTriggerModelText_"]:not([data-codex-model-slider-trigger-label])',
       ));
-      if (!nativeLabels.length) return;
+      if (!nativeLabels.length) {
+        restoreTriggerLabelWithoutNative(trigger, selector);
+        return;
+      }
       const visibleValue = String(nativeLabels.at(-1)?.textContent ?? "").trim();
       const previousRaw = trigger.getAttribute("data-codex-model-slider-trigger-raw") ?? "";
       const previousLabel = previousRaw
@@ -2441,12 +2517,25 @@ export function createInjectionSource(features, {
       for (const nativeLabel of nativeLabels) {
         let displayLabel = nativeLabel.nextElementSibling;
         if (!displayLabel?.hasAttribute("data-codex-model-slider-trigger-label")) {
-          displayLabel = document.createElement("span");
-          displayLabel.className = nativeLabel.className;
-          displayLabel.setAttribute("data-codex-model-slider-trigger-label", "");
+          // 空窗期回插等场景会在别处留下现成的 MCX 标签，优先移动复用，
+          // 避免恢复后出现两个可见名称把芯片撑宽。
+          displayLabel = trigger.querySelector("[data-codex-model-slider-trigger-label]");
+          if (!displayLabel) {
+            displayLabel = document.createElement("span");
+            displayLabel.className = nativeLabel.className;
+            displayLabel.setAttribute("data-codex-model-slider-trigger-label", "");
+          }
           nativeLabel.after(displayLabel);
         }
         if (displayLabel.textContent !== label) displayLabel.textContent = label;
+      }
+      if (chipState === "closed") {
+        const content = trigger.querySelector('[class*="_ModelPickerTriggerContent_"]');
+        if (content && content.style.minWidth && content.style.minWidth !== "0px") {
+          setTimeout(() => {
+            content.style.minWidth = "0px";
+          }, 50);
+        }
       }
     }
 
@@ -2489,6 +2578,14 @@ export function createInjectionSource(features, {
       clearTimeout(modelSelectorReturnTimer);
       clearTimeout(modelSelectorEffortTransactionTimer);
       modelSelectorTriggerObserver?.disconnect();
+      const chipContent = document.querySelector(
+        '[data-codex-intelligence-trigger] [class*="_ModelPickerTriggerContent_"]',
+      );
+      if (chipContent) {
+        chipContent.style.minWidth = "";
+        chipContent.style.maxWidth = "";
+      }
+      modelSelectorTriggerChipState = null;
       for (const record of modelSelectorPositionObservers.values()) {
         record.observer.disconnect();
         record.resizeObserver.disconnect();

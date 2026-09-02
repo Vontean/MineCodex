@@ -16,11 +16,11 @@ Model Slider 延续 Codex 原生的克制、紧凑和功能优先。增强层只
 
 ## 3. Typography Rules
 
-沿用 Codex 原生字体与字号。Composer 中的模型名保持单行省略，始终为 reasoning effort 留出空间；Slider 顶部的模型名最多显示两行。
+沿用 Codex 原生字体与字号。Composer 收起时模型名完整显示（热区 hug 内容），仅在宽度不足时名称先省略，reasoning effort 始终完整可见；展开后触发器收缩对齐 264px slider 面板，此时名称才截断。Slider 顶部的模型名最多显示两行。
 
 ## 4. Component Stylings
 
-- **Composer Trigger:** 单行、有界、省略，模型名与 effort 不重叠。
+- **Composer Trigger:** 收起时单行完整显示、热区 hug（解除原生按 "Select effort" 测量的 min/max-width 钉定）；宽度不足时名称先省略、effort 不收缩。展开时与原生一致，芯片收缩为 placeholder 自然宽度（hug），内容组居中，头部保留原生可点击 chevron。
 - **Slider Header:** 模型名最多两行，容器高度随内容自然撑开；effort 与 chevron 不收缩。
 - **Model List:** 保持 264px 原生宽度、Provider 副文本、收藏与最多六项可视高度。
 
