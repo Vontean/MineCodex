@@ -303,6 +303,7 @@ export function createInjectionSource(features, {
     const modelSelectorOriginalItems = new Map();
     const modelSelectorOriginalToggleLabels = new Map();
     const modelSelectorGenericContainers = new Map();
+    const modelSelectorNativeToggleHandlers = new Map();
     const modelSelectorPositionObservers = new Map();
     const modelSelectorMenuSizeFrames = new Map();
     let modelSelectorReturnTimer = null;
@@ -954,6 +955,11 @@ export function createInjectionSource(features, {
       return formatIdentifier(source.slice(source.lastIndexOf("/") + 1));
     }
 
+    function compactModelLabel(rawValue) {
+      const raw = String(rawValue ?? "").trim();
+      return formatIdentifier(raw.slice(raw.lastIndexOf("/") + 1));
+    }
+
     function brandForModel(identity, selector) {
       const haystack = `${identity.backend} ${identity.raw}`.toLowerCase();
       return selector.brands?.find((brand) => (
@@ -1152,7 +1158,10 @@ export function createInjectionSource(features, {
 
     function nativeModelPickerMenu() {
       return Array.from(document.querySelectorAll('[role="menu"][data-state="open"]')).find(
-        (menu) => menu.querySelector("[data-reasoning-slider]") && nativeModelPickerRow(menu),
+        (menu) => (
+          menu.querySelector("[data-reasoning-slider]")
+          && (menu.querySelector("[data-model-picker-view-toggle]") || nativeModelPickerRow(menu))
+        ),
       ) ?? null;
     }
 
@@ -1169,6 +1178,14 @@ export function createInjectionSource(features, {
     }
 
     function nativeModelValue(menu) {
+      const toggle = menu?.querySelector("[data-model-picker-view-toggle]");
+      const toggleModelLabel = toggle?.querySelector('[class*="_ViewToggleModelLabel_"]');
+      const toggleValues = String(
+        toggle?.hasAttribute("data-model-picker-view-toggle")
+          ? (toggleModelLabel?.textContent ?? toggle.innerText)
+          : "",
+      ).split("\n").map((value) => value.trim()).filter(Boolean);
+      if (toggleValues.length) return toggleValues[0];
       const row = nativeModelPickerRow(menu);
       const values = String(row?.innerText ?? "").split("\n").map((value) => value.trim()).filter(Boolean);
       if (values.length > 1) return values.at(-1);
@@ -1696,6 +1713,15 @@ export function createInjectionSource(features, {
         record.observer.disconnect();
         record.resizeObserver.disconnect();
         modelSelectorPositionObservers.delete(wrapper);
+      }
+    }
+
+    function pruneNativeModelToggleHandlers() {
+      for (const [toggle, handlers] of modelSelectorNativeToggleHandlers) {
+        if (toggle.isConnected) continue;
+        toggle.removeEventListener("click", handlers.openModels);
+        toggle.removeEventListener("keydown", handlers.onKeyDown);
+        modelSelectorNativeToggleHandlers.delete(toggle);
       }
     }
 
@@ -2324,13 +2350,7 @@ export function createInjectionSource(features, {
       return true;
     }
 
-    function enhanceNativeModelPicker(parentMenu, selector) {
-      if (enhanceGenericModelPicker(parentMenu, selector)) return;
-      const toggle = parentMenu.querySelector("[data-model-picker-view-toggle]");
-      if (!toggle) {
-        enhanceGenericModelPicker(parentMenu, selector);
-        return;
-      }
+    function restoreGenericModelPicker(parentMenu) {
       parentMenu.querySelector(":scope > [data-codex-model-slider-generic]")?.remove();
       parentMenu.removeAttribute("data-codex-model-slider-generic-menu");
       const nativeContainer = parentMenu.firstElementChild;
@@ -2338,19 +2358,42 @@ export function createInjectionSource(features, {
         nativeContainer.style.display = modelSelectorGenericContainers.get(nativeContainer);
         modelSelectorGenericContainers.delete(nativeContainer);
       }
-      const raw = nativeModelValue(parentMenu);
-      const textNode = firstVisibleTextNode(toggle);
-      if (raw && textNode) {
-        if (!modelSelectorOriginalToggleLabels.has(textNode)) {
-          modelSelectorOriginalToggleLabels.set(textNode, textNode.textContent);
+    }
+
+    function enhanceNativeModelPicker(parentMenu, selector) {
+      const toggle = parentMenu.querySelector("[data-model-picker-view-toggle]");
+      if (toggle) {
+        // 新版 Codex 保留原生 Slider；MCX 只精简模型名并接管模型入口。
+        restoreGenericModelPicker(parentMenu);
+        const raw = nativeModelValue(parentMenu);
+        const textNode = firstVisibleTextNode(toggle);
+        if (raw && textNode) {
+          if (!modelSelectorOriginalToggleLabels.has(textNode)) {
+            modelSelectorOriginalToggleLabels.set(textNode, textNode.textContent);
+          }
+          const label = compactModelLabel(raw);
+          if (textNode.textContent !== label) textNode.textContent = label;
         }
-        const label = modelDisplayLabel(modelIdentity(raw), selector);
-        if (textNode.textContent !== label) textNode.textContent = label;
+        if (!toggle.hasAttribute("data-codex-model-slider-toggle")) {
+          const originalAriaExpanded = toggle.getAttribute("aria-expanded");
+          toggle.setAttribute("data-codex-model-slider-toggle", "");
+          const openModels = (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            event.stopImmediatePropagation();
+            openControllerModelMenu(parentMenu, toggle, selector);
+          };
+          const onKeyDown = (event) => {
+            if (event.key !== "Enter" && event.key !== " ") return;
+            openModels(event);
+          };
+          toggle.addEventListener("click", openModels);
+          toggle.addEventListener("keydown", onKeyDown);
+          modelSelectorNativeToggleHandlers.set(toggle, { openModels, onKeyDown, originalAriaExpanded });
+        }
+        return;
       }
-      if (!toggle.hasAttribute("data-codex-model-slider-toggle")) {
-        toggle.setAttribute("data-codex-model-slider-toggle", "");
-        toggle.addEventListener("click", () => openNativeModelSubmenu(parentMenu));
-      }
+      if (enhanceGenericModelPicker(parentMenu, selector)) return;
     }
 
     function enhanceComposerModelTrigger(selector) {
@@ -2392,6 +2435,7 @@ export function createInjectionSource(features, {
       const selector = modelSelectorFeature?.modelSelector;
       if (!selector) return;
       pruneModelSubmenuPositionObservers();
+      pruneNativeModelToggleHandlers();
       if (!modelSelectorStyle.isConnected) document.head?.append(modelSelectorStyle);
       enhanceComposerModelTrigger(selector);
       const parentMenu = nativeModelPickerMenu();
@@ -2456,6 +2500,13 @@ export function createInjectionSource(features, {
       for (const [node, value] of modelSelectorOriginalToggleLabels) {
         if (node.isConnected) node.textContent = value;
       }
+      for (const [toggle, handlers] of modelSelectorNativeToggleHandlers) {
+        toggle.removeEventListener("click", handlers.openModels);
+        toggle.removeEventListener("keydown", handlers.onKeyDown);
+        toggle.removeAttribute("data-codex-model-slider-toggle");
+        if (handlers.originalAriaExpanded == null) toggle.removeAttribute("aria-expanded");
+        else toggle.setAttribute("aria-expanded", handlers.originalAriaExpanded);
+      }
       for (const [container, display] of modelSelectorGenericContainers) {
         if (container.isConnected) container.style.display = display;
       }
@@ -2476,6 +2527,7 @@ export function createInjectionSource(features, {
       modelSelectorOriginalItems.clear();
       modelSelectorOriginalToggleLabels.clear();
       modelSelectorGenericContainers.clear();
+      modelSelectorNativeToggleHandlers.clear();
     }
 
     function surfaceKey(featureId, kind, detailId = "") {

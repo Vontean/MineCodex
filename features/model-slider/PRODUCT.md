@@ -23,6 +23,7 @@ Do not create a separate dashboard, iframe, branded control system, decorative A
 ## Design Principles
 
 - Preserve native behavior before enhancing presentation.
+- Preserve Codex's native Slider shell and width; shorten routed model labels to their final path segment before native truncation.
 - Keep provider identity visible without increasing Composer noise.
 - Add complexity only when catalog size requires it.
 - Fail closed to the unmodified native picker when private DOM changes.

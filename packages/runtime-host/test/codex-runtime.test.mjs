@@ -358,6 +358,7 @@ async function executeModelSliderInjection({
       modelIdentity(raw),
       { ...modelSelectorFeature.modelSelector, models },
     );
+    window.__modelSliderCompactLabelProbe = (raw) => compactModelLabel(raw);
     window.__summaryShiftProbe = {
       apply: applyThreadContentShift,
       restore: restoreThreadContentShift,
@@ -424,6 +425,7 @@ async function executeModelSliderInjection({
   const probe = window.__fastIconProbe?.();
   return {
     displayLabel: (raw, models = []) => window.__modelSliderDisplayProbe?.(raw, models) ?? null,
+    compactLabel: (raw) => window.__modelSliderCompactLabelProbe?.(raw) ?? null,
     effortProbe: (raw) => {
       const value = window.__modelSliderEffortProbe?.(raw);
       return value ? JSON.parse(JSON.stringify(value)) : null;
@@ -829,6 +831,8 @@ test("shows only the final model-id segment while preserving provider identity",
 
   assert.equal(result.displayLabel("command-code/z-ai/glm-5.3-flash", models), "GLM 5.3 Flash");
   assert.equal(result.displayLabel("command-code/Qwen/Qwen3.8-Flash", models), "Qwen3.8 Flash");
+  assert.equal(result.compactLabel("command-code/z-ai/glm-5.3-flash"), "GLM 5.3 Flash");
+  assert.equal(result.compactLabel("5.6 Terra"), "5.6 Terra");
 });
 
 test("keeps the generic model menu on the Composer controller lifecycle", () => {
@@ -838,6 +842,30 @@ test("keeps the generic model menu on the Composer controller lifecycle", () => 
   assert.match(source, /currentController\.onSelectModel\(raw, reasoningEffort\)/);
   assert.match(source, /querySelector\('\[data-codex-model-slider-selected\]'\)\s*\?\? menu\.querySelector\('\[role="menuitem"\]'\)/);
   assert.doesNotMatch(source, /const openModels = \(\) => openNativeModelSubmenu\(parentMenu\)/);
+});
+
+test("keeps the upgraded native Slider and routes its compact model entry to MCX", () => {
+  const source = createInjectionSource([modelSliderFeatureFixture()]);
+
+  assert.match(
+    source,
+    /menu\.querySelector\("\[data-reasoning-slider\]"\)[\s\S]*?menu\.querySelector\("\[data-model-picker-view-toggle\]"\)/,
+  );
+  assert.match(
+    source,
+    /function nativeModelValue\(menu\)[\s\S]*?_ViewToggleModelLabel_[\s\S]*?toggleModelLabel\?\.textContent \?\? toggle\.innerText[\s\S]*?toggleValues\[0\]/,
+  );
+  assert.match(
+    source,
+    /const toggle = parentMenu\.querySelector\("\[data-model-picker-view-toggle\]"\);[\s\S]*?if \(toggle\) \{[\s\S]*?restoreGenericModelPicker\(parentMenu\)/,
+  );
+  assert.match(source, /const label = compactModelLabel\(raw\)/);
+  assert.match(source, /openControllerModelMenu\(parentMenu, toggle, selector\)/);
+  assert.match(source, /if \(event\.key !== "Enter" && event\.key !== " "\) return;/);
+  assert.match(source, /function pruneNativeModelToggleHandlers\(\)/);
+  assert.match(source, /if \(enhanceGenericModelPicker\(parentMenu, selector\)\) return;/);
+  assert.match(source, /currentController\.onSelectModel\(raw, reasoningEffort\)/);
+  assert.doesNotMatch(source, /toggle\.addEventListener\("click", \(\) => openNativeModelSubmenu\(parentMenu\)\)/);
 });
 
 test("maps current controller effort separately from the model default", async () => {
