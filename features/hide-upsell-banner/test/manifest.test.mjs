@@ -21,8 +21,15 @@ test("registers a service-free page-script feature", () => {
 test("ships the injected script and keeps the rate-limit query path untouched", async () => {
   await access(path.join(root, manifest.entry.script));
   assert.match(source, /account\/rateLimits\/read/);
-  assert.match(source, /out of Codex and Work usage/i);
+  assert.match(source, /out of Codex\(\?: and Work\)\? usage/i);
   assert.match(readme, /不拦截、不篡改额度查询接口/);
+});
+
+test("matches an aside by its localized exhaustion title without volatile card or action copy", () => {
+  assert.match(source, /querySelector\("h1, h2, h3, \[role='heading'\]"\)/);
+  assert.match(source, /Codex\.\*\(\?:用量\|使用量\|使用额度\|额度\|消息\)/);
+  assert.doesNotMatch(source, /classList\.contains/);
+  assert.doesNotMatch(source, /Upgrade to Pro|Add Credits|Upgrade plan|Add credit/i);
 });
 
 test("script body matches the runtime-host page-script contract", () => {

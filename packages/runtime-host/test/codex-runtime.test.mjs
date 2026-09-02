@@ -1235,12 +1235,15 @@ test("emits an isolated conversation-toolbar Adapter with strict Surface and Hos
   assert.doesNotMatch(source, /data-codex-personal-tab-host/);
   assert.match(source, /Toggle summary/);
   assert.match(source, /Toggle pinned summary/);
+  assert.match(source, /切换摘要/);
+  assert.match(source, /切换固定摘要/);
   assert.match(source, /function nativeBottomPanelButton\(\)/);
-  assert.match(source, /button\.getAttribute\("aria-label"\) !== "Toggle bottom panel"/);
+  assert.match(source, /bottomPanel: \["Toggle bottom panel", "切换底部面板"\]/);
   assert.match(source, /function nativeSidePanelButton\(\)/);
-  assert.match(source, /button\.getAttribute\("aria-label"\) !== "Toggle side panel"/);
+  assert.match(source, /sidePanel: \["Toggle side panel", "切换侧边面板"\]/);
   assert.match(source, /function nativeTemporaryChatButton\(\)/);
-  assert.match(source, /\/temporary chat\/i\.test\(button\.getAttribute\("aria-label"\)/);
+  assert.match(source, /temporaryChat: \["temporary chat", "临时聊天", "临时对话"\]/);
+  assert.match(source, /function hasNativeToolbarLabel\(button, key\)/);
   assert.match(source, /function nativeSummaryToolbarGroup\(nativeButton\)/);
   assert.match(source, /function conversationToolbarHost\(nativeButton\)/);
   assert.match(source, /function ensureFallbackSummaryToolbarGroup\(nativeButton\)/);

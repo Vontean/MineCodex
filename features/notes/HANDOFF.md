@@ -155,6 +155,8 @@ All visible Surface copy, ARIA labels, Toasts, picker prompts and Host manifest 
 English and Simplified Chinese forms. RuntimeHost resolves locale maps against the Codex
 document language and includes that locale in the theme message; API error codes are
 localized client-side. Host action and Surface identifiers remain locale-independent.
+RuntimeHost 同时接受英文与简体中文的 Summary、Bottom Panel、Side Panel 和 Temporary Chat
+原生 aria-label，避免中文界面丢失 Toolbar 注入锚点。
 
 ## Host Adapter evidence
 

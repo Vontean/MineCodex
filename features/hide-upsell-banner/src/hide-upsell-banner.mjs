@@ -13,16 +13,15 @@ function isUpsellBanner(element) {
   if (!(element instanceof window.HTMLElement)) return false;
   const text = (element.innerText ?? "").trim();
   if (!text) return false;
-  const isCard = element.classList.contains("rounded-2xl")
-    && element.classList.contains("border")
-    && (element.classList.contains("bg-token-main-surface-primary")
-      || element.classList.contains("bg-surface"));
-  if (!isCard) return false;
-  const titleMatch = /out of Codex and Work usage/i.test(text)
-    || /out of Codex messages/i.test(text)
-    || /Codex message usage limit reached/i.test(text);
-  const actionMatch = /Upgrade to Pro|Add Credits/i.test(text);
-  return titleMatch && actionMatch;
+  const title = (
+    element.querySelector("h1, h2, h3, [role='heading']")?.innerText
+    ?? text.split("\n", 1)[0]
+  ).trim();
+  return /out of Codex(?: and Work)? usage/i.test(title)
+    || /out of Codex messages/i.test(title)
+    || /Codex (?:message )?usage limit reached/i.test(title)
+    || /Codex.*(?:用量|使用量|使用额度|额度|消息).*(?:用完|用尽|耗尽|已达|达到.*上限|上限)/i.test(title)
+    || /(?:已达到|达到|已用完|已用尽|耗尽).{0,20}Codex.{0,20}(?:用量|使用量|额度|消息|上限)/i.test(title);
 }
 
 function hideBanner(element) {

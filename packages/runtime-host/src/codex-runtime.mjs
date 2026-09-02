@@ -144,6 +144,13 @@ export function createInjectionSource(features, {
       scheduled: ["scheduled", "计划任务"],
       plugins: ["plugins", "插件"],
     };
+    const nativeToolbarLabels = {
+      summary: ["Toggle summary", "切换摘要"],
+      pinnedSummary: ["Toggle pinned summary", "切换固定摘要"],
+      bottomPanel: ["Toggle bottom panel", "切换底部面板"],
+      sidePanel: ["Toggle side panel", "切换侧边面板"],
+      temporaryChat: ["temporary chat", "临时聊天", "临时对话"],
+    };
     const themeTokenNames = [
       "--codex-base-accent",
       "--codex-base-ink",
@@ -513,11 +520,20 @@ export function createInjectionSource(features, {
         && rect.height > 0;
     }
 
+    function hasNativeToolbarLabel(button, key) {
+      const label = String(button?.getAttribute("aria-label") ?? "").trim().toLowerCase();
+      return nativeToolbarLabels[key].some((candidate) => (
+        key === "temporaryChat"
+          ? label.includes(candidate.toLowerCase())
+          : label === candidate.toLowerCase()
+      ));
+    }
+
     function nativeSummaryButton() {
       return Array.from(document.querySelectorAll("button")).find((button) => (
         (
-          button.getAttribute("aria-label") === "Toggle summary"
-          || button.getAttribute("aria-label") === "Toggle pinned summary"
+          hasNativeToolbarLabel(button, "summary")
+          || hasNativeToolbarLabel(button, "pinnedSummary")
         )
         && isVisibleToolbarControl(button)
       )) ?? null;
@@ -525,32 +541,34 @@ export function createInjectionSource(features, {
 
     function nativeBottomPanelButton() {
       return Array.from(document.querySelectorAll("button")).find((button) => {
-        if (button.getAttribute("aria-label") !== "Toggle bottom panel") return false;
+        if (!hasNativeToolbarLabel(button, "bottomPanel")) return false;
         return isVisibleToolbarControl(button);
       }) ?? null;
     }
 
     function nativeSidePanelButton() {
       return Array.from(document.querySelectorAll("button")).find((button) => {
-        if (button.getAttribute("aria-label") !== "Toggle side panel") return false;
+        if (!hasNativeToolbarLabel(button, "sidePanel")) return false;
         return isVisibleToolbarControl(button);
       }) ?? null;
     }
 
     function nativeTemporaryChatButton() {
       return Array.from(document.querySelectorAll("button")).find((button) => {
-        if (!/temporary chat/i.test(button.getAttribute("aria-label") ?? "")) return false;
+        if (!hasNativeToolbarLabel(button, "temporaryChat")) return false;
         return isVisibleToolbarControl(button);
       }) ?? null;
     }
 
     function structuralToolbarAnchor() {
       const buttons = Array.from(document.querySelectorAll("button"));
-      return buttons.find((button) => /temporary chat/i.test(button.getAttribute("aria-label") ?? ""))
-        ?? buttons.find((button) => new Set(["Toggle summary", "Toggle pinned summary"])
-          .has(button.getAttribute("aria-label")))
-        ?? buttons.find((button) => button.getAttribute("aria-label") === "Toggle bottom panel")
-        ?? buttons.find((button) => button.getAttribute("aria-label") === "Toggle side panel")
+      return buttons.find((button) => hasNativeToolbarLabel(button, "temporaryChat"))
+        ?? buttons.find((button) => (
+          hasNativeToolbarLabel(button, "summary")
+          || hasNativeToolbarLabel(button, "pinnedSummary")
+        ))
+        ?? buttons.find((button) => hasNativeToolbarLabel(button, "bottomPanel"))
+        ?? buttons.find((button) => hasNativeToolbarLabel(button, "sidePanel"))
         ?? null;
     }
 
@@ -644,8 +662,8 @@ export function createInjectionSource(features, {
     function isNativeSummaryButton(element) {
       if (!(element instanceof Element)) return false;
       const button = element.closest("button");
-      return button?.getAttribute("aria-label") === "Toggle summary"
-        || button?.getAttribute("aria-label") === "Toggle pinned summary";
+      return hasNativeToolbarLabel(button, "summary")
+        || hasNativeToolbarLabel(button, "pinnedSummary");
     }
 
     function mainContentViewport() {
