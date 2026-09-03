@@ -308,7 +308,6 @@ export function createInjectionSource(features, {
     let nativeTabCapabilityPromise = null;
     let nativeTabCapability = null;
     let nativeTabCapabilityError = null;
-    const modelSelectorOriginalItems = new Map();
     const modelSelectorOriginalToggleLabels = new Map();
     const modelSelectorGenericContainers = new Map();
     const modelSelectorNativeToggleHandlers = new Map();
@@ -1112,7 +1111,9 @@ export function createInjectionSource(features, {
       })).filter((level) => level.effort);
       const allowed = selector?.reasoningEffortOverrides?.[identity.raw.toLowerCase()];
       const supportedReasoningLevels = allowed
-        ? nativeReasoningLevels.filter((level) => allowed.includes(level.effort))
+        ? (nativeReasoningLevels.length
+          ? nativeReasoningLevels.filter((level) => allowed.includes(level.effort))
+          : allowed.map((effort) => ({ effort })))
         : nativeReasoningLevels;
       const currentReasoningLevel = String(controller?.reasoningEffort ?? "").toLowerCase();
       return {
@@ -1508,6 +1509,16 @@ export function createInjectionSource(features, {
       if (!items.length) return;
       const favorites = loadModelFavorites(selector);
       items.forEach((item) => { item.style.display = ""; });
+      if (!menu.hasAttribute("data-codex-model-slider-controller-menu")) {
+        if (!modelSelectorMenuSizeFrames.has(menu)) {
+          const frame = requestAnimationFrame(() => {
+            modelSelectorMenuSizeFrames.delete(menu);
+            sizeModelMenuViewport(menu, selector.maxVisibleItems);
+          });
+          modelSelectorMenuSizeFrames.set(menu, frame);
+        }
+        return;
+      }
       const starred = items.filter((item) => favorites.has(item.dataset.codexModelSliderRaw));
       const ordinary = items.filter((item) => !favorites.has(item.dataset.codexModelSliderRaw));
       const desired = items.slice().sort((a, b) => compareEnhancedModelItems(a, b, favorites));
@@ -1585,6 +1596,7 @@ export function createInjectionSource(features, {
       rawValue = null,
       selected = null,
       scheduleReturn = true,
+      owned = false,
     } = {}) {
       const observedRaw = rawValue ?? modelItemRawValue(item);
       if (!observedRaw) return;
@@ -1598,16 +1610,21 @@ export function createInjectionSource(features, {
       item.dataset.codexModelSliderOrder = String(index);
       item.dataset.codexModelSliderIdentitySource = catalogModel ? "catalog" : nativeDescriptor ? "native" : "visible";
       if (item.querySelector("[data-codex-model-slider-row]")) return;
-      if (!modelSelectorOriginalItems.has(item)) modelSelectorOriginalItems.set(item, item.innerHTML);
-
-      const identity = modelIdentity(raw);
-      const display = modelDisplayLabel(identity, selector);
-      const provider = providerLabel(identity.provider, selector);
-      const brand = brandForModel(identity, selector);
       item.toggleAttribute(
         "data-codex-model-slider-selected",
         selected ?? Boolean(item.querySelector("svg")),
       );
+      if (!owned) {
+        if (scheduleReturn && !item.hasAttribute("data-codex-model-slider-return-listener")) {
+          item.setAttribute("data-codex-model-slider-return-listener", "");
+          item.addEventListener("click", scheduleModelSliderReturn);
+        }
+        return;
+      }
+      const identity = modelIdentity(raw);
+      const display = modelDisplayLabel(identity, selector);
+      const provider = providerLabel(identity.provider, selector);
+      const brand = brandForModel(identity, selector);
       const favorites = loadModelFavorites(selector);
       const starred = favorites.has(raw);
       const row = document.createElement("span");
@@ -1794,7 +1811,6 @@ export function createInjectionSource(features, {
       record.button.setAttribute("aria-expanded", "false");
       record.parentMenu.style.position = record.position;
       record.parentMenu.style.overflow = record.overflow;
-      for (const item of modelMenuItems(record.menu)) modelSelectorOriginalItems.delete(item);
       record.menu.remove();
       modelSelectorControllerMenu = null;
       return true;
@@ -1835,6 +1851,7 @@ export function createInjectionSource(features, {
           rawValue: String(model.model),
           selected: String(model.model) === String(controller.model),
           scheduleReturn: false,
+          owned: true,
         });
         menu.append(item);
       });
@@ -2635,9 +2652,7 @@ export function createInjectionSource(features, {
       modelSelectorSuppressOutsidePointerSequence = false;
       modelSelectorPendingReturn = false;
       document.documentElement.removeAttribute("data-codex-model-slider-selecting-effort");
-      for (const [item, html] of modelSelectorOriginalItems) {
-        if (!item.isConnected) continue;
-        item.innerHTML = html;
+      for (const item of document.querySelectorAll("[data-codex-model-slider-item]")) {
         item.style.removeProperty("display");
         for (const name of [
           "data-codex-model-slider-raw",
@@ -2674,7 +2689,6 @@ export function createInjectionSource(features, {
       document.querySelectorAll("[data-codex-model-slider-trigger-label]").forEach((element) => element.remove());
       document.documentElement.removeAttribute("data-codex-model-slider-catalog-ready");
       modelSelectorStyle.remove();
-      modelSelectorOriginalItems.clear();
       modelSelectorOriginalToggleLabels.clear();
       modelSelectorGenericContainers.clear();
       modelSelectorNativeToggleHandlers.clear();
