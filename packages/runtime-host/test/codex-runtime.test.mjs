@@ -1364,6 +1364,17 @@ test("emits an isolated conversation-toolbar Adapter with strict Surface and Hos
   assert.match(source, /record\.ready = true/);
 });
 
+test("renders conversation-toolbar icons at the native 16px size", () => {
+  const source = createInjectionSource([notesFeatureFixture()]);
+
+  // 原生右上角工具栏图标为 16x16（按钮 28px）；Notes 入口必须克隆原生按钮后
+  // 用同一尺寸替换图标，避免比 Bottom/Side Panel 旁的原生图标大一圈。
+  assert.ok(
+    source.includes('createFeatureIcon(feature, originalIcon?.getAttribute("class"), 16)'),
+  );
+  assert.ok(!source.includes('createFeatureIcon(feature, originalIcon?.getAttribute("class"), 20)'));
+});
+
 test("opens detail views only in Codex native right-panel tabs", () => {
   const source = createInjectionSource([{
     id: "notes",

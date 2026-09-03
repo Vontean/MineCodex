@@ -4043,7 +4043,7 @@ export function createInjectionSource(features, {
         "data-[state=open]:bg-token-list-hover-background",
       );
       const originalIcon = button.querySelector("svg");
-      const featureIcon = createFeatureIcon(feature, originalIcon?.getAttribute("class"), 20);
+      const featureIcon = createFeatureIcon(feature, originalIcon?.getAttribute("class"), 16);
       if (originalIcon && featureIcon) originalIcon.replaceWith(featureIcon);
       button.addEventListener("click", (event) => {
         event.preventDefault();
