@@ -2413,10 +2413,20 @@ export function createInjectionSource(features, {
       const identity = modelIdentity(nativeModelValue(parentMenu));
       const model = modelDefinitionFor(identity, selector);
       const catalogModel = catalogModelFor(identity, selector);
+      const catalogedLevels = model?.supportedReasoningLevels ?? catalogModel?.supportedReasoningLevels ?? [];
+      // 外部模型在菜单中的 identity 常是 displayName（如 commandcode-auth/xai-grok-4.6），
+      // 而 reasoningEffortOverrides 按 catalog slug（command-code/xai-grok-4.6）声明；
+      // 先按 catalog slug 匹配，再退回菜单原始值，确保档位兜底能命中。
+      const overrideLevels = selector?.reasoningEffortOverrides?.[catalogModel?.slug.toLowerCase()]
+        ?? selector?.reasoningEffortOverrides?.[identity.raw.toLowerCase()];
       const modelWithCapability = model?.modelSelectorCapability ? model : {
         ...(model ?? {}),
         ...(catalogModel ?? {}),
-        supportedReasoningLevels: model?.supportedReasoningLevels ?? catalogModel?.supportedReasoningLevels ?? [],
+        // 外部模型 catalog 的 supported_reasoning_levels 可能为空；此时用
+        // modelSelector.reasoningEffortOverrides 补齐档位，否则滑条没有刻度。
+        supportedReasoningLevels: catalogedLevels.length
+          ? catalogedLevels
+          : (overrideLevels?.map((effort) => ({ effort })) ?? []),
       };
       const efforts = visibleReasoningLevelsFor(modelWithCapability);
       if (!model) return false;
@@ -2467,7 +2477,15 @@ export function createInjectionSource(features, {
       existing?.remove();
       const nativeContainer = parentMenu.firstElementChild;
       if (!nativeContainer) return false;
-      const shell = createGenericModelSlider(parentMenu, selector, identity, model, selectedEffortValue);
+      // 使用聚合了 override 兜底档位的 modelWithCapability，空目录档位的外部
+      // 模型才能渲染滑条刻度；原始 model 只负责身份/默认值。
+      const shell = createGenericModelSlider(
+        parentMenu,
+        selector,
+        identity,
+        modelWithCapability,
+        selectedEffortValue,
+      );
       if (!shell) return false;
       if (!modelSelectorGenericContainers.has(nativeContainer)) {
         modelSelectorGenericContainers.set(nativeContainer, nativeContainer.style.display);

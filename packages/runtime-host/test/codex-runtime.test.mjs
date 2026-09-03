@@ -1146,6 +1146,24 @@ test("distinguishes placeholder from real model label, hugging real names", () =
   assert.doesNotMatch(source, /_ViewToggleEffortLabel_[a-z0-9]+_/i);
 });
 
+test("fills empty external catalog efforts from reasoningEffortOverrides", () => {
+  const source = createInjectionSource([modelSliderFeatureFixture()]);
+
+  // 外部模型在菜单中的 identity 常是 displayName（commandcode-auth/xai-grok-4.6），
+  // 而 override 按 catalog slug（command-code/xai-grok-4.6）声明；必须先按 catalog
+  // slug 匹配，否则空档位模型永远拿不到 override 档位。
+  assert.ok(
+    source.includes("selector?.reasoningEffortOverrides?.[catalogModel?.slug.toLowerCase()]"),
+  );
+  // catalog 原始档位为空时用 override 补齐，滑条才有刻度。
+  assert.ok(source.includes("catalogedLevels.length"));
+  assert.ok(source.includes("overrideLevels?.map((effort) => ({ effort })) ?? []"));
+  // 渲染滑条必须使用聚合后的 modelWithCapability，而不是原始空档位 model。
+  assert.ok(source.includes("const shell = createGenericModelSlider("));
+  assert.ok(source.includes("modelWithCapability,"));
+  assert.ok(!source.includes("const shell = createGenericModelSlider(parentMenu, selector, identity, model,"));
+});
+
 test("attaches Notes after a zero-size toolbar anchor becomes layout-ready", async () => {
   const result = await executeModelSliderInjection({ features: [notesFeatureFixture()] });
 
