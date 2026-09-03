@@ -1805,8 +1805,8 @@ export function createInjectionSource(features, {
       const placeholder = document.querySelector(
         '[data-codex-intelligence-trigger] [class*="_ModelPickerTriggerPlaceholder_"]',
       );
-      if (placeholder && record.placeholderText != null) {
-        placeholder.textContent = record.placeholderText;
+      if (placeholder?.firstChild && record.placeholderText != null) {
+        placeholder.firstChild.nodeValue = record.placeholderText;
       }
       record.button.setAttribute("aria-expanded", "false");
       record.parentMenu.style.position = record.position;
@@ -1892,8 +1892,13 @@ export function createInjectionSource(features, {
       const placeholder = document.querySelector(
         '[data-codex-intelligence-trigger] [class*="_ModelPickerTriggerPlaceholder_"]',
       );
-      const placeholderText = placeholder?.textContent ?? null;
-      if (placeholder) placeholder.textContent = locale === "zh-CN" ? "选择模型" : "Select model";
+      const placeholderText = placeholder?.firstChild?.nodeValue ?? null;
+      // 保留产品行为：模型列表打开时 chip 显示 Select model。只能原地更新
+      // 同一个文本节点（nodeValue），不能 textContent 替换整个节点，否则
+      // React 卸载菜单时 removeChild 找不到旧文本节点会触发错误边界。
+      if (placeholder?.firstChild) {
+        placeholder.firstChild.nodeValue = locale === "zh-CN" ? "选择模型" : "Select model";
+      }
 
       modelSelectorControllerMenu = {
         menu,

@@ -1106,8 +1106,15 @@ test("distinguishes placeholder from real model label, hugging real names", () =
     /data-codex-model-slider-trigger-placeholder\] \[class\*="_ModelPickerTriggerContent_"\] \{\s*width: 160px; min-width: 160px !important; max-width: 160px;/,
   );
   assert.ok(source.includes("select\\s+(model|effort)"));
-  assert.match(source, /placeholder\.textContent = locale === "zh-CN" \? "选择模型" : "Select model";/);
-  assert.match(source, /placeholder\.textContent = record\.placeholderText;/);
+  assert.match(
+    source,
+    /placeholder\.firstChild\.nodeValue = locale === "zh-CN" \? "选择模型" : "Select model"/,
+  );
+  assert.match(source, /placeholder\.firstChild\.nodeValue = record\.placeholderText/);
+  // 原生 _ModelPickerTriggerPlaceholder_ 由 React 持有：必须原地更新同一个文本
+  // 节点（firstChild.nodeValue），绝不能 textContent 替换整个节点，否则 React
+  // 卸载菜单时 removeChild 找不到旧文本节点会触发错误边界。
+  assert.doesNotMatch(source, /placeholder\.textContent\s*=/);
   assert.match(source, /data-codex-model-slider-trigger-placeholder/);
   assert.match(source, /function restoreTriggerLabelWithoutNative\(trigger, selector\)/);
   // 原生开合钉定与弹层居中都依赖 Measurement 探针，MCX 标签必须同步探针文本。
