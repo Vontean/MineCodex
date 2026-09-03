@@ -16,6 +16,9 @@ test("registers a service-free Composer model selector", () => {
   assert.equal(manifest.modelSelector.maxVisibleItems, 6);
   assert.equal(manifest.modelSelector.favoriteStorageKey, "codex-model-slider:favorites:v1");
   assert.deepEqual(manifest.modelSelector.reasoningEffortOverrides, {
+    "command-code/Qwen-Qwen3.8-Flash": ["low", "medium", "xhigh"],
+    "command-code/xai-grok-4.6": ["low", "medium", "high", "xhigh"],
+    "command-code/xiaomi-mimo-v2.5": ["low", "medium", "high", "xhigh"],
     "opencode-go/hy3": ["low", "medium", "high"],
     "opencode-go/muse-spark-1.2-contributor": ["low", "medium", "high", "xhigh"],
   });
