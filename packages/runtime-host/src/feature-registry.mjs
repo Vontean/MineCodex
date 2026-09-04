@@ -354,6 +354,7 @@ export async function loadConfiguredModelCatalog(
       ].every((value) => typeof value === "string" && value.trim())
         ? `${model.opencodex_capability_provenance.provider.trim()}/${model.opencodex_capability_provenance.model_id.trim()}`
         : null,
+      opencodex_capability_provenance: model.opencodex_capability_provenance ?? null,
     })).filter((model) => model.slug);
   } catch (error) {
     if (error.code === "ENOENT") return [];

@@ -1129,6 +1129,27 @@ export function createInjectionSource(features, {
       return nativeCatalogModelFor(identity) ?? catalogModelFor(identity, selector);
     }
 
+    function modelWithOpenCodexEfforts(identity, selector, model) {
+      if (!model || !selector?.openCodexRealEfforts) return model;
+      const provenance = model.opencodex_capability_provenance;
+      const catalogModel = provenance?.provider && provenance?.model_id
+        ? null
+        : catalogModelFor(identity, selector);
+      const source = catalogModel ?? model;
+      const sourceProvenance = source.opencodex_capability_provenance;
+      const key = sourceProvenance?.provider && sourceProvenance?.model_id
+        ? `${sourceProvenance.provider}/${sourceProvenance.model_id}`.toLowerCase()
+        : identity.raw.toLowerCase();
+      const realEfforts = selector.openCodexRealEfforts[key];
+      if (!realEfforts) return model;
+      const allowed = new Set(realEfforts);
+      const levels = (model.supportedReasoningLevels ?? []).filter((level) => {
+        const effort = String(level?.effort ?? level ?? "").toLowerCase();
+        return allowed.has(effort);
+      });
+      return { ...model, supportedReasoningLevels: levels };
+    }
+
     function nativeModelDescriptorForItem(item, observedRaw) {
       const target = comparableModelLabel(observedRaw);
       if (!target) return null;
@@ -2394,7 +2415,8 @@ export function createInjectionSource(features, {
     function enhanceGenericModelPicker(parentMenu, selector) {
       const identity = modelIdentity(nativeModelValue(parentMenu));
       const model = modelDefinitionFor(identity, selector);
-      const efforts = model?.supportedReasoningLevels ?? [];
+      const displayModel = modelWithOpenCodexEfforts(identity, selector, model);
+      const efforts = displayModel?.supportedReasoningLevels ?? [];
       if (!model) return false;
       // 控制器推导的任务内实际 effort 优先，避免子任务/主任务切换后触发器属性滞后；
       // 触发器属性仅在控制器无法解析时作为实时回退，静态目录默认值最后兜底。
@@ -2447,7 +2469,7 @@ export function createInjectionSource(features, {
         parentMenu,
         selector,
         identity,
-        model,
+        displayModel,
         selectedEffortValue,
       );
       if (!shell) return false;

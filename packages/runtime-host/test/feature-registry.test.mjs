@@ -366,6 +366,10 @@ test("loads only model-control metadata from Codex's configured catalog", async 
       additionalSpeedTiers: [],
       serviceTiers: [],
       capabilityKey: "opencode-go/deepseek/v4-flash",
+      opencodex_capability_provenance: {
+        provider: "opencode-go",
+        model_id: "deepseek/v4-flash",
+      },
     }]);
   } finally {
     await rm(root, { recursive: true, force: true });

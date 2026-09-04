@@ -358,6 +358,12 @@ async function executeModelSliderInjection({
       modelIdentity(raw),
       { ...modelSelectorFeature.modelSelector, models },
     );
+    window.__modelWithOpenCodexEffortsProbe = (raw) => {
+      const identity = modelIdentity(raw);
+      const model = modelDefinitionFor(identity, modelSelectorFeature.modelSelector);
+      const display = modelWithOpenCodexEfforts(identity, modelSelectorFeature.modelSelector, model);
+      return (display?.supportedReasoningLevels ?? []).map((level) => level.effort);
+    };
     window.__modelSliderCompactLabelProbe = (raw) => compactModelLabel(raw);
     window.__summaryShiftProbe = {
       apply: applyThreadContentShift,
@@ -430,6 +436,7 @@ async function executeModelSliderInjection({
       const value = window.__modelSliderEffortProbe?.(raw);
       return value ? JSON.parse(JSON.stringify(value)) : null;
     },
+    realEffortProbe: (raw) => window.__modelWithOpenCodexEffortsProbe?.(raw) ?? null,
     selectNativeEffort: (raw, effort) => window.__selectNativeEffortProbe?.(raw, effort),
     staleVisual: () => {
       const value = window.__staleVisualProbe?.();
@@ -2634,4 +2641,33 @@ test("disposes the current document before removing future scripts and closing C
   ]);
   assert.equal(runtime.rendererTargetIds.size, 0);
   assert.equal(runtime.targetFailures.size, 0);
+});
+
+
+test("filters OpenCodex mock tiers to configured real efforts", async () => {
+  const controller = {
+    models: [{
+      model: "command-code/Qwen-Qwen3.8-Flash",
+      displayName: "commandcode-auth/Qwen-Qwen3.8-Flash",
+      supportedReasoningEfforts: ["low", "medium", "xhigh", "max", "ultra"].map(
+        (effort) => ({ reasoningEffort: effort }),
+      ),
+    }],
+    reasoningEffort: "xhigh",
+    onSelectReasoningEffort() {},
+  };
+  const feature = modelSliderFeatureFixture();
+  feature.modelSelector.openCodexRealEfforts = {
+    "command-code/qwen/qwen3.8-flash": ["low", "medium", "xhigh"],
+  };
+  feature.modelSelector.models = [{
+    slug: "command-code/Qwen-Qwen3.8-Flash",
+    displayName: "commandcode-auth/Qwen-Qwen3.8-Flash",
+    opencodex_capability_provenance: {
+      provider: "command-code",
+      model_id: "Qwen/Qwen3.8-Flash",
+    },
+  }];
+  const result = await executeModelSliderInjection({ controllerProps: controller, features: [feature] });
+  assert.deepEqual(result.realEffortProbe("commandcode-auth/Qwen-Qwen3.8-Flash"), ["low", "medium", "xhigh"]);
 });

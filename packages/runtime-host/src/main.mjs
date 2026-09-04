@@ -11,6 +11,7 @@ import {
   selectEnabledFeatures,
   startFeatureProcesses,
 } from "./feature-registry.mjs";
+import { loadOpenCodexRealEfforts } from "./codex-efforts.mjs";
 
 const runtimeRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const featuresRoot = process.env.CODEX_FEATURES_ROOT ?? path.dirname(runtimeRoot);
@@ -22,8 +23,12 @@ const discoveredFeatures = await discoverFeatures(featuresRoot);
 if (!discoveredFeatures.length) throw new Error(`No codex-feature.json files found under ${featuresRoot}`);
 const features = selectEnabledFeatures(discoveredFeatures, process.env.MINECODEX_ENABLED_FEATURES);
 const modelCatalog = await loadConfiguredModelCatalog();
+const openCodexRealEfforts = await loadOpenCodexRealEfforts();
 for (const feature of features) {
-  if (feature.modelSelector) feature.modelSelector.models = modelCatalog;
+  if (feature.modelSelector) {
+    feature.modelSelector.models = modelCatalog;
+    feature.modelSelector.openCodexRealEfforts = openCodexRealEfforts;
+  }
 }
 
 let readyWritePromise = Promise.resolve();
