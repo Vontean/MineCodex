@@ -896,7 +896,7 @@ test("maps current controller effort separately from the model default", async (
   });
 });
 
-test("applies exact model effort caps as native-ladder intersections", async () => {
+test("preserves native reasoning ladders verbatim", async () => {
   const controller = {
     models: [
       { model: "opencode-go/hy3", supportedReasoningEfforts: ["low", "medium", "high", "xhigh", "max"].map((effort) => ({ reasoningEffort: effort })) },
@@ -908,33 +908,13 @@ test("applies exact model effort caps as native-ladder intersections", async () 
     onSelectReasoningEffort() {},
   };
   const feature = modelSliderFeatureFixture();
-  feature.modelSelector.reasoningEffortOverrides = {
-    "opencode-go/hy3": ["low", "medium", "high"],
-    "opencode-go/muse-spark-1.2-contributor": ["low", "medium", "high", "xhigh"],
-  };
   const result = await executeModelSliderInjection({ controllerProps: controller, features: [feature] });
-  assert.deepEqual(result.effortProbe("opencode-go/hy3").efforts, ["low", "medium", "high"]);
-  assert.deepEqual(result.effortProbe("opencode-go/muse-spark-1.2-contributor").efforts, ["low", "medium", "high", "xhigh"]);
+  assert.deepEqual(result.effortProbe("opencode-go/hy3").efforts, ["low", "medium", "high", "xhigh", "max"]);
+  assert.deepEqual(result.effortProbe("opencode-go/muse-spark-1.2-contributor").efforts, ["low", "medium", "high", "xhigh", "max"]);
   assert.deepEqual(result.effortProbe("other-provider/hy3").efforts, ["low", "max"]);
   assert.deepEqual(result.effortProbe("opencode-go/muse-spark-similar").efforts, ["low", "max"]);
 });
 
-test("keeps a stale capped current effort honest and does not map it to Light", async () => {
-  const controller = {
-    models: [{ model: "opencode-go/hy3", supportedReasoningEfforts: ["low", "medium", "high", "max"].map((effort) => ({ reasoningEffort: effort })) }],
-    reasoningEffort: "max",
-    onSelectReasoningEffort() {},
-  };
-  const feature = modelSliderFeatureFixture();
-  feature.modelSelector.reasoningEffortOverrides = { "opencode-go/hy3": ["low", "medium", "high"] };
-  const result = await executeModelSliderInjection({ controllerProps: controller, features: [feature] });
-  const probe = result.effortProbe("opencode-go/hy3");
-  assert.equal(probe.current, "max");
-  assert.equal(probe.selectedIndex, -1);
-  const source = createInjectionSource([feature]);
-  assert.match(source, /\["low", "Light"\]/);
-  assert.match(source, /data-stale-reasoning-effort/);
-});
 
 test("neutralizes stale rail geometry instead of leaving a valid-looking thumb", async () => {
   const result = await executeModelSliderInjection({
@@ -964,7 +944,7 @@ test("neutralizes stale rail geometry instead of leaving a valid-looking thumb",
   assert.match(source, /setGenericSliderVisual\(rail, selectedIndex, efforts\.length\);/);
 });
 
-test("only forwards an allowed effort selection to the native controller", async () => {
+test("forwards native ladder effort selections to the controller", async () => {
   const selections = [];
   const controller = {
     models: [{ model: "opencode-go/hy3", supportedReasoningEfforts: ["low", "medium", "high", "max"].map((effort) => ({ reasoningEffort: effort })) }],
@@ -972,11 +952,10 @@ test("only forwards an allowed effort selection to the native controller", async
     onSelectReasoningEffort(effort) { selections.push(effort); },
   };
   const feature = modelSliderFeatureFixture();
-  feature.modelSelector.reasoningEffortOverrides = { "opencode-go/hy3": ["low", "medium", "high"] };
   const result = await executeModelSliderInjection({ controllerProps: controller, features: [feature] });
   result.selectNativeEffort("opencode-go/hy3", "high");
   result.selectNativeEffort("opencode-go/hy3", "max");
-  assert.deepEqual(selections, ["high"]);
+  assert.deepEqual(selections, ["high", "max"]);
 });
 
 test("recomputes Model Slider effort when the active Composer controller changes", async () => {
@@ -1144,24 +1123,6 @@ test("distinguishes placeholder from real model label, hugging real names", () =
   assert.match(source, /effortText\.setAttribute\("data-accent", "true"\)/);
   assert.match(source, /effortText\.setAttribute\("data-maximum", String\(selectedEffort === "ultra"\)\)/);
   assert.doesNotMatch(source, /_ViewToggleEffortLabel_[a-z0-9]+_/i);
-});
-
-test("fills empty external catalog efforts from reasoningEffortOverrides", () => {
-  const source = createInjectionSource([modelSliderFeatureFixture()]);
-
-  // 外部模型在菜单中的 identity 常是 displayName（commandcode-auth/xai-grok-4.6），
-  // 而 override 按 catalog slug（command-code/xai-grok-4.6）声明；必须先按 catalog
-  // slug 匹配，否则空档位模型永远拿不到 override 档位。
-  assert.ok(
-    source.includes("selector?.reasoningEffortOverrides?.[catalogModel?.slug.toLowerCase()]"),
-  );
-  // catalog 原始档位为空时用 override 补齐，滑条才有刻度。
-  assert.ok(source.includes("catalogedLevels.length"));
-  assert.ok(source.includes("overrideLevels?.map((effort) => ({ effort })) ?? []"));
-  // 渲染滑条必须使用聚合后的 modelWithCapability，而不是原始空档位 model。
-  assert.ok(source.includes("const shell = createGenericModelSlider("));
-  assert.ok(source.includes("modelWithCapability,"));
-  assert.ok(!source.includes("const shell = createGenericModelSlider(parentMenu, selector, identity, model,"));
 });
 
 test("attaches Notes after a zero-size toolbar anchor becomes layout-ready", async () => {

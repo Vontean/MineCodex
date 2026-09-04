@@ -11,7 +11,6 @@ import {
   selectEnabledFeatures,
   startFeatureProcesses,
 } from "./feature-registry.mjs";
-import { applyVisibleReasoningLevels, loadModelCapabilities } from "./model-capabilities.mjs";
 
 const runtimeRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const featuresRoot = process.env.CODEX_FEATURES_ROOT ?? path.dirname(runtimeRoot);
@@ -23,17 +22,8 @@ const discoveredFeatures = await discoverFeatures(featuresRoot);
 if (!discoveredFeatures.length) throw new Error(`No codex-feature.json files found under ${featuresRoot}`);
 const features = selectEnabledFeatures(discoveredFeatures, process.env.MINECODEX_ENABLED_FEATURES);
 const modelCatalog = await loadConfiguredModelCatalog();
-const modelCapabilities = await loadModelCapabilities();
 for (const feature of features) {
-  if (feature.modelSelector) {
-    feature.modelSelector.models = modelCatalog.map((model) => (
-      applyVisibleReasoningLevels(
-        model,
-        modelCapabilities.get(String(model.capabilityKey ?? model.slug ?? "").toLowerCase()),
-        model.supportedReasoningLevels,
-      )
-    ));
-  }
+  if (feature.modelSelector) feature.modelSelector.models = modelCatalog;
 }
 
 let readyWritePromise = Promise.resolve();
