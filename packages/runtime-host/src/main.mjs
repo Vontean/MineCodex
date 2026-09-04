@@ -23,6 +23,9 @@ const discoveredFeatures = await discoverFeatures(featuresRoot);
 if (!discoveredFeatures.length) throw new Error(`No codex-feature.json files found under ${featuresRoot}`);
 const features = selectEnabledFeatures(discoveredFeatures, process.env.MINECODEX_ENABLED_FEATURES);
 const modelCatalog = await loadConfiguredModelCatalog();
+// 以 OpenCodex 配置声明的真实档位为准，避免 catalog 里 mock 出的 max/ultra
+// 出现在 Model Slider 中。后续新增模型无需改这里：在 OpenCodex 配置的
+// providers.<id>.modelReasoningEfforts 里补一行即可，启动后自动生效。
 const openCodexRealEfforts = await loadOpenCodexRealEfforts();
 for (const feature of features) {
   if (feature.modelSelector) {

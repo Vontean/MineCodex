@@ -1129,6 +1129,10 @@ export function createInjectionSource(features, {
       return nativeCatalogModelFor(identity) ?? catalogModelFor(identity, selector);
     }
 
+    // 用 OpenCodex 配置声明的真实档位对滑条做精确交集，过滤 catalog 为支持
+    // mock 顶档而额外广告的 max/ultra。键匹配顺序：模型自带的
+    // opencodex_capability_provenance → catalog 模型 → 菜单原始 identity；
+    // 只做过滤不扩展，配置未声明的模型保持 catalog 原样。
     function modelWithOpenCodexEfforts(identity, selector, model) {
       if (!model || !selector?.openCodexRealEfforts) return model;
       const provenance = model.opencodex_capability_provenance;
