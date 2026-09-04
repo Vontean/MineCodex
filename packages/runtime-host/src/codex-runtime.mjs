@@ -1500,8 +1500,8 @@ export function createInjectionSource(features, {
 
     function nativeGptSortRank(rawValue) {
       const known = new Map([
-        ["gpt-5.6-sol", 1], ["gpt-5.6-terra", 2], ["gpt-5.6-luna", 3],
-        ["gpt-5.5", 4], ["gpt-5.4", 5], ["gpt-5.4-mini", 6], ["gpt-5.3-codex-spark", 7],
+        ["gpt-6-astra", 1], ["gpt-5.6-sol", 2], ["gpt-5.6-terra", 3], ["gpt-5.6-luna", 4],
+        ["gpt-5.5", 5], ["gpt-5.4", 6], ["gpt-5.4-mini", 7], ["gpt-5.3-codex-spark", 8],
       ]);
       const raw = String(rawValue ?? "").trim();
       const knownRank = known.get(raw);
