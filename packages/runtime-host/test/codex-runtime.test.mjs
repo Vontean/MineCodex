@@ -1112,8 +1112,12 @@ test("distinguishes placeholder from real model label, hugging real names", () =
     source,
     /\[class\*="_ModelPickerTriggerModelLabel_"\]:not\(\[data-codex-model-slider-trigger-label\]\) \{/,
   );
-  // 无 Fast 时去掉原生预留的 12px 伪元素；二级模型菜单以 Slider 中心定位。
-  assert.match(source, /data-codex-model-slider-has-fast="false"[\s\S]*?::before \{\s*display: none !important; content: none !important;/);
+  // 去掉原生预留的 ::before 占位（约 16px），让 hug 的模型按钮相对面板
+  // 全宽居中（有/无 Fast 均适用）；二级模型菜单以 Slider 中心定位。
+  assert.match(
+    source,
+    /data-codex-model-slider-generic\] > :has\(> \[data-codex-model-slider-model-button\]\)::before \{\s*display: none !important; content: none !important;/,
+  );
   assert.match(source, /data-codex-model-slider-controller-menu[\s\S]*?transform: translateX\(-50%\) !important;/);
   assert.doesNotMatch(
     source,

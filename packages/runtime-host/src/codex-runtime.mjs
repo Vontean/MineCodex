@@ -380,15 +380,11 @@ export function createInjectionSource(features, {
       [data-codex-model-slider-trigger] [class*="_ModelPickerTriggerEffortLabel_"] {
         display: inline-flex; align-items: center; align-self: center;
       }
-      /* 无 Fast 模式时，模型按钮 wrapper 居中，不再按有 Fast 的左对齐策略排布。 */
-      [data-codex-model-slider-has-fast="false"] [data-codex-model-slider-model-button] {
-        box-sizing: border-box; width: 100%; max-width: 100%; margin-inline: auto;
-        flex: 0 1 100%; justify-content: center;
-      }
-      [data-codex-model-slider-has-fast="false"] [data-codex-model-slider-model-button] > span {
-        width: 100%; min-width: 0;
-      }
-      [data-codex-model-slider-has-fast="false"] > :has(> [data-codex-model-slider-model-button])::before {
+      /* 模型按钮 wrapper 保持内容 hug，由原生 ViewControls 的
+         justify-content:center 相对面板全宽居中。原生 ::before 占位
+         （约 16px）会把 hug 内容推离中心，统一隐藏，让按钮中心与面板
+         中心重合；Fast 按钮本身绝对定位于左缘不受影响。 */
+      [data-codex-model-slider-generic] > :has(> [data-codex-model-slider-model-button])::before {
         display: none !important; content: none !important;
       }
       html[data-codex-model-slider-selecting-effort] [role="menu"][data-state="open"]:not(:has([data-reasoning-slider])) {
@@ -856,7 +852,10 @@ export function createInjectionSource(features, {
     async function loadNativeFastIconFromBundle() {
       // 两个图标均已就绪（持久化或 DOM 克隆）时不再拉取整包 app-initial 资源。
       if (modelSelectorNativeFastIcons?.active && modelSelectorNativeFastIcons?.inactive) return;
-      const sourceLink = document.querySelector('link[href*="/assets/app-initial-"][href$=".js"]');
+      // Fast bolt 图标定义在新版随 app-primary 入口包加载（app-initial 里没有），
+      // 按 app-primary -> app-initial 顺序取第一个已加载的入口包。
+      const sourceLink = document.querySelector('link[href*="/assets/app-primary-"][href$=".js"]')
+        ?? document.querySelector('link[href*="/assets/app-initial-"][href$=".js"]');
       if (!sourceLink?.href) return;
       try {
         const source = await fetch(sourceLink.href).then((response) => response.text());
@@ -876,12 +875,14 @@ export function createInjectionSource(features, {
               : `<path d="${path}" fill="currentColor" />`,
           }, { brand: true });
           if (!svg) return;
+          svg.setAttribute("width", "20");
+          svg.setAttribute("height", "20");
           modelSelectorNativeFastIcons[state] = svg;
           modelSelectorNativeFastIconSources[state] = "bundle";
           gained = true;
         };
         define("active", "M11\\.9125 21\\.4125", { viewBox: "0 0 24 24" });
-        define("inactive", "M7\\.38 16\\.2207", { viewBox: "0 0 20 20", transform: "translate(2.43 1.609)" });
+        define("inactive", "M9\\.80999 17\\.8302", { viewBox: "0 0 20 20" });
         if (gained) {
           modelSelectorNativeFastIconsDirty = true;
           persistNativeFastIcons();
@@ -920,8 +921,11 @@ export function createInjectionSource(features, {
           if (!svg) return;
           const template = svg.cloneNode(true);
           template.removeAttribute("id");
-          template.removeAttribute("width");
-          template.removeAttribute("height");
+          // 统一呈现尺寸：保留原生 viewBox，固定 20px。DOM 克隆来源是
+          // 原生 active(24px)/inactive(20px) 两套 SVG，若不归一化，
+          // active 24px 放进 26px 的 Fast content 容器会显得大一圈。
+          template.setAttribute("width", "20");
+          template.setAttribute("height", "20");
           if (!modelSelectorNativeFastIcons) {
             modelSelectorNativeFastIcons = {};
             modelSelectorNativeFastIconSources = {};
@@ -931,7 +935,9 @@ export function createInjectionSource(features, {
           modelSelectorNativeFastIconsDirty = true;
         };
         capture("active", "M11.9125 21.4125");
-        capture("inactive", "M7.38 16.2207");
+        // 现版 app 的 inactive bolt 为 20x20，路径以 M9.80999 开头；
+        // 旧的 M7.38 前缀已匹配不到任何图标，导致 inactive 缺失。
+        capture("inactive", "M9.80999 17.8302");
       }
       const ready = Boolean(
         modelSelectorNativeFastIcons?.active && modelSelectorNativeFastIcons?.inactive,
@@ -960,6 +966,10 @@ export function createInjectionSource(features, {
       if (!template) return null;
       const icon = template.cloneNode(true);
       icon.setAttribute("aria-hidden", "true");
+      // 出口统一规格化：无论缓存来自 DOM 克隆(24/20px)、bundle(20px)还是
+      // 旧版持久化数据，最终都以 20px 呈现，与原生 Fast bolt 视觉一致。
+      icon.setAttribute("width", "20");
+      icon.setAttribute("height", "20");
       const iconClass = nativeCssModuleClass("FastModeIcon");
       if (iconClass && !icon.classList.contains(iconClass)) icon.classList.add(iconClass);
       return icon;
