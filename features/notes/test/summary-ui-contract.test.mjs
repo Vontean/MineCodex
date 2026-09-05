@@ -136,6 +136,7 @@ test("Todo drag reordering mirrors the native Codex drop indicator and explicit 
 test("Summary controls use shipped icon assets and native Codex silhouettes", async () => {
   const [
     app,
+    fileIcons,
     styles,
     server,
     codexPlus,
@@ -155,6 +156,7 @@ test("Summary controls use shipped icon assets and native Codex silhouettes", as
     featureManifest,
   ] = await Promise.all([
     readFile(path.join(projectRoot, "web/app.js"), "utf8"),
+    readFile(path.join(projectRoot, "web/file-icons.mjs"), "utf8"),
     readFile(path.join(projectRoot, "web/styles.css"), "utf8"),
     readFile(path.join(projectRoot, "src/http-server.mjs"), "utf8"),
     readFile(path.join(projectRoot, "web/codex-plus.svg"), "utf8"),
@@ -229,12 +231,12 @@ test("Summary controls use shipped icon assets and native Codex silhouettes", as
   assert.doesNotMatch(codexAttachment, /stroke-width/);
   assert.doesNotMatch(server, /reveal-folder/);
   assert.doesNotMatch(styles, /reveal-folder/);
-  assert.match(app, /const CODEX_FILE_ICON_BY_EXTENSION = new Map/);
-  assert.match(app, /\["md", "document"\]/);
-  assert.match(app, /\["xlsx", "spreadsheet"\]/);
-  assert.match(app, /\["pdf", "pdf"\]/);
-  assert.match(app, /function codexFileIconKind\(file\)/);
-  assert.match(app, /mimeType\.startsWith\("image\/"\)/);
+  assert.match(fileIcons, /const CODEX_FILE_ICON_BY_EXTENSION = new Map/);
+  assert.match(fileIcons, /\["md", "document"\]/);
+  assert.match(fileIcons, /\["xlsx", "spreadsheet"\]/);
+  assert.match(fileIcons, /\["pdf", "pdf"\]/);
+  assert.match(fileIcons, /function codexFileIconKind\(file\)/);
+  assert.match(fileIcons, /mimeType\.startsWith\("image\/"\)/);
   assert.match(app, /CODEX_COLOR_FILE_ICONS\.has\(kind\)/);
   assert.match(app, /iconMarkup\(`file-\$\{kind\}`/);
   assert.match(styles, /--codex-summary-file-icon-size, 16px/);
