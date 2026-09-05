@@ -1,6 +1,7 @@
 const params = new URL(document.baseURI).searchParams;
 import { setLocale, getLocale, t, localizedErrorMessage } from "./i18n.mjs";
 import { CODEX_COLOR_FILE_ICONS, codexFileIconKind } from "./file-icons.mjs";
+import { todoDropPosition, reorderedTodoIds } from "./todo-drag.mjs";
 
 setLocale(params.get("locale") ?? navigator.languages?.[0] ?? navigator.language);
 document.documentElement.lang = getLocale();
@@ -1003,10 +1004,6 @@ function setTodoDropTarget(row, position) {
   row.dataset.dropPosition = position;
 }
 
-function todoDropPosition(event, row) {
-  const rect = row.getBoundingClientRect();
-  return event.clientY < rect.top + rect.height / 2 ? "before" : "after";
-}
 
 function dragLeavesApp(event) {
   if (event.relatedTarget instanceof Node && app.contains(event.relatedTarget)) return false;
@@ -1074,15 +1071,6 @@ function clearTodoDraggingState() {
   clearTodoDragPreview();
   app.querySelector(".todo-row.is-dragging")?.classList.remove("is-dragging");
   ui.draggingTodo = null;
-}
-
-function reorderedTodoIds(ids, draggedId, targetId, position) {
-  if (!ids.includes(draggedId) || !ids.includes(targetId) || draggedId === targetId) return ids;
-  const reordered = ids.filter((id) => id !== draggedId);
-  const targetIndex = reordered.indexOf(targetId);
-  const insertAt = targetIndex + (position === "after" ? 1 : 0);
-  reordered.splice(insertAt, 0, draggedId);
-  return reordered;
 }
 
 app.addEventListener("dragstart", (event) => {

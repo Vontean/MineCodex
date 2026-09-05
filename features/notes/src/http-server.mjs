@@ -87,6 +87,7 @@ const STATIC_FILES = new Map([
   ["/styles.css", { file: "styles.css", type: "text/css; charset=utf-8" }],
   ["/i18n.mjs", { file: "i18n.mjs", type: "text/javascript; charset=utf-8" }],
   ["/file-icons.mjs", { file: "file-icons.mjs", type: "text/javascript; charset=utf-8" }],
+  ["/todo-drag.mjs", { file: "todo-drag.mjs", type: "text/javascript; charset=utf-8" }],
   ...LUCIDE_ICON_NAMES.map((name) => [
     `/icons/${name}.svg`,
     {

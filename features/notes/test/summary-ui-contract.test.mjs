@@ -104,16 +104,17 @@ test("Todo full view uses native section headings and compact section actions", 
 });
 
 test("Todo drag reordering mirrors the native Codex drop indicator and explicit placement", async () => {
-  const [app, styles] = await Promise.all([
+  const [app, dragModule, styles] = await Promise.all([
     readFile(path.join(projectRoot, "web/app.js"), "utf8"),
+    readFile(path.join(projectRoot, "web/todo-drag.mjs"), "utf8"),
     readFile(path.join(projectRoot, "web/styles.css"), "utf8"),
   ]);
 
   assert.match(app, /class="todo-drop-indicator" aria-hidden="true" role="presentation"/);
-  assert.match(app, /function todoDropPosition\(event, row\)[\s\S]*?event\.clientY < rect\.top \+ rect\.height \/ 2 \? "before" : "after"/s);
+  assert.match(dragModule, /function todoDropPosition\(event, row\)[\s\S]*?event\.clientY < rect\.top \+ rect\.height \/ 2 \? "before" : "after"/s);
   assert.match(app, /function setTodoDropTarget\(row, position\)[\s\S]*?const previous = app\.querySelector\("\.todo-row\[data-drop-position\]"\)[\s\S]*?delete previous\.dataset\.dropPosition[\s\S]*?row\.dataset\.dropPosition = position/s);
   assert.doesNotMatch(app, /querySelectorAll\('\.todo-row\[draggable="true"\]'\)/);
-  assert.match(app, /function reorderedTodoIds\(ids, draggedId, targetId, position\)[\s\S]*?targetIndex \+ \(position === "after" \? 1 : 0\)/s);
+  assert.match(dragModule, /function reorderedTodoIds\(ids, draggedId, targetId, position\)[\s\S]*?targetIndex \+ \(position === "after" \? 1 : 0\)/s);
   assert.match(app, /function dragLeavesApp\(event\)[\s\S]*?app\.contains\(event\.relatedTarget\)[\s\S]*?event\.clientY >= rect\.bottom/s);
   assert.match(app, /function clearTodoDragPreview\(\)[\s\S]*?ui\.todoDragPreview\?\.remove\(\)[\s\S]*?ui\.todoDragPreview = null/s);
   assert.match(app, /function moveTodoDragPreview\(event\)[\s\S]*?event\.clientX - offsetX[\s\S]*?event\.clientY - offsetY/s);
