@@ -87,3 +87,30 @@ export const CODEX_THEME_TOKENS = Object.freeze([
   "--shadow-xl",
 ]);
 
+// images 图片编辑器可用性依赖的宿主 token 子集。
+// 与 features/images/web/app.js 的 editorTokens 保持同一来源（一致性由测试锁定）。
+export const EDITOR_TOKEN_NAMES = Object.freeze([
+  "--color-surface-tertiary",
+  "--color-surface-elevated-secondary",
+  "--color-border-subtle",
+  "--color-background-primary-ghost-hover",
+  "--color-chart-blue",
+  "--color-text-inverse",
+  "--color-token-main-surface-primary",
+  "--color-token-input-foreground",
+  "--color-text-foreground",
+  "--color-text-foreground-tertiary",
+  "--color-text-on-accent",
+  "--color-border",
+  "--color-border-focus",
+  "--color-token-list-hover-background",
+  "--color-text-accent",
+  "--font-sans-default",
+  "--font-weight-normal",
+  "--text-sm",
+  "--text-sm--line-height",
+  "--radius-md",
+  "--radius-xl",
+  "--shadow-md",
+  "--shadow-xl",
+]);
