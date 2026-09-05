@@ -112,6 +112,8 @@ export function documentWithBase(html, surfaceUrl) {
   return html.replace(head, (match) => `${match}<base href=${JSON.stringify(surfaceUrl)}>`);
 }
 
+// createInjectionSource：产出注入 Codex Renderer 的自包含脚本字符串。
+// 返回的脚本经 CDP 注入后独立执行（install 函数体必须自包含，不能引用模块外部标识符）。
 export function createInjectionSource(features, {
   bindingName = HOST_BINDING_NAME,
   bindingToken = "test-binding-token",
@@ -167,6 +169,10 @@ export function createInjectionSource(features, {
     function localizedText(fallback, locales = {}) {
       return locales[locale] ?? locales.en ?? fallback;
     }
+
+    // ========================================================================
+    // 配置派生与运行状态 — feature 分类、surface/卡片状态、观察器与计时器
+    // ========================================================================
 
     const features = config.features.map((feature) => ({
       ...feature,
@@ -385,6 +391,10 @@ export function createInjectionSource(features, {
       void loadNativeFastIconFromBundle();
     }
 
+    // ========================================================================
+    // page-script 特征安装 — 执行各 feature 声明的页面脚本并登记清理
+    // ========================================================================
+
     for (const feature of pageScriptFeatures) {
       const source = feature.pageScript?.source ?? "";
       if (!source.trim()) continue;
@@ -409,6 +419,10 @@ export function createInjectionSource(features, {
         console.warn(`[codex-personal] page-script feature failed: ${feature.id}`, error);
       }
     }
+
+    // ========================================================================
+    // Toolbar 入口定位与就绪 — 识别原生 Toolbar/Summary 控件并等待其就绪
+    // ========================================================================
 
     function findEntry(featureId) {
       return Array.from(document.querySelectorAll(`[${entryMarker}]`)).find(
@@ -662,6 +676,10 @@ export function createInjectionSource(features, {
       return window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
     }
 
+    // ========================================================================
+    // 图标工厂与原生 Fast 图标 — markup 图标、CSS 模块类提取、Fast 图标克隆与持久化
+    // ========================================================================
+
     function createMarkupIcon(iconDefinition, className, size = 16) {
       if (!iconDefinition?.markup) return null;
       const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -896,6 +914,10 @@ export function createInjectionSource(features, {
       if (iconClass && !icon.classList.contains(iconClass)) icon.classList.add(iconClass);
       return icon;
     }
+
+    // ========================================================================
+    // 模型 identity、目录与菜单增强 — 模型身份解析、品牌/别名、收藏与原生菜单增强
+    // ========================================================================
 
     function modelIdentity(rawValue) {
       const raw = String(rawValue ?? "").trim();
@@ -1856,6 +1878,10 @@ export function createInjectionSource(features, {
         ?? menu.querySelector('[role="menuitem"]'))?.focus();
     }
 
+    // ========================================================================
+    // 原生 effort 子菜单与滑条视觉 — effort 事务、Fast/通用滑条视觉与状态同步
+    // ========================================================================
+
     function openNativeModelSubmenu(parentMenu) {
       let attempts = 0;
       const open = () => {
@@ -2348,6 +2374,10 @@ export function createInjectionSource(features, {
       parentMenu.style.setProperty("--codex-model-slider-menu-center-shift", `${nextShift}px`);
     }
 
+    // ========================================================================
+    // 通用 picker 增强与恢复 — 菜单/触发器增强、布局居中与恢复降级
+    // ========================================================================
+
     function enhanceGenericModelPicker(parentMenu, selector) {
       const identity = modelIdentity(nativeModelValue(parentMenu));
       const model = modelDefinitionFor(identity, selector);
@@ -2638,6 +2668,10 @@ export function createInjectionSource(features, {
       modelSelectorGenericContainers.clear();
       modelSelectorNativeToggleHandlers.clear();
     }
+
+    // ========================================================================
+    // Surface 注册与主题桥 — surface 记录、侧栏状态、主题 token 与 Composer 文本
+    // ========================================================================
 
     function surfaceKey(featureId, kind, detailId = "") {
       return `${featureId}:${kind}:${detailId}`;
@@ -2995,6 +3029,10 @@ export function createInjectionSource(features, {
         entry.setAttribute("data-codex-personal-summary-mode", displayMode);
       }
     }
+
+    // ========================================================================
+    // Page/Pinned/Modal surface 与摘要呈现 — 页面/固定/模态 surface 创建、展示与响应式摘要
+    // ========================================================================
 
     function createFrame(featureId, title) {
       const frame = document.createElement("iframe");
@@ -3543,6 +3581,10 @@ export function createInjectionSource(features, {
       mainContentObserver = { target: viewport, observer };
     }
 
+    // ========================================================================
+    // 原生 Detail Tab capability — React fiber/右侧面板探测、原生详情页签打开与线程跳转
+    // ========================================================================
+
     function nativeTabModuleUrl() {
       return Array.from(document.querySelectorAll('link[rel="modulepreload"]'))
         .map((link) => link.href)
@@ -3908,6 +3950,10 @@ export function createInjectionSource(features, {
       link.remove();
     }
 
+    // ========================================================================
+    // Sidebar/Toolbar 入口与 ensure 调度 — 入口克隆注入、ensure 批处理调度
+    // ========================================================================
+
     function createSidebarEntry(feature, reference) {
       const entry = reference.cloneNode(true);
       entry.setAttribute(entryMarker, feature.id);
@@ -4100,6 +4146,10 @@ export function createInjectionSource(features, {
       ensureFrame = requestAnimationFrame(flushEnsure);
       ensureTimer = setTimeout(flushEnsure, 50);
     }
+
+    // ========================================================================
+    // 消息与 host action 路由 — postMessage 路由、host action 分发与结果回送
+    // ========================================================================
 
     function findMessageSurface(event) {
       for (const record of surfaceRecords.values()) {
@@ -4365,6 +4415,10 @@ export function createInjectionSource(features, {
       attributeFilter: ["class", "style"],
     });
     domObservers.push(themeObserver);
+
+    // ========================================================================
+    // 运行时 API 与清理 — 对外 runtimeApi、dispose 与全局事件观察器
+    // ========================================================================
 
     const runtimeApi = {
       version: config.version,
