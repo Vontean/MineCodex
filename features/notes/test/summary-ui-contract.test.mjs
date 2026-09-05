@@ -401,21 +401,22 @@ test("Summary launches a Commit-level editor dialog with role-specific native su
 });
 
 test("Visible copy, host labels, reconnects, and errors support English and Simplified Chinese", async () => {
-  const [app, server, styles, manifestSource] = await Promise.all([
+  const [app, i18nSource, server, styles, manifestSource] = await Promise.all([
     readFile(path.join(projectRoot, "web/app.js"), "utf8"),
+    readFile(path.join(projectRoot, "web/i18n.mjs"), "utf8"),
     readFile(path.join(projectRoot, "src/http-server.mjs"), "utf8"),
     readFile(path.join(projectRoot, "web/styles.css"), "utf8"),
     readFile(path.join(projectRoot, "codex-feature.json"), "utf8"),
   ]);
   const manifest = JSON.parse(manifestSource);
 
-  assert.match(app, /const SUPPORTED_LOCALES = new Set\(\["en", "zh-CN"\]\)/);
-  assert.match(app, /"zh-CN": \{/);
+  assert.match(i18nSource, /const SUPPORTED_LOCALES = new Set\(\["en", "zh-CN"\]\)/);
+  assert.match(i18nSource, /"zh-CN": \{/);
   for (const copy of ["待办", "提示词", "文件", "查看全部", "请求无效"]) {
-    assert.match(app, new RegExp(copy));
+    assert.match(i18nSource, new RegExp(copy));
   }
-  assert.match(app, /document\.documentElement\.lang = locale/);
-  assert.match(app, /if \(message\.locale\) setLocale\(message\.locale\)/);
+  assert.match(app, /document\.documentElement\.lang = getLocale\(\)/);
+  assert.match(app, /if \(message\.locale && setLocale\(message\.locale\)\)/);
   assert.match(app, /localizedErrorMessage\(payload\?\.error\?\.code/);
   assert.match(app, /events\.addEventListener\("ready", handleRevision\)/);
   assert.match(app, /if \(!ui\.refreshPromise\) ui\.refreshPromise = performRefresh\(\)/);

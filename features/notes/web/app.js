@@ -1,226 +1,9 @@
 const params = new URL(document.baseURI).searchParams;
-const SUPPORTED_LOCALES = new Set(["en", "zh-CN"]);
+import { setLocale, getLocale, t, localizedErrorMessage } from "./i18n.mjs";
 
-function normalizeLocale(value) {
-  const candidate = String(value ?? "").trim();
-  if (candidate.toLowerCase().startsWith("zh")) return "zh-CN";
-  return SUPPORTED_LOCALES.has(candidate) ? candidate : "en";
-}
+setLocale(params.get("locale") ?? navigator.languages?.[0] ?? navigator.language);
+document.documentElement.lang = getLocale();
 
-const MESSAGES = Object.freeze({
-  en: {
-    requestFailed: ({ status }) => `Request failed (${status})`,
-    temporarilyUnavailable: "CodexNotes is temporarily unavailable",
-    unavailable: "CodexNotes is unavailable",
-    retry: "Retry",
-    hostUnavailable: "Codex host is not connected",
-    hostTimeout: "Codex did not respond",
-    hostActionFailed: "Host action failed",
-    restoreTodo: "Restore Todo",
-    completeTodo: "Complete Todo",
-    edit: "Edit",
-    delete: "Delete",
-    editTodo: "Edit Todo",
-    newTodo: "New Todo",
-    todoText: "Todo text",
-    todoPlaceholder: "What do you want to remember?",
-    saveTodo: "Save Todo",
-    addTodo: "Add Todo",
-    cancel: "Cancel",
-    editPrompt: "Edit Prompt",
-    newPrompt: "New Prompt",
-    optionalTitle: "Optional title",
-    promptTitle: "Prompt title",
-    promptBody: "Prompt body",
-    promptPlaceholder: "Write a reusable prompt…",
-    savePrompt: "Save Prompt",
-    addPrompt: "Add Prompt",
-    insertPrompt: "Insert Prompt",
-    morePromptActions: "More prompt actions",
-    star: "Star",
-    unstar: "Unstar",
-    showInFolder: "Show in folder",
-    attachToChat: "Attach to chat",
-    viewAll: "View all",
-    todo: "Todo",
-    noTodo: "No Todo yet",
-    prompts: "Prompts",
-    noPrompts: "No prompts yet",
-    files: "Files",
-    pinFiles: "Pin files",
-    noPinnedFiles: "No pinned files",
-    active: "Active",
-    add: "Add",
-    nothingActive: "Nothing active",
-    completed: "Completed",
-    deleteAll: "Delete all",
-    deleteCompletedTitle: "Delete all completed Todo",
-    noCompletedTodo: "No completed Todo",
-    starred: "Starred",
-    noStarredPrompts: "No starred prompts",
-    pinnedFiles: "Pinned files",
-    loading: "Loading CodexNotes…",
-    insertedAtCaret: "Inserted at the Composer caret",
-    addedToComposer: "Added to Composer",
-    insertedFilePath: "Inserted file path",
-    filesPinned: ({ count }) => `${count} file${count === 1 ? "" : "s"} pinned`,
-    alreadyPinned: "Already pinned",
-    todoEmpty: "Todo text cannot be empty",
-    promptEmpty: "Prompt body cannot be empty",
-    editorItemMissing: "This item no longer exists.",
-    close: "Close",
-    invalidRequest: "The request is invalid",
-    invalidContentType: "The request must use JSON",
-    invalidJson: "The request body is not valid JSON",
-    bodyTooLarge: "The request is too large",
-    notFound: "The item was not found",
-    invalidOrder: "The Todo order is no longer current",
-    invalidUse: "The requested action could not be recorded",
-    fileUnavailable: "The file is unavailable",
-    fileMissing: "The source file no longer exists",
-    directoryNotAllowed: "Folders cannot be pinned; choose regular files",
-    pathNotAbsolute: "Only absolute paths can be pinned",
-    pickerUnavailable: "The system file picker is unavailable",
-    pickerFailed: "The system file picker could not be opened",
-    revealUnavailable: "Show in folder is unavailable on this platform",
-    revealFailed: "The file could not be shown in the system file manager",
-    previewUnavailable: "This file does not have an image preview",
-    previewTooLarge: "The image is too large to preview",
-    internalError: "CodexNotes could not complete the request",
-    actionNotAllowed: "This action is not available",
-  },
-  "zh-CN": {
-    requestFailed: ({ status }) => `请求失败（${status}）`,
-    temporarilyUnavailable: "CodexNotes 暂时不可用",
-    unavailable: "CodexNotes 不可用",
-    retry: "重试",
-    hostUnavailable: "尚未连接 Codex 宿主",
-    hostTimeout: "Codex 未响应",
-    hostActionFailed: "宿主操作失败",
-    restoreTodo: "恢复待办",
-    completeTodo: "完成待办",
-    edit: "编辑",
-    delete: "删除",
-    editTodo: "编辑待办",
-    newTodo: "新建待办",
-    todoText: "待办内容",
-    todoPlaceholder: "你想记住什么？",
-    saveTodo: "保存待办",
-    addTodo: "添加待办",
-    cancel: "取消",
-    editPrompt: "编辑提示词",
-    newPrompt: "新建提示词",
-    optionalTitle: "可选标题",
-    promptTitle: "提示词标题",
-    promptBody: "提示词正文",
-    promptPlaceholder: "编写一条可复用的提示词…",
-    savePrompt: "保存提示词",
-    addPrompt: "添加提示词",
-    insertPrompt: "插入提示词",
-    morePromptActions: "更多提示词操作",
-    star: "收藏",
-    unstar: "取消收藏",
-    showInFolder: "在文件夹中显示",
-    attachToChat: "添加到对话",
-    viewAll: "查看全部",
-    todo: "待办",
-    noTodo: "暂无待办",
-    prompts: "提示词",
-    noPrompts: "暂无提示词",
-    files: "文件",
-    pinFiles: "固定文件",
-    noPinnedFiles: "暂无固定文件",
-    active: "进行中",
-    add: "添加",
-    nothingActive: "暂无进行中的待办",
-    completed: "已完成",
-    deleteAll: "全部删除",
-    deleteCompletedTitle: "删除全部已完成待办",
-    noCompletedTodo: "暂无已完成待办",
-    starred: "已收藏",
-    noStarredPrompts: "暂无收藏的提示词",
-    pinnedFiles: "已固定文件",
-    loading: "正在加载 CodexNotes…",
-    insertedAtCaret: "已插入到消息输入框光标处",
-    addedToComposer: "已添加到消息输入框",
-    insertedFilePath: "已插入文件路径",
-    filesPinned: ({ count }) => `已固定 ${count} 个文件`,
-    alreadyPinned: "文件已固定",
-    todoEmpty: "待办内容不能为空",
-    promptEmpty: "提示词正文不能为空",
-    editorItemMissing: "该项目已不存在。",
-    close: "关闭",
-    invalidRequest: "请求无效",
-    invalidContentType: "请求必须使用 JSON",
-    invalidJson: "请求正文不是有效的 JSON",
-    bodyTooLarge: "请求内容过大",
-    notFound: "找不到该项目",
-    invalidOrder: "待办顺序已发生变化",
-    invalidUse: "无法记录这次操作",
-    fileUnavailable: "文件不可用",
-    fileMissing: "源文件已不存在",
-    directoryNotAllowed: "不能固定文件夹，请选择普通文件",
-    pathNotAbsolute: "只能固定绝对路径",
-    pickerUnavailable: "系统文件选择器不可用",
-    pickerFailed: "无法打开系统文件选择器",
-    revealUnavailable: "当前平台不支持在文件夹中显示",
-    revealFailed: "无法在系统文件管理器中显示该文件",
-    previewUnavailable: "该文件没有图片预览",
-    previewTooLarge: "图片过大，无法预览",
-    internalError: "CodexNotes 无法完成请求",
-    actionNotAllowed: "当前操作不可用",
-  },
-});
-
-let locale = normalizeLocale(params.get("locale") ?? navigator.languages?.[0] ?? navigator.language);
-document.documentElement.lang = locale;
-
-function t(key, params = {}) {
-  const value = MESSAGES[locale]?.[key] ?? MESSAGES.en[key] ?? key;
-  return typeof value === "function" ? value(params) : value;
-}
-
-const ERROR_MESSAGE_KEYS = Object.freeze({
-  ACTION_NOT_ALLOWED: "actionNotAllowed",
-  BODY_TOO_LARGE: "bodyTooLarge",
-  DIRECTORY_NOT_ALLOWED: "directoryNotAllowed",
-  EMPTY_BODY: "invalidRequest",
-  FILE_MISSING: "fileMissing",
-  FILE_UNAVAILABLE: "fileUnavailable",
-  HOST_ACTION_FAILED: "hostActionFailed",
-  HOST_NOT_ALLOWED: "actionNotAllowed",
-  HOST_TIMEOUT: "hostTimeout",
-  HOST_UNAVAILABLE: "hostUnavailable",
-  INTERNAL_ERROR: "internalError",
-  INVALID_BODY: "invalidRequest",
-  INVALID_CHANGES: "invalidRequest",
-  INVALID_COMPLETED: "invalidRequest",
-  INVALID_CONTENT_TYPE: "invalidContentType",
-  INVALID_ID: "invalidRequest",
-  INVALID_JSON: "invalidJson",
-  INVALID_ORDER: "invalidOrder",
-  INVALID_PATHS: "invalidRequest",
-  INVALID_REQUEST: "invalidRequest",
-  INVALID_SURFACE: "invalidRequest",
-  INVALID_ORIGIN: "actionNotAllowed",
-  INVALID_STAR: "invalidRequest",
-  INVALID_TITLE: "invalidRequest",
-  INVALID_USE: "invalidUse",
-  NOT_FOUND: "notFound",
-  ORIGIN_NOT_ALLOWED: "actionNotAllowed",
-  PATH_NOT_ABSOLUTE: "pathNotAbsolute",
-  PICKER_FAILED: "pickerFailed",
-  PICKER_UNAVAILABLE: "pickerUnavailable",
-  PREVIEW_TOO_LARGE: "previewTooLarge",
-  PREVIEW_UNAVAILABLE: "previewUnavailable",
-  REVEAL_FAILED: "revealFailed",
-  REVEAL_UNAVAILABLE: "revealUnavailable",
-});
-
-function localizedErrorMessage(code, fallback, params = {}) {
-  const key = ERROR_MESSAGE_KEYS[code];
-  return key ? t(key, params) : fallback;
-}
 
 const requestedSurface = params.get("surface") === "notes" ? "prompts" : params.get("surface");
 const surface = new Set(["summary", "todo", "prompts", "files", "editor"]).has(requestedSurface)
@@ -311,14 +94,6 @@ const escapeHtml = (value) => String(value ?? "")
   .replaceAll(">", "&gt;")
   .replaceAll('"', "&quot;")
   .replaceAll("'", "&#039;");
-
-function setLocale(value) {
-  const next = normalizeLocale(value);
-  if (next === locale) return;
-  locale = next;
-  document.documentElement.lang = locale;
-  if (ui.state) render();
-}
 
 function postToHost(message) {
   window.parent.postMessage(message, ui.hostOrigin ?? "*");
@@ -489,7 +264,10 @@ window.addEventListener("message", (event) => {
   if (!message || typeof message !== "object") return;
   if (!ui.hostOrigin && event.origin && event.origin !== "null") ui.hostOrigin = event.origin;
   if (message.type === "codex-personal:theme") {
-    if (message.locale) setLocale(message.locale);
+    if (message.locale && setLocale(message.locale)) {
+      document.documentElement.lang = getLocale();
+      if (ui.state) render();
+    }
     const tokens = message.tokens ?? message.theme?.tokens ?? {};
     for (const [name, value] of Object.entries(tokens)) {
       if (typeof value === "string" && (name.startsWith("--") || name.startsWith("codex-"))) {
