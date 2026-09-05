@@ -20,7 +20,7 @@ test("restores native sidebar access from the Images header when the sidebar is 
     readFile(new URL("../web/app.js", import.meta.url), "utf8"),
     readFile(new URL("../web/styles.css", import.meta.url), "utf8"),
     readFile(new URL("../codex-feature.json", import.meta.url), "utf8"),
-    readFile(new URL("../../../packages/runtime-host/src/codex-runtime.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../../../packages/runtime-host/src/codex-injection.mjs", import.meta.url), "utf8"),
   ]);
   const manifest = JSON.parse(manifestSource);
 
