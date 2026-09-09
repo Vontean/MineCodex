@@ -5,7 +5,7 @@
 import { randomBytes } from "node:crypto";
 import { CODEX_THEME_TOKENS } from "./codex-design-contract.mjs";
 
-export const RUNTIME_VERSION = 99;
+export const RUNTIME_VERSION = 100;
 export const HOST_BINDING_NAME = "__codexPersonalHostAction";
 export const CSP_BOOTSTRAP_VERSION = 1;
 export const CSP_BOOTSTRAP_KEY = "__mineCodexCspBootstrapVersion";
@@ -283,7 +283,7 @@ export function createInjectionSource(features, {
         min-width: 0; max-width: 110px; overflow: hidden; text-overflow: ellipsis;
       }
       html[data-codex-model-slider-catalog-ready]
-      [data-codex-intelligence-trigger]
+      [data-codex-model-slider-trigger]
       [class*="_ModelPickerTriggerModelText_"]:not([data-codex-model-slider-trigger-label]) {
         display: none !important;
       }
@@ -308,13 +308,6 @@ export function createInjectionSource(features, {
       [data-codex-model-slider-trigger] [class*="_ModelPickerTriggerEffortLabel_"] {
         display: inline-flex; align-items: center; align-self: center;
       }
-      /* 模型按钮 wrapper 保持内容 hug，由原生 ViewControls 的
-         justify-content:center 相对面板全宽居中。原生 ::before 占位
-         （约 16px）会把 hug 内容推离中心，统一隐藏，让按钮中心与面板
-         中心重合；Fast 按钮本身绝对定位于左缘不受影响。 */
-      [data-codex-model-slider-generic] > :has(> [data-codex-model-slider-model-button])::before {
-        display: none !important; content: none !important;
-      }
       html[data-codex-model-slider-selecting-effort] [role="menu"][data-state="open"]:not(:has([data-reasoning-slider])) {
         visibility: hidden !important; opacity: 0 !important; animation: none !important; pointer-events: none !important;
       }
@@ -324,10 +317,6 @@ export function createInjectionSource(features, {
       [data-codex-model-slider-copy] { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 1px; }
       [data-codex-model-slider-name] { overflow: hidden; color: var(--color-text-foreground); text-overflow: ellipsis; white-space: nowrap; }
       [data-codex-model-slider-provider] { overflow: hidden; color: var(--color-text-foreground-tertiary); font-size: 11px; line-height: 14px; text-overflow: ellipsis; white-space: nowrap; }
-      [data-codex-model-slider-model-label] {
-        display: -webkit-box; min-width: 0; overflow: hidden; overflow-wrap: anywhere;
-        -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal;
-      }
       [data-codex-model-slider-item] { position: relative; }
       [data-codex-model-slider-item][data-codex-model-slider-selected] { background: var(--color-token-list-hover-background); }
       [data-codex-model-slider-star] {
@@ -353,7 +342,7 @@ export function createInjectionSource(features, {
         transform: translateX(var(--codex-model-slider-menu-center-shift, 0px)) !important;
       }
       [data-codex-model-slider-generic] { box-sizing: border-box; width: 100%; }
-      [data-codex-model-slider-fast] { margin-left: auto; border: 0; background: transparent; cursor: pointer; }
+      [data-codex-model-slider-fast] { border: 0; background: transparent; cursor: pointer; }
       [data-codex-model-slider-fast]:focus-visible { outline: 2px solid var(--color-border-focus); outline-offset: 1px; }
       [data-codex-model-slider-rail][data-codex-model-slider-fallback] { position: relative; height: 38px; margin: 1px 8px 0; outline: none; cursor: pointer; }
       [data-codex-model-slider-track] { position: absolute; top: 12px; right: 0; left: 0; height: 16px; border-radius: 999px; background: var(--color-background-control); }
@@ -376,8 +365,6 @@ export function createInjectionSource(features, {
     `;
 
     if (modelSelectorFeature) {
-      document.documentElement.setAttribute("data-codex-model-slider-catalog-ready", "");
-      document.documentElement.append(modelSelectorStyle);
       // 启动阶段就解析 Fast 图标：先读持久化的原生克隆，再从 app bundle 静态提取兜底，
       // 避免首次会话必须等用户点开弹窗后 DOM 里才出现图标。
       const persistedIcons = loadPersistedNativeFastIcons(modelSelectorFastIconStorageKey);
@@ -902,16 +889,16 @@ export function createInjectionSource(features, {
     function createNativeFastIcon(active) {
       // 直接读取已就绪的图标存储（启动时由 bundle/持久化填充，运行期由
       // captureNativeFastIcon 升级为 DOM 克隆），避免再次触发捕获造成递归。
-      const template = modelSelectorNativeFastIcons?.[active ? "active" : "inactive"];
+      // 优先克隆当前面板的图标，保留原生尺寸和路径，不使用旧版图标规格。
+      const nativeContent = Array.from(document.querySelectorAll('[class*="_FastModeToggleContent_"]'))
+        .find((content) => !content.closest("[data-codex-model-slider-generic]")
+          && (content.getAttribute("data-fast-mode-enabled")
+            ?? content.closest('[class*="_FastModeToggle_"]')?.getAttribute("data-fast-mode-enabled")) === String(active));
+      const template = nativeContent?.querySelector("svg")
+        ?? modelSelectorNativeFastIcons?.[active ? "active" : "inactive"];
       if (!template) return null;
       const icon = template.cloneNode(true);
       icon.setAttribute("aria-hidden", "true");
-      // 出口统一规格化：无论缓存来自 DOM 克隆(24/20px)、bundle(20px)还是
-      // 旧版持久化数据，最终都以 20px 呈现，与原生 Fast bolt 视觉一致。
-      icon.setAttribute("width", "20");
-      icon.setAttribute("height", "20");
-      const iconClass = nativeCssModuleClass("FastModeIcon");
-      if (iconClass && !icon.classList.contains(iconClass)) icon.classList.add(iconClass);
       return icon;
     }
 
@@ -996,58 +983,23 @@ export function createInjectionSource(features, {
       return fiber;
     }
 
+    function nativeComposerTrigger() {
+      const triggers = Array.from(document.querySelectorAll("[data-codex-intelligence-trigger]"))
+        .filter((trigger) => trigger.checkVisibility({ checkVisibilityCSS: true, checkOpacity: true }));
+      return triggers.find((trigger) => trigger.getAttribute("data-state") === "open")
+        ?? triggers[0] ?? null;
+    }
+
     function nativeComposerModelController() {
-      const trigger = document.querySelector("[data-codex-intelligence-trigger]");
+      const trigger = nativeComposerTrigger();
       let fiber = currentReactFiber(trigger);
       for (let depth = 0; fiber && depth < 40; depth += 1, fiber = fiber.return) {
         const props = fiber.memoizedProps;
         if (Array.isArray(props?.models) && typeof props.onSelectReasoningEffort === "function") return props;
-        if (
-          props?.models
-          && typeof props.models === "object"
-          && !Array.isArray(props.models)
-          && typeof props.onModelChange === "function"
-          && props.selectedModel
-        ) {
-          return chatComposerModelController(props);
-        }
+        // Chat／Temporary Chat 使用原生模型选择器，不进入任务模型适配。
+        if (props?.selectedModel && typeof props.onModelChange === "function") return null;
       }
       return null;
-    }
-
-    function chatComposerModelController(props) {
-      const selected = props.selectedModel ?? {};
-      if (!Array.isArray(props.models?.versionOptions) || !selected.versionId) return null;
-      const version = props.models.versionOptions.find(
-        (candidate) => String(candidate.id ?? "") === String(selected.versionId ?? ""),
-      );
-      if (!version) return null;
-      const options = Array.isArray(version?.options) ? version.options : [];
-      const effortFor = (option) => String(option?.title ?? option?.lane ?? "").toLowerCase();
-      const efforts = options.map(effortFor).filter(Boolean);
-      const selectedOption = options.find(
-        (option) => String(option.thinkingEffort ?? "") === String(selected.thinkingEffort ?? ""),
-      );
-      const selectedEffort = selectedOption ? effortFor(selectedOption) : (efforts[0] ?? "instant");
-      const defaultEffort = String(version.defaultReasoningEffort ?? efforts[0] ?? "instant").toLowerCase();
-      const models = [{
-        model: String(selected.slug ?? ""),
-        displayName: String(version?.label ?? selected.slug ?? ""),
-        defaultReasoningEffort: defaultEffort,
-        supportedReasoningEfforts: efforts.map((effort) => ({ reasoningEffort: effort })),
-      }];
-      return {
-        models,
-        reasoningEffort: selectedEffort,
-        onSelectReasoningEffort(effort) {
-          const target = options.find((option) => effortFor(option) === String(effort).toLowerCase());
-          if (!target) return;
-          const next = { ...selected, slug: String(target.slug ?? selected.slug ?? "") };
-          if (target.thinkingEffort) next.thinkingEffort = target.thinkingEffort;
-          else delete next.thinkingEffort;
-          props.onModelChange(next);
-        },
-      };
     }
 
     function nativeCatalogModelFor(identity, selector = modelSelectorFeature?.modelSelector) {
@@ -1419,7 +1371,7 @@ export function createInjectionSource(features, {
         }, 140);
         return;
       }
-      const trigger = document.querySelector("[data-codex-intelligence-trigger]");
+      const trigger = nativeComposerTrigger();
       if (!trigger) return;
       dispatchPointerClick(trigger);
       setTimeout(() => {
@@ -1918,7 +1870,7 @@ export function createInjectionSource(features, {
       if (typeof controller?.onSelectReasoningEffort === "function") {
         controller.onSelectReasoningEffort(effort);
         if (modelSelectorPendingOutsideDismiss) {
-          closeReactControlledMenu(document.querySelector("[data-codex-intelligence-trigger]"));
+          closeReactControlledMenu(nativeComposerTrigger());
           modelSelectorPendingOutsideDismiss = false;
         }
         queueEnsure();
@@ -1950,7 +1902,7 @@ export function createInjectionSource(features, {
         }
         if (dismissAfterCommit) {
           closeReactControlledMenu(item);
-          closeReactControlledMenu(document.querySelector("[data-codex-intelligence-trigger]"));
+          closeReactControlledMenu(nativeComposerTrigger());
           modelSelectorPendingReturn = false;
           endNativeEffortTransaction();
           return;
@@ -2143,6 +2095,7 @@ export function createInjectionSource(features, {
         "ViewToggleModelLabel",
         "ViewToggleEffortLabel",
         "ViewControls",
+        "ViewPanel",
         "FastModeToggle",
         "FastModeToggleContent",
         "SimpleView",
@@ -2151,14 +2104,17 @@ export function createInjectionSource(features, {
       const shell = document.createElement("div");
       shell.setAttribute("data-codex-model-slider-generic", `${identity.raw}:${selectedEffort}`);
       shell.className = classes.Menu;
-      shell.setAttribute("data-view", "simple");
+      const panel = document.createElement("div");
+      panel.className = classes.ViewPanel;
+      shell.append(panel);
+      shell.setAttribute("data-model-picker-view", "simple");
       shell.setAttribute("data-reduced-motion", String(matchMedia("(prefers-reduced-motion: reduce)").matches));
       shell.setAttribute("data-transitions-ready", "false");
       const nativeRow = nativeModelPickerRow(parentMenu);
       const controller = nativeComposerModelController();
       const fastOption = controller?.serviceTierOptions?.find((option) => option?.value === "priority") ?? null;
       const nativeModel = nativeCatalogModelFor(identity);
-      const supportsFast = Boolean(nativeModel?.slug.toLowerCase().startsWith("gpt-") && fastOption);
+      const supportsFast = Boolean(fastOption && typeof controller.onSelectServiceTier === "function");
       shell.setAttribute("data-codex-model-slider-has-fast", String(supportsFast));
       const modelButton = document.createElement("div");
       modelButton.className = classes.ViewToggle;
@@ -2170,6 +2126,15 @@ export function createInjectionSource(features, {
       modelButton.setAttribute("aria-expanded", "false");
       const buttonContent = document.createElement("span");
       buttonContent.className = classes.ViewToggleContent;
+      // 上下两行独立计算宽度，长模型名不能撑开强度与箭头。
+      buttonContent.style.display = "flex";
+      buttonContent.style.flexDirection = "column";
+      buttonContent.style.gap = "0";
+      const effortRow = document.createElement("span");
+      effortRow.setAttribute("data-codex-model-slider-effort-row", "");
+      effortRow.style.display = "grid";
+      effortRow.style.gridTemplateColumns = "calc(var(--spacing) * 4) auto calc(var(--spacing) * 4)";
+      effortRow.style.alignItems = "center";
       const buttonLabel = document.createElement("span");
       buttonLabel.className = classes.ViewToggleModelLabel;
       buttonLabel.setAttribute("data-codex-model-slider-model-label", "");
@@ -2179,6 +2144,7 @@ export function createInjectionSource(features, {
         effortText.className = classes.ViewToggleEffortLabel;
         effortText.textContent = effortLabel(selectedEffort);
         effortText.setAttribute("data-accent", "true");
+        effortText.setAttribute("data-effort-only", "false");
         effortText.setAttribute("data-maximum", String(selectedEffort === "ultra"));
       }
       // 0.152.1 起原生头行 aria-label 为 "Select model"，nativeModelPickerRow
@@ -2188,15 +2154,14 @@ export function createInjectionSource(features, {
         ?? nativeRow?.querySelector("svg")
       )?.cloneNode(true);
       if (nativeChevron) {
-        nativeChevron.className.baseVal = classes.ViewToggleIcon;
+        nativeChevron.classList.add(classes.ViewToggleIcon);
         nativeChevron.setAttribute("aria-hidden", "true");
-        buttonContent.append(buttonLabel);
-        if (effortText) buttonContent.append(effortText);
-        buttonContent.append(nativeChevron);
+        if (effortText) effortRow.append(effortText);
+        effortRow.append(nativeChevron);
       } else {
-        buttonContent.append(buttonLabel);
-        if (effortText) buttonContent.append(effortText);
+        if (effortText) effortRow.append(effortText);
       }
+      buttonContent.append(effortRow, buttonLabel);
       modelButton.append(buttonContent);
       const openModels = () => openControllerModelMenu(parentMenu, modelButton, selector);
       modelButton.addEventListener("click", openModels);
@@ -2208,7 +2173,8 @@ export function createInjectionSource(features, {
 
       const viewControls = document.createElement("div");
       viewControls.className = classes.ViewControls;
-      viewControls.setAttribute("data-expanded", "false");
+      // 沿用原生显式模型布局：上方档位，下方模型，两侧放置能力控件。
+      viewControls.setAttribute("data-explicit-model", "true");
       viewControls.setAttribute("data-ultra-warning-visible", "false");
       const fastEnabled = Boolean(
         supportsFast && (
@@ -2245,8 +2211,28 @@ export function createInjectionSource(features, {
         viewControls.append(modelButton);
       }
 
+      const nativeReset = parentMenu.firstElementChild?.querySelector('[class*="_ResetToDefault_"]');
+      if (nativeReset) {
+        const reset = nativeReset.cloneNode(true);
+        reset.setAttribute("role", "button");
+        reset.setAttribute("tabindex", "0");
+        reset.setAttribute("data-codex-model-slider-reset", "");
+        reset.removeAttribute("data-radix-collection-item");
+        reset.addEventListener("click", () => {
+          const currentReset = parentMenu.firstElementChild?.querySelector('[class*="_ResetToDefault_"]');
+          invokeNativeMenuItemSelect(currentReset);
+          queueEnsure();
+        });
+        reset.addEventListener("keydown", (event) => {
+          if (event.key !== "Enter" && event.key !== " ") return;
+          event.preventDefault();
+          reset.click();
+        });
+        viewControls.append(reset);
+      }
+
       if (efforts.length < 2) {
-        shell.append(viewControls);
+        panel.append(viewControls);
         return shell;
       }
 
@@ -2270,7 +2256,7 @@ export function createInjectionSource(features, {
         const staleView = document.createElement("div");
         staleView.className = classes.SimpleView;
         staleView.append(nativeSlider ?? rail);
-        shell.append(viewControls, staleView);
+        panel.append(viewControls, staleView);
         return shell;
       }
       if (!nativeSlider) {
@@ -2303,11 +2289,17 @@ export function createInjectionSource(features, {
         const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / Math.max(1, rect.width)));
         return Math.round(ratio * (efforts.length - 1));
       };
-      const preview = (clientX) => {
-        pendingIndex = indexAt(clientX);
-        setGenericSliderVisual(rail, pendingIndex, efforts.length);
-        rail.setAttribute("aria-valuetext", effortLabel(efforts[pendingIndex]));
+      const previewIndex = (index) => {
+        pendingIndex = index;
+        const effort = efforts[index];
+        setGenericSliderVisual(rail, index, efforts.length);
+        rail.setAttribute("aria-valuetext", effortLabel(effort));
+        if (effortText) {
+          effortText.textContent = effortLabel(effort);
+          effortText.setAttribute("data-maximum", String(effort === "ultra"));
+        }
       };
+      const preview = (clientX) => previewIndex(indexAt(clientX));
       rail.addEventListener("pointerdown", (event) => {
         dragging = true;
         dragRect = rail.getBoundingClientRect();
@@ -2339,6 +2331,7 @@ export function createInjectionSource(features, {
         previewFrame = null;
         pendingClientX = null;
         dragRect = null;
+        previewIndex(selectedIndex);
       });
       rail.addEventListener("keydown", (event) => {
         if (!new Set(["ArrowLeft", "ArrowRight", "Home", "End"]).has(event.key)) return;
@@ -2349,19 +2342,18 @@ export function createInjectionSource(features, {
           efforts.length - 1,
           Math.max(0, pendingIndex + (event.key === "ArrowRight" ? 1 : -1)),
         );
-        setGenericSliderVisual(rail, pendingIndex, efforts.length);
-        rail.setAttribute("aria-valuetext", effortLabel(efforts[pendingIndex]));
+        previewIndex(pendingIndex);
         selectNativeEffort(parentMenu, efforts[pendingIndex]);
       });
       const simpleView = document.createElement("div");
       simpleView.className = classes.SimpleView;
       simpleView.append(nativeSlider ?? rail);
-      shell.append(viewControls, simpleView);
+      panel.append(viewControls, simpleView);
       return shell;
     }
 
     function centerGenericModelPicker(parentMenu) {
-      const trigger = document.querySelector("[data-codex-intelligence-trigger]");
+      const trigger = nativeComposerTrigger();
       if (!trigger) return;
       const menuRect = parentMenu.getBoundingClientRect();
       const triggerRect = trigger.getBoundingClientRect();
@@ -2388,7 +2380,7 @@ export function createInjectionSource(features, {
       // 触发器属性仅在控制器无法解析时作为实时回退，静态目录默认值最后兜底。
       const nativeModel = nativeCatalogModelFor(identity);
       const selectedEffort = nativeModel?.currentReasoningLevel
-        ?? document.querySelector("[data-codex-intelligence-trigger]")
+        ?? nativeComposerTrigger()
           ?.getAttribute("data-selected-reasoning-effort")
         ?? model.defaultReasoningLevel
         ?? efforts[0]?.effort
@@ -2406,7 +2398,8 @@ export function createInjectionSource(features, {
       const selectedEffortValue = visibleEffort;
       const selectedServiceTier = nativeComposerModelController()?.selectedServiceTier;
       const serviceTierKey = selectedServiceTier?.id ?? selectedServiceTier ?? "standard";
-      const key = `${identity.raw}:${selectedEffortValue}:${serviceTierKey}:${efforts.map((level) => level.effort).join(",")}`;
+      const selectionMode = nativeComposerModelController()?.selectionMode ?? "";
+      const key = `${identity.raw}:${selectedEffortValue}:${serviceTierKey}:${selectionMode}:${efforts.map((level) => level.effort).join(",")}`;
       const existing = parentMenu.querySelector(":scope > [data-codex-model-slider-generic]");
       const nativeTemplateReady = Boolean(
         parentMenu.firstElementChild
@@ -2464,7 +2457,7 @@ export function createInjectionSource(features, {
     function enhanceNativeModelPicker(parentMenu, selector) {
       if (enhanceGenericModelPicker(parentMenu, selector)) return;
       const toggle = parentMenu.querySelector("[data-model-picker-view-toggle]");
-      if (toggle) {
+      if (toggle && typeof nativeComposerModelController()?.onSelectModel === "function") {
         // 私有 DOM 无法满足 MCX shell 契约时，保留原生菜单作为降级路径。
         const raw = nativeModelValue(parentMenu);
         const textNode = firstVisibleTextNode(toggle);
@@ -2517,7 +2510,7 @@ export function createInjectionSource(features, {
     }
 
     function enhanceComposerModelTrigger(selector) {
-      const trigger = document.querySelector("[data-codex-intelligence-trigger]");
+      const trigger = nativeComposerTrigger();
       if (!trigger) return;
       if (modelSelectorObservedTrigger !== trigger) {
         modelSelectorTriggerObserver?.disconnect();
@@ -2576,8 +2569,13 @@ export function createInjectionSource(features, {
     function ensureModelSelector() {
       const selector = modelSelectorFeature?.modelSelector;
       if (!selector) return;
+      if (!nativeComposerModelController()) {
+        if (modelSelectorStyle.isConnected) restoreModelSelectorEnhancements();
+        return;
+      }
       pruneModelSubmenuPositionObservers();
       pruneNativeModelToggleHandlers();
+      document.documentElement.setAttribute("data-codex-model-slider-catalog-ready", "");
       if (!modelSelectorStyle.isConnected) document.head?.append(modelSelectorStyle);
       enhanceComposerModelTrigger(selector);
       const parentMenu = nativeModelPickerMenu();

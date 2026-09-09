@@ -194,6 +194,7 @@ async function executeModelSliderInjection({
   let fetchCalls = 0;
   const sourceLink = { href: "app://-/assets/app-initial-fixture.js" };
   const trigger = new FixtureElement("button");
+  trigger.checkVisibility = () => true;
   if (triggerEffort) trigger.setAttribute("data-selected-reasoning-effort", triggerEffort);
   if (controllerProps) {
     trigger.__reactFiber$fixture = { memoizedProps: controllerProps, return: null };
@@ -260,6 +261,7 @@ async function executeModelSliderInjection({
       return selector === 'link[href*="/assets/app-initial-"][href$=".js"]' ? sourceLink : null;
     },
     querySelectorAll(selector) {
+      if (selector === "[data-codex-intelligence-trigger]") return [trigger];
       if (selector === "button") {
         return [toolbarAnchor, ...header.querySelectorAll("button")];
       }
@@ -699,7 +701,7 @@ test("emits a fail-closed native Composer model selector Adapter", () => {
   assert.match(source, /function captureNativeFastIcon\(\)/);
   assert.match(source, /template\.cloneNode\(true\)/);
   // Regression guard: icon building reads the ready store only and must not re-enter capture.
-  assert.match(source, new RegExp(String.raw`const template = modelSelectorNativeFastIcons\?\.\[active \? \"active\" : \"inactive\"\]`));
+  assert.match(source, new RegExp(String.raw`modelSelectorNativeFastIcons\?\.\[active \? \"active\" : \"inactive\"\]`));
   assert.doesNotMatch(source, new RegExp(String.raw`const template = captureNativeFastIcon\(\)\?\.\[active`));
   // Fast icons must be known at startup: bundle extraction + localStorage persist; DOM clone is an upgrade path.
   // P1 guard: Fast-icon capture must run after menu enhancement and be exception-isolated.
@@ -726,16 +728,7 @@ test("emits a fail-closed native Composer model selector Adapter", () => {
   assert.match(source, /function applyNativeFastIconsToShells\(\)/);
   assert.match(source, /modelSelectorNativeFastIconSources\[state\] = "dom"/);
   assert.match(source, /modelSelectorNativeFastIcons\[state\] = template/);
-  assert.match(source, /function chatComposerModelController\(props\)/);
-  assert.match(source, /if \(!Array\.isArray\(props\.models\?\.versionOptions\) \|\| !selected\.versionId\) return null/);
-  assert.match(source, /props\.models\.versionOptions\.find/);
-  assert.match(source, /if \(!version\) return null/);
-  assert.match(source, /const effortFor = \(option\) => String\(option\?\.title \?\? option\?\.lane \?\? ""\)\.toLowerCase\(\)/);
-  assert.match(source, /const selectedOption = options\.find/);
-  assert.match(source, /const selectedEffort = selectedOption \? effortFor\(selectedOption\) : \(efforts\[0\] \?\? "instant"\)/);
-  assert.match(source, /onSelectReasoningEffort\(effort\)/);
-  assert.match(source, /props\.onModelChange\(next\)/);
-  assert.match(source, /if \(target\.thinkingEffort\) next\.thinkingEffort = target\.thinkingEffort;\s*else delete next\.thinkingEffort/);
+  assert.doesNotMatch(source, /function chatComposerModelController\(props\)/);
   assert.match(source, /width: 264px !important; min-width: 264px/);
   assert.match(source, /data-codex-model-slider-item\]\[data-codex-model-slider-selected\].*color-token-list-hover-background/);
   assert.match(source, /data-codex-model-slider-star\]::after \{/);
@@ -773,7 +766,7 @@ test("emits a fail-closed native Composer model selector Adapter", () => {
   assert.match(source, /const shell = createGenericModelSlider[\s\S]*?if \(!shell\) return false/);
   assert.doesNotMatch(source, /_1ryrb_/);
   assert.match(source, /const canUpgradeFallback = Boolean/);
-  assert.match(source, /if \(efforts\.length < 2\) \{\s*shell\.append\(viewControls\);\s*return shell;/);
+  assert.match(source, /if \(efforts\.length < 2\) \{\s*panel\.append\(viewControls\);\s*return shell;/);
   assert.doesNotMatch(source, /if \(!model \|\| efforts\.length < 2\) return false/);
   assert.match(source, /modelSelectorTriggerObserver\.observe\(trigger, \{ childList: true, subtree: true, characterData: true \}\)/);
   assert.match(
@@ -806,7 +799,7 @@ test("emits a fail-closed native Composer model selector Adapter", () => {
   );
   assert.match(
     source,
-    /const dismissAfterCommit = modelSelectorPendingOutsideDismiss;[\s\S]*?invokeNativeMenuItemSelect\(item\)[\s\S]*?closeReactControlledMenu\(item\)[\s\S]*?data-codex-intelligence-trigger/,
+    /const dismissAfterCommit = modelSelectorPendingOutsideDismiss;[\s\S]*?invokeNativeMenuItemSelect\(item\)[\s\S]*?closeReactControlledMenu\(item\)[\s\S]*?nativeComposerTrigger/,
   );
   assert.doesNotMatch(
     source,
@@ -1112,22 +1105,16 @@ test("distinguishes placeholder from real model label, hugging real names", () =
     source,
     /\[class\*="_ModelPickerTriggerModelLabel_"\]:not\(\[data-codex-model-slider-trigger-label\]\) \{/,
   );
-  // 去掉原生预留的 ::before 占位（约 16px），让 hug 的模型按钮相对面板
-  // 全宽居中（有/无 Fast 均适用）；二级模型菜单以 Slider 中心定位。
-  assert.match(
-    source,
-    /data-codex-model-slider-generic\] > :has\(> \[data-codex-model-slider-model-button\]\)::before \{\s*display: none !important; content: none !important;/,
-  );
+  // 复用原生显式模型布局，不再用自定义单行居中样式覆盖原生结构。
+  assert.match(source, /viewControls\.setAttribute\("data-explicit-model", "true"\)/);
+  assert.match(source, /data-codex-model-slider-reset/);
   assert.match(source, /data-codex-model-slider-controller-menu[\s\S]*?transform: translateX\(-50%\) !important;/);
   assert.doesNotMatch(
     source,
     /data-codex-model-slider-trigger\]\[data-state="closed"\] \[class\*="_ModelPickerTriggerContent_"\]/,
   );
-  // Slider 顶部的模型名可显示两行，并随内容撑高。
-  assert.match(
-    source,
-    /data-codex-model-slider-model-label\] \{[\s\S]*?-webkit-line-clamp: 2;[\s\S]*?white-space: normal;/,
-  );
+  // 由原生 ViewPanel 和显式模型状态决定排版与留白。
+  assert.match(source, /panel\.className = classes\.ViewPanel/);
   // 只解析原生语义类名；稳定 data 属性承载蓝色与 Ultra 紫色状态。
   assert.match(source, /"ViewToggleModelLabel",\s*"ViewToggleEffortLabel"/);
   assert.match(source, /buttonLabel\.setAttribute\("data-codex-model-slider-model-label", ""\)/);
