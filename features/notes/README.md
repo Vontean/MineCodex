@@ -3,7 +3,7 @@
 CodexNotes 是一个完全本地的 Codex 个人调用层：在当前对话右上角通过一个
 Notes Toolbar Button 快速查看 Todo、Prompts 和 Files；单个分区超过 5 条时才会
 显示 `View all`，并通过 RuntimeHost 在 Codex 原生右侧工作区打开互不重复、跟随
-当前 Task 的完整 Tab；内部 capability 不可用时才回退到兼容 Tab host。
+当前 Task 的完整 Tab；内部 capability 不可用时显示明确错误。
 
 目标交互与 Codex 原生 Summary 一致：窄空间使用 `Toggle notes` Popover，
 宽空间使用 `Toggle pinned notes`，并在 `shift` / `gutter` 模式中参与对话

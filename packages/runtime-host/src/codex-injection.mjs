@@ -5,7 +5,7 @@
 import { randomBytes } from "node:crypto";
 import { CODEX_THEME_TOKENS } from "./codex-design-contract.mjs";
 
-export const RUNTIME_VERSION = 100;
+export const RUNTIME_VERSION = 101;
 export const HOST_BINDING_NAME = "__codexPersonalHostAction";
 export const CSP_BOOTSTRAP_VERSION = 1;
 export const CSP_BOOTSTRAP_KEY = "__mineCodexCspBootstrapVersion";
@@ -131,6 +131,7 @@ export function createInjectionSource(features, {
     }
     const currentRuntime = window.__codexPersonalRuntime;
     if (currentRuntime?.version === config.version && currentRuntime?.sessionId === config.sessionId) {
+      currentRuntime.updateHostBinding(config.bindingName, config.bindingToken);
       currentRuntime.ensure();
       return;
     }
@@ -2701,6 +2702,21 @@ export function createInjectionSource(features, {
       return true;
     }
 
+    function updateHostBinding(bindingName, bindingToken) {
+      if (config.bindingName === bindingName && config.bindingToken === bindingToken) return;
+      // CDP 重连会轮换 token；保留已有页面和草稿，只重试未就绪的页面。
+      config.bindingName = bindingName;
+      config.bindingToken = bindingToken;
+      for (const [requestId, pending] of pendingHostActions) {
+        if (pending.kind === "surface-load") pendingHostActions.delete(requestId);
+      }
+      for (const record of surfaceRecords.values()) {
+        if (record.ready) continue;
+        record.loading = false;
+        requestSurfaceLoad(record);
+      }
+    }
+
     function postSurfaceActive(record, active) {
       if (!record || record.kind !== "page") return;
       record.frame.contentWindow?.postMessage({
@@ -3832,7 +3848,13 @@ export function createInjectionSource(features, {
       }
 
       try {
-        controller.openTab(scope, nativeDetailComponent(feature, detail), {
+        // 原生 openTab 接收标签描述对象，并在挂载前检查可用性。
+        controller.openTab(scope, {
+          Component: nativeDetailComponent(feature, detail),
+          kind: tabId,
+          dropDestinations: ["right"],
+          isAvailable: () => true,
+        }, {
           id: tabId,
           kind: tabId,
           title: detail.label,
@@ -4421,6 +4443,7 @@ export function createInjectionSource(features, {
     const runtimeApi = {
       version: config.version,
       sessionId: config.sessionId,
+      updateHostBinding,
       ensure: queueEnsure,
       show: showPageSurface,
       hide: () => {
@@ -4542,4 +4565,3 @@ export function createRuntimeReadyContract({
 export function createDocumentBootstrapSource(source) {
   return `window[${JSON.stringify(CSP_BOOTSTRAP_KEY)}] = ${CSP_BOOTSTRAP_VERSION};\n${source}`;
 }
-

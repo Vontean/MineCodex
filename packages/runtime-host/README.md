@@ -132,8 +132,8 @@ Host 会再次发送当前状态。功能页面可据此暂停隐藏状态下的
 - `attach-file`：用 CDP 填充临时 file input，再把真实 `File` drop 给 Composer；只有
   观察到原生附件 chip/preview 才报告 `attach`，否则明确返回 `insert-path`。
 - `open-detail-tab`：动态发现当前 Codex React right-panel controller 与当前 Task scope，
-  用稳定的 `featureId-detailId` 聚焦或创建唯一原生 Tab；capability 不可用时才回退到
-  RuntimeHost 自建的兼容 Tab host。
+  传入包含 `Component`、`isAvailable`、`kind` 和 `dropDestinations` 的标签描述对象，
+  用稳定的 `featureId-detailId` 聚焦或创建唯一原生 Tab；capability 不可用时返回明确错误。
 - `resolve-file-paths`：通过 Codex preload 暴露的 Electron file bridge 解析 Finder
   drop 的真实 `File` 对象。
 
@@ -145,6 +145,8 @@ Host 会再次发送当前状态。功能页面可据此暂停隐藏状态下的
   本地 Surface 不直接导航到 loopback URL：Host 先创建 `about:blank` iframe，再校验
   manifest URL、health service/protocol/instance，抓取 HTML 并用 `Page.setDocumentContent`
   写入目标 frame。Images/Notes 只向精确的 `app://-` Origin 开放 CORS。
+- CDP 重连时同步轮换后的 binding token；保留已就绪的 Surface 和编辑草稿，
+  使用新 token 重试未就绪页面，避免弹窗停留在空白 iframe。
 - 入口由 Renderer 内的 MutationObserver 幂等挂载，React 重绘不会产生重复入口。
 - Summary 根据对话主区域宽度连续派生 `overlay / shift / gutter`：小于 1096px
   使用临时 Popover；1096–1535px 预留 316px 并把对话内容左移 158px；更宽时
@@ -166,7 +168,7 @@ Host 会再次发送当前状态。功能页面可据此暂停隐藏状态下的
 | --- | --- | --- |
 | loopback HTTP、manifest、Surface message schema | 项目自有稳定接口 | 可由测试直接覆盖 |
 | `window.electronBridge.getPathForFile` | 当前稳定 internal/preload | 仅用于 Finder `File` 路径解析 |
-| React right-panel `openTab`、Task scope、JSX runtime | private internal capability | 动态发现 bundle 并做能力检测；失败时回退自建 Tab host |
+| React right-panel `openTab`、Task scope、JSX runtime | private internal capability | 动态发现 bundle 并做能力检测；失败时返回明确的不可用错误 |
 | toolbar、summary、tabs、Composer selectors | DOM inference | 统一留在本 Adapter |
 | `Runtime.addBinding`、`DOM.setFileInputFiles`、注入脚本 | high-risk CDP | 必须使用隔离 profile 验收 |
 | `togglePinnedSummary`、`composer.addFiles` 字符串 | 探索证据 | 当前实现不把它们当契约 |

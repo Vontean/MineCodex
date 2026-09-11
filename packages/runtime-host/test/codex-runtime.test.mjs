@@ -1381,7 +1381,7 @@ test("opens detail views only in Codex native right-panel tabs", () => {
   assert.match(source, /Symbol\.for\("react\.transitional\.element"\)/);
   assert.match(source, /data-codex-personal-native-detail="\$\{detailKey\}"/);
   assert.match(source, /registerSurface\(recordKey, feature, "detail", detail\.surfaceUrl, mounted\.element, mounted\.frame, detail\.id\)/);
-  assert.match(source, /controller\.openTab\(scope, nativeDetailComponent\(feature, detail\)/);
+  assert.match(source, /Component: nativeDetailComponent\(feature, detail\)/);
   assert.match(source, /async function waitForNativeDetailTabElement\(detailKey\)/);
   assert.match(source, /scope\.get\(controller\.tabById\$, tabId\) != null/);
   assert.match(source, /nativeDetailSurfaceKeys\.has\(detailKey\)/);
