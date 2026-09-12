@@ -39,3 +39,18 @@
 Windows 代码目录下保留 `acceptance-run.log`、`windows-tests.log`、`acceptance\ready.json`、界面截图与验收脚本。源码本地测试只证明相应逻辑与契约；未重启 Mac 正常应用。
 
 本次没有发布或全局升级 MCX，没有运行完整正式安装 / 升级 / 卸载链，也没有发送生成图片请求。图片库为空是本机索引结果，不代表生成与编辑链路已做端到端验收。
+
+## 1.1.0 正式发布与安装
+
+随后完成发布前清理，将改动带到同基线的 `main`，提交功能改动 `92f037a` 和版本提交 `f90dbf2`，发布并推送标签 `v1.1.0`。
+
+- 全量测试 232/232、语法检查和发布包审计通过；npm 包包含 124 个文件。
+- TTY `npm publish` 成功；registry 确认 `1.1.0`，SHA-1 为 `1f6ffc882c80e6fc294257dcd8de3c85d4487ba8`。
+- registry 处理期间，Windows 先以相同 SHA-1 的发布 tarball 完成 `npm install -g`；随后核对 registry 校验值一致。
+- Windows 正式代码位于 `%APPDATA%\npm\node_modules\minecodex`，`mcx.cmd` 可从 PATH 找到。
+- `mcx install` 六步成功，`mcx restart` 成功；最终 `installed=true`、后台服务运行、`runtime.healthy=true`、`pendingRestart=false`、四个插件全部 `injected`，无失败记录。
+- 正式 ChatGPT 运行于 Session 1，使用默认用户数据和本机 CDP 9231。
+- 隔离验收窗口和 RuntimeHost 已停止，两项 `MineCodex-Review-*` 任务已移除；仅保留正式 `MineCodex` 后台任务。
+- 旧服务配置和任务定义备份位于 `C:\Users\vonte\mcx-backup-before-1.1.0`；用户 Notes 数据和应用默认 profile 保留。
+
+以上覆盖正式安装与重启；本次未执行卸载或再次升级。此前“未发布 / 未正式安装”的说明仅描述隔离验收阶段。
