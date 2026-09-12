@@ -17,7 +17,7 @@ MineCodex 给 Codex Desktop 增加一组轻量、本地优先的扩展功能。�
 
 ## 安装
 
-MineCodex 目前仅支持 macOS 系统，需要 Node.js 22.5 或更高版本。安装程序会自动扫描 `/Applications/ChatGPT.app` 或 `~/Applications/ChatGPT.app` 寻找 Codex Desktop；如果两处均未找到，安装将暂停并给出说明。
+MineCodex 支持 macOS 与 Windows 系统，需要 Node.js 22.5 或更高版本。安装程序会自动扫描 `/Applications/ChatGPT.app` 或 `~/Applications/ChatGPT.app` 寻找 Codex Desktop；在 Windows 上则通过 MSIX 包（`OpenAI.Codex`）定位官方 ChatGPT 应用并校验 OpenAI 签名。如果均未找到，安装将暂停并给出说明。
 
 ```bash
 npm install -g minecodex
@@ -28,7 +28,7 @@ mcx install
 
 `mcx install`、`mcx update`、`mcx restart` 和 `mcx uninstall` 会在终端持续显示当前阶段；`mcx open` 仅在需要启动后台服务时显示进度。查询类命令保持简洁，便于直接阅读或用于脚本。
 
-MineCodex 只以后台辅助服务运行，前台应用始终是 OpenAI 签名的官方 `ChatGPT.app`，并继续使用官方默认用户数据。通过 Dock、Finder、Spotlight、登录项或会话恢复打开 ChatGPT 时，后台服务会验证官方应用与对应进程；若该进程尚未开放兼容的本机调试端口，则确认其完整退出后再通过 LaunchServices 重新打开官方应用并注入功能。MineCodex 不修改 `ChatGPT.app`、`app.asar`、Dock 项目或默认打开方式。
+MineCodex 只以后台辅助服务运行，前台应用始终是 OpenAI 签名的官方 ChatGPT 应用，并继续使用官方默认用户数据。通过 Dock、Finder、Spotlight、登录项或会话恢复打开 ChatGPT 时，后台服务会验证官方应用与对应进程；若该进程尚未开放兼容的本机调试端口，则确认其完整退出后再重新打开官方应用并注入功能。MineCodex 不修改官方应用文件、`app.asar`、Dock 项目或默认打开方式。在 macOS 上，后台项目出现在"登录项与扩展"中；在 Windows 上，后台任务出现在任务计划程序（任务名 `MineCodex`）。
 
 打开本地控制台：
 

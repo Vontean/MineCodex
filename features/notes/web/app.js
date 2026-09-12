@@ -1,3 +1,4 @@
+const submitShortcut = /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘↩" : "Ctrl+Enter";
 const params = new URL(document.baseURI).searchParams;
 import { setLocale, getLocale, t, localizedErrorMessage } from "./i18n.mjs";
 import { CODEX_COLOR_FILE_ICONS, codexFileIconKind } from "./file-icons.mjs";
@@ -374,7 +375,7 @@ function renderEditor() {
           <textarea name="body" aria-label="${escapeHtml(t("todoText"))}" placeholder="${escapeHtml(t("todoPlaceholder"))}" autofocus>${escapeHtml(draft?.body)}</textarea>
         </div>
         <div class="modal-actions">
-          ${modalCommand(editing ? t("saveTodo") : t("addTodo"), { submit: true, shortcut: "⌘↩", disabled: !draft?.body.trim() })}
+          ${modalCommand(editing ? t("saveTodo") : t("addTodo"), { submit: true, shortcut: submitShortcut, disabled: !draft?.body.trim() })}
           ${modalCommand(t("cancel"), { action: "close-editor", shortcut: "esc" })}
         </div>
       </form>
@@ -390,7 +391,7 @@ function renderEditor() {
         <textarea name="body" aria-label="${escapeHtml(t("promptBody"))}" placeholder="${escapeHtml(t("promptPlaceholder"))}" autofocus>${escapeHtml(draft?.body)}</textarea>
       </div>
       <div class="modal-actions">
-        ${modalCommand(editing ? t("savePrompt") : t("addPrompt"), { submit: true, shortcut: "⌘↩", disabled: !draft?.body.trim() })}
+        ${modalCommand(editing ? t("savePrompt") : t("addPrompt"), { submit: true, shortcut: submitShortcut, disabled: !draft?.body.trim() })}
         ${modalCommand(t("cancel"), { action: "close-editor", shortcut: "esc" })}
       </div>
     </form>
@@ -1156,7 +1157,7 @@ document.addEventListener("keydown", (event) => {
     closeEditor();
     return;
   }
-  if (event.key === "Enter" && event.metaKey) {
+  if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
     event.preventDefault();
     const form = app.querySelector("form");
     const submit = form?.querySelector('button[type="submit"]');

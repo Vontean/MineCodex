@@ -1531,3 +1531,19 @@ test("keeps the existing owner marker path untouched when temporary marker writi
   );
   assert.deepEqual(calls.map(([operation]) => operation), ["open", "close", "unlink"]);
 });
+
+test("runtime manager requests IPC cleanup before terminating a connected runtime", async () => {
+  const child = new EventEmitter();
+  child.connected = true;
+  child.exitCode = null;
+  let message;
+  child.send = (value, callback) => {
+    message = value;
+    callback(null);
+    queueMicrotask(() => { child.exitCode = 0; child.emit("exit", 0, null); });
+  };
+  child.kill = () => assert.fail("graceful IPC shutdown must not force-kill the runtime");
+  const manager = new RuntimeManager({ paths: {}, sleep: () => new Promise((resolve) => setImmediate(resolve)) });
+  assert.equal(await manager.waitForExactExit(child, "SIGTERM", 1000), true);
+  assert.deepEqual(message, { type: "minecodex:shutdown" });
+});

@@ -55,7 +55,7 @@ test("native Image Details editor matches the measured Codex image toolbar and m
   assert.match(app, /redo\.hidden = !historyVisible/);
   assert.match(app, /function openCommentEditor\(comment\)/);
   assert.match(app, /comment\.editingExisting = !isNew/);
-  assert.match(app, /aria-label", "Delete comment"/);
+  assert.match(app, /aria-label", t\("Delete comment"\)/);
   assert.match(app, /save\.disabled = !textarea\.value\.trim\(\)/);
   assert.match(app, /finishExistingEdit\(\{ restore: true \}\)/);
   assert.doesNotMatch(app.match(/function annotationPng\(comments\)[\s\S]*?function removeMaskPng/s)?.[0] ?? "", /drawImage\(/);

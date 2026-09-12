@@ -190,7 +190,7 @@ export class RuntimeManager {
     const child = this.spawnProcess(process.execPath, [this.paths.runtimeEntry], {
       cwd: this.paths.packageRoot,
       env: runtimeEnvironment,
-      stdio: "inherit",
+      stdio: ["inherit", "inherit", "inherit", "ipc"],
     });
     this.child = child;
     if (hasExited(child)) {
@@ -479,7 +479,14 @@ export class RuntimeManager {
     child.once("exit", onExit);
     try {
       try {
-        child.kill(signal);
+        // Windows 的 SIGTERM 会强杀；先请求宿主清理插件子进程。
+        if (signal === "SIGTERM" && child.connected && typeof child.send === "function") {
+          child.send({ type: "minecodex:shutdown" }, (error) => {
+            if (error && !hasExited(child)) this.logger.warn?.("Runtime shutdown request failed", error.message);
+          });
+        } else {
+          child.kill(signal);
+        }
       } catch (error) {
         if (error?.code === "ESRCH") return true;
         throw error;

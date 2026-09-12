@@ -1,7 +1,7 @@
 import { access, readFile, rm } from "node:fs/promises";
 import path from "node:path";
 import { createInterface } from "node:readline/promises";
-import { assertNodeSupported, MacPlatformAdapter } from "./platform.mjs";
+import { assertNodeSupported, createPlatformAdapter } from "./platform.mjs";
 import { ensureConfig, ensureControlToken, readConfig } from "./config.mjs";
 import { createControlServer } from "./control-server.mjs";
 import { createProgressReporter } from "./progress.mjs";
@@ -81,7 +81,7 @@ function printHelp(output = console.log) {
 Usage: mcx <command>
 
 Commands:
-  mcx install              Install or repair MineCodex on macOS
+  mcx install              Install or repair MineCodex on macOS or Windows
   mcx uninstall [--purge]  Remove integration; preserve data unless --purge is used
   mcx update               Update to the latest stable npm release
   mcx open                 Open the MineCodex plugin control panel
@@ -427,7 +427,7 @@ async function serveCommand({ paths, platform, logger }) {
 
 export async function runCli(argv, {
   paths = resolvePaths(),
-  platform = new MacPlatformAdapter(),
+  platform = createPlatformAdapter(),
   cliPath = process.argv[1],
   output = console.log,
   logger = console,

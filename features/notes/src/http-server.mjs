@@ -181,6 +181,7 @@ function requestLocale(request) {
 }
 
 async function chooseFiles({ locale = "en" } = {}) {
+  if (process.platform === "win32") return chooseFilesWindows(locale);
   if (process.platform !== "darwin") {
     throw new ProductError("The system picker is currently available on macOS", {
       code: "PICKER_UNAVAILABLE",
@@ -197,6 +198,33 @@ async function chooseFiles({ locale = "en" } = {}) {
     if (String(error.stderr ?? error.message).includes("-128")) {
       return { cancelled: true, paths: [] };
     }
+    throw new ProductError("The system file picker could not be opened", {
+      code: "PICKER_FAILED",
+      status: 503,
+    });
+  }
+}
+
+// Windows 系统文件选择器：WinForms OpenFileDialog（STA 必需）。
+async function chooseFilesWindows(locale) {
+  const psSingleQuoted = (value) => "'" + String(value).replaceAll("'", "''") + "'";
+  const script = [
+    "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8",
+    "Add-Type -AssemblyName System.Windows.Forms | Out-Null",
+    "$dialog = New-Object System.Windows.Forms.OpenFileDialog",
+    "$dialog.Title = " + psSingleQuoted(locale === "zh-CN" ? "选择要添加的文件" : "Choose files to add"),
+    "$dialog.Multiselect = $true",
+    "if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { $dialog.FileNames | ForEach-Object { [Console]::Out.WriteLine($_) } } else { [Console]::Out.Write('CANCELED') }",
+  ].join("; ");
+  try {
+    const { stdout } = await execFileAsync("powershell.exe", ["-NoProfile", "-STA", "-Command", script], {
+      maxBuffer: 1024 * 1024,
+    });
+    const output = String(stdout).trim();
+    if (output === "CANCELED") return { cancelled: true, paths: [] };
+    const paths = output.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    return { cancelled: false, paths };
+  } catch (error) {
     throw new ProductError("The system file picker could not be opened", {
       code: "PICKER_FAILED",
       status: 503,

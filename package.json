@@ -63,9 +63,11 @@
     "codex",
     "minecodex",
     "macos",
+    "windows",
     "plugins"
   ],
   "os": [
-    "darwin"
+    "darwin",
+    "win32"
   ]
 }

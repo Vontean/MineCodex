@@ -7,7 +7,42 @@ export const PACKAGE_ROOT = path.resolve(
   "../../..",
 );
 
-export function resolvePaths({ homeDir = os.homedir() } = {}) {
+export function resolvePaths({ homeDir = os.homedir(), platform = process.platform } = {}) {
+  if (platform === "win32") {
+    // 任何宿主上跑 win32 逻辑都得到规范的 Windows 路径（Windows node 上 path.win32 === path）。
+    const winPath = path.win32;
+    const appDataDir = process.env.APPDATA ?? winPath.join(homeDir, "AppData", "Roaming");
+    const localAppDataDir = process.env.LOCALAPPDATA ?? winPath.join(homeDir, "AppData", "Local");
+    const supportDir = winPath.join(appDataDir, "MineCodex");
+    const logsDir = winPath.join(localAppDataDir, "MineCodex", "Logs");
+    const serviceDir = winPath.join(supportDir, "service");
+    return Object.freeze({
+      homeDir,
+      packageRoot: PACKAGE_ROOT,
+      featuresRoot: path.join(PACKAGE_ROOT, "features"),
+      dashboardDir: path.join(PACKAGE_ROOT, "apps", "dashboard"),
+      runtimeEntry: winPath.join(PACKAGE_ROOT, "packages", "runtime-host", "src", "main.mjs"),
+      supportDir,
+      logsDir,
+      serviceDir,
+      // Windows 无 .app 服务包；服务入口是计划任务拉起的 cmd 脚本。
+      serviceBundleSource: null,
+      serviceAppPath: winPath.join(serviceDir, "MineCodexService.cmd"),
+      serviceManagerPath: null,
+      serviceRuntimeConfigPath: winPath.join(supportDir, "service-runtime.json"),
+      configPath: winPath.join(supportDir, "config.json"),
+      tokenPath: winPath.join(supportDir, "control-token"),
+      pidPath: winPath.join(supportDir, "service.pid"),
+      codexPidPath: winPath.join(supportDir, "codex.pid"),
+      runtimeReadyPath: winPath.join(supportDir, "runtime-ready.json"),
+      profileDir: winPath.join(localAppDataDir, "MineCodex", "codex-profile"),
+      launchAgentPath: null,
+      serviceLogPath: winPath.join(logsDir, "runtime.log"),
+      serviceErrorLogPath: winPath.join(logsDir, "runtime-error.log"),
+      notesDataDir: winPath.join(appDataDir, "CodexNotes"),
+      imagesDataDir: winPath.join(homeDir, ".codex-image-host"),
+    });
+  }
   const supportDir = path.join(homeDir, "Library", "Application Support", "MineCodex");
   const logsDir = path.join(homeDir, "Library", "Logs", "MineCodex");
   const serviceDir = path.join(supportDir, "service");

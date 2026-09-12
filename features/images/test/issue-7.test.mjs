@@ -12,7 +12,7 @@ test("Images split detail exposes honest region semantics and a shared keyboard 
   assert.match(html, /class="detail-drawer"[^>]*role="region"/);
   assert.doesNotMatch(html, /aria-modal=/);
   assert.match(html, /aria-labelledby="drawer-title"/);
-  assert.match(html, /<h2 id="drawer-title">Image details<\/h2>/);
+  assert.match(html, /<h2 id="drawer-title"[^>]*>Image details<\/h2>/);
   assert.match(html, /class="status-announcer" role="status" aria-live="polite" aria-atomic="true"/);
 
   assert.match(app, /let drawerOrigin = null/);

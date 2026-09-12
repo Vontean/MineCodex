@@ -366,8 +366,8 @@ test("Summary launches a Commit-level editor dialog with role-specific native su
   assert.match(app, /function modalEditorTitle\(kind, label\)/);
   assert.match(app, /modalEditorTitle\("todo", editing \? t\("editTodo"\) : t\("newTodo"\)\)/);
   assert.match(app, /modalEditorTitle\("prompt", editing \? t\("editPrompt"\) : t\("newPrompt"\)\)/);
-  assert.match(app, /modalCommand\(editing \? t\("saveTodo"\) : t\("addTodo"\), \{ submit: true, shortcut: "⌘↩", disabled: !draft\?\.body\.trim\(\) \}\)/);
-  assert.match(app, /modalCommand\(editing \? t\("savePrompt"\) : t\("addPrompt"\), \{ submit: true, shortcut: "⌘↩", disabled: !draft\?\.body\.trim\(\) \}\)/);
+  assert.match(app, /modalCommand\(editing \? t\("saveTodo"\) : t\("addTodo"\), \{ submit: true, shortcut: submitShortcut, disabled: !draft\?\.body\.trim\(\) \}\)/);
+  assert.match(app, /modalCommand\(editing \? t\("savePrompt"\) : t\("addPrompt"\), \{ submit: true, shortcut: submitShortcut, disabled: !draft\?\.body\.trim\(\) \}\)/);
   assert.match(app, /function syncEditorSubmitState\(form\)/);
   assert.match(app, /submit\.disabled = !body\?\.value\.trim\(\)/);
   assert.match(app, /if \(!submit\?\.disabled\) form\?\.requestSubmit\(submit\)/);

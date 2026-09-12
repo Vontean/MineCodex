@@ -1187,7 +1187,7 @@ test("emits an isolated conversation-toolbar Adapter with strict Surface and Hos
   });
 
   assert.match(source, /if \(window\.top !== window\) return/);
-  assert.match(source, /event\.origin === record\.origin && event\.source === record\.frame\.contentWindow/);
+  assert.match(source, /event\.source === record\.frame\.contentWindow/);
   assert.match(source, /feature\?\.hostActions\.has\(action\)/);
   assert.match(source, /"bindingName":"__testHostAction"/);
   assert.match(source, /"bindingToken":"unique-test-token"/);

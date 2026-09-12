@@ -1,3 +1,5 @@
+import { getLocale, setLocale, t, translateDocument } from "./i18n.mjs";
+
 const shell = document.querySelector(".library-shell");
 const libraryHeader = document.querySelector(".library-header");
 const sidebarOpenButton = document.querySelector(".sidebar-open-button");
@@ -112,6 +114,13 @@ try {
 
 function applyHostTheme(payload) {
   if (!payload || !new Set(["light", "dark"]).has(payload.theme)) return;
+  if (setLocale(payload.locale ?? navigator.language)) {
+    translateDocument(document);
+    renderSourceMenu();
+    render();
+    if (activeImage) showImageDetails(activeImage);
+    if (editMode) renderEditMode();
+  }
   root.dataset.host = "codex";
   root.dataset.theme = payload.theme;
   root.style.colorScheme = payload.theme;
@@ -148,7 +157,7 @@ function applySidebarState(payload) {
   const open = Boolean(payload?.open);
   const label = typeof payload?.label === "string" && payload.label.trim()
     ? payload.label.trim()
-    : "Show sidebar";
+    : t("Show sidebar");
   const visible = available && !open;
   const leading = Number(payload?.leading);
   sidebarOpenButton.hidden = !visible;
@@ -172,16 +181,16 @@ if (window.parent !== window) {
   window.parent.postMessage({ type: "codex-personal:ready" }, "*");
 }
 
-const dateFormatter = new Intl.DateTimeFormat(undefined, {
+const dateFormatter = { format: (value) => new Intl.DateTimeFormat(getLocale(), {
   year: "numeric",
   month: "short",
   day: "numeric",
   hour: "2-digit",
   minute: "2-digit",
-});
+}).format(value) };
 
 function formatBytes(bytes) {
-  if (!Number.isFinite(bytes)) return "Original file";
+  if (!Number.isFinite(bytes)) return t("Original file");
   if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
@@ -204,12 +213,12 @@ function createSourceIcon(kind) {
 
 function sourcePresentation(image) {
   if (image.sourceKind === "project") {
-    return { kind: "project", label: image.projectName || "Project" };
+    return { kind: "project", label: image.projectName || t("Project") };
   }
   if (image.sourceKind === "work") {
-    return { kind: "work", label: image.threadTitle || "Work" };
+    return { kind: "work", label: image.threadTitle || t("Work") };
   }
-  return { kind: "chat", label: image.threadTitle || "Untitled chat" };
+  return { kind: "chat", label: image.threadTitle || t("Untitled chat") };
 }
 
 function createSourceValue(kind, label, className = "") {
@@ -222,13 +231,13 @@ function createSourceValue(kind, label, className = "") {
 }
 
 function selectedFacet() {
-  if (selectedScope === "all") return { label: "All images", count: facets.total, kind: "all" };
-  if (selectedScope === "chat") return { label: "Chats", count: facets.chats, kind: "chat" };
-  if (selectedScope === "work") return { label: "Work", count: facets.works, kind: "work" };
+  if (selectedScope === "all") return { label: t("All images"), count: facets.total, kind: "all" };
+  if (selectedScope === "chat") return { label: t("Chats"), count: facets.chats, kind: "chat" };
+  if (selectedScope === "work") return { label: t("Work"), count: facets.works, kind: "work" };
   const project = facets.projects.find((item) => item.scope === selectedScope);
   return project
     ? { label: project.name, count: project.count, kind: "project" }
-    : { label: "All images", count: facets.total, kind: "all" };
+    : { label: t("All images"), count: facets.total, kind: "all" };
 }
 
 function updateFilterTrigger() {
@@ -236,7 +245,7 @@ function updateFilterTrigger() {
   filterSourceIcon.replaceChildren(createSourceIcon(selected.kind));
   filterLabel.textContent = selected.label;
   filterCount.textContent = String(selected.count);
-  filterButton.title = `${selected.label} · ${selected.count} images`;
+  filterButton.title = t("{source} · {count} images", { source: selected.label, count: selected.count });
 }
 
 function createSourceOption({ scope, label, count, kind }) {
@@ -263,9 +272,9 @@ function createSourceOption({ scope, label, count, kind }) {
 }
 
 function renderSourceMenu() {
-  const all = createSourceOption({ scope: "all", label: "All images", count: facets.total, kind: "all" });
-  const chats = createSourceOption({ scope: "chat", label: "Chats", count: facets.chats, kind: "chat" });
-  const work = createSourceOption({ scope: "work", label: "Work", count: facets.works, kind: "work" });
+  const all = createSourceOption({ scope: "all", label: t("All images"), count: facets.total, kind: "all" });
+  const chats = createSourceOption({ scope: "chat", label: t("Chats"), count: facets.chats, kind: "chat" });
+  const work = createSourceOption({ scope: "work", label: t("Work"), count: facets.works, kind: "work" });
   const divider = document.createElement("div");
   divider.className = "source-menu-divider";
   divider.setAttribute("role", "separator");
@@ -310,7 +319,7 @@ function openSourceMenu({ focusIndex = null } = {}) {
 
 async function loadFacets() {
   const response = await fetch("/api/image-facets");
-  if (!response.ok) throw new Error("Could not load image sources");
+  if (!response.ok) throw new Error(t("Could not load image sources"));
   facets = await response.json();
   if (
     selectedScope !== "all"
@@ -388,11 +397,11 @@ function createCard(image) {
   button.dataset.imageId = image.id;
   const createdAt = dateFormatter.format(new Date(image.createdAt));
   const source = sourcePresentation(image);
-  button.setAttribute("aria-label", `Open image from ${source.label}, created ${createdAt}`);
+  button.setAttribute("aria-label", t("Open image from {source}, created {date}", { source: source.label, date: createdAt }));
 
   const preview = document.createElement("img");
   preview.src = image.fileUrl;
-  preview.alt = image.prompt || "Generated image";
+  preview.alt = image.prompt || t("Generated image");
   preview.loading = "lazy";
   preview.decoding = "async";
   if (image.width && image.height) {
@@ -420,12 +429,12 @@ function createThreadBoard(group) {
   button.type = "button";
   button.dataset.threadId = group.threadId;
   const sourceLabel = group.sourceKind === "project"
-    ? (group.projectName || "Project")
-    : group.sourceKind === "work" ? "Work" : "Chat";
+    ? (group.projectName || t("Project"))
+    : group.sourceKind === "work" ? t("Work") : t("Chat");
   const threadTitle = group.threadTitle || (
-    group.sourceKind === "project" ? "Untitled task" : group.sourceKind === "work" ? "Untitled work" : "Untitled chat"
+    group.sourceKind === "project" ? t("Untitled task") : group.sourceKind === "work" ? t("Untitled work") : t("Untitled chat")
   );
-  button.setAttribute("aria-label", `Open ${threadTitle}, ${group.imageCount} images`);
+  button.setAttribute("aria-label", t("Open {title}, {count} images", { title: threadTitle, count: group.imageCount }));
 
   const preview = document.createElement("span");
   preview.className = "thread-board-preview";
@@ -464,7 +473,7 @@ function createThreadBoard(group) {
   const meta = document.createElement("span");
   meta.className = "thread-board-meta";
   const imageCount = document.createElement("span");
-  imageCount.textContent = `${group.imageCount} ${group.imageCount === 1 ? "image" : "images"}`;
+  imageCount.textContent = t(group.imageCount === 1 ? "{count} image" : "{count} images", { count: group.imageCount });
   const updatedAt = document.createElement("span");
   updatedAt.textContent = dateFormatter.format(new Date(group.updatedAt));
   meta.append(imageCount, updatedAt);
@@ -478,17 +487,17 @@ function createThreadBoard(group) {
 function updateEmptyState() {
   empty.hidden = totalItems !== 0;
   if (viewContext === "thread") {
-    emptyTitle.textContent = "No images in this Thread";
-    emptyDescription.textContent = "Return to the library and choose another Thread.";
+    emptyTitle.textContent = t("No images in this Thread");
+    emptyDescription.textContent = t("Return to the library and choose another Thread.");
     return;
   }
   const selected = selectedFacet();
   if (selectedScope === "all") {
-    emptyTitle.textContent = "No images yet";
-    emptyDescription.textContent = "Generate an image in any Task and it will appear here automatically.";
+    emptyTitle.textContent = t("No images yet");
+    emptyDescription.textContent = t("Generate an image in any Task and it will appear here automatically.");
   } else {
-    emptyTitle.textContent = `No images in ${selected.label}`;
-    emptyDescription.textContent = "Choose another source or generate a new image in this Task.";
+    emptyTitle.textContent = t("No images in {source}", { source: selected.label });
+    emptyDescription.textContent = t("Choose another source or generate a new image in this Task.");
   }
 }
 
@@ -529,7 +538,7 @@ async function loadPage({ reset = false, preserveScroll = false } = {}) {
   const preservedScrollTop = reset && preserveScroll ? scrollArea.scrollTop : null;
   const request = (async () => {
     const response = await fetch(pageUrl({ offset }));
-    if (!response.ok) throw new Error("Could not load images");
+    if (!response.ok) throw new Error(t("Could not load images"));
     const payload = await response.json();
     if (generation !== loadGeneration) return;
 
@@ -584,7 +593,7 @@ async function toggleThreadGrouping() {
 async function checkForUpdates() {
   if (!canPollForUpdates()) return;
   const response = await fetch(pageUrl({ offset: 0, limit: 1 }));
-  if (!response.ok) throw new Error("Could not check for new images");
+  if (!response.ok) throw new Error(t("Could not check for new images"));
   const payload = await response.json();
   const nextItems = groupByThread ? payload.groups : payload.images;
   const nextFirst = nextItems[0];
@@ -671,8 +680,8 @@ function resetCopyFeedback() {
   promptCopyIcon.removeAttribute("hidden");
   promptCheckIcon.setAttribute("hidden", "");
   promptCopyButton.classList.remove("is-copied");
-  promptCopyButton.setAttribute("aria-label", "Copy generation prompt");
-  promptCopyButton.title = "Copy prompt";
+  promptCopyButton.setAttribute("aria-label", t("Copy generation prompt"));
+  promptCopyButton.title = t("Copy prompt");
 }
 
 function updateSourceAction(image) {
@@ -684,11 +693,11 @@ function updateSourceAction(image) {
   if (unavailable) {
     sourceButton.setAttribute("aria-describedby", sourceTooltip.id);
     sourceTooltip.textContent = archived
-      ? "This Thread has been archived and can’t be opened."
-      : "This ChatGPT conversation cannot be opened from Images.";
+      ? t("This Thread has been archived and can’t be opened.")
+      : t("This ChatGPT conversation cannot be opened from Images.");
     sourceButton.setAttribute("aria-label", archived
-      ? "Open Thread unavailable: this Thread has been archived"
-      : "Open conversation unavailable");
+      ? t("Open Thread unavailable: this Thread has been archived")
+      : t("Open conversation unavailable"));
   } else {
     sourceButton.removeAttribute("aria-describedby");
     sourceButton.removeAttribute("aria-label");
@@ -796,11 +805,11 @@ function showImageDetails(image) {
   const isProject = image.sourceKind === "project";
   const isWork = image.sourceKind === "work";
   drawerProjectRow.hidden = !isProject;
-  if (isProject) drawerProject.textContent = image.projectName || "Project";
-  drawerTaskLabel.textContent = isProject ? "Thread" : isWork ? "Work" : "Chat";
-  drawerThread.textContent = image.threadTitle || (isProject ? "Untitled task" : isWork ? "Untitled work" : "Untitled chat");
+  if (isProject) drawerProject.textContent = image.projectName || t("Project");
+  drawerTaskLabel.textContent = isProject ? t("Thread") : isWork ? t("Work") : t("Chat");
+  drawerThread.textContent = image.threadTitle || (isProject ? t("Untitled task") : isWork ? t("Untitled work") : t("Untitled chat"));
   drawerImage.src = image.fileUrl;
-  drawerImage.alt = image.prompt || "Generated image";
+  drawerImage.alt = image.prompt || t("Generated image");
   if (image.width && image.height) {
     drawerImage.width = image.width;
     drawerImage.height = image.height;
@@ -809,9 +818,9 @@ function showImageDetails(image) {
     drawerImage.removeAttribute("height");
   }
   drawerDate.textContent = dateFormatter.format(new Date(image.createdAt));
-  drawerSize.textContent = image.width && image.height ? `${image.width} × ${image.height}` : "Original";
+  drawerSize.textContent = image.width && image.height ? `${image.width} × ${image.height}` : t("Original");
   drawerFileSize.textContent = formatBytes(image.byteLength);
-  drawerPrompt.textContent = image.prompt || "Prompt is not available for this image.";
+  drawerPrompt.textContent = image.prompt || t("Prompt is not available for this image.");
   drawerPrompt.classList.toggle("is-missing", !image.prompt);
   promptCopyButton.disabled = !image.prompt;
   updateSourceAction(image);
@@ -822,7 +831,7 @@ async function openImage(image, originatingElement = null) {
   if (originatingElement) rememberDrawerOrigin(originatingElement);
   const request = ++detailRequest;
   showImageDetails(image);
-  drawerPrompt.textContent = "Loading generation prompt…";
+  drawerPrompt.textContent = t("Loading generation prompt…");
   drawerPrompt.classList.add("is-loading");
   drawerPrompt.classList.remove("is-missing");
   promptCopyButton.disabled = true;
@@ -836,15 +845,15 @@ async function openImage(image, originatingElement = null) {
 
   try {
     const response = await fetch(`/api/images/${image.id}`);
-    if (!response.ok) throw new Error("Could not load image details");
+    if (!response.ok) throw new Error(t("Could not load image details"));
     const payload = await response.json();
     if (request !== detailRequest) return;
     showImageDetails(payload.image);
   } catch (error) {
     if (request !== detailRequest) return;
-    drawerPrompt.textContent = "Prompt could not be loaded.";
+    drawerPrompt.textContent = t("Prompt could not be loaded.");
     drawerPrompt.classList.add("is-missing");
-    announce("Prompt could not be loaded.");
+    announce(t("Prompt could not be loaded."));
     console.error(error);
   } finally {
     if (request === detailRequest) drawerPrompt.classList.remove("is-loading");
@@ -1017,9 +1026,9 @@ rescan.addEventListener("click", async () => {
     await Promise.all([
       (async () => {
         const response = await fetch("/api/rescan", { method: "POST" });
-        if (!response.ok) throw new Error("Could not refresh images");
+        if (!response.ok) throw new Error(t("Could not refresh images"));
         const result = await response.json();
-        announce(result.inProgress ? "Image refresh is already in progress." : "Images refreshed.");
+        announce(result.inProgress ? t("Image refresh is already in progress.") : t("Images refreshed."));
         await loadFacets();
         if (shell.classList.contains("drawer-open") && activeImage) {
           const detailResponse = await fetch(`/api/images/${activeImage.id}`);
@@ -1053,16 +1062,16 @@ promptCopyButton.addEventListener("click", async () => {
   const prompt = activeImage?.prompt;
   if (!prompt) return;
   if (!(await copyText(prompt))) {
-    announce("Prompt could not be copied.");
+    announce(t("Prompt could not be copied."));
     return;
   }
   resetCopyFeedback();
   promptCopyIcon.setAttribute("hidden", "");
   promptCheckIcon.removeAttribute("hidden");
   promptCopyButton.classList.add("is-copied");
-  promptCopyButton.setAttribute("aria-label", "Prompt copied");
-  promptCopyButton.title = "Copied";
-  announce("Prompt copied.");
+  promptCopyButton.setAttribute("aria-label", t("Prompt copied"));
+  promptCopyButton.title = t("Copied");
+  announce(t("Prompt copied."));
   copyFeedbackTimer = setTimeout(resetCopyFeedback, 2000);
 });
 
@@ -1070,14 +1079,14 @@ saveButton.addEventListener("click", async () => {
   if (!activeImage) return;
   const imageId = activeImage.id;
   saveButton.disabled = true;
-  saveButton.textContent = "Saving…";
+  saveButton.textContent = t("Saving…");
   try {
-    const response = await fetch(`/api/images/${imageId}/save-as`, { method: "POST" });
-    if (!response.ok) throw new Error("Could not save image");
+    const response = await fetch(`/api/images/${imageId}/save-as?locale=${getLocale()}`, { method: "POST" });
+    if (!response.ok) throw new Error(t("Could not save image"));
     const result = await response.json();
     if (result.saved) {
-      saveButton.textContent = "Saved";
-      announce("Image saved.");
+      saveButton.textContent = t("Saved");
+      announce(t("Image saved."));
       await new Promise((resolve) => setTimeout(resolve, 1200));
     }
   } catch (error) {
@@ -1085,7 +1094,7 @@ saveButton.addEventListener("click", async () => {
     console.error(error);
   } finally {
     saveButton.disabled = false;
-    saveButton.textContent = "Save as";
+    saveButton.textContent = t("Save as");
   }
 });
 
@@ -1170,19 +1179,19 @@ function resetZoom() {
 }
 
 function requestHostAction(action, payload) {
-  if (window.parent === window) return Promise.reject(new Error("Image editing is available inside Codex only."));
+  if (window.parent === window) return Promise.reject(new Error(t("Image editing is available inside Codex only.")));
   const requestId = crypto.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
       window.removeEventListener("message", onResult);
-      reject(new Error("Codex did not respond to the image edit request."));
+      reject(new Error(t("Codex did not respond to the image edit request.")));
     }, 30_000);
     function onResult(event) {
       if (event.source !== window.parent || event.data?.type !== "codex-personal:host-result" || event.data?.requestId !== requestId) return;
       clearTimeout(timeout);
       window.removeEventListener("message", onResult);
       if (event.data.ok) resolve(event.data.result);
-      else reject(new Error(event.data.error?.message || "Codex could not start the image edit."));
+      else reject(new Error(event.data.error?.message || t("Codex could not start the image edit.")));
     }
     window.addEventListener("message", onResult);
     window.parent.postMessage({ type: "codex-personal:host-action", requestId, action, payload }, "*");
@@ -1237,14 +1246,14 @@ function removeMaskPng() {
 }
 
 async function sendImageEdit(kind, detail) {
-  if (!activeImage || !drawerImage.naturalWidth) throw new Error("The original image is not ready.");
+  if (!activeImage || !drawerImage.naturalWidth) throw new Error(t("The original image is not ready."));
   let auxiliaryPngBase64 = null;
   let prompt;
   if (kind === "comment") {
     const comments = editComments
       .map((comment) => ({ ...comment, text: committedCommentText(comment) }))
       .filter((comment) => comment.text?.trim());
-    if (!comments.length) throw new Error("Add at least one comment before sending.");
+    if (!comments.length) throw new Error(t("Add at least one comment before sending."));
     auxiliaryPngBase64 = annotationPng(comments);
     prompt = `Edit the first attached image according to the numbered comments. The second attachment is a transparent position overlay aligned exactly to the first image.\n${comments.map((comment, index) => `${index + 1}. ${comment.text} (at ${Math.round(comment.x * 100)}% from left, ${Math.round(comment.y * 100)}% from top)`).join("\n")}`;
   } else if (kind === "remove") {
@@ -1258,7 +1267,7 @@ async function sendImageEdit(kind, detail) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ imageId: activeImage.id, auxiliaryPngBase64 }),
   });
-  if (!draft.ok) throw new Error((await draft.json().catch(() => null))?.error || "Could not prepare the image edit.");
+  if (!draft.ok) throw new Error((await draft.json().catch(() => null))?.error || t("Could not prepare the image edit."));
   const { draftId } = await draft.json();
   await requestHostAction("create-image-edit-thread", {
     draftId,
@@ -1302,11 +1311,11 @@ function renderEditMode() {
   const committedComments = editComments.filter((comment) => committedCommentText(comment)?.trim());
   const helper = document.createElement("span");
   helper.textContent = editMode === "comment"
-    ? (committedComments.length ? `${committedComments.length} comment${committedComments.length === 1 ? "" : "s"}` : "Click on the image to add comments")
-    : "Brush over what you want to remove";
+    ? (committedComments.length ? t(committedComments.length === 1 ? "{count} comment" : "{count} comments", { count: committedComments.length }) : t("Click on the image to add comments"))
+    : t("Brush over what you want to remove");
   const send = document.createElement("button");
   send.dataset.editSend = "";
-  send.textContent = "Send";
+  send.textContent = t("Send");
   send.disabled = editMode === "comment" ? committedComments.length === 0 : editStrokes.length === 0;
   send.addEventListener("click", async () => {
     send.disabled = true;
@@ -1320,18 +1329,18 @@ function renderEditMode() {
   const cancel = document.createElement("button");
   cancel.type = "button";
   cancel.dataset.editCancel = "";
-  cancel.setAttribute("aria-label", "Cancel");
+  cancel.setAttribute("aria-label", t("Cancel"));
   cancel.innerHTML = '<svg viewBox="0 0 21 21" aria-hidden="true"><path d="M14.6549 5.57307C14.9283 5.2997 15.3718 5.2997 15.6451 5.57307C15.9185 5.84643 15.9185 6.28993 15.6451 6.5633L11.3903 10.8182L15.6451 15.0731L15.735 15.1834C15.9141 15.4551 15.8842 15.8242 15.6451 16.0633C15.4061 16.3024 15.0369 16.3322 14.7653 16.1531L14.6549 16.0633L10.4 11.8084L6.14515 16.0633C5.87178 16.3367 5.42828 16.3367 5.15492 16.0633C4.88155 15.7899 4.88155 15.3464 5.15492 15.0731L9.4098 10.8182L5.15492 6.5633L5.06507 6.45295C4.88597 6.18128 4.91584 5.81214 5.15492 5.57307C5.39399 5.33399 5.76313 5.30413 6.0348 5.48322L6.14515 5.57307L10.4 9.82795L14.6549 5.57307Z" /></svg>';
   cancel.addEventListener("click", () => setEditMode(null));
   editModeRoot.append(helper);
   if (editMode === "remove") {
     const historyVisible = editUndo.length > 0 || editRedo.length > 0;
     const historyIcon = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M15.998 10.833C15.9978 8.439 14.0571 6.49805 11.663 6.49805H4.9355L7.13374 8.69629L7.2187 8.80078C7.38911 9.05884 7.36084 9.40947 7.13374 9.63672C6.90652 9.86394 6.55592 9.89207 6.2978 9.72168L6.19331 9.63672L2.85932 6.30371C2.5999 6.04411 2.60001 5.62295 2.85932 5.36328L6.19331 2.0293C6.45298 1.76998 6.87414 1.76987 7.13374 2.0293C7.39344 2.289 7.39344 2.711 7.13374 2.9707L4.93647 5.16797H11.663C14.7916 5.16797 17.3279 7.70446 17.3281 10.833C17.3281 13.9617 14.7917 16.498 11.663 16.498H8.33003C7.96276 16.498 7.66499 16.2003 7.66499 15.833C7.66516 15.4659 7.96287 15.168 8.33003 15.168H11.663C14.0572 15.168 15.998 13.2272 15.998 10.833Z" /></svg>';
-    const undo = document.createElement("button"); undo.type = "button"; undo.setAttribute("aria-label", "Undo"); undo.innerHTML = historyIcon;
+    const undo = document.createElement("button"); undo.type = "button"; undo.setAttribute("aria-label", t("Undo")); undo.innerHTML = historyIcon;
     undo.disabled = editUndo.length === 0;
     undo.hidden = !historyVisible;
     undo.addEventListener("click", () => { const previous = editUndo.pop(); if (!previous) return; editRedo.push(editStrokes); editStrokes = previous; repaintMask(); renderEditMode(); });
-    const redo = document.createElement("button"); redo.type = "button"; redo.setAttribute("aria-label", "Redo"); redo.innerHTML = historyIcon;
+    const redo = document.createElement("button"); redo.type = "button"; redo.setAttribute("aria-label", t("Redo")); redo.innerHTML = historyIcon;
     redo.disabled = editRedo.length === 0;
     redo.hidden = !historyVisible;
     redo.addEventListener("click", () => { const next = editRedo.pop(); if (!next) return; editUndo.push(editStrokes); editStrokes = next; repaintMask(); renderEditMode(); });
@@ -1384,7 +1393,7 @@ function renderComments() {
     marker.className = "image-comment-marker";
     if (!comment.draft) {
       marker.type = "button";
-      marker.setAttribute("aria-label", `Edit comment ${index + 1}`);
+      marker.setAttribute("aria-label", t("Edit comment {number}", { number: index + 1 }));
       marker.addEventListener("click", () => openCommentEditor(comment));
     }
     marker.style.left = `${comment.x * 100}%`; marker.style.top = `${comment.y * 100}%`;
@@ -1439,7 +1448,7 @@ for (const button of editActions.querySelectorAll("[data-edit-action]")) {
 for (const [label, ratio] of RESIZE_OPTIONS) {
   const button = document.createElement("button");
   button.type = "button";
-  button.innerHTML = `${ratioIcon(ratio)}<span class="image-ratio-label"><span>${label}</span><small>${ratio}</small></span>`;
+  button.innerHTML = `${ratioIcon(ratio)}<span class="image-ratio-label"><span data-i18n="${label}">${t(label)}</span><small>${ratio}</small></span>`;
   button.setAttribute("role", "menuitem");
   button.addEventListener("click", async () => {
     closeEditorMenus();
@@ -1469,7 +1478,7 @@ function renderZoomMenu() {
   const fit = document.createElement("button");
   fit.type = "button";
   fit.setAttribute("role", "menuitem");
-  fit.innerHTML = `<span class="image-ratio-label"><span>Zoom to fit</span>${menuCheck(zoomScale == null)}</span>`;
+  fit.innerHTML = `<span class="image-ratio-label"><span>${t("Zoom to fit")}</span>${menuCheck(zoomScale == null)}</span>`;
   fit.addEventListener("click", () => {
     resetZoom();
     closeEditorMenus();
@@ -1527,26 +1536,26 @@ function openCommentEditor(comment) {
   if (!isNew) {
     const textarea = document.createElement("textarea");
     textarea.name = "image-comment-instruction";
-    textarea.setAttribute("aria-label", "Edit comment");
+    textarea.setAttribute("aria-label", t("Edit comment"));
     textarea.value = comment.text;
     const footer = document.createElement("div");
     footer.className = "image-comment-editor-footer";
     const remove = document.createElement("button");
     remove.type = "button";
     remove.className = "image-comment-delete";
-    remove.setAttribute("aria-label", "Delete comment");
+    remove.setAttribute("aria-label", t("Delete comment"));
     remove.innerHTML = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10.6299 1.33496C12.0335 1.33496 13.2695 2.25996 13.666 3.60645L13.8809 4.33496H17L17.1338 4.34863C17.4369 4.41057 17.665 4.67858 17.665 5C17.665 5.32142 17.4369 5.58943 17.1338 5.65137L17 5.66504H16.6543L15.8574 14.9912C15.7177 16.629 14.3478 17.8877 12.7041 17.8877H7.2959C5.75502 17.8877 4.45439 16.7815 4.18262 15.2939L4.14258 14.9912L3.34668 5.66504H3C2.63273 5.66504 2.33496 5.36727 2.33496 5C2.33496 4.63273 2.63273 4.33496 3 4.33496H6.11914L6.33398 3.60645L6.41797 3.3584C6.88565 2.14747 8.05427 1.33496 9.37012 1.33496H10.6299ZM5.46777 14.8779L5.49121 15.0537C5.64881 15.9161 6.40256 16.5576 7.2959 16.5576H12.7041C13.6571 16.5576 14.4512 15.8275 14.5322 14.8779L15.3193 5.66504H4.68164L5.46777 14.8779ZM7.66797 12.8271V8.66016C7.66797 8.29299 7.96588 7.99528 8.33301 7.99512C8.70028 7.99512 8.99805 8.29289 8.99805 8.66016V12.8271C8.99779 13.1942 8.70012 13.4912 8.33301 13.4912C7.96604 13.491 7.66823 13.1941 7.66797 12.8271ZM11.002 12.8271V8.66016C11.002 8.29289 11.2997 7.99512 11.667 7.99512C12.0341 7.9953 12.332 8.293 12.332 8.66016V12.8271C12.3318 13.1941 12.0339 13.491 11.667 13.4912C11.2999 13.4912 11.0022 13.1942 11.002 12.8271ZM9.37012 2.66504C8.60726 2.66504 7.92938 3.13589 7.6582 3.83789L7.60938 3.98145L7.50586 4.33496H12.4941L12.3906 3.98145C12.1607 3.20084 11.4437 2.66504 10.6299 2.66504H9.37012Z" /></svg>';
     remove.addEventListener("click", () => finishExistingEdit({ remove: true }));
     const actions = document.createElement("span");
     actions.className = "image-comment-editor-actions";
     const cancel = document.createElement("button");
     cancel.type = "button";
-    cancel.textContent = "Cancel";
+    cancel.textContent = t("Cancel");
     cancel.addEventListener("click", () => finishExistingEdit({ restore: true }));
     const save = document.createElement("button");
     save.type = "button";
     save.className = "image-comment-save";
-    save.textContent = "Save";
+    save.textContent = t("Save");
     save.disabled = !textarea.value.trim();
     save.addEventListener("click", () => { if (!save.disabled) finishExistingEdit(); });
     textarea.addEventListener("input", () => {
@@ -1566,9 +1575,9 @@ function openCommentEditor(comment) {
     return;
   }
   const input = document.createElement("input");
-  input.setAttribute("aria-label", "Add comment");
+  input.setAttribute("aria-label", t("Add comment"));
   input.name = "image-comment-instruction";
-  input.placeholder = "Add a comment…";
+  input.placeholder = t("Add a comment…");
   input.value = comment.text;
   input.addEventListener("input", () => { comment.text = input.value; });
   input.addEventListener("keydown", (keyEvent) => {
@@ -1629,6 +1638,8 @@ new ResizeObserver(() => {
 
 drawer.inert = true;
 applyDensity();
+setLocale(navigator.language);
+translateDocument(document);
 await Promise.all([loadFacets(), loadPage({ reset: true })]);
 await new Promise((resolve) => setTimeout(resolve, 0));
 

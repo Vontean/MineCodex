@@ -17,6 +17,7 @@ const MAX_EDIT_AUXILIARY_BYTES = 8 * 1024 * 1024;
 const STATIC_FILES = new Map([
   ["/", ["index.html", "text/html; charset=utf-8"]],
   ["/app.js", ["app.js", "text/javascript; charset=utf-8"]],
+  ["/i18n.mjs", ["i18n.mjs", "text/javascript; charset=utf-8"]],
   ["/styles.css", ["styles.css", "text/css; charset=utf-8"]],
 ]);
 
@@ -397,7 +398,7 @@ export async function createHttpServer({
           json(response, 404, { error: "Image not found" });
           return;
         }
-        json(response, 200, await saveImageAs(image));
+        json(response, 200, await saveImageAs(image, { locale: url.searchParams.get("locale") ?? "en" }));
         return;
       }
 

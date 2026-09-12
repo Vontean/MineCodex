@@ -93,14 +93,22 @@ async function shutdown() {
   await featureProcesses.stop();
 }
 
-for (const signal of ["SIGINT", "SIGTERM"]) {
-  process.once(signal, async () => {
-    try {
-      await shutdown();
-      process.exit(0);
-    } catch (error) {
-      console.error(`Runtime shutdown failed: ${error.message}`);
-      process.exit(1);
-    }
-  });
+let shuttingDown = false;
+async function requestShutdown() {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  try {
+    await shutdown();
+    process.exit(0);
+  } catch (error) {
+    console.error(`Runtime shutdown failed: ${error.message}`);
+    process.exit(1);
+  }
 }
+for (const signal of ["SIGINT", "SIGTERM"]) {
+  process.once(signal, requestShutdown);
+}
+process.on("message", (message) => {
+  if (message?.type === "minecodex:shutdown") void requestShutdown();
+});
+if (process.connected) process.once("disconnect", requestShutdown);

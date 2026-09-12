@@ -2722,7 +2722,7 @@ export function createInjectionSource(features, {
       record.frame.contentWindow?.postMessage({
         type: "codex-personal:surface-active",
         active: Boolean(active),
-      }, record.origin);
+      }, "/");
     }
 
     function nativeSidebarTrigger() {
@@ -2749,7 +2749,7 @@ export function createInjectionSource(features, {
       record.frame.contentWindow?.postMessage({
         type: "codex-personal:sidebar-state",
         ...state,
-      }, record.origin);
+      }, "/");
     }
 
     function registerSurface(key, feature, kind, surfaceUrl, element, frame, detailId = null) {
@@ -2863,7 +2863,7 @@ export function createInjectionSource(features, {
           : tokens["--color-token-main-surface-primary"] ?? style.backgroundColor;
         record.frame.contentWindow?.postMessage(
           { type: "codex-personal:theme", theme: mode, mode, locale, tokens: surfaceTokens },
-          record.origin,
+          "/",
         );
       }
     }
@@ -2879,11 +2879,26 @@ export function createInjectionSource(features, {
       return sidebar?.getBoundingClientRect().right ?? 0;
     }
 
+    // Windows 版 Codex 在 renderer 顶部渲染横贯全宽的应用菜单条
+    // （_ApplicationMenuTopBar），page surface 必须避开该条并以内嵌卡片
+    // 形式呈现（左上圆角）。macOS 无此元素，inset 为 0，布局保持不变。
+    function applicationMenuTopInset() {
+      const menuBar = document.querySelector('[class*="_ApplicationMenuTopBar_"]');
+      if (!menuBar?.isConnected) return 0;
+      const bottom = menuBar.getBoundingClientRect().bottom;
+      return Number.isFinite(bottom) && bottom > 0 ? Math.round(bottom) : 0;
+    }
+
     function updatePageSurfacePositions() {
       const state = sidebarState();
       const left = `${state.open ? Math.max(0, sidebarRight()) : 0}px`;
+      const topInset = applicationMenuTopInset();
+      const embeddedCard = topInset > 0;
       for (const [featureId, surface] of pageSurfaces) {
         surface.style.left = left;
+        surface.style.top = `${topInset}px`;
+        surface.style.borderTopLeftRadius = embeddedCard ? "12px" : "";
+        surface.style.overflow = embeddedCard ? "hidden" : "";
         postSidebarState(surfaceRecords.get(surfaceKey(featureId, "page")), state);
       }
     }
@@ -4173,7 +4188,10 @@ export function createInjectionSource(features, {
 
     function findMessageSurface(event) {
       for (const record of surfaceRecords.values()) {
-        if (event.origin === record.origin && event.source === record.frame.contentWindow) return record;
+        // 身份以 event.source（WindowProxy 不可伪造）为准；Windows 上
+        // setDocumentContent 的 iframe 消息可能报告 null origin，
+        // 因此用已注册 frame 的 WindowProxy 精确匹配来源。
+        if (event.source === record.frame.contentWindow) return record;
       }
       return null;
     }
@@ -4186,7 +4204,7 @@ export function createInjectionSource(features, {
         ok,
         result,
         error,
-      }, record.origin);
+      }, "/");
     }
 
     function hostActionFailure(error) {
@@ -4243,8 +4261,9 @@ export function createInjectionSource(features, {
           if (!files.length || files.some((file) => !(file instanceof File))) {
             throw new Error("Real dropped File objects are required");
           }
+          // Windows 盘符路径（C:\...）不以 / 开头，需同时接受 POSIX 与 Windows 形态。
           const paths = files.map((file) => getPathForFile(file)).filter((value) => (
-            typeof value === "string" && value.startsWith("/")
+            typeof value === "string" && (/^[/\\]/.test(value) || /^[a-zA-Z]:[/\\]/.test(value))
           ));
           if (!paths.length) throw new Error("Codex could not resolve the dropped file paths");
           respondToSurface(record, requestId, { ok: true, result: { paths } });
@@ -4366,7 +4385,7 @@ export function createInjectionSource(features, {
           record.frame.contentWindow?.postMessage({
             type: "codex-personal:focus",
             feature: record.featureId,
-          }, record.origin);
+          }, "/");
         }
       }
       if (event.data.type === "codex-personal:surface-metrics" && record.kind === "pinned") {
