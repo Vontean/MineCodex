@@ -367,6 +367,10 @@ async function executeModelSliderInjection({
       return (display?.supportedReasoningLevels ?? []).map((level) => level.effort);
     };
     window.__modelSliderCompactLabelProbe = (raw) => compactModelLabel(raw);
+    window.__visibleControllerModelsProbe = (models, selected) => visibleControllerModels({
+      models,
+      model: selected,
+    }).map((model) => model.model);
     window.__summaryShiftProbe = {
       apply: applyThreadContentShift,
       restore: restoreThreadContentShift,
@@ -434,6 +438,7 @@ async function executeModelSliderInjection({
   return {
     displayLabel: (raw, models = []) => window.__modelSliderDisplayProbe?.(raw, models) ?? null,
     compactLabel: (raw) => window.__modelSliderCompactLabelProbe?.(raw) ?? null,
+    visibleControllerModels: (models, selected) => window.__visibleControllerModelsProbe?.(models, selected) ?? null,
     effortProbe: (raw) => {
       const value = window.__modelSliderEffortProbe?.(raw);
       return value ? JSON.parse(JSON.stringify(value)) : null;
@@ -843,6 +848,25 @@ test("keeps the generic model menu on the Composer controller lifecycle", () => 
   assert.match(source, /currentController\.onSelectModel\(raw, reasoningEffort\)/);
   assert.match(source, /querySelector\('\[data-codex-model-slider-selected\]'\)\s*\?\? menu\.querySelector\('\[role="menuitem"\]'\)/);
   assert.doesNotMatch(source, /const openModels = \(\) => openNativeModelSubmenu\(parentMenu\)/);
+});
+
+test("hides effortless OCX aliases of native GPT models while retaining distinct routes", async () => {
+  const result = await executeModelSliderInjection();
+  const models = [
+    { model: "gpt-6-astra", supportedReasoningEfforts: ["high"] },
+    { model: "command-code/gpt-6-astra", supportedReasoningEfforts: [] },
+    { model: "gpt-6-sol", supportedReasoningEfforts: ["high"] },
+    { model: "command-code/gpt-6-sol", supportedReasoningEfforts: [] },
+    { model: "openrouter/gpt-6-sol", supportedReasoningEfforts: ["high"] },
+    { model: "command-code/other-model", supportedReasoningEfforts: [] },
+  ];
+  assert.deepEqual(result.visibleControllerModels(models, "gpt-6-sol"), [
+    "gpt-6-astra", "gpt-6-sol", "openrouter/gpt-6-sol", "command-code/other-model",
+  ]);
+  assert.deepEqual(result.visibleControllerModels(models, "command-code/gpt-6-astra"), [
+    "gpt-6-astra", "command-code/gpt-6-astra", "gpt-6-sol",
+    "openrouter/gpt-6-sol", "command-code/other-model",
+  ]);
 });
 
 test("rebuilds the upgraded native Slider and routes its compact model entry to MCX", () => {

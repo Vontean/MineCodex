@@ -23,6 +23,8 @@ Model Slider 延续 Codex 原生的克制、紧凑和功能优先。增强层只
 - **Composer Trigger:** 占位态恢复原生 160px Content 宽度；真实模型态 HUG 完整名称，头部保留原生可点击 chevron。
 - **Slider Header:** 模型名最多两行，容器高度随内容自然撑开；effort 与 chevron 不收缩。无 Fast 时移除原生 12px 预留占位，让按钮与面板严格居中。
 - **Model List:** 保持 264px 原生宽度、Provider 副文本、收藏与最多六项可视高度；收藏与未收藏之间保留分隔线，弹窗内容四周保留约 6px 内边距；模型弹窗与原生 Slider 一致地水平居中于触发器。列表打开期间，Composer 占位文案从 `Select effort` 切为原生语义 `Select model`，关闭后恢复。
+- OCX 自动发现的 GPT 路由若与原生模型同名且没有独立推理档位，列表只显示原生项；当前已选中的路由仍显示，避免失去切换入口。有独立档位的 Provider 路由继续显示并标注 Provider。
+- Slider 预览档位时同步 effort 标签与 Fast 控件的 Ultra 状态；离开 Ultra 后立即恢复普通档位颜色。
 
 ## 5. Layout Principles
 

@@ -1740,6 +1740,24 @@ export function createInjectionSource(features, {
         : String(model?.defaultReasoningEffort ?? supported[0] ?? "none").toLowerCase();
     }
 
+    function visibleControllerModels(controller) {
+      const models = controller.models.filter((model) => !model.hidden && String(model.model ?? "").trim());
+      const nativeGptIds = new Set(models
+        .filter((model) => !String(model.model).includes("/") && /^gpt-/i.test(model.model))
+        .map((model) => String(model.model).toLowerCase()));
+      // OCX 自动发现的同名路由若没有独立档位，会与原生 GPT 显示成两项。
+      return models.filter((model) => {
+        const slug = String(model.model);
+        const backend = modelIdentity(slug).backend.toLowerCase();
+        return slug === controller.model
+          || !(
+            slug.includes("/")
+            && nativeGptIds.has(backend)
+            && !(model.supportedReasoningEfforts ?? []).length
+          );
+      });
+    }
+
     function openControllerModelMenu(parentMenu, modelButton, selector) {
       if (modelSelectorControllerMenu) {
         closeControllerModelMenu();
@@ -1747,7 +1765,7 @@ export function createInjectionSource(features, {
       }
       const controller = nativeComposerModelController();
       if (!Array.isArray(controller?.models) || typeof controller.onSelectModel !== "function") return;
-      const models = controller.models.filter((model) => !model.hidden && String(model.model ?? "").trim());
+      const models = visibleControllerModels(controller);
       if (!models.length) return;
 
       const menu = document.createElement("div");
@@ -2203,7 +2221,8 @@ export function createInjectionSource(features, {
         fastButton.append(fastContent);
         fastButton.addEventListener("click", () => {
           const nextEnabled = fastButton.getAttribute("aria-pressed") !== "true";
-          syncGenericFastVisual(shell, nextEnabled, selectedEffort === "ultra", true);
+          const currentIndex = Number(shell.querySelector("[data-codex-model-slider-rail]")?.getAttribute("aria-valuenow"));
+          syncGenericFastVisual(shell, nextEnabled, efforts[currentIndex] === "ultra", true);
           controller.onSelectServiceTier?.(nextEnabled ? fastOption.value : null);
           queueEnsure();
         });
@@ -2299,6 +2318,8 @@ export function createInjectionSource(features, {
           effortText.textContent = effortLabel(effort);
           effortText.setAttribute("data-maximum", String(effort === "ultra"));
         }
+        const fastButton = shell.querySelector("[data-codex-model-slider-fast]");
+        fastButton?.setAttribute("data-max-power-selection", String(effort === "ultra"));
       };
       const preview = (clientX) => previewIndex(indexAt(clientX));
       rail.addEventListener("pointerdown", (event) => {
