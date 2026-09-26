@@ -23,6 +23,7 @@ function emptyState(filePath) {
     last: null,
     contextWindow: null,
     firstOutputAt: null,
+    pendingToolIntervals: [],
     decodeTokens: 0,
     decodeMs: 0,
     speedSamples: 0,
@@ -36,6 +37,20 @@ function emptyState(filePath) {
 function validUsage(value) {
   return value && ["input_tokens", "cached_input_tokens", "output_tokens", "total_tokens"]
     .every((key) => Number.isFinite(value[key]) && value[key] >= 0);
+}
+
+function overlappingToolMs(intervals, start, end) {
+  const clipped = intervals
+    .map(([toolStart, toolEnd]) => [Math.max(start, toolStart), Math.min(end, toolEnd)])
+    .filter(([left, right]) => right > left)
+    .sort((left, right) => left[0] - right[0]);
+  let elapsed = 0;
+  let rightEdge = start;
+  for (const [left, right] of clipped) {
+    elapsed += Math.max(0, right - Math.max(left, rightEdge));
+    rightEdge = Math.max(rightEdge, right);
+  }
+  return elapsed;
 }
 
 export function applySessionStatusEvent(state, event) {
@@ -59,6 +74,7 @@ export function applySessionStatusEvent(state, event) {
       }
       if (TOOL_ITEMS.has(itemType) && Number.isFinite(start) && Number.isFinite(end)) {
         state.toolMs += Math.max(0, end - start);
+        state.pendingToolIntervals.push([start, end]);
       }
     }
     if (payload.type === "token_count") {
@@ -77,7 +93,9 @@ export function applySessionStatusEvent(state, event) {
     const responseId = payload.response_id;
     if (responseId && !state.responses.has(responseId)) {
       state.responses.add(responseId);
-      const elapsed = Date.parse(event.timestamp) - state.firstOutputAt;
+      const responseEnd = Date.parse(event.timestamp);
+      const elapsed = state.firstOutputAt == null ? null : responseEnd - state.firstOutputAt
+        - overlappingToolMs(state.pendingToolIntervals, state.firstOutputAt, responseEnd);
       const output = payload.usage?.output_tokens;
       // 会话事件只给出首个可见条目的时间，故 TPS 是观测估算。
       if (Number.isFinite(output) && output > 0 && state.firstOutputAt != null
@@ -88,6 +106,7 @@ export function applySessionStatusEvent(state, event) {
       }
     }
     state.firstOutputAt = null;
+    state.pendingToolIntervals = [];
     if (validUsage(payload.thread_token_usage)) {
       state.total = payload.thread_token_usage;
       state.hasResponseUsage = true;
@@ -102,7 +121,7 @@ export function sessionStatusSnapshot(state, threadId) {
   const input = total?.input_tokens ?? 0;
   const cached = total?.cached_input_tokens ?? 0;
   const cacheWrite = total?.cache_write_input_tokens ?? 0;
-  const contextUsed = state.last?.input_tokens ?? null;
+  const contextUsed = state.last?.total_tokens ?? null;
   const contextWindow = state.contextWindow > 0 ? state.contextWindow : null;
   return {
     threadId,

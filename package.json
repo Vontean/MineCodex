@@ -35,6 +35,7 @@
     "features/session-status/codex-feature.json",
     "features/session-status/DESIGN.md",
     "features/session-status/README.md",
+    "features/session-status/vendor/lucide-LICENSE",
     "apps/dashboard/app.js",
     "apps/dashboard/favicon.svg",
     "apps/dashboard/index.html",

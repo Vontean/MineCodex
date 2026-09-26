@@ -2,36 +2,41 @@
 const MARKER = "data-minecodex-session-status";
 const STYLE_ID = "minecodex-session-status-style";
 const copy = document.documentElement.lang.toLowerCase().startsWith("zh") ? {
-  turns: "回合", steps: "步", speed: "观测速度", tokens: "tok", cache: "缓存命中",
+  turns: "回合", steps: "步", speed: "TPS", tokens: "tok", cache: "缓存", cacheDetail: "缓存命中",
   statistics: "会话统计", usage: "Token 用量", context: "上下文详情", total: "总量",
-  modelTime: "观测输出用时", toolTime: "工具用时", firstToken: "平均首 token 时间",
-  speedSamples: "有效速度样本", approximate: "根据可见输出事件估算，包含模型报告的输出 token。",
+  modelTime: "模型用时", toolTime: "工具用时", firstToken: "平均首 token 时间",
   uncached: "未缓存输入", cached: "缓存输入", cacheWrite: "缓存写入", output: "输出",
-  recentInput: "最近一次请求输入", capacity: "模型窗口", contextShare: "最近请求占用", unknown: "Codex 未提供系统提示词、工具定义和消息的可靠拆分。",
+  recentInput: "最近请求用量", capacity: "模型窗口", contextShare: "上下文已用",
 } : {
-  turns: "turns", steps: "steps", speed: "Observed speed", tokens: "tok", cache: "Cache hit",
+  turns: "turns", steps: "steps", speed: "TPS", tokens: "tok", cache: "Cache", cacheDetail: "Cache hit",
   statistics: "Session statistics", usage: "Token usage", context: "Context details", total: "Total",
-  modelTime: "Observed output time", toolTime: "Tool time", firstToken: "Avg first-token time",
-  speedSamples: "Timed samples", approximate: "Estimated from visible output events and model-reported output tokens.",
+  modelTime: "Model time", toolTime: "Tool time", firstToken: "Avg time to first token",
   uncached: "Uncached input", cached: "Cached input", cacheWrite: "Cache write", output: "Output",
-  recentInput: "Latest request input", capacity: "Model window", contextShare: "Latest request share", unknown: "Codex does not provide a reliable system, tools and messages breakdown.",
+  recentInput: "Latest request usage", capacity: "Model window", contextShare: "Context used",
+};
+
+// Lucide Static v1.31.0 原版图标；许可见 vendor/lucide-LICENSE。
+const icons = {
+  statistics: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/></svg>',
+  usage: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></svg>',
 };
 
 document.getElementById(STYLE_ID)?.remove();
 const style = document.createElement("style");
 style.id = STYLE_ID;
 style.textContent = `
-  [${MARKER}] { box-sizing:border-box; display:flex; flex-wrap:wrap; justify-content:center; gap:4px 12px; margin:4px auto 0; max-width:100%; min-width:0; font-family:var(--font-sans-default,inherit); font-size:var(--text-xs,12px); color:var(--color-text-tertiary); }
+  [${MARKER}] { box-sizing:border-box; display:flex; flex-wrap:wrap; justify-content:center; align-items:center; gap:0 12px; margin:-4px auto -6px; max-width:100%; min-height:18px; min-width:0; font-family:var(--font-sans-default,inherit); font-size:var(--text-xs,12px); line-height:16px; font-variant-numeric:tabular-nums; color:var(--color-text-tertiary); }
   [${MARKER}][hidden] { display:none; }
-  [${MARKER}] button { color:inherit; font:inherit; border:0; border-radius:var(--radius-xl,12px); background:transparent; padding:3px 8px; cursor:pointer; white-space:nowrap; }
+  [${MARKER}] button { box-sizing:border-box; display:inline-flex; align-items:center; gap:5px; height:18px; color:inherit; font:inherit; border:0; border-radius:var(--radius-xl,12px); background:transparent; padding:0 3px; cursor:pointer; white-space:nowrap; }
+  [${MARKER}] svg, [data-minecodex-session-status-panel] h3 svg { width:14px; height:14px; flex:none; stroke-width:1.75; }
+  [${MARKER}] [data-kind="context"] svg, [data-minecodex-session-status-panel] h3 .context-ring { stroke-width:2; }
   [${MARKER}] button:hover, [${MARKER}] button[aria-expanded="true"] { background:var(--color-token-list-hover-background); }
   [${MARKER}] button:focus-visible { outline:2px solid var(--input-outline-border-color-focus); outline-offset:1px; }
   [data-minecodex-session-status-panel] { box-sizing:border-box; position:fixed; z-index:2147483000; min-width:260px; max-width:min(360px,calc(100vw - 24px)); padding:16px; border:1px solid var(--color-border-subtle); border-radius:var(--radius-xl,14px); background:var(--color-token-dropdown-background); color:var(--color-text-primary); font-family:var(--font-sans-default,inherit); font-size:13px; box-shadow:var(--shadow-lg,0 8px 28px rgba(0,0,0,.12)); }
-  [data-minecodex-session-status-panel] h3 { margin:0 0 12px; padding:0 0 10px; border-bottom:1px solid var(--color-border-subtle); font-size:14px; font-weight:600; }
+  [data-minecodex-session-status-panel] h3 { display:flex; align-items:center; gap:8px; margin:0 0 12px; padding:0 0 10px; border-bottom:1px solid var(--color-border-subtle); font-size:14px; font-weight:600; }
   [data-minecodex-session-status-panel] dl { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px 20px; margin:0; }
   [data-minecodex-session-status-panel] dt { color:var(--color-text-tertiary); }
   [data-minecodex-session-status-panel] dd { margin:0; text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
-  [data-minecodex-session-status-panel] p { margin:12px 0 0; color:var(--color-text-tertiary); line-height:1.45; }
   [data-minecodex-session-status-panel] .context-head { display:flex; justify-content:space-between; gap:12px; margin-bottom:8px; }
   [data-minecodex-session-status-panel] .context-head span:first-child { color:var(--color-text-tertiary); }
   [data-minecodex-session-status-panel] .context-bar { height:4px; margin-bottom:14px; overflow:hidden; border-radius:var(--radius-xl); background:var(--color-token-border-default); }
@@ -42,12 +47,40 @@ document.head.append(style);
 const root = document.createElement("div");
 root.setAttribute(MARKER, "");
 root.hidden = true;
+function createContextRing() {
+  const namespace = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(namespace, "svg");
+  svg.setAttribute("viewBox", "0 0 12 12");
+  svg.setAttribute("aria-hidden", "true");
+  svg.classList.add("context-ring");
+  for (const opacity of ["0.16", "1"]) {
+    const circle = document.createElementNS(namespace, "circle");
+    for (const [name, value] of Object.entries({ cx: "6", cy: "6", r: "5", fill: "none", stroke: "currentColor", "stroke-width": "2", opacity })) {
+      circle.setAttribute(name, value);
+    }
+    if (opacity === "1") {
+      circle.setAttribute("pathLength", "100");
+      circle.setAttribute("stroke-dasharray", "100");
+      circle.setAttribute("stroke-dashoffset", "100");
+      circle.setAttribute("stroke-linecap", "round");
+      circle.setAttribute("transform", "rotate(-90 6 6)");
+      circle.dataset.contextProgress = "";
+    }
+    svg.append(circle);
+  }
+  return svg;
+}
 const buttons = ["statistics", "usage", "context"].map((kind) => {
   const button = document.createElement("button");
   button.type = "button";
   button.dataset.kind = kind;
   button.setAttribute("aria-haspopup", "dialog");
   button.setAttribute("aria-expanded", "false");
+  if (kind === "context") button.append(createContextRing());
+  else button.insertAdjacentHTML("beforeend", icons[kind]);
+  const label = document.createElement("span");
+  label.className = "status-label";
+  button.append(label);
   root.append(button);
   return button;
 });
@@ -94,6 +127,7 @@ function showPanel(kind) {
   panel.setAttribute("aria-label", copy[kind]);
   const heading = document.createElement("h3");
   heading.textContent = copy[kind];
+  heading.prepend(anchor.querySelector("svg").cloneNode(true));
   const dl = document.createElement("dl");
   panel.append(heading, dl);
   if (kind === "statistics") {
@@ -102,14 +136,10 @@ function showPanel(kind) {
     row(dl, copy.modelTime, duration(snapshot.observedModelMs));
     row(dl, copy.toolTime, duration(snapshot.toolMs));
     row(dl, copy.firstToken, duration(snapshot.averageFirstTokenMs));
-    row(dl, copy.speed, snapshot.observedTps == null ? "—" : `~${number(snapshot.observedTps)} tok/s`);
-    row(dl, copy.speedSamples, number(snapshot.speedSamples));
-    const note = document.createElement("p");
-    note.textContent = copy.approximate;
-    panel.append(note);
+    row(dl, copy.speed, snapshot.observedTps == null ? "—" : `${number(snapshot.observedTps)} tok/s`);
   } else if (kind === "usage") {
     row(dl, copy.total, `${number(snapshot.totalTokens)} tok`);
-    row(dl, copy.cache, snapshot.cacheHitPercent == null ? "—" : `${snapshot.cacheHitPercent}%`);
+    row(dl, copy.cacheDetail, snapshot.cacheHitPercent == null ? "—" : `${snapshot.cacheHitPercent}%`);
     row(dl, copy.uncached, `${number(snapshot.uncachedInputTokens)} tok`);
     row(dl, copy.cached, `${number(snapshot.cachedInputTokens)} tok`);
     row(dl, copy.cacheWrite, `${number(snapshot.cacheWriteInputTokens)} tok`);
@@ -121,7 +151,7 @@ function showPanel(kind) {
       const label = document.createElement("span");
       label.textContent = copy.contextShare;
       const value = document.createElement("span");
-      value.textContent = `≈${snapshot.contextPercent}%`;
+      value.textContent = `${snapshot.contextPercent}%`;
       head.append(label, value);
       const bar = document.createElement("div");
       bar.className = "context-bar";
@@ -133,9 +163,6 @@ function showPanel(kind) {
     }
     row(dl, copy.recentInput, `${number(snapshot.contextUsedTokens)} tok`);
     row(dl, copy.capacity, `${number(snapshot.contextWindow)} tok`);
-    const note = document.createElement("p");
-    note.textContent = copy.unknown;
-    panel.append(note);
   }
   document.body.append(panel);
   const anchorRect = anchor.getBoundingClientRect();
@@ -163,9 +190,11 @@ function ensurePosition() {
 function render() {
   root.hidden = !snapshot || (snapshot.turns === 0 && snapshot.totalTokens == null);
   if (root.hidden) { closePanel(); return; }
-  buttons[0].textContent = `${number(snapshot.turns)} ${copy.turns}  ${number(snapshot.steps)} ${copy.steps} · ${snapshot.observedTps == null ? "—" : `~${number(snapshot.observedTps)}`} tok/s`;
-  buttons[1].textContent = `${compact(snapshot.totalTokens)} ${copy.tokens} · ${copy.cache} ${snapshot.cacheHitPercent == null ? "—" : `${snapshot.cacheHitPercent}%`}`;
-  buttons[2].textContent = copy.context;
+  buttons[0].querySelector(".status-label").textContent = `${number(snapshot.turns)} ${copy.turns} ${number(snapshot.steps)} ${copy.steps} · ${snapshot.observedTps == null ? "—" : number(snapshot.observedTps)} tok/s`;
+  buttons[1].querySelector(".status-label").textContent = `${compact(snapshot.totalTokens)} ${copy.tokens} · ${copy.cache} ${snapshot.cacheHitPercent == null ? "—" : `${snapshot.cacheHitPercent}%`}`;
+  buttons[2].querySelector(".status-label").textContent = snapshot.contextPercent == null ? "—" : `${snapshot.contextPercent}%`;
+  buttons[2].querySelector("[data-context-progress]").setAttribute("stroke-dashoffset", String(100 - (snapshot.contextPercent ?? 0)));
+  buttons[2].setAttribute("aria-label", `${copy.context}: ${snapshot.contextPercent == null ? "—" : `${snapshot.contextPercent}%`}`);
   if (openKind) showPanel(openKind);
 }
 for (const button of buttons) button.addEventListener("click", () => {

@@ -44,7 +44,7 @@ test("reads unique turns and model steps, then incrementally updates token and s
     turns: first.turns, steps: first.steps, total: first.totalTokens,
     cacheHit: first.cacheHitPercent, uncached: first.uncachedInputTokens,
     tps: first.observedTps, context: first.contextPercent,
-  }, { turns: 1, steps: 1, total: 600, cacheHit: 60, uncached: 200, tps: 50, context: 20 });
+  }, { turns: 1, steps: 1, total: 600, cacheHit: 60, uncached: 200, tps: 50, context: 30 });
   assert.equal(first.averageFirstTokenMs, 900);
 
   await appendFile(filePath, [
@@ -61,6 +61,32 @@ test("reads unique turns and model steps, then incrementally updates token and s
   assert.equal(second.observedTps, 50);
   assert.equal(second.speedSamples, 2);
   assert.deepEqual(await reader.read(THREAD_ID), second);
+});
+
+test("excludes overlapping tool execution from model TPS without double subtraction", async (t) => {
+  const base = await mkdtemp(path.join(os.tmpdir(), "mcx-session-status-tool-"));
+  t.after(() => rm(base, { recursive: true, force: true }));
+  const sessionsDir = path.join(base, "sessions");
+  await mkdir(sessionsDir);
+  const filePath = path.join(sessionsDir, `rollout-test-${THREAD_ID}.jsonl`);
+  await writeFile(filePath, [
+    line("1970-01-01T00:00:01.100Z", "event_msg", {
+      type: "item_completed", item: { type: "Reasoning" }, started_at_ms: 1000, completed_at_ms: 1100,
+    }),
+    line("1970-01-01T00:00:02.200Z", "event_msg", {
+      type: "item_completed", item: { type: "CommandExecution" }, started_at_ms: 1200, completed_at_ms: 2200,
+    }),
+    line("1970-01-01T00:00:02.800Z", "event_msg", {
+      type: "item_completed", item: { type: "McpToolCall" }, started_at_ms: 1800, completed_at_ms: 2800,
+    }),
+    line("1970-01-01T00:00:04.000Z", "token_usage_record", {
+      response_id: "response-1", usage: usage(200, 0, 140), thread_token_usage: usage(200, 0, 140),
+    }),
+  ].join(""));
+  const snapshot = await new SessionStatusReader({ sessionsDir }).read(THREAD_ID);
+  assert.equal(snapshot.observedTps, 100);
+  assert.equal(snapshot.observedModelMs, 1400);
+  assert.equal(snapshot.speedSamples, 1);
 });
 
 test("returns no snapshot for unavailable or malformed thread IDs", async () => {
