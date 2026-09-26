@@ -9,6 +9,7 @@ import vm from "node:vm";
 import {
   CodexRuntime,
   RESPONSIVE_SUMMARY_LAYOUT,
+  SESSION_STATUS_THREAD_ID_EXPRESSION,
   createInjectionSource,
   pageScriptServiceOrigin,
   responsiveSummaryContentShift,
@@ -16,6 +17,34 @@ import {
   responsiveSummaryVisibleSurface,
 } from "../src/codex-runtime.mjs";
 import { createManagedPidFileWriter } from "../src/pid-file.mjs";
+
+test("session status reads the composer thread when its sidebar project is collapsed", () => {
+  const threadId = "01a0db9f-71af-74d2-9189-17dfb57c096e";
+  const read = ({ portalId, placement = "thread", selectedId = null, portalPresent = true }) => {
+    const portal = portalPresent ? { getAttribute: () => portalId } : null;
+    const card = {
+      querySelector: () => portal,
+      getAttribute: () => placement,
+    };
+    const document = {
+      querySelector(selector) {
+        if (selector.includes("data-codex-composer=")) return { closest: () => card };
+        if (selector.includes("data-app-action-sidebar-thread-selected")) {
+          return selectedId ? { getAttribute: () => selectedId } : null;
+        }
+        return null;
+      },
+    };
+    return vm.runInNewContext(SESSION_STATUS_THREAD_ID_EXPRESSION, {
+      document,
+      location: { pathname: "/index.html", search: "", hash: "" },
+    });
+  };
+
+  assert.equal(read({ portalId: threadId }), threadId);
+  assert.equal(read({ portalId: null, placement: "home", selectedId: `local:${threadId}` }), null);
+  assert.equal(read({ portalPresent: false, selectedId: `local:${threadId}` }), `local:${threadId}`);
+});
 
 function modelSliderFeatureFixture() {
   const icon = { viewBox: "0 0 24 24", markup: "<path></path>" };

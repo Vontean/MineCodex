@@ -32,6 +32,9 @@ style.id = STYLE_ID;
 style.textContent = `
   [${MARKER}] { box-sizing:border-box; display:flex; flex-wrap:wrap; justify-content:center; align-items:center; gap:0 12px; margin:-2px auto -6px; padding-top:2px; max-width:100%; min-height:24px; min-width:0; font-family:var(--font-sans-default,inherit); font-size:var(--text-xs,12px); line-height:16px; font-variant-numeric:tabular-nums; color:var(--color-text-tertiary); }
   [${MARKER}][hidden] { display:none; }
+  [${MARKER}]:not([hidden]) { animation:mcx-session-status-enter 160ms ease-out both; }
+  @keyframes mcx-session-status-enter { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }
+  @media (prefers-reduced-motion: reduce) { [${MARKER}]:not([hidden]) { animation:none; } }
   [${MARKER}] button { box-sizing:border-box; display:inline-flex; align-items:center; gap:5px; height:22px; color:inherit; font:inherit; border:0; border-radius:var(--radius-xl,12px); background:transparent; padding:3px 7px; cursor:pointer; white-space:nowrap; }
   [${MARKER}] svg, [data-minecodex-session-status-panel] h3 svg { width:14px; height:14px; flex:none; stroke-width:1.75; }
   [${MARKER}] [data-kind="context"] svg, [data-minecodex-session-status-panel] h3 .context-ring { width:12px; height:12px; stroke-width:2; }
@@ -261,6 +264,13 @@ function findComposer() {
   return document.querySelector('[data-codex-composer="true"][contenteditable="true"]')
     ?? document.querySelector('[contenteditable="true"][role="textbox"]');
 }
+function syncVisibility(composer) {
+  const portal = composer?.closest('[data-codex-composer-root]')?.querySelector('[data-above-composer-portal]');
+  const activeThreadId = portal?.getAttribute('data-above-composer-conversation-id');
+  const hasData = snapshot && (snapshot.turns > 0 || snapshot.totalTokens != null);
+  root.hidden = !hasData || (portal && snapshot.threadId !== activeThreadId);
+  if (root.hidden) closePanel();
+}
 function ensurePosition() {
   const composer = findComposer();
   if (!composer) { root.remove(); closePanel(); return; }
@@ -271,10 +281,11 @@ function ensurePosition() {
     card.after(root);
     closePanel();
   }
+  syncVisibility(composer);
 }
 function render() {
-  root.hidden = !snapshot || (snapshot.turns === 0 && snapshot.totalTokens == null);
-  if (root.hidden) { closePanel(); return; }
+  syncVisibility(findComposer());
+  if (root.hidden) return;
   buttons[0].querySelector(".status-label").textContent = `${number(snapshot.turns)} ${copy.turns} ${number(snapshot.steps)} ${copy.steps} · ${snapshot.observedTps == null ? "—" : number(snapshot.observedTps)} tok/s`;
   buttons[1].querySelector(".status-label").textContent = `${compact(snapshot.totalTokens)} · ${copy.cache} ${snapshot.cacheHitPercent == null ? "—" : `${snapshot.cacheHitPercent}%`}`;
   buttons[2].querySelector(".status-label").textContent = snapshot.contextPercent == null ? "—" : `${snapshot.contextPercent}%`;

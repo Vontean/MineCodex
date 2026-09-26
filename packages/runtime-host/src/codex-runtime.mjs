@@ -44,6 +44,19 @@ export {
   responsiveSummaryDisplayMode,
   responsiveSummaryVisibleSurface,
 } from "./codex-injection.mjs";
+
+export const SESSION_STATUS_THREAD_ID_EXPRESSION = `(() => {
+  const composer = document.querySelector('[data-codex-composer="true"][contenteditable="true"]')
+    ?? document.querySelector('[contenteditable="true"][role="textbox"]');
+  const card = composer?.closest('[data-codex-composer-root]');
+  const portal = card?.querySelector('[data-above-composer-portal]');
+  if (portal) return portal.getAttribute('data-above-composer-conversation-id');
+  if (card?.getAttribute('data-composer-placement') === 'home') return null;
+  const selected = document.querySelector('[data-app-action-sidebar-thread-selected="true"]');
+  return selected?.getAttribute('data-app-action-sidebar-thread-id')
+    ?? location.pathname + location.search + location.hash;
+})()`;
+
 export class CodexRuntime {
   constructor({
     features,
@@ -685,11 +698,7 @@ export class CodexRuntime {
       if (!this.injectedTargets.has(targetId)) continue;
       try {
         const response = await client.send("Runtime.evaluate", {
-          expression: `(() => {
-            const selected = document.querySelector('[data-app-action-sidebar-thread-selected="true"]');
-            return selected?.getAttribute('data-app-action-sidebar-thread-id')
-              ?? location.pathname + location.search;
-          })()`,
+          expression: SESSION_STATUS_THREAD_ID_EXPRESSION,
           returnByValue: true,
         });
         const threadId = threadIdFromLocation(response.result?.value);
