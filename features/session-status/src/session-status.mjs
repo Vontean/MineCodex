@@ -6,6 +6,7 @@ const copy = document.documentElement.lang.toLowerCase().startsWith("zh") ? {
   statistics: "会话统计", usage: "Token 用量", context: "上下文详情", total: "总量",
   modelTime: "模型用时", toolTime: "工具用时", firstToken: "平均首字延迟",
   uncached: "未缓存输入", cached: "缓存输入", cacheWrite: "缓存写入", output: "输出",
+  observedTime: "观测用时", inputMix: "输入构成",
   recentInput: "最近用量", capacity: "窗口容量", contextShare: "上下文占用", compactions: "压缩次数",
   visibleSections: "构成估算", instructions: "指令", messages: "消息", toolHistory: "工具交互", other: "未分类",
 } : {
@@ -13,6 +14,7 @@ const copy = document.documentElement.lang.toLowerCase().startsWith("zh") ? {
   statistics: "Session stats", usage: "Token usage", context: "Context", total: "Total",
   modelTime: "Model time", toolTime: "Tool time", firstToken: "Avg first token",
   uncached: "Uncached input", cached: "Cached input", cacheWrite: "Cache write", output: "Output",
+  observedTime: "Observed time", inputMix: "Input mix",
   recentInput: "Recent usage", capacity: "Window size", contextShare: "Context used", compactions: "Compactions",
   visibleSections: "Estimated mix", instructions: "Instructions", messages: "Messages", toolHistory: "Tool activity", other: "Unclassified",
 };
@@ -34,24 +36,27 @@ style.textContent = `
   [${MARKER}] [data-kind="context"] svg, [data-minecodex-session-status-panel] h3 .context-ring { width:12px; height:12px; stroke-width:2; }
   [${MARKER}] button:hover, [${MARKER}] button[aria-expanded="true"] { background:var(--color-token-list-hover-background); }
   [${MARKER}] button:focus-visible { outline:2px solid var(--input-outline-border-color-focus); outline-offset:1px; }
-  [data-minecodex-session-status-panel] { --mcx-context-system:var(--app-block-accent-purple,light-dark(#8952ee,#7849d1)); --mcx-context-messages:var(--app-block-accent-blue,light-dark(#3a83f7,#2c67c5)); --mcx-context-tools:var(--app-block-accent-green,light-dark(#53b559,#48a04c)); box-sizing:border-box; position:fixed; z-index:2147483000; min-width:260px; max-width:min(360px,calc(100vw - 24px)); padding:16px; border:1px solid var(--color-border-subtle); border-radius:var(--radius-xl,14px); background:var(--color-token-dropdown-background); color:var(--color-text-primary); font-family:var(--font-sans-default,inherit); font-size:13px; box-shadow:var(--shadow-lg,0 8px 28px rgba(0,0,0,.12)); }
+  [data-minecodex-session-status-panel] { --mcx-purple:var(--app-block-accent-purple,light-dark(#8952ee,#7849d1)); --mcx-blue:var(--app-block-accent-blue,light-dark(#3a83f7,#2c67c5)); --mcx-green:var(--app-block-accent-green,light-dark(#53b559,#48a04c)); box-sizing:border-box; position:fixed; z-index:2147483000; min-width:260px; max-width:min(360px,calc(100vw - 24px)); padding:16px; border:1px solid var(--color-border-subtle); border-radius:var(--radius-xl,14px); background:var(--color-token-dropdown-background); color:var(--color-text-primary); font-family:var(--font-sans-default,inherit); font-size:13px; box-shadow:var(--shadow-lg,0 8px 28px rgba(0,0,0,.12)); }
   [data-minecodex-session-status-panel] h3 { display:flex; align-items:center; gap:8px; margin:0 0 12px; padding:0 0 10px; border-bottom:1px solid var(--color-border-subtle); font-size:14px; font-weight:600; }
   [data-minecodex-session-status-panel] dl { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px 20px; margin:0; }
   [data-minecodex-session-status-panel] dt { color:var(--color-text-tertiary); }
   [data-minecodex-session-status-panel] dd { margin:0; text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
   [data-minecodex-session-status-panel] .context-head { display:flex; justify-content:space-between; gap:12px; margin-bottom:8px; }
   [data-minecodex-session-status-panel] .context-head span:first-child { color:var(--color-text-tertiary); }
-  [data-minecodex-session-status-panel] .context-bar { display:flex; height:6px; margin-bottom:14px; overflow:hidden; border-radius:var(--radius-xl); background:var(--color-token-border-default); }
-  [data-minecodex-session-status-panel] .context-bar span { display:block; flex:none; height:100%; }
-  [data-minecodex-session-status-panel] .context-bar [data-segment="instructions"] { background:var(--mcx-context-system); }
-  [data-minecodex-session-status-panel] .context-bar [data-segment="messages"], [data-minecodex-session-status-panel] .context-bar [data-segment="overall"] { background:var(--mcx-context-messages); }
-  [data-minecodex-session-status-panel] .context-bar [data-segment="tools"] { background:var(--mcx-context-tools); }
+  [data-minecodex-session-status-panel] .context-bar, [data-minecodex-session-status-panel] .mix-bar { display:flex; height:6px; overflow:hidden; border-radius:var(--radius-xl); background:var(--color-token-border-default); }
+  [data-minecodex-session-status-panel] .context-bar { margin-bottom:14px; }
+  [data-minecodex-session-status-panel] .mix-bar { grid-column:1 / -1; margin:0 0 3px; }
+  [data-minecodex-session-status-panel] .context-bar span, [data-minecodex-session-status-panel] .mix-bar span { display:block; flex:none; height:100%; }
+  [data-minecodex-session-status-panel] .context-bar [data-segment="instructions"] { background:var(--mcx-purple); }
+  [data-minecodex-session-status-panel] .context-bar [data-segment="messages"], [data-minecodex-session-status-panel] .context-bar [data-segment="overall"] { background:var(--mcx-blue); }
+  [data-minecodex-session-status-panel] .context-bar [data-segment="tools"] { background:var(--mcx-green); }
   [data-minecodex-session-status-panel] .context-bar [data-segment="other"] { background:var(--color-text-tertiary); opacity:.4; }
+  [data-minecodex-session-status-panel] .mix-bar [data-tone="purple"], [data-minecodex-session-status-panel] dt[data-tone="purple"]::before { background:var(--mcx-purple); }
+  [data-minecodex-session-status-panel] .mix-bar [data-tone="blue"], [data-minecodex-session-status-panel] dt[data-tone="blue"]::before { background:var(--mcx-blue); }
+  [data-minecodex-session-status-panel] .mix-bar [data-tone="green"], [data-minecodex-session-status-panel] dt[data-tone="green"]::before { background:var(--mcx-green); }
   [data-minecodex-session-status-panel] .context-section-heading { grid-column:1 / -1; margin-top:4px; padding-top:10px; border-top:1px solid var(--color-border-subtle); color:var(--color-text-tertiary); font-size:12px; }
-  [data-minecodex-session-status-panel] dt[data-section] { display:flex; align-items:center; gap:7px; }
-  [data-minecodex-session-status-panel] dt[data-section]::before { content:""; flex:none; width:7px; height:7px; border-radius:2px; background:var(--mcx-context-messages); }
-  [data-minecodex-session-status-panel] dt[data-section="instructions"]::before { background:var(--mcx-context-system); }
-  [data-minecodex-session-status-panel] dt[data-section="tools"]::before { background:var(--mcx-context-tools); }
+  [data-minecodex-session-status-panel] dt[data-tone] { display:flex; align-items:center; gap:7px; }
+  [data-minecodex-session-status-panel] dt[data-tone]::before { content:""; flex:none; width:7px; height:7px; border-radius:2px; }
 `;
 document.head.append(style);
 
@@ -139,6 +144,26 @@ function row(dl, label, value) {
   dl.append(dt, dd);
   return dt;
 }
+function appendMixBar(dl, title, parts) {
+  const visible = parts.filter(([, , amount]) => Number.isFinite(amount) && amount > 0);
+  const total = visible.reduce((sum, [, , amount]) => sum + amount, 0);
+  if (total === 0) return;
+  const label = document.createElement("div");
+  label.className = "context-section-heading";
+  label.textContent = title;
+  const bar = document.createElement("div");
+  bar.className = "mix-bar";
+  bar.setAttribute("role", "img");
+  bar.setAttribute("aria-label", `${title}: ${visible.map(([, name, amount]) => `${name} ${Math.round(amount / total * 100)}%`).join(", ")}`);
+  for (const [tone, name, amount] of visible) {
+    const segment = document.createElement("span");
+    segment.dataset.tone = tone;
+    segment.style.width = `${amount / total * 100}%`;
+    segment.title = `${name} ${Math.round(amount / total * 100)}%`;
+    bar.append(segment);
+  }
+  dl.append(label, bar);
+}
 function closePanel() {
   panel?.remove();
   panel = null;
@@ -164,16 +189,27 @@ function showPanel(kind) {
   if (kind === "statistics") {
     row(dl, copy.turns, number(snapshot.turns));
     row(dl, copy.steps, number(snapshot.steps));
-    row(dl, copy.modelTime, duration(snapshot.observedModelMs));
-    row(dl, copy.toolTime, duration(snapshot.toolMs));
+    if (snapshot.speedSamples > 0) appendMixBar(dl, copy.observedTime, [
+      ["blue", copy.modelTime, snapshot.observedModelMs],
+      ["green", copy.toolTime, snapshot.toolMs],
+    ]);
+    row(dl, copy.modelTime, duration(snapshot.observedModelMs)).dataset.tone = "blue";
+    row(dl, copy.toolTime, duration(snapshot.toolMs)).dataset.tone = "green";
     row(dl, copy.firstToken, duration(snapshot.averageFirstTokenMs));
     row(dl, copy.speed, snapshot.observedTps == null ? "—" : `${number(snapshot.observedTps)} tok/s`);
   } else if (kind === "usage") {
     row(dl, copy.total, tokenValue(snapshot.totalTokens));
     row(dl, copy.cacheDetail, snapshot.cacheHitPercent == null ? "—" : `${snapshot.cacheHitPercent}%`);
-    row(dl, copy.uncached, tokenValue(snapshot.uncachedInputTokens));
-    row(dl, copy.cached, tokenValue(snapshot.cachedInputTokens));
-    row(dl, copy.cacheWrite, tokenValue(snapshot.cacheWriteInputTokens));
+    appendMixBar(dl, copy.inputMix, [
+      ["blue", copy.uncached, snapshot.uncachedInputTokens],
+      ["green", copy.cached, snapshot.cachedInputTokens],
+      ["purple", copy.cacheWrite, snapshot.cacheWriteInputTokens],
+    ]);
+    row(dl, copy.uncached, tokenValue(snapshot.uncachedInputTokens)).dataset.tone = "blue";
+    row(dl, copy.cached, tokenValue(snapshot.cachedInputTokens)).dataset.tone = "green";
+    if (snapshot.cacheWriteInputTokens > 0) {
+      row(dl, copy.cacheWrite, tokenValue(snapshot.cacheWriteInputTokens)).dataset.tone = "purple";
+    }
     row(dl, copy.output, tokenValue(snapshot.outputTokens));
   } else {
     if (snapshot.contextPercent != null) {
@@ -213,7 +249,7 @@ function showPanel(kind) {
         sectionHeading.textContent = copy.visibleSections;
         dl.append(sectionHeading);
         for (const [section, label, value] of sections) {
-          row(dl, label, sectionValue(value)).dataset.section = section;
+          row(dl, label, sectionValue(value)).dataset.tone = section === "instructions" ? "purple" : section === "tools" ? "green" : "blue";
         }
       }
     }
