@@ -6,15 +6,15 @@ const copy = document.documentElement.lang.toLowerCase().startsWith("zh") ? {
   statistics: "会话统计", usage: "Token 用量", context: "上下文详情", total: "总量",
   firstToken: "平均首字延迟", input: "输入", cached: "缓存输入", output: "输出",
   tokenMix: "Token 构成",
-  recentInput: "最近用量", capacity: "窗口容量", contextShare: "上下文占用", compactions: "压缩次数",
-  visibleSections: "构成估算", instructions: "指令", messages: "消息", toolHistory: "工具交互", other: "未分类",
+  sum: "合计", capacity: "窗口容量", contextShare: "上下文占用", compactions: "压缩次数",
+  instructions: "指令", messages: "消息", toolHistory: "工具交互", other: "未分类",
 } : {
   turns: "turns", steps: "steps", speed: "TPS", cache: "Cache", cacheDetail: "Cache hit",
   statistics: "Session stats", usage: "Token usage", context: "Context", total: "Total",
   firstToken: "Avg first token", input: "Input", cached: "Cached input", output: "Output",
   tokenMix: "Token mix",
-  recentInput: "Recent usage", capacity: "Window size", contextShare: "Context used", compactions: "Compactions",
-  visibleSections: "Estimated mix", instructions: "Instructions", messages: "Messages", toolHistory: "Tool activity", other: "Unclassified",
+  sum: "Sum", capacity: "Window size", contextShare: "Context used", compactions: "Compactions",
+  instructions: "Instructions", messages: "Messages", toolHistory: "Tool activity", other: "Unclassified",
 };
 
 // 图标来自 Lucide Static 与 Phosphor Icons；许可见 vendor/。
@@ -53,6 +53,7 @@ style.textContent = `
   [data-minecodex-session-status-panel] .mix-bar [data-tone="blue"], [data-minecodex-session-status-panel] dt[data-tone="blue"]::before { background:var(--mcx-blue); }
   [data-minecodex-session-status-panel] .mix-bar [data-tone="green"], [data-minecodex-session-status-panel] dt[data-tone="green"]::before { background:var(--mcx-green); }
   [data-minecodex-session-status-panel] .context-section-heading { grid-column:1 / -1; margin-top:4px; padding-top:10px; border-top:1px solid var(--color-border-subtle); color:var(--color-text-tertiary); font-size:12px; }
+  [data-minecodex-session-status-panel] .context-summary-divider { grid-column:1 / -1; margin-top:4px; border-top:1px solid var(--color-border-subtle); }
   [data-minecodex-session-status-panel] dt[data-tone] { display:flex; align-items:center; gap:7px; }
   [data-minecodex-session-status-panel] dt[data-tone]::before { content:""; flex:none; width:7px; height:7px; border-radius:2px; }
 `;
@@ -226,9 +227,6 @@ function showPanel(kind) {
       panel.insertBefore(head, dl);
       panel.insertBefore(bar, dl);
     }
-    row(dl, copy.recentInput, tokenValue(snapshot.contextUsedTokens));
-    row(dl, copy.capacity, tokenValue(snapshot.contextWindow));
-    row(dl, copy.compactions, number(snapshot.compactions));
     if (snapshot.contextSections) {
       const sections = [
         ["instructions", copy.instructions, snapshot.contextSections.instructions],
@@ -236,15 +234,17 @@ function showPanel(kind) {
         ["tools", copy.toolHistory, snapshot.contextSections.toolHistory],
       ].filter(([, , value]) => value > 0);
       if (sections.length) {
-        const sectionHeading = document.createElement("div");
-        sectionHeading.className = "context-section-heading";
-        sectionHeading.textContent = copy.visibleSections;
-        dl.append(sectionHeading);
         for (const [section, label, value] of sections) {
           row(dl, label, sectionValue(value)).dataset.tone = section === "instructions" ? "purple" : section === "tools" ? "green" : "blue";
         }
+        const divider = document.createElement("div");
+        divider.className = "context-summary-divider";
+        dl.append(divider);
       }
     }
+    row(dl, copy.sum, tokenValue(snapshot.contextUsedTokens));
+    row(dl, copy.capacity, tokenValue(snapshot.contextWindow));
+    row(dl, copy.compactions, number(snapshot.compactions));
   }
   document.body.append(panel);
   const anchorRect = anchor.getBoundingClientRect();
