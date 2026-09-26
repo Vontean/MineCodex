@@ -14,7 +14,7 @@
 | 边框 | `--color-border-subtle` | 弹层与分割线 |
 | 悬停 | `--color-token-list-hover-background` | 状态按钮反馈 |
 | 焦点描边 | `--input-outline-border-color-focus` | 键盘焦点反馈 |
-| 上下文进度 | `--color-text-info`、`--color-token-border-default` | 明细内的占用条 |
+| 上下文进度 | `--color-text-tertiary`、`--color-text-info`、`--color-text-success`、`--color-token-border-default` | 明细内的分段占用条 |
 | 字体 | `--font-sans-default`、`--text-xs` | 与原生辅助信息一致 |
 | 圆角与阴影 | `--radius-xl`、`--shadow-lg` | 明细弹层 |
 
@@ -22,4 +22,4 @@
 
 ## 数据呈现
 
-TPS 根据 Codex 会话事件计算，分母扣除工具执行区间；缺少有效计时样本时显示 `—`。累计 token 与缓存比例来自 Codex 用量记录。上下文使用原生 Codex 桌面版的口径：最近请求 `last.totalTokens / modelContextWindow`，状态栏显示百分环和数字，弹层显示用量、窗口容量和压缩次数。二级浮窗的 token 数按十进制换算为 K/M；日志可见历史只列有数据的指令、消息、工具交互三个短标签，估算值以 `~` 开头，括号内表示占模型窗口容量的比例。不显示无法取得的工具定义，也不放解释性长文案。
+TPS 根据 Codex 会话事件计算，分母扣除工具执行区间；缺少有效计时样本时显示 `—`。累计 token 与缓存比例来自 Codex 用量记录。上下文使用原生 Codex 桌面版的口径：最近请求 `last.totalTokens / modelContextWindow`，状态栏显示百分环和数字，弹层显示用量、窗口容量和压缩次数。二级浮窗的 token 数按十进制换算为 K/M，省略 `tok` 后缀；TPS 仍保留 `tok/s`。日志可见历史只列有数据的指令、消息、工具交互三个短标签，估算值以 `~` 开头。6px 进度条用与标签圆点相同的灰、蓝、绿表示三类估算，剩余的原生占用以浅灰表示；若估算合计超过原生占用，按比例缩放彩色段，让进度条终点始终对应原生总占用。不显示无法取得的工具定义，也不放解释性长文案。

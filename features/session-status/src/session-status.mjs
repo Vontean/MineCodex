@@ -2,19 +2,19 @@
 const MARKER = "data-minecodex-session-status";
 const STYLE_ID = "minecodex-session-status-style";
 const copy = document.documentElement.lang.toLowerCase().startsWith("zh") ? {
-  turns: "回合", steps: "步", speed: "TPS", tokens: "tok", cache: "缓存", cacheDetail: "缓存命中",
+  turns: "回合", steps: "步", speed: "TPS", cache: "缓存", cacheDetail: "缓存命中",
   statistics: "会话统计", usage: "Token 用量", context: "上下文详情", total: "总量",
   modelTime: "模型用时", toolTime: "工具用时", firstToken: "平均首字延迟",
   uncached: "未缓存输入", cached: "缓存输入", cacheWrite: "缓存写入", output: "输出",
   recentInput: "最近用量", capacity: "窗口容量", contextShare: "上下文占用", compactions: "压缩次数",
-  visibleSections: "窗口占比估算", instructions: "指令", messages: "消息", toolHistory: "工具交互",
+  visibleSections: "构成估算", instructions: "指令", messages: "消息", toolHistory: "工具交互", other: "未分类",
 } : {
-  turns: "turns", steps: "steps", speed: "TPS", tokens: "tok", cache: "Cache", cacheDetail: "Cache hit",
+  turns: "turns", steps: "steps", speed: "TPS", cache: "Cache", cacheDetail: "Cache hit",
   statistics: "Session stats", usage: "Token usage", context: "Context", total: "Total",
   modelTime: "Model time", toolTime: "Tool time", firstToken: "Avg first token",
   uncached: "Uncached input", cached: "Cached input", cacheWrite: "Cache write", output: "Output",
   recentInput: "Recent usage", capacity: "Window size", contextShare: "Context used", compactions: "Compactions",
-  visibleSections: "Est. window share", instructions: "Instructions", messages: "Messages", toolHistory: "Tool activity",
+  visibleSections: "Estimated mix", instructions: "Instructions", messages: "Messages", toolHistory: "Tool activity", other: "Unclassified",
 };
 
 // 图标来自 Lucide Static 与 Phosphor Icons；许可见 vendor/。
@@ -41,8 +41,12 @@ style.textContent = `
   [data-minecodex-session-status-panel] dd { margin:0; text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
   [data-minecodex-session-status-panel] .context-head { display:flex; justify-content:space-between; gap:12px; margin-bottom:8px; }
   [data-minecodex-session-status-panel] .context-head span:first-child { color:var(--color-text-tertiary); }
-  [data-minecodex-session-status-panel] .context-bar { height:4px; margin-bottom:14px; overflow:hidden; border-radius:var(--radius-xl); background:var(--color-token-border-default); }
-  [data-minecodex-session-status-panel] .context-bar span { display:block; height:100%; background:var(--color-text-info); }
+  [data-minecodex-session-status-panel] .context-bar { display:flex; height:6px; margin-bottom:14px; overflow:hidden; border-radius:var(--radius-xl); background:var(--color-token-border-default); }
+  [data-minecodex-session-status-panel] .context-bar span { display:block; flex:none; height:100%; }
+  [data-minecodex-session-status-panel] .context-bar [data-segment="instructions"] { background:var(--color-text-tertiary); }
+  [data-minecodex-session-status-panel] .context-bar [data-segment="messages"], [data-minecodex-session-status-panel] .context-bar [data-segment="overall"] { background:var(--color-text-info); }
+  [data-minecodex-session-status-panel] .context-bar [data-segment="tools"] { background:var(--color-text-success,var(--color-text-info)); }
+  [data-minecodex-session-status-panel] .context-bar [data-segment="other"] { background:var(--color-text-tertiary); opacity:.4; }
   [data-minecodex-session-status-panel] .context-section-heading { grid-column:1 / -1; margin-top:4px; padding-top:10px; border-top:1px solid var(--color-border-subtle); color:var(--color-text-tertiary); font-size:12px; }
   [data-minecodex-session-status-panel] dt[data-section] { display:flex; align-items:center; gap:7px; }
   [data-minecodex-session-status-panel] dt[data-section]::before { content:""; flex:none; width:7px; height:7px; border-radius:2px; background:var(--color-text-info); }
@@ -103,10 +107,23 @@ function compact(value) {
   const millions = value >= 999_950;
   return `${new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(value / (millions ? 1e6 : 1e3))}${millions ? "M" : "K"}`;
 }
-function tokenValue(value) { return value == null ? "—" : `${compact(value)} tok`; }
-function sectionValue(value, windowSize) {
-  const share = windowSize > 0 ? ` (${new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(value / windowSize * 100)}%)` : "";
-  return `~${compact(value)} tok${share}`;
+function tokenValue(value) { return value == null ? "—" : compact(value); }
+function sectionValue(value) { return `~${compact(value)}`; }
+function contextBarSegments(value) {
+  const windowSize = value.contextWindow;
+  const used = Math.min(windowSize, Math.max(0, value.contextUsedTokens ?? 0));
+  if (!(windowSize > 0) || used === 0) return [];
+  if (!value.contextSections) return [["overall", used]];
+  const known = [
+    ["instructions", Math.max(0, value.contextSections.instructions ?? 0)],
+    ["messages", Math.max(0, value.contextSections.messages ?? 0)],
+    ["tools", Math.max(0, value.contextSections.toolHistory ?? 0)],
+  ];
+  const estimatedTotal = known.reduce((sum, [, amount]) => sum + amount, 0);
+  const scale = estimatedTotal > used ? used / estimatedTotal : 1;
+  const segments = known.map(([kind, amount]) => [kind, amount * scale]);
+  if (estimatedTotal < used) segments.push(["other", used - estimatedTotal]);
+  return segments.filter(([, amount]) => amount > 0);
 }
 function duration(ms) {
   if (ms == null) return "—";
@@ -169,9 +186,15 @@ function showPanel(kind) {
       head.append(label, value);
       const bar = document.createElement("div");
       bar.className = "context-bar";
-      const fill = document.createElement("span");
-      fill.style.width = `${snapshot.contextPercent}%`;
-      bar.append(fill);
+      bar.setAttribute("role", "img");
+      bar.setAttribute("aria-label", `${copy.contextShare} ${snapshot.contextPercent}%`);
+      for (const [kind, amount] of contextBarSegments(snapshot)) {
+        const segment = document.createElement("span");
+        segment.dataset.segment = kind;
+        segment.style.width = `${amount / snapshot.contextWindow * 100}%`;
+        segment.title = copy[kind === "tools" ? "toolHistory" : kind];
+        bar.append(segment);
+      }
       panel.insertBefore(head, dl);
       panel.insertBefore(bar, dl);
     }
@@ -190,7 +213,7 @@ function showPanel(kind) {
         sectionHeading.textContent = copy.visibleSections;
         dl.append(sectionHeading);
         for (const [section, label, value] of sections) {
-          row(dl, label, sectionValue(value, snapshot.contextWindow)).dataset.section = section;
+          row(dl, label, sectionValue(value)).dataset.section = section;
         }
       }
     }
@@ -222,7 +245,7 @@ function render() {
   root.hidden = !snapshot || (snapshot.turns === 0 && snapshot.totalTokens == null);
   if (root.hidden) { closePanel(); return; }
   buttons[0].querySelector(".status-label").textContent = `${number(snapshot.turns)} ${copy.turns} ${number(snapshot.steps)} ${copy.steps} · ${snapshot.observedTps == null ? "—" : number(snapshot.observedTps)} tok/s`;
-  buttons[1].querySelector(".status-label").textContent = `${compact(snapshot.totalTokens)} ${copy.tokens} · ${copy.cache} ${snapshot.cacheHitPercent == null ? "—" : `${snapshot.cacheHitPercent}%`}`;
+  buttons[1].querySelector(".status-label").textContent = `${compact(snapshot.totalTokens)} · ${copy.cache} ${snapshot.cacheHitPercent == null ? "—" : `${snapshot.cacheHitPercent}%`}`;
   buttons[2].querySelector(".status-label").textContent = snapshot.contextPercent == null ? "—" : `${snapshot.contextPercent}%`;
   buttons[2].querySelector("[data-context-progress]").setAttribute("stroke-dashoffset", String(100 - (snapshot.contextPercent ?? 0)));
   buttons[2].setAttribute("aria-label", `${copy.context}: ${snapshot.contextPercent == null ? "—" : `${snapshot.contextPercent}%`}`);
