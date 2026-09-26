@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "id": "session-status",
+  "version": "0.1.0",
+  "label": { "en": "Session Status", "zh-CN": "会话状态" },
+  "description": {
+    "en": "Shows conversation steps, observed output speed, token usage and context details below the composer.",
+    "zh-CN": "在输入框下方显示对话步骤、观测输出速度、Token 用量与上下文明细。"
+  },
+  "entry": { "kind": "page-script", "script": "src/session-status.mjs" },
+  "placement": { "order": 50 }
+}

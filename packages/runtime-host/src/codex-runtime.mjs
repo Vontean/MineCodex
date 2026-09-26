@@ -31,6 +31,7 @@ import {
   attachFilesToComposer,
   createImageEditThread,
 } from "./host-actions.mjs";
+import { SessionStatusReader, threadIdFromLocation } from "./session-status-reader.mjs";
 
 
 // 保持公共入口兼容：历史 import 从本文件继续可用。
@@ -103,6 +104,8 @@ export class CodexRuntime {
     this.pidChangeQueue = null;
     this.rendererDiscovered = false;
     this.lastRendererStatus = null;
+    this.sessionStatusReader = features.some((feature) => feature.id === "session-status")
+      ? new SessionStatusReader() : null;
   }
 
   async start({ launchCodex = false } = {}) {
@@ -673,7 +676,32 @@ export class CodexRuntime {
         this.notifyStatusChange();
       }
     }
+    if (this.sessionStatusReader) await this.publishSessionStatus();
     this.notifyStatusChange();
+  }
+
+  async publishSessionStatus() {
+    for (const [targetId, client] of this.clients) {
+      if (!this.injectedTargets.has(targetId)) continue;
+      try {
+        const response = await client.send("Runtime.evaluate", {
+          expression: `(() => {
+            const selected = document.querySelector('[data-app-action-sidebar-thread-selected="true"]');
+            return selected?.getAttribute('data-app-action-sidebar-thread-id')
+              ?? location.pathname + location.search;
+          })()`,
+          returnByValue: true,
+        });
+        const threadId = threadIdFromLocation(response.result?.value);
+        const snapshot = threadId ? await this.sessionStatusReader.read(threadId) : null;
+        await client.send("Runtime.evaluate", {
+          expression: `window.__minecodexSessionStatus?.update(${JSON.stringify(snapshot)})`,
+          returnByValue: true,
+        });
+      } catch (error) {
+        this.logger.warn?.("Session Status update failed", error.message);
+      }
+    }
   }
 
   async stop() {
@@ -712,4 +740,3 @@ export class CodexRuntime {
     return this.stopPromise;
   }
 }
-
