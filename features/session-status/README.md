@@ -12,7 +12,7 @@
 - TPS：仅对可配对模型输出条目起点与逐次用量记录终点的响应，计算 `Σ output_tokens / Σ（观测时长 − 其中工具执行时长）`；重叠工具区间只扣一次。缺少有效计时样本时显示 `—`。
 - 上下文：与当前 Codex 桌面版原生百分环相同，采用最近请求的 `last.total_tokens / model_context_window`，裁切至 0–100%。即使关闭原生百分环，本功能仍从会话事件独立读取。Codex 会话用量没有系统提示词、工具定义和消息的独立 token 计数，当前不展示推测分类。
 
-状态图标使用 Lucide Static v1.31.0 的 Gauge、Database，许可见 [`vendor/lucide-LICENSE`](vendor/lucide-LICENSE)。
+统计图标使用 Lucide Static v1.31.0 的 Gauge；用量图标使用 Phosphor Icons 的 Database，单路径填充避免半透明色在路径交叠处加深。许可见 [`vendor/lucide-LICENSE`](vendor/lucide-LICENSE) 和 [`vendor/phosphor-LICENSE`](vendor/phosphor-LICENSE)。
 
 ## 上下文分类的可行性
 

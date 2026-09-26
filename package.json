@@ -36,6 +36,7 @@
     "features/session-status/DESIGN.md",
     "features/session-status/README.md",
     "features/session-status/vendor/lucide-LICENSE",
+    "features/session-status/vendor/phosphor-LICENSE",
     "apps/dashboard/app.js",
     "apps/dashboard/favicon.svg",
     "apps/dashboard/index.html",
