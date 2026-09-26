@@ -75,5 +75,8 @@
   "os": [
     "darwin",
     "win32"
-  ]
+  ],
+  "dependencies": {
+    "acorn": "^8.18.0"
+  }
 }

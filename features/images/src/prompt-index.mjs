@@ -3,6 +3,8 @@ import { readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { createInterface } from "node:readline";
 
+import { tracePromptSource, recordedCommandOutput } from "./prompt-source.mjs";
+
 const DEFAULT_NEGATIVE_CACHE_TTL_MS = 5_000;
 
 async function findThreadLogs(directory, threadId, output = []) {
@@ -28,40 +30,26 @@ function legacyPromptFromPayload(payload) {
   return { imageGenerationItemId: payload.call_id, prompt: payload.revised_prompt };
 }
 
-function wrappedImagegenPrompt(payload) {
-  if (payload?.type !== "custom_tool_call" || payload.name !== "exec") return null;
-  if (typeof payload.call_id !== "string" || typeof payload.input !== "string") return null;
-  const marker = "tools.image_gen__imagegen";
-  const markerIndex = payload.input.indexOf(marker);
-  if (markerIndex < 0) return null;
-  const generatedImageIndex = payload.input.indexOf("generatedImage(", markerIndex + marker.length);
-  const callSource = payload.input.slice(markerIndex, generatedImageIndex < 0 ? undefined : generatedImageIndex);
-  const match = callSource.match(/\bprompt\s*:\s*("(?:\\.|[^"\\])*")/s);
-  if (!match) return null;
-  try {
-    const prompt = JSON.parse(match[1]);
-    return typeof prompt === "string" ? { callId: payload.call_id, prompt } : null;
-  } catch {
-    return null;
-  }
-}
-
 function generatedItemIdsFromOutputLine(line) {
-  if (!line.includes('"type":"custom_tool_call_output"') || !line.includes("generated_images")) return null;
-  const callId = line.match(/"call_id":"([a-zA-Z0-9_-]+)"/)?.[1];
+  if (!/"type"\s*:\s*"(?:custom_tool_call_output|function_call_output)"/.test(line)) return null;
+  const callId = line.match(/"call_id"\s*:\s*"([a-zA-Z0-9_-]+)"/)?.[1];
   if (!callId) return null;
   const itemIds = new Set();
   const pattern = /generated_images[\\/][^\\/\s]+[\\/]([a-zA-Z0-9_-]+)\.png\b/g;
   for (const match of line.matchAll(pattern)) itemIds.add(match[1]);
-  return { callId, itemIds };
+  const cellId = line.match(/Script running with cell ID ([a-zA-Z0-9_-]+)/)?.[1];
+  return { callId, itemIds, cellId };
 }
 
 async function readPrompts(logPath, prompts) {
   const input = createReadStream(logPath, { encoding: "utf8" });
   const lines = createInterface({ input, crlfDelay: Infinity });
   const wrappedPrompts = new Map();
+  const cellPrompts = new Map();
+  const stored = new Map();
+  const pendingSources = new Map();
   for await (const line of lines) {
-    if (line.includes('"image_generation_end"') || line.includes("image_gen__imagegen")) {
+    if (line.includes('"image_generation_end"') || /"type"\s*:\s*"custom_tool_call"/.test(line) || /"name"\s*:\s*"wait"/.test(line) || [...pendingSources.keys()].some(id => line.includes(id))) {
       let event;
       try { event = JSON.parse(line); } catch { continue; }
       const payload = event?.payload ?? event;
@@ -69,12 +57,27 @@ async function readPrompts(logPath, prompts) {
       if (legacy && !prompts.has(legacy.imageGenerationItemId)) {
         prompts.set(legacy.imageGenerationItemId, legacy.prompt);
       }
-      const wrapped = wrappedImagegenPrompt(payload);
-      if (wrapped) wrappedPrompts.set(wrapped.callId, wrapped.prompt);
+      if (payload?.type === "custom_tool_call" && payload.name === "exec" && typeof payload.input === "string") {
+        const prompt = tracePromptSource(payload.input, new Map(stored));
+        if (prompt) wrappedPrompts.set(payload.call_id, prompt);
+        if (/\bstore\s*\(/.test(payload.input)) pendingSources.set(payload.call_id, payload.input);
+      }
+      if (payload?.type === "custom_tool_call_output" && pendingSources.has(payload.call_id)) {
+        tracePromptSource(pendingSources.get(payload.call_id), stored, recordedCommandOutput(payload.output));
+        pendingSources.delete(payload.call_id);
+      }
+      if (payload?.type === "function_call" && payload.name === "wait") {
+        try {
+          const args = JSON.parse(payload.arguments);
+          const prompt = cellPrompts.get(String(args.cell_id));
+          if (prompt) wrappedPrompts.set(payload.call_id, prompt);
+        } catch { /* 不完整的调用记录无法关联。 */ }
+      }
     }
     const generated = generatedItemIdsFromOutputLine(line);
     const prompt = generated ? wrappedPrompts.get(generated.callId) : null;
     if (!prompt) continue;
+    if (generated.cellId) cellPrompts.set(generated.cellId, prompt);
     for (const itemId of generated.itemIds) {
       if (!prompts.has(itemId)) prompts.set(itemId, prompt);
     }
