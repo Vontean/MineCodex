@@ -6,13 +6,13 @@ const copy = document.documentElement.lang.toLowerCase().startsWith("zh") ? {
   statistics: "会话统计", usage: "Token 用量", context: "上下文详情", total: "总量",
   modelTime: "模型用时", toolTime: "工具用时", firstToken: "平均首 token 时间",
   uncached: "未缓存输入", cached: "缓存输入", cacheWrite: "缓存写入", output: "输出",
-  recentInput: "最近请求用量", capacity: "模型窗口", contextShare: "上下文已用",
+  recentInput: "最近请求用量", capacity: "模型窗口", contextShare: "上下文已用", compactions: "压缩次数",
 } : {
   turns: "turns", steps: "steps", speed: "TPS", tokens: "tok", cache: "Cache", cacheDetail: "Cache hit",
   statistics: "Session statistics", usage: "Token usage", context: "Context details", total: "Total",
   modelTime: "Model time", toolTime: "Tool time", firstToken: "Avg time to first token",
   uncached: "Uncached input", cached: "Cached input", cacheWrite: "Cache write", output: "Output",
-  recentInput: "Latest request usage", capacity: "Model window", contextShare: "Context used",
+  recentInput: "Latest request usage", capacity: "Model window", contextShare: "Context used", compactions: "Compactions",
 };
 
 // 图标来自 Lucide Static 与 Phosphor Icons；许可见 vendor/。
@@ -25,9 +25,9 @@ document.getElementById(STYLE_ID)?.remove();
 const style = document.createElement("style");
 style.id = STYLE_ID;
 style.textContent = `
-  [${MARKER}] { box-sizing:border-box; display:flex; flex-wrap:wrap; justify-content:center; align-items:center; gap:0 12px; margin:-2px auto -6px; padding-top:4px; max-width:100%; min-height:24px; min-width:0; font-family:var(--font-sans-default,inherit); font-size:var(--text-xs,12px); line-height:16px; font-variant-numeric:tabular-nums; color:var(--color-text-tertiary); }
+  [${MARKER}] { box-sizing:border-box; display:flex; flex-wrap:wrap; justify-content:center; align-items:center; gap:0 12px; margin:-2px auto -6px; padding-top:2px; max-width:100%; min-height:24px; min-width:0; font-family:var(--font-sans-default,inherit); font-size:var(--text-xs,12px); line-height:16px; font-variant-numeric:tabular-nums; color:var(--color-text-tertiary); }
   [${MARKER}][hidden] { display:none; }
-  [${MARKER}] button { box-sizing:border-box; display:inline-flex; align-items:center; gap:5px; height:18px; color:inherit; font:inherit; border:0; border-radius:var(--radius-xl,12px); background:transparent; padding:0 3px; cursor:pointer; white-space:nowrap; }
+  [${MARKER}] button { box-sizing:border-box; display:inline-flex; align-items:center; gap:5px; height:22px; color:inherit; font:inherit; border:0; border-radius:var(--radius-xl,12px); background:transparent; padding:3px 7px; cursor:pointer; white-space:nowrap; }
   [${MARKER}] svg, [data-minecodex-session-status-panel] h3 svg { width:14px; height:14px; flex:none; stroke-width:1.75; }
   [${MARKER}] [data-kind="context"] svg, [data-minecodex-session-status-panel] h3 .context-ring { width:12px; height:12px; stroke-width:2; }
   [${MARKER}] button:hover, [${MARKER}] button[aria-expanded="true"] { background:var(--color-token-list-hover-background); }
@@ -163,6 +163,7 @@ function showPanel(kind) {
     }
     row(dl, copy.recentInput, `${number(snapshot.contextUsedTokens)} tok`);
     row(dl, copy.capacity, `${number(snapshot.contextWindow)} tok`);
+    row(dl, copy.compactions, number(snapshot.compactions));
   }
   document.body.append(panel);
   const anchorRect = anchor.getBoundingClientRect();

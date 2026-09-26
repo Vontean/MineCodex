@@ -30,6 +30,10 @@ function emptyState(filePath) {
     ttftTotalMs: 0,
     ttftSamples: 0,
     toolMs: 0,
+    compactionRecords: 0,
+    compactionCompleted: 0,
+    compactionEvents: 0,
+    compactionWindow: 0,
     updatedAt: null,
   };
 }
@@ -55,11 +59,18 @@ function overlappingToolMs(intervals, start, end) {
 
 export function applySessionStatusEvent(state, event) {
   const payload = event?.payload ?? {};
+  if (event?.type === "compacted") {
+    state.compactionRecords += 1;
+    if (Number.isSafeInteger(payload.window_number) && payload.window_number >= 0) {
+      state.compactionWindow = Math.max(state.compactionWindow, payload.window_number);
+    }
+  }
   if (event?.type === "turn_context" && payload.turn_id) state.turns.add(payload.turn_id);
   if (event?.type === "session_meta" && Number.isFinite(payload.context_window)) {
     state.contextWindow = payload.context_window;
   }
   if (event?.type === "event_msg") {
+    if (payload.type === "context_compacted") state.compactionEvents += 1;
     if (payload.type === "task_started" && payload.turn_id) state.turns.add(payload.turn_id);
     if (payload.type === "task_complete" && Number.isFinite(payload.time_to_first_token_ms)) {
       state.ttftTotalMs += payload.time_to_first_token_ms;
@@ -67,6 +78,7 @@ export function applySessionStatusEvent(state, event) {
     }
     if (payload.type === "item_completed") {
       const itemType = payload.item?.type;
+      if (itemType === "ContextCompaction") state.compactionCompleted += 1;
       const start = payload.started_at_ms;
       const end = payload.completed_at_ms;
       if (MODEL_OUTPUT_ITEMS.has(itemType) && Number.isFinite(start)) {
@@ -143,6 +155,8 @@ export function sessionStatusSnapshot(state, threadId) {
     contextWindow,
     contextPercent: contextUsed != null && contextWindow != null
       ? Math.min(100, Math.round(contextUsed / contextWindow * 100)) : null,
+    compactions: Math.max(state.compactionWindow, state.compactionRecords,
+      state.compactionCompleted, state.compactionEvents),
     updatedAt: state.updatedAt,
   };
 }
@@ -203,6 +217,16 @@ export class SessionStatusReader {
         const lines = `${state.pending}${chunk}`.split("\n");
         state.pending = lines.pop() ?? "";
         for (const line of lines) {
+          if (line.slice(0, 128).includes('"type":"compacted"')) {
+            // compacted 可能含大型历史快照，只读取尾部窗口序号。
+            const marker = line.lastIndexOf('"window_number":');
+            const windowNumber = marker < 0 ? null : Number.parseInt(line.slice(marker + 16, marker + 32), 10);
+            state.compactionRecords += 1;
+            if (Number.isSafeInteger(windowNumber) && windowNumber >= 0) {
+              state.compactionWindow = Math.max(state.compactionWindow, windowNumber);
+            }
+            continue;
+          }
           if (!line.includes('"token_usage_record"') && !line.includes('"event_msg"')
             && !line.includes('"turn_context"') && !line.includes('"session_meta"')) continue;
           try { applySessionStatusEvent(state, JSON.parse(line)); } catch { /* 忽略损坏的单行 */ }

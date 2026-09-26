@@ -89,6 +89,41 @@ test("excludes overlapping tool execution from model TPS without double subtract
   assert.equal(snapshot.speedSamples, 1);
 });
 
+test("counts completed compactions once across rollout records and UI events", async (t) => {
+  const base = await mkdtemp(path.join(os.tmpdir(), "mcx-session-status-compact-"));
+  t.after(() => rm(base, { recursive: true, force: true }));
+  const sessionsDir = path.join(base, "sessions");
+  await mkdir(sessionsDir);
+  const filePath = path.join(sessionsDir, `rollout-test-${THREAD_ID}.jsonl`);
+  await writeFile(filePath, [
+    line("2026-09-26T03:23:28.208Z", "compacted", { message: "x".repeat(100_000), window_number: 1 }),
+    line("2026-09-26T03:23:28.221Z", "event_msg", {
+      type: "item_completed", item: { type: "ContextCompaction", id: "compact-1" },
+    }),
+    line("2026-09-26T03:50:44.376Z", "compacted", { window_number: 2 }),
+    line("2026-09-26T03:50:44.392Z", "event_msg", {
+      type: "item_completed", item: { type: "ContextCompaction", id: "compact-2" },
+    }),
+  ].join(""));
+  const reader = new SessionStatusReader({ sessionsDir });
+  assert.equal((await reader.read(THREAD_ID)).compactions, 2);
+  await appendFile(filePath, line("2026-09-26T04:12:00.000Z", "compacted", { window_number: 3 }));
+  assert.equal((await reader.read(THREAD_ID)).compactions, 3);
+});
+
+test("counts legacy context_compacted notifications when no compacted record exists", async (t) => {
+  const base = await mkdtemp(path.join(os.tmpdir(), "mcx-session-status-legacy-compact-"));
+  t.after(() => rm(base, { recursive: true, force: true }));
+  const sessionsDir = path.join(base, "sessions");
+  await mkdir(sessionsDir);
+  const filePath = path.join(sessionsDir, `rollout-test-${THREAD_ID}.jsonl`);
+  await writeFile(filePath, [
+    line("2026-09-26T01:00:00.000Z", "event_msg", { type: "context_compacted" }),
+    line("2026-09-26T02:00:00.000Z", "event_msg", { type: "context_compacted" }),
+  ].join(""));
+  assert.equal((await new SessionStatusReader({ sessionsDir }).read(THREAD_ID)).compactions, 2);
+});
+
 test("returns no snapshot for unavailable or malformed thread IDs", async () => {
   const reader = new SessionStatusReader({ sessionsDir: path.join(os.tmpdir(), "missing-mcx-sessions") });
   assert.equal(await reader.read("not-a-thread"), null);
