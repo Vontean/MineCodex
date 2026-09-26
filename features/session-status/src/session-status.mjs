@@ -1,19 +1,24 @@
 // page-script：数据由 Runtime Host 单向传入，页面只负责展示。
 const MARKER = "data-minecodex-session-status";
 const STYLE_ID = "minecodex-session-status-style";
-const copy = document.documentElement.lang.toLowerCase().startsWith("zh") ? {
+const copyByLocale = { "zh-CN": {
   turns: "回合", steps: "步", speed: "TPS", cache: "缓存", cacheDetail: "缓存命中",
   statistics: "会话统计", usage: "Token 用量", context: "上下文详情", total: "总量",
   firstToken: "平均首字延迟", input: "输入", cached: "缓存输入", output: "输出",
   sum: "合计", capacity: "窗口容量", contextShare: "上下文占用", compactions: "压缩次数",
   instructions: "指令", messages: "消息", toolHistory: "工具交互", other: "未分类",
-} : {
+}, en: {
   turns: "turns", steps: "steps", speed: "TPS", cache: "Cache", cacheDetail: "Cache hit",
   statistics: "Session stats", usage: "Token usage", context: "Context", total: "Total",
   firstToken: "Avg first token", input: "Input", cached: "Cached input", output: "Output",
   sum: "Sum", capacity: "Window size", contextShare: "Context used", compactions: "Compactions",
   instructions: "Instructions", messages: "Messages", toolHistory: "Tool activity", other: "Unclassified",
-};
+} };
+function selectedCopy() {
+  const language = document.documentElement.lang || navigator.languages?.[0] || navigator.language || "en";
+  return String(language).toLowerCase().startsWith("zh") ? copyByLocale["zh-CN"] : copyByLocale.en;
+}
+let copy = selectedCopy();
 
 // 图标来自 Lucide Static 与 Phosphor Icons；许可见 vendor/。
 const icons = {
@@ -294,6 +299,13 @@ const observer = new MutationObserver(() => {
   queueMicrotask(() => { rescanQueued = false; ensurePosition(); });
 });
 observer.observe(document.documentElement, { childList: true, subtree: true });
+const localeObserver = new MutationObserver(() => {
+  const nextCopy = selectedCopy();
+  if (nextCopy === copy) return;
+  copy = nextCopy;
+  render();
+});
+localeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["lang"] });
 ensurePosition();
 const previous = window.__minecodexSessionStatus;
 const receiver = {
@@ -306,6 +318,7 @@ const receiver = {
 window.__minecodexSessionStatus = receiver;
 return () => {
   observer.disconnect();
+  localeObserver.disconnect();
   closePanel();
   root.remove();
   style.remove();

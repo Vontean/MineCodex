@@ -65,9 +65,25 @@ test("control server exchanges a short-lived one-time value for a cookie and pro
 
     const status = await fetch(`${origin}/api/status`, { headers: { Cookie: cookie, "Accept-Language": "zh-CN" } });
     const initial = await status.json();
-    assert.equal(initial.features.length, 4);
+    assert.equal(initial.features.length, 5);
     assert.equal(initial.features.every((feature) => feature.enabled), true);
     assert.equal(initial.features.find((feature) => feature.id === "images").label, "图片");
+    assert.equal(initial.features.find((feature) => feature.id === "session-status").label, "会话状态");
+
+    const english = await (await fetch(`${origin}/api/features`, {
+      headers: { Cookie: cookie, "Accept-Language": "fr-FR" },
+    })).json();
+    assert.equal(english.features.find((feature) => feature.id === "session-status").label, "Session Status");
+
+    const sessionSaved = await fetch(`${origin}/api/features/session-status`, {
+      method: "PATCH",
+      headers: { Cookie: cookie, Origin: origin, "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled: false }),
+    });
+    const sessionSavedState = await sessionSaved.json();
+    assert.equal(sessionSavedState.saved, true);
+    assert.equal(sessionSavedState.features.find((feature) => feature.id === "session-status").enabled, false);
+    assert.equal(sessionSavedState.pendingRestart, true);
 
     const forged = await fetch(`${origin}/api/features/notes`, {
       method: "PATCH",
@@ -108,6 +124,7 @@ test("control server exchanges a short-lived one-time value for a cookie and pro
     const restartedState = await restarted.json();
     assert.equal(restartedState.features.find((feature) => feature.id === "notes").applied, true);
     assert.equal(restartedState.features.find((feature) => feature.id === "images").applied, false);
+    assert.equal(restartedState.features.find((feature) => feature.id === "session-status").applied, false);
 
     const dashboard = await fetch(origin);
     assert.equal(dashboard.status, 200);
@@ -121,6 +138,11 @@ test("control server exchanges a short-lived one-time value for a cookie and pro
     assert.equal(bannerIcon.status, 200);
     assert.match(bannerIcon.headers.get("content-type"), /image\/svg\+xml/);
     assert.match(await bannerIcon.text(), /<svg/);
+
+    const sessionIcon = await fetch(`${origin}/api/icons/session-status.svg`, { headers: { Cookie: cookie } });
+    assert.equal(sessionIcon.status, 200);
+    assert.match(sessionIcon.headers.get("content-type"), /image\/svg\+xml/);
+    assert.match(await sessionIcon.text(), /<svg/);
   } finally {
     await server.close();
   }

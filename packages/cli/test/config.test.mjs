@@ -21,12 +21,15 @@ test("config defaults every known plugin on and preserves unknown fields", async
     "model-slider": true,
     images: true,
     "hide-upsell-banner": true,
+    "session-status": true,
   });
   assert.deepEqual(config.future, { channel: "preview" });
 
   await updateFeature(configPath, "images", false);
+  await updateFeature(configPath, "session-status", false);
   const saved = JSON.parse(await readFile(configPath, "utf8"));
   assert.equal(saved.features.images, false);
+  assert.equal(saved.features["session-status"], false);
   assert.equal(saved.features["future-plugin"], true);
   assert.deepEqual(saved.future, { channel: "preview" });
 });

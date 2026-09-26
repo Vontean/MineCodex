@@ -54,9 +54,9 @@ test("runtime manager starts configured plugins and restarts without broad nativ
   };
   const manager = new RuntimeManager({ paths, platform, spawnProcess, logger: { error() {} } });
   await manager.start();
-  assert.equal(spawnOptions.env.MINECODEX_ENABLED_FEATURES, "model-slider,images,hide-upsell-banner");
+  assert.equal(spawnOptions.env.MINECODEX_ENABLED_FEATURES, "model-slider,images,hide-upsell-banner,session-status");
   assert.equal(spawnOptions.env.MINECODEX_LAUNCH_CODEX, undefined);
-  assert.deepEqual(manager.status().appliedFeatures, ["model-slider", "images", "hide-upsell-banner"]);
+  assert.deepEqual(manager.status().appliedFeatures, ["model-slider", "images", "hide-upsell-banner", "session-status"]);
   await manager.restart();
   assert.equal(terminatedOwned, 1);
   assert.equal(terminatedNative, 0);

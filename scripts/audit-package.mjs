@@ -41,6 +41,8 @@ const requiredFiles = [
   "features/model-slider/vendor/cc-switch-LICENSE",
   "features/model-slider/vendor/lucide-LICENSE",
   "features/notes/codex-feature.json",
+  "features/session-status/codex-feature.json",
+  "features/session-status/src/session-status.mjs",
   "package.json",
   "packages/cli/bin/mcx.mjs",
   "packages/cli/native/MineCodex.app/Contents/Info.plist",
