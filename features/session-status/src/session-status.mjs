@@ -4,19 +4,17 @@ const STYLE_ID = "minecodex-session-status-style";
 const copy = document.documentElement.lang.toLowerCase().startsWith("zh") ? {
   turns: "回合", steps: "步", speed: "TPS", tokens: "tok", cache: "缓存", cacheDetail: "缓存命中",
   statistics: "会话统计", usage: "Token 用量", context: "上下文详情", total: "总量",
-  modelTime: "模型用时", toolTime: "工具用时", firstToken: "平均首 token 时间",
+  modelTime: "模型用时", toolTime: "工具用时", firstToken: "平均首字延迟",
   uncached: "未缓存输入", cached: "缓存输入", cacheWrite: "缓存写入", output: "输出",
-  recentInput: "最近请求用量", capacity: "模型窗口", contextShare: "上下文已用", compactions: "压缩次数",
-  visibleSections: "日志分段估算", instructions: "系统与开发者指令", messages: "消息与压缩历史",
-  toolHistory: "工具调用与结果", toolDefinitions: "工具定义",
+  recentInput: "最近用量", capacity: "窗口容量", contextShare: "上下文占用", compactions: "压缩次数",
+  visibleSections: "窗口占比估算", instructions: "指令", messages: "消息", toolHistory: "工具交互",
 } : {
   turns: "turns", steps: "steps", speed: "TPS", tokens: "tok", cache: "Cache", cacheDetail: "Cache hit",
-  statistics: "Session statistics", usage: "Token usage", context: "Context details", total: "Total",
-  modelTime: "Model time", toolTime: "Tool time", firstToken: "Avg time to first token",
+  statistics: "Session stats", usage: "Token usage", context: "Context", total: "Total",
+  modelTime: "Model time", toolTime: "Tool time", firstToken: "Avg first token",
   uncached: "Uncached input", cached: "Cached input", cacheWrite: "Cache write", output: "Output",
-  recentInput: "Latest request usage", capacity: "Model window", contextShare: "Context used", compactions: "Compactions",
-  visibleSections: "Log section estimates", instructions: "System & developer", messages: "Messages & compacted history",
-  toolHistory: "Tool calls & results", toolDefinitions: "Tool definitions",
+  recentInput: "Recent usage", capacity: "Window size", contextShare: "Context used", compactions: "Compactions",
+  visibleSections: "Est. window share", instructions: "Instructions", messages: "Messages", toolHistory: "Tool activity",
 };
 
 // 图标来自 Lucide Static 与 Phosphor Icons；许可见 vendor/。
@@ -50,7 +48,6 @@ style.textContent = `
   [data-minecodex-session-status-panel] dt[data-section]::before { content:""; flex:none; width:7px; height:7px; border-radius:2px; background:var(--color-text-info); }
   [data-minecodex-session-status-panel] dt[data-section="instructions"]::before { background:var(--color-text-tertiary); }
   [data-minecodex-session-status-panel] dt[data-section="tools"]::before { background:var(--color-text-success,var(--color-text-info)); }
-  [data-minecodex-session-status-panel] dt[data-section="unknown"]::before { background:var(--color-token-border-default); }
 `;
 document.head.append(style);
 
@@ -103,7 +100,13 @@ function number(value) { return value == null ? "—" : new Intl.NumberFormat().
 function compact(value) {
   if (value == null) return "—";
   if (value < 1000) return number(value);
-  return `${new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(value / (value < 1e6 ? 1e3 : 1e6))}${value < 1e6 ? "K" : "M"}`;
+  const millions = value >= 999_950;
+  return `${new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(value / (millions ? 1e6 : 1e3))}${millions ? "M" : "K"}`;
+}
+function tokenValue(value) { return value == null ? "—" : `${compact(value)} tok`; }
+function sectionValue(value, windowSize) {
+  const share = windowSize > 0 ? ` (${new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(value / windowSize * 100)}%)` : "";
+  return `~${compact(value)} tok${share}`;
 }
 function duration(ms) {
   if (ms == null) return "—";
@@ -149,12 +152,12 @@ function showPanel(kind) {
     row(dl, copy.firstToken, duration(snapshot.averageFirstTokenMs));
     row(dl, copy.speed, snapshot.observedTps == null ? "—" : `${number(snapshot.observedTps)} tok/s`);
   } else if (kind === "usage") {
-    row(dl, copy.total, `${number(snapshot.totalTokens)} tok`);
+    row(dl, copy.total, tokenValue(snapshot.totalTokens));
     row(dl, copy.cacheDetail, snapshot.cacheHitPercent == null ? "—" : `${snapshot.cacheHitPercent}%`);
-    row(dl, copy.uncached, `${number(snapshot.uncachedInputTokens)} tok`);
-    row(dl, copy.cached, `${number(snapshot.cachedInputTokens)} tok`);
-    row(dl, copy.cacheWrite, `${number(snapshot.cacheWriteInputTokens)} tok`);
-    row(dl, copy.output, `${number(snapshot.outputTokens)} tok`);
+    row(dl, copy.uncached, tokenValue(snapshot.uncachedInputTokens));
+    row(dl, copy.cached, tokenValue(snapshot.cachedInputTokens));
+    row(dl, copy.cacheWrite, tokenValue(snapshot.cacheWriteInputTokens));
+    row(dl, copy.output, tokenValue(snapshot.outputTokens));
   } else {
     if (snapshot.contextPercent != null) {
       const head = document.createElement("div");
@@ -172,18 +175,24 @@ function showPanel(kind) {
       panel.insertBefore(head, dl);
       panel.insertBefore(bar, dl);
     }
-    row(dl, copy.recentInput, `${number(snapshot.contextUsedTokens)} tok`);
-    row(dl, copy.capacity, `${number(snapshot.contextWindow)} tok`);
+    row(dl, copy.recentInput, tokenValue(snapshot.contextUsedTokens));
+    row(dl, copy.capacity, tokenValue(snapshot.contextWindow));
     row(dl, copy.compactions, number(snapshot.compactions));
     if (snapshot.contextSections) {
-      const sectionHeading = document.createElement("div");
-      sectionHeading.className = "context-section-heading";
-      sectionHeading.textContent = copy.visibleSections;
-      dl.append(sectionHeading);
-      row(dl, copy.instructions, `~${number(snapshot.contextSections.instructions)} tok`).dataset.section = "instructions";
-      row(dl, copy.messages, `~${number(snapshot.contextSections.messages)} tok`).dataset.section = "messages";
-      row(dl, copy.toolHistory, `~${number(snapshot.contextSections.toolHistory)} tok`).dataset.section = "tools";
-      row(dl, copy.toolDefinitions, "—").dataset.section = "unknown";
+      const sections = [
+        ["instructions", copy.instructions, snapshot.contextSections.instructions],
+        ["messages", copy.messages, snapshot.contextSections.messages],
+        ["tools", copy.toolHistory, snapshot.contextSections.toolHistory],
+      ].filter(([, , value]) => value > 0);
+      if (sections.length) {
+        const sectionHeading = document.createElement("div");
+        sectionHeading.className = "context-section-heading";
+        sectionHeading.textContent = copy.visibleSections;
+        dl.append(sectionHeading);
+        for (const [section, label, value] of sections) {
+          row(dl, label, sectionValue(value, snapshot.contextWindow)).dataset.section = section;
+        }
+      }
     }
   }
   document.body.append(panel);
