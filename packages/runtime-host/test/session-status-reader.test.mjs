@@ -124,6 +124,43 @@ test("counts legacy context_compacted notifications when no compacted record exi
   assert.equal((await new SessionStatusReader({ sessionsDir }).read(THREAD_ID)).compactions, 2);
 });
 
+test("estimates visible sections from active history and replaces superseded history on compaction", async (t) => {
+  const base = await mkdtemp(path.join(os.tmpdir(), "mcx-session-sections-"));
+  t.after(() => rm(base, { recursive: true, force: true }));
+  const sessionsDir = path.join(base, "sessions");
+  await mkdir(sessionsDir);
+  const filePath = path.join(sessionsDir, `rollout-test-${THREAD_ID}.jsonl`);
+  await writeFile(filePath, [
+    line("2026-09-26T00:00:00Z", "session_meta", {
+      context_window: 1000, base_instructions: { text: "12345678" },
+    }),
+    line("2026-09-26T00:00:01Z", "response_item", {
+      type: "message", role: "user", content: [{ type: "input_text", text: "obsolete history" }],
+    }),
+    line("2026-09-26T00:00:02Z", "compacted", { window_number: 1, replacement_history: [
+      { type: "message", role: "developer", content: [{ type: "input_text", text: "abcd" }] },
+      { type: "message", role: "user", content: [{ type: "input_text", text: "你好" }] },
+    ] }),
+    line("2026-09-26T00:00:03Z", "response_item", {
+      type: "custom_tool_call", input: "12345678",
+    }),
+    line("2026-09-26T00:00:04Z", "response_item", {
+      type: "custom_tool_call_output", output: [{ type: "input_text", text: "abcdefgh" }],
+    }),
+    line("2026-09-26T00:00:05Z", "token_usage_record", {
+      response_id: "response-1", usage: usage(100, 0, 10), thread_token_usage: usage(100, 0, 10),
+    }),
+  ].join(""));
+  const reader = new SessionStatusReader({ sessionsDir });
+  assert.deepEqual((await reader.read(THREAD_ID)).contextSections, {
+    instructions: 3, messages: 2, toolHistory: 4,
+  });
+  await appendFile(filePath, line("2026-09-26T00:00:06Z", "response_item", {
+    type: "message", role: "user", content: [{ type: "input_image", image_url: "data:image/png;base64,AAAA" }],
+  }));
+  assert.equal((await reader.read(THREAD_ID)).contextSections.messages, 1846);
+});
+
 test("returns no snapshot for unavailable or malformed thread IDs", async () => {
   const reader = new SessionStatusReader({ sessionsDir: path.join(os.tmpdir(), "missing-mcx-sessions") });
   assert.equal(await reader.read("not-a-thread"), null);

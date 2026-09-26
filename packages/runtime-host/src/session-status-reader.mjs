@@ -6,6 +6,51 @@ import path from "node:path";
 const THREAD_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MODEL_OUTPUT_ITEMS = new Set(["Reasoning", "AgentMessage"]);
 const TOOL_ITEMS = new Set(["CommandExecution", "McpToolCall", "DynamicToolCall"]);
+const IMAGE_TOKENS_ESTIMATE = 1844;
+
+function estimatedTextTokens(value) {
+  return typeof value === "string" ? Math.ceil(Buffer.byteLength(value, "utf8") / 4) : 0;
+}
+
+function estimatedContentTokens(content) {
+  if (!Array.isArray(content)) return 0;
+  return content.reduce((total, item) => {
+    if (item?.type === "input_image" || item?.type === "output_image") return total + IMAGE_TOKENS_ESTIMATE;
+    return total + estimatedTextTokens(item?.text);
+  }, 0);
+}
+
+function estimatedEncryptedTokens(value) {
+  if (typeof value !== "string") return 0;
+  // 参考 Codex 的历史粗估：先去掉加密封装，再按约 4 字节/token 换算。
+  return Math.ceil(Math.max(0, Math.floor(value.length * 3 / 4) - 650) / 4);
+}
+
+function estimatedSections(item) {
+  const type = item?.type;
+  if (type === "message") {
+    const tokens = estimatedContentTokens(item.content);
+    return item.role === "developer" || item.role === "system"
+      ? { instructions: tokens, messages: 0, tools: 0 }
+      : { instructions: 0, messages: tokens, tools: 0 };
+  }
+  if (type === "function_call" || type === "custom_tool_call") {
+    return { instructions: 0, messages: 0, tools: estimatedTextTokens(item.arguments ?? item.input) };
+  }
+  if (type === "function_call_output" || type === "custom_tool_call_output") {
+    return { instructions: 0, messages: 0, tools: estimatedContentTokens(item.output) };
+  }
+  if (type === "reasoning" || type === "compaction") {
+    return { instructions: 0, messages: estimatedContentTokens(item.summary)
+      + estimatedEncryptedTokens(item.encrypted_content), tools: 0 };
+  }
+  return null;
+}
+
+function addSections(target, sections) {
+  if (!sections) return;
+  for (const key of ["instructions", "messages", "tools"]) target[key] += sections[key];
+}
 
 export function threadIdFromLocation(value) {
   return String(value ?? "").match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i)?.[0] ?? null;
@@ -34,6 +79,9 @@ function emptyState(filePath) {
     compactionCompleted: 0,
     compactionEvents: 0,
     compactionWindow: 0,
+    baseInstructionTokens: 0,
+    visibleSections: { instructions: 0, messages: 0, tools: 0 },
+    hasVisibleHistory: false,
     updatedAt: null,
   };
 }
@@ -64,10 +112,25 @@ export function applySessionStatusEvent(state, event) {
     if (Number.isSafeInteger(payload.window_number) && payload.window_number >= 0) {
       state.compactionWindow = Math.max(state.compactionWindow, payload.window_number);
     }
+    // 压缩会替换活跃历史；不能继续累计压缩前的消息与工具记录。
+    state.visibleSections = { instructions: 0, messages: 0, tools: 0 };
+    state.hasVisibleHistory = false;
+    if (Array.isArray(payload.replacement_history)) {
+      for (const item of payload.replacement_history) addSections(state.visibleSections, estimatedSections(item));
+      state.hasVisibleHistory = true;
+    }
+  }
+  if (event?.type === "response_item") {
+    const sections = estimatedSections(payload);
+    if (sections) {
+      addSections(state.visibleSections, sections);
+      state.hasVisibleHistory = true;
+    }
   }
   if (event?.type === "turn_context" && payload.turn_id) state.turns.add(payload.turn_id);
-  if (event?.type === "session_meta" && Number.isFinite(payload.context_window)) {
-    state.contextWindow = payload.context_window;
+  if (event?.type === "session_meta") {
+    if (Number.isFinite(payload.context_window)) state.contextWindow = payload.context_window;
+    state.baseInstructionTokens = estimatedTextTokens(payload.base_instructions?.text);
   }
   if (event?.type === "event_msg") {
     if (payload.type === "context_compacted") state.compactionEvents += 1;
@@ -157,6 +220,11 @@ export function sessionStatusSnapshot(state, threadId) {
       ? Math.min(100, Math.round(contextUsed / contextWindow * 100)) : null,
     compactions: Math.max(state.compactionWindow, state.compactionRecords,
       state.compactionCompleted, state.compactionEvents),
+    contextSections: state.hasVisibleHistory ? {
+      instructions: state.baseInstructionTokens + state.visibleSections.instructions,
+      messages: state.visibleSections.messages,
+      toolHistory: state.visibleSections.tools,
+    } : null,
     updatedAt: state.updatedAt,
   };
 }
@@ -217,18 +285,9 @@ export class SessionStatusReader {
         const lines = `${state.pending}${chunk}`.split("\n");
         state.pending = lines.pop() ?? "";
         for (const line of lines) {
-          if (line.slice(0, 128).includes('"type":"compacted"')) {
-            // compacted 可能含大型历史快照，只读取尾部窗口序号。
-            const marker = line.lastIndexOf('"window_number":');
-            const windowNumber = marker < 0 ? null : Number.parseInt(line.slice(marker + 16, marker + 32), 10);
-            state.compactionRecords += 1;
-            if (Number.isSafeInteger(windowNumber) && windowNumber >= 0) {
-              state.compactionWindow = Math.max(state.compactionWindow, windowNumber);
-            }
-            continue;
-          }
           if (!line.includes('"token_usage_record"') && !line.includes('"event_msg"')
-            && !line.includes('"turn_context"') && !line.includes('"session_meta"')) continue;
+            && !line.includes('"turn_context"') && !line.includes('"session_meta"')
+            && !line.includes('"response_item"') && !line.includes('"compacted"')) continue;
           try { applySessionStatusEvent(state, JSON.parse(line)); } catch { /* 忽略损坏的单行 */ }
         }
       }

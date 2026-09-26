@@ -7,12 +7,16 @@ const copy = document.documentElement.lang.toLowerCase().startsWith("zh") ? {
   modelTime: "模型用时", toolTime: "工具用时", firstToken: "平均首 token 时间",
   uncached: "未缓存输入", cached: "缓存输入", cacheWrite: "缓存写入", output: "输出",
   recentInput: "最近请求用量", capacity: "模型窗口", contextShare: "上下文已用", compactions: "压缩次数",
+  visibleSections: "日志分段估算", instructions: "系统与开发者指令", messages: "消息与压缩历史",
+  toolHistory: "工具调用与结果", toolDefinitions: "工具定义",
 } : {
   turns: "turns", steps: "steps", speed: "TPS", tokens: "tok", cache: "Cache", cacheDetail: "Cache hit",
   statistics: "Session statistics", usage: "Token usage", context: "Context details", total: "Total",
   modelTime: "Model time", toolTime: "Tool time", firstToken: "Avg time to first token",
   uncached: "Uncached input", cached: "Cached input", cacheWrite: "Cache write", output: "Output",
   recentInput: "Latest request usage", capacity: "Model window", contextShare: "Context used", compactions: "Compactions",
+  visibleSections: "Log section estimates", instructions: "System & developer", messages: "Messages & compacted history",
+  toolHistory: "Tool calls & results", toolDefinitions: "Tool definitions",
 };
 
 // 图标来自 Lucide Static 与 Phosphor Icons；许可见 vendor/。
@@ -41,6 +45,12 @@ style.textContent = `
   [data-minecodex-session-status-panel] .context-head span:first-child { color:var(--color-text-tertiary); }
   [data-minecodex-session-status-panel] .context-bar { height:4px; margin-bottom:14px; overflow:hidden; border-radius:var(--radius-xl); background:var(--color-token-border-default); }
   [data-minecodex-session-status-panel] .context-bar span { display:block; height:100%; background:var(--color-text-info); }
+  [data-minecodex-session-status-panel] .context-section-heading { grid-column:1 / -1; margin-top:4px; padding-top:10px; border-top:1px solid var(--color-border-subtle); color:var(--color-text-tertiary); font-size:12px; }
+  [data-minecodex-session-status-panel] dt[data-section] { display:flex; align-items:center; gap:7px; }
+  [data-minecodex-session-status-panel] dt[data-section]::before { content:""; flex:none; width:7px; height:7px; border-radius:2px; background:var(--color-text-info); }
+  [data-minecodex-session-status-panel] dt[data-section="instructions"]::before { background:var(--color-text-tertiary); }
+  [data-minecodex-session-status-panel] dt[data-section="tools"]::before { background:var(--color-text-success,var(--color-text-info)); }
+  [data-minecodex-session-status-panel] dt[data-section="unknown"]::before { background:var(--color-token-border-default); }
 `;
 document.head.append(style);
 
@@ -107,6 +117,7 @@ function row(dl, label, value) {
   const dd = document.createElement("dd");
   dd.textContent = value;
   dl.append(dt, dd);
+  return dt;
 }
 function closePanel() {
   panel?.remove();
@@ -164,6 +175,16 @@ function showPanel(kind) {
     row(dl, copy.recentInput, `${number(snapshot.contextUsedTokens)} tok`);
     row(dl, copy.capacity, `${number(snapshot.contextWindow)} tok`);
     row(dl, copy.compactions, number(snapshot.compactions));
+    if (snapshot.contextSections) {
+      const sectionHeading = document.createElement("div");
+      sectionHeading.className = "context-section-heading";
+      sectionHeading.textContent = copy.visibleSections;
+      dl.append(sectionHeading);
+      row(dl, copy.instructions, `~${number(snapshot.contextSections.instructions)} tok`).dataset.section = "instructions";
+      row(dl, copy.messages, `~${number(snapshot.contextSections.messages)} tok`).dataset.section = "messages";
+      row(dl, copy.toolHistory, `~${number(snapshot.contextSections.toolHistory)} tok`).dataset.section = "tools";
+      row(dl, copy.toolDefinitions, "—").dataset.section = "unknown";
+    }
   }
   document.body.append(panel);
   const anchorRect = anchor.getBoundingClientRect();
