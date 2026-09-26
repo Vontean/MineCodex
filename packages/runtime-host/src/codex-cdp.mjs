@@ -1,6 +1,6 @@
 // CDP (Chrome DevTools Protocol) 客户端：WebSocket 连接、表达式求值与进程等待。
 // 与注入内容无关；CodexRuntime 通过这里的 connectClient 与 Codex Renderer 通信。
-export async function connect(url) {
+export async function connect(url, { timeoutMs = 10_000 } = {}) {
   const socket = new WebSocket(url);
   const pending = new Map();
   const eventWaiters = new Map();
@@ -8,8 +8,24 @@ export async function connect(url) {
   let nextId = 1;
 
   await new Promise((resolve, reject) => {
-    socket.addEventListener("open", resolve, { once: true });
-    socket.addEventListener("error", reject, { once: true });
+    const finish = (error) => {
+      clearTimeout(timer);
+      socket.removeEventListener("open", onOpen);
+      socket.removeEventListener("error", onError);
+      socket.removeEventListener("close", onClose);
+      if (error) reject(error);
+      else resolve();
+    };
+    const onOpen = () => finish();
+    const onError = () => finish(new Error("CDP WebSocket connection failed"));
+    const onClose = () => finish(new Error("CDP WebSocket closed before opening"));
+    const timer = setTimeout(() => {
+      finish(new Error("CDP WebSocket connection timed out"));
+      socket.close();
+    }, timeoutMs);
+    socket.addEventListener("open", onOpen, { once: true });
+    socket.addEventListener("error", onError, { once: true });
+    socket.addEventListener("close", onClose, { once: true });
   });
   socket.addEventListener("message", (event) => {
     const message = JSON.parse(String(event.data));
@@ -39,11 +55,27 @@ export async function connect(url) {
 
   return {
     socket,
-    send(method, params = {}) {
+    send(method, params = {}, { timeoutMs = 30_000 } = {}) {
+      // 关闭后的 send 不会再收到 close 事件，必须立即结束请求。
+      if (socket.readyState !== WebSocket.OPEN) {
+        return Promise.reject(new Error("CDP WebSocket is not open"));
+      }
       const id = nextId++;
       return new Promise((resolve, reject) => {
-        pending.set(id, { resolve, reject });
-        socket.send(JSON.stringify({ id, method, params }));
+        const finish = (callback, value) => {
+          clearTimeout(timer);
+          pending.delete(id);
+          callback(value);
+        };
+        const timer = setTimeout(() => {
+          finish(reject, new Error(`CDP request timed out: ${method}`));
+        }, timeoutMs);
+        pending.set(id, {
+          resolve: (value) => finish(resolve, value),
+          reject: (error) => finish(reject, error),
+        });
+        try { socket.send(JSON.stringify({ id, method, params })); }
+        catch (error) { finish(reject, error); }
       });
     },
     on(method, listener) {
@@ -60,7 +92,10 @@ export async function connect(url) {
             clearTimeout(timeout);
             resolve(value);
           },
-          reject,
+          reject(error) {
+            clearTimeout(timeout);
+            reject(error);
+          },
         };
         const timeout = setTimeout(() => {
           const remaining = (eventWaiters.get(method) ?? []).filter((item) => item !== waiter);
@@ -150,4 +185,3 @@ export function waitForProcessChildExit(child, timeoutMs) {
     timer = setTimeout(() => finish(false), timeoutMs);
   });
 }
-

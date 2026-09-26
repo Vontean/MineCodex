@@ -103,6 +103,8 @@ export class CodexRuntime {
     this.scriptIds = new Map();
     this.bindingTokens = new Map();
     this.hostActionChains = new Map();
+    this.sessionStatusUpdates = new Map();
+    this.sessionStatusRevision = 0;
     this.refreshPromise = null;
     this.stopping = false;
     this.monitorPromise = null;
@@ -290,7 +292,9 @@ export class CodexRuntime {
   }
 
   async startTargetDiscovery() {
-    const response = await this.fetchImpl(`http://127.0.0.1:${this.cdpPort}/json/version`);
+    const response = await this.fetchImpl(`http://127.0.0.1:${this.cdpPort}/json/version`, {
+      signal: AbortSignal.timeout(3_000),
+    });
     if (!response?.ok) {
       throw new Error(`Codex CDP version returned HTTP ${response?.status ?? "error"}`);
     }
@@ -355,7 +359,9 @@ export class CodexRuntime {
 
   async isAvailable() {
     try {
-      const response = await this.fetchImpl(`http://127.0.0.1:${this.cdpPort}/json/version`);
+      const response = await this.fetchImpl(`http://127.0.0.1:${this.cdpPort}/json/version`, {
+        signal: AbortSignal.timeout(3_000),
+      });
       if (!response?.ok) return false;
       requireCdpWebSocketUrl(await response.json(), this.cdpPort);
       return true;
@@ -518,6 +524,12 @@ export class CodexRuntime {
     }
     if (request.token !== this.bindingTokens.get(targetId) || typeof request.requestId !== "string") return;
     const feature = this.features.find((candidate) => candidate.id === request.featureId);
+    if (feature?.id === "session-status" && request.action === "refresh-session-status") {
+      if (this.sessionStatusReader && this.clients.get(targetId) === client && !this.stopping) {
+        await this.publishSessionStatus(targetId);
+      }
+      return;
+    }
     if (feature && request.action === SURFACE_LOAD_ACTION) {
       try {
         const result = await this.loadSurfaceIntoFrame(client, feature, request.payload);
@@ -573,7 +585,9 @@ export class CodexRuntime {
   async refreshTargets() {
     let response;
     try {
-      response = await this.fetchImpl(`http://127.0.0.1:${this.cdpPort}/json/list`);
+      response = await this.fetchImpl(`http://127.0.0.1:${this.cdpPort}/json/list`, {
+        signal: AbortSignal.timeout(3_000),
+      });
     } catch (error) {
       throw this.markCodexUnavailable(error);
     }
@@ -604,7 +618,8 @@ export class CodexRuntime {
       ...this.targetFailures.keys(),
     ]);
     for (const id of trackedTargetIds) {
-      if (liveRendererIds.has(id)) continue;
+      const socketState = this.clients.get(id)?.socket.readyState;
+      if (liveRendererIds.has(id) && (socketState == null || socketState === 1)) continue;
       removedTarget = true;
       this.clients.get(id)?.socket.close();
       this.clients.delete(id);
@@ -640,7 +655,13 @@ export class CodexRuntime {
         const bindingToken = randomBytes(24).toString("hex");
         this.bindingTokens.set(target.id, bindingToken);
         client.on?.("Runtime.bindingCalled", (params) => {
-          this.enqueueHostAction(target.id, () => this.handleBindingCalled(target.id, client, params))
+          let action;
+          try { action = JSON.parse(params.payload)?.action; } catch { return; }
+          // 统计读取独立合并，避免排在图片等用户操作后面。
+          const work = action === "refresh-session-status"
+            ? this.handleBindingCalled(target.id, client, params)
+            : this.enqueueHostAction(target.id, () => this.handleBindingCalled(target.id, client, params));
+          work
             .catch((error) => this.logger.warn?.("Codex Host action failed", error.message));
         });
         const source = createInjectionSource(this.features, {
@@ -693,22 +714,43 @@ export class CodexRuntime {
     this.notifyStatusChange();
   }
 
-  async publishSessionStatus() {
+  async publishSessionStatus(onlyTargetId = null) {
     for (const [targetId, client] of this.clients) {
+      if (onlyTargetId && targetId !== onlyTargetId) continue;
       if (!this.injectedTargets.has(targetId)) continue;
-      try {
-        const response = await client.send("Runtime.evaluate", {
-          expression: SESSION_STATUS_THREAD_ID_EXPRESSION,
-          returnByValue: true,
-        });
-        const threadId = threadIdFromLocation(response.result?.value);
-        const snapshot = threadId ? await this.sessionStatusReader.read(threadId) : null;
-        await client.send("Runtime.evaluate", {
-          expression: `window.__minecodexSessionStatus?.update(${JSON.stringify(snapshot)})`,
-          returnByValue: true,
-        });
-      } catch (error) {
-        this.logger.warn?.("Session Status update failed", error.message);
+      const pending = this.sessionStatusUpdates.get(targetId);
+      if (pending) { await pending; continue; }
+      const revision = ++this.sessionStatusRevision;
+      const update = (async () => {
+        try {
+          const response = await client.send("Runtime.evaluate", {
+            expression: SESSION_STATUS_THREAD_ID_EXPRESSION,
+            returnByValue: true,
+          }, { timeoutMs: 3_000 });
+          const threadId = threadIdFromLocation(response.result?.value);
+          const data = threadId ? await this.sessionStatusReader.read(threadId) : null;
+          const snapshot = data ?? (threadId ? {
+            threadId,
+            retryAfterMs: this.sessionStatusReader.retryAfterMs?.(threadId) ?? 500,
+          } : null);
+          if (this.stopping || this.clients.get(targetId) !== client) return;
+          await client.send("Runtime.evaluate", {
+            expression: `window.__minecodexSessionStatus?.update(${JSON.stringify(snapshot)}, ${revision})`,
+            returnByValue: true,
+          }, { timeoutMs: 3_000 });
+        } catch (error) {
+          this.logger.warn?.("Session Status update failed", error.message);
+          if (this.clients.get(targetId) === client) {
+            client.socket.close();
+            this.injectedTargets.delete(targetId);
+            this.notifyStatusChange();
+          }
+        }
+      })();
+      this.sessionStatusUpdates.set(targetId, update);
+      try { await update; }
+      finally {
+        if (this.sessionStatusUpdates.get(targetId) === update) this.sessionStatusUpdates.delete(targetId);
       }
     }
   }

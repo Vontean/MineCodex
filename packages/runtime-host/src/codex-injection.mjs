@@ -2728,6 +2728,10 @@ export function createInjectionSource(features, {
       // CDP 重连会轮换 token；保留已有页面和草稿，只重试未就绪的页面。
       config.bindingName = bindingName;
       config.bindingToken = bindingToken;
+      for (const feature of pageScriptFeatures) {
+        feature.pageScript.config.bindingName = bindingName;
+        feature.pageScript.config.bindingToken = bindingToken;
+      }
       for (const [requestId, pending] of pendingHostActions) {
         if (pending.kind === "surface-load") pendingHostActions.delete(requestId);
       }

@@ -17,6 +17,52 @@ import {
   responsiveSummaryVisibleSurface,
 } from "../src/codex-runtime.mjs";
 import { createManagedPidFileWriter } from "../src/pid-file.mjs";
+import { HOST_BINDING_NAME } from "../src/codex-injection.mjs";
+
+test("authenticates immediate status requests, coalesces reads, and invalidates timed-out connections", async () => {
+  const runtime = new CodexRuntime({ features: [{ id: "session-status" }], profileDir: "/tmp/mcx-status-request", logger: { warn() {} } });
+  const threadId = "11111111-2222-4333-8444-555555555555";
+  let resolveRead;
+  let reads = 0;
+  let fail = false;
+  const updates = [];
+  runtime.sessionStatusReader = {
+    read() { reads++; return new Promise((resolve) => { resolveRead = resolve; }); },
+    retryAfterMs() { return 500; },
+  };
+  const client = {
+    socket: { readyState: 1, close() { this.readyState = 3; } },
+    async send(method, params, options) {
+      assert.equal(options.timeoutMs, 3000);
+      if (fail) throw new Error("CDP request timed out");
+      if (params.expression === SESSION_STATUS_THREAD_ID_EXPRESSION) return { result: { value: threadId } };
+      updates.push(params.expression);
+      return {};
+    },
+  };
+  runtime.clients.set("target", client);
+  runtime.injectedTargets.add("target");
+  runtime.bindingTokens.set("target", "secret");
+  const request = (token) => runtime.handleBindingCalled("target", client, {
+    name: HOST_BINDING_NAME,
+    payload: JSON.stringify({ token, featureId: "session-status", requestId: "refresh", action: "refresh-session-status" }),
+  });
+  await request("wrong");
+  assert.equal(reads, 0);
+  const first = request("secret");
+  const second = request("secret");
+  await Promise.resolve();
+  assert.equal(reads, 1);
+  resolveRead(null);
+  await Promise.all([first, second]);
+  assert.equal(updates.length, 1);
+  assert.match(updates[0], /"retryAfterMs":500/);
+  fail = true;
+  await request("secret");
+  assert.equal(client.socket.readyState, 3);
+  assert.equal(runtime.injectedTargets.has("target"), false);
+  assert.equal(runtime.sessionStatusUpdates.size, 0);
+});
 
 test("session status reads the composer thread when its sidebar project is collapsed", () => {
   const threadId = "01a0db9f-71af-74d2-9189-17dfb57c096e";
@@ -465,6 +511,8 @@ async function executeModelSliderInjection({
   await Promise.resolve();
   const probe = window.__fastIconProbe?.();
   return {
+    updateHostBinding: (name, token) => window.__codexPersonalRuntime.updateHostBinding(name, token),
+    pageScriptBinding: () => window.__pageScriptBindingProbe?.(),
     displayLabel: (raw, models = []) => window.__modelSliderDisplayProbe?.(raw, models) ?? null,
     compactLabel: (raw) => window.__modelSliderCompactLabelProbe?.(raw) ?? null,
     visibleControllerModels: (models, selected) => window.__visibleControllerModelsProbe?.(models, selected) ?? null,
@@ -524,6 +572,19 @@ async function executeModelSliderInjection({
     runtimeInstalled: Boolean(window.__codexPersonalRuntime),
   };
 }
+
+test("rotates existing page-script binding credentials on renderer reconnect", async () => {
+  const fixture = await executeModelSliderInjection({
+    features: [{
+      id: "session-status", label: "Session Status", labels: { en: "Session Status" },
+      entry: { kind: "page-script" },
+      pageScript: { source: "window.__pageScriptBindingProbe = () => ({ name: config.bindingName, token: config.bindingToken });" },
+    }],
+  });
+  fixture.updateHostBinding("new-binding", "new-token");
+  assert.equal(fixture.pageScriptBinding().name, "new-binding");
+  assert.equal(fixture.pageScriptBinding().token, "new-token");
+});
 
 test("matches Codex Summary responsive thresholds and content-shift behavior", () => {
   assert.equal(responsiveSummaryDisplayMode(1095), "overlay");
@@ -2247,6 +2308,47 @@ test("reconciles an available CDP without relaunching during a target-list outag
   } finally {
     await runtime.stop();
     await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test("reconnects a closed renderer and publishes the first turn before token usage arrives", async () => {
+  const threadId = "11111111-2222-4333-8444-555555555555";
+  const updates = [];
+  let connections = 0;
+  const clients = [];
+  const runtime = new CodexRuntime({
+    features: [],
+    profileDir: "/tmp/mcx-reconnect-test",
+    fetchImpl: async () => cdpResponse([{
+      id: "current", type: "page", url: "app://-/index.html", webSocketDebuggerUrl: "ws://fixture",
+    }]),
+    connectClient: async () => {
+      connections++;
+      const client = {
+        socket: { readyState: 1, close() { this.readyState = 3; } },
+        async send(method, params = {}) {
+          if (method === "Page.addScriptToEvaluateOnNewDocument") return { identifier: "script" };
+          if (params.expression === SESSION_STATUS_THREAD_ID_EXPRESSION) return { result: { value: threadId } };
+          if (params.expression?.startsWith("window.__minecodexSessionStatus?.update(")) updates.push(params.expression);
+          return { result: { value: true } };
+        },
+      };
+      clients.push(client);
+      return client;
+    },
+  });
+  runtime.sessionStatusReader = { async read(id) { return { threadId: id, turns: 1, totalTokens: null }; } };
+  try {
+    await runtime.refresh();
+    clients[0].socket.close();
+    await runtime.refresh();
+    assert.equal(connections, 2);
+    assert.equal(runtime.clients.get("current"), clients[1]);
+    assert.equal(updates.length, 2);
+    assert.match(updates[1], /"turns":1,"totalTokens":null/);
+    assert.equal(runtime.getRendererStatus().healthy, true);
+  } finally {
+    await runtime.stop();
   }
 });
 

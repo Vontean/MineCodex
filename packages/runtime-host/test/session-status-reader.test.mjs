@@ -161,6 +161,34 @@ test("estimates visible sections from active history and replaces superseded his
   assert.equal((await reader.read(THREAD_ID)).contextSections.messages, 1846);
 });
 
+test("backs off missing logs from 500ms to 10s and reads a newly created first turn without tokens", async (t) => {
+  const sessionsDir = await mkdtemp(path.join(os.tmpdir(), "mcx-session-retry-"));
+  t.after(() => rm(sessionsDir, { recursive: true, force: true }));
+  let now = 0;
+  const reader = new SessionStatusReader({ sessionsDir, now: () => now });
+  for (const delay of [500, 1000, 2000, 10_000]) {
+    assert.equal(await reader.read(THREAD_ID), null);
+    assert.equal(reader.retryAfterMs(THREAD_ID), delay);
+    now += delay;
+  }
+  const file = path.join(sessionsDir, `rollout-${THREAD_ID}.jsonl`);
+  await writeFile(file, line("2026-09-26T00:00:00Z", "event_msg", { type: "task_started", turn_id: "first" }));
+  now--;
+  assert.equal(await reader.read(THREAD_ID), null);
+  now++;
+  const first = await reader.read(THREAD_ID);
+  assert.equal(first.turns, 1);
+  assert.equal(first.totalTokens, null);
+  assert.equal(first.isRunning, true);
+  assert.equal(reader.retryAfterMs(THREAD_ID), 0);
+  await appendFile(file, line("2026-09-26T00:00:01Z", "event_msg", { type: "task_complete", turn_id: "first" }));
+  assert.equal((await reader.read(THREAD_ID)).isRunning, false);
+  await appendFile(file, line("2026-09-26T00:00:02Z", "event_msg", { type: "task_started", turn_id: "second" }));
+  assert.equal((await reader.read(THREAD_ID)).isRunning, true);
+  await appendFile(file, line("2026-09-26T00:00:03Z", "event_msg", { type: "turn_aborted", turn_id: "second" }));
+  assert.equal((await reader.read(THREAD_ID)).isRunning, false);
+});
+
 test("returns no snapshot for unavailable or malformed thread IDs", async () => {
   const reader = new SessionStatusReader({ sessionsDir: path.join(os.tmpdir(), "missing-mcx-sessions") });
   assert.equal(await reader.read("not-a-thread"), null);

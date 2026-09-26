@@ -25,6 +25,7 @@ test("same-session reinjection updates the binding before ensuring the UI", () =
 
 test("rotated binding retries blank frames and preserves ready editors", () => {
   const config = { bindingName: "bridge", bindingToken: "old-token" };
+  const pageScriptFeatures = [{ pageScript: { config: { bindingName: "bridge", bindingToken: "old-token" } } }];
   const blank = { ready: false, loading: true };
   const editor = { ready: true, draft: "unsaved prompt" };
   const pendingHostActions = new Map([
@@ -35,7 +36,7 @@ test("rotated binding retries blank frames and preserves ready editors", () => {
   const start = source.indexOf("function updateHostBinding(");
   const end = source.indexOf("function postSurfaceActive", start);
   const update = vm.runInNewContext(`(${source.slice(start, end).trim()})`, {
-    config, pendingHostActions,
+    config, pendingHostActions, pageScriptFeatures,
     surfaceRecords: new Map([["blank", blank], ["editor", editor]]),
     requestSurfaceLoad(record) {
       assert.equal(record.loading, false);
@@ -43,6 +44,7 @@ test("rotated binding retries blank frames and preserves ready editors", () => {
     },
   });
   update("bridge", "new-token");
+  assert.equal(pageScriptFeatures[0].pageScript.config.bindingToken, "new-token");
   assert.equal(loads.length, 1);
   assert.equal(loads[0].record, blank);
   assert.equal(loads[0].token, "new-token");

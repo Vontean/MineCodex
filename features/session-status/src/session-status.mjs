@@ -108,6 +108,11 @@ let snapshot = null;
 let panel = null;
 let openKind = null;
 let rescanQueued = false;
+let activeThreadId = null;
+let refreshTimer = null;
+let refreshSequence = 0;
+let disposed = false;
+let lastRevision = 0;
 
 function number(value) { return value == null ? "—" : new Intl.NumberFormat().format(value); }
 function compact(value) {
@@ -264,15 +269,59 @@ function findComposer() {
   return document.querySelector('[data-codex-composer="true"][contenteditable="true"]')
     ?? document.querySelector('[contenteditable="true"][role="textbox"]');
 }
+function currentThreadId(composer) {
+  if (!composer) return null;
+  const card = composer?.closest('[data-codex-composer-root]');
+  const portal = card?.querySelector('[data-above-composer-portal]');
+  let value;
+  if (portal) value = portal.getAttribute('data-above-composer-conversation-id');
+  else if (card?.getAttribute('data-composer-placement') === 'home') return null;
+  else value = document.querySelector('[data-app-action-sidebar-thread-selected="true"]')?.getAttribute('data-app-action-sidebar-thread-id')
+    ?? window.location.pathname + window.location.search + window.location.hash;
+  return value?.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i)?.[0] ?? null;
+}
+function requestRefresh() {
+  if (!activeThreadId || signal.aborted) return;
+  if (typeof window[config.bindingName] === "function") {
+    window[config.bindingName](JSON.stringify({
+      token: config.bindingToken,
+      featureId: config.featureId,
+      requestId: `session-status:${++refreshSequence}`,
+      action: "refresh-session-status",
+    }));
+  }
+}
+function scheduleRefresh() {
+  clearTimeout(refreshTimer);
+  refreshTimer = null;
+  if (!activeThreadId || signal.aborted) return;
+  const waiting = snapshot?.turns == null || (snapshot.turns === 0 && snapshot.totalTokens == null);
+  const delay = waiting ? Math.max(500, snapshot?.retryAfterMs ?? 500) : snapshot?.isRunning ? 500 : 0;
+  if (!delay) return;
+  refreshTimer = setTimeout(() => {
+    refreshTimer = null;
+    requestRefresh();
+    scheduleRefresh();
+  }, delay);
+}
 function syncVisibility(composer) {
-  const portal = composer?.closest('[data-codex-composer-root]')?.querySelector('[data-above-composer-portal]');
-  const activeThreadId = portal?.getAttribute('data-above-composer-conversation-id');
-  const hasData = snapshot && (snapshot.turns > 0 || snapshot.totalTokens != null);
-  root.hidden = !hasData || (portal && snapshot.threadId !== activeThreadId);
+  const threadId = currentThreadId(composer);
+  root.hidden = !threadId || snapshot?.threadId !== threadId;
   if (root.hidden) closePanel();
 }
 function ensurePosition() {
+  if (disposed || signal.aborted) return;
   const composer = findComposer();
+  const threadId = currentThreadId(composer);
+  if (threadId !== activeThreadId) {
+    activeThreadId = threadId;
+    // 会话建立后先展示占位，不让日志落盘速度决定状态栏是否出现。
+    snapshot = threadId ? { threadId } : null;
+    closePanel();
+    render();
+    requestRefresh();
+    scheduleRefresh();
+  }
   if (!composer) { root.remove(); closePanel(); return; }
   const form = composer.closest("form");
   const card = composer.closest("[data-codex-composer-root]") ?? form ?? composer.parentElement?.parentElement;
@@ -309,7 +358,10 @@ const observer = new MutationObserver(() => {
   rescanQueued = true;
   queueMicrotask(() => { rescanQueued = false; ensurePosition(); });
 });
-observer.observe(document.documentElement, { childList: true, subtree: true });
+observer.observe(document.documentElement, {
+  childList: true, subtree: true, attributes: true,
+  attributeFilter: ["data-above-composer-conversation-id", "data-composer-placement", "data-app-action-sidebar-thread-selected"],
+});
 const localeObserver = new MutationObserver(() => {
   const nextCopy = selectedCopy();
   if (nextCopy === copy) return;
@@ -320,14 +372,23 @@ localeObserver.observe(document.documentElement, { attributes: true, attributeFi
 ensurePosition();
 const previous = window.__minecodexSessionStatus;
 const receiver = {
-  update(value) {
-    snapshot = value;
+  update(value, revision) {
     ensurePosition();
+    // 切换会话期间的迟到快照不得覆盖新会话，也不清除其占位。
+    if (!activeThreadId || value?.threadId !== activeThreadId) return;
+    if (Number.isSafeInteger(revision)) {
+      if (revision <= lastRevision) return;
+      lastRevision = revision;
+    }
+    snapshot = value;
     render();
+    scheduleRefresh();
   },
 };
 window.__minecodexSessionStatus = receiver;
 return () => {
+  disposed = true;
+  clearTimeout(refreshTimer);
   observer.disconnect();
   localeObserver.disconnect();
   closePanel();

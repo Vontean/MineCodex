@@ -62,6 +62,7 @@ function emptyState(filePath) {
     offset: 0,
     pending: "",
     turns: new Set(),
+    runningTurns: new Set(),
     responses: new Set(),
     hasResponseUsage: false,
     total: null,
@@ -134,7 +135,14 @@ export function applySessionStatusEvent(state, event) {
   }
   if (event?.type === "event_msg") {
     if (payload.type === "context_compacted") state.compactionEvents += 1;
-    if (payload.type === "task_started" && payload.turn_id) state.turns.add(payload.turn_id);
+    if (payload.type === "task_started" && payload.turn_id) {
+      state.turns.add(payload.turn_id);
+      state.runningTurns.add(payload.turn_id);
+    }
+    if (["task_complete", "task_interrupted", "turn_aborted"].includes(payload.type)) {
+      if (payload.turn_id) state.runningTurns.delete(payload.turn_id);
+      else state.runningTurns.clear();
+    }
     if (payload.type === "task_complete" && Number.isFinite(payload.time_to_first_token_ms)) {
       state.ttftTotalMs += payload.time_to_first_token_ms;
       state.ttftSamples += 1;
@@ -200,6 +208,7 @@ export function sessionStatusSnapshot(state, threadId) {
   const contextWindow = state.contextWindow > 0 ? state.contextWindow : null;
   return {
     threadId,
+    isRunning: state.runningTurns.size > 0,
     turns: state.turns.size,
     steps: state.responses.size,
     totalTokens: total?.total_tokens ?? null,
@@ -248,24 +257,32 @@ async function findLog(directory, threadId) {
 }
 
 export class SessionStatusReader {
-  constructor({ sessionsDir = path.join(process.env.CODEX_HOME ?? path.join(os.homedir(), ".codex"), "sessions") } = {}) {
+  constructor({ sessionsDir = path.join(process.env.CODEX_HOME ?? path.join(os.homedir(), ".codex"), "sessions"), now = Date.now } = {}) {
     this.sessionsDir = sessionsDir;
+    this.now = now;
     this.states = new Map();
-    this.missingCheckedAt = new Map();
+    this.missingChecks = new Map();
+  }
+
+  retryAfterMs(threadId) {
+    return Math.max(0, (this.missingChecks.get(threadId)?.nextCheckAt ?? 0) - this.now());
   }
 
   async read(threadId) {
     if (!THREAD_ID.test(threadId ?? "")) return null;
     let state = this.states.get(threadId);
     if (!state) {
-      const lastCheck = this.missingCheckedAt.get(threadId) ?? 0;
-      if (Date.now() - lastCheck < 10_000) return null;
-      this.missingCheckedAt.set(threadId, Date.now());
+      if (this.retryAfterMs(threadId) > 0) return null;
       const filePath = await findLog(this.sessionsDir, threadId);
-      if (!filePath) return null;
+      if (!filePath) {
+        const attempts = this.missingChecks.get(threadId)?.attempts ?? 0;
+        const delay = [500, 1000, 2000][attempts] ?? 10_000;
+        this.missingChecks.set(threadId, { attempts: attempts + 1, nextCheckAt: this.now() + delay });
+        return null;
+      }
       state = emptyState(filePath);
       this.states.set(threadId, state);
-      this.missingCheckedAt.delete(threadId);
+      this.missingChecks.delete(threadId);
     }
     let info;
     try { info = await stat(state.filePath); }
