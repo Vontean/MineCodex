@@ -25,6 +25,32 @@ test("Codex and Work preserve their native task controller contract", () => {
   assert.equal(inspect([trigger(props)]).controller, props);
 });
 
+test("Codex and Work accept the power-selection controller contract", () => {
+  const selectedPowerSelection = {
+    model: "gpt-5.6-sol",
+    reasoningEffort: "high",
+  };
+  const powerProps = {
+    powerSelections: [selectedPowerSelection],
+    selectedPowerSelection,
+    onSelectPower() {},
+    onCommitPower() {},
+  };
+  const props = {
+    models: [{ model: "gpt-5.6-sol" }],
+    model: "gpt-5.6-sol",
+    reasoningEffort: "high",
+    onCommitPower() {},
+    onSelectModel() {},
+  };
+  const parent = { memoizedProps: props, return: null };
+  const controller = inspect([trigger(powerProps, { parent })]).controller;
+  assert.equal(controller.model, props.model);
+  assert.equal(controller.selectedPowerSelection, selectedPowerSelection);
+  assert.equal(controller.onSelectPower, powerProps.onSelectPower);
+  assert.equal(controller.onCommitPower, powerProps.onCommitPower);
+});
+
 test("Chat and Temporary Chat stop before any ancestor task controller", () => {
   const props = { models: { versionOptions: [] }, selectedModel: {}, onModelChange() {} };
   const parent = { memoizedProps: taskController(), return: null };

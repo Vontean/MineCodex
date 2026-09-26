@@ -413,6 +413,26 @@ async function executeModelSliderInjection({
         nativeThumbLeft: nativeThumb.style.getPropertyValue("left"),
       };
     };
+    window.__maximumVisualProbe = () => {
+      const rail = document.createElement("div");
+      const effortText = document.createElement("span");
+      const fastButton = document.createElement("button");
+      syncGenericMaximumVisual(rail, effortText, fastButton, true);
+      const maximum = {
+        highlighted: rail.getAttribute("data-highlighted"),
+        effortMaximum: effortText.getAttribute("data-maximum"),
+        fastMaximum: fastButton.getAttribute("data-max-power-selection"),
+      };
+      syncGenericMaximumVisual(rail, effortText, fastButton, false);
+      return {
+        maximum,
+        regular: {
+          highlighted: rail.getAttribute("data-highlighted"),
+          effortMaximum: effortText.getAttribute("data-maximum"),
+          fastMaximum: fastButton.getAttribute("data-max-power-selection"),
+        },
+      };
+    };
     window.__modelSliderEffortProbe = (raw) => {
       const identity = modelIdentity(raw);
       const model = modelDefinitionFor(identity, modelSelectorFeature.modelSelector);
@@ -524,6 +544,10 @@ async function executeModelSliderInjection({
     selectNativeEffort: (raw, effort) => window.__selectNativeEffortProbe?.(raw, effort),
     staleVisual: () => {
       const value = window.__staleVisualProbe?.();
+      return value ? JSON.parse(JSON.stringify(value)) : null;
+    },
+    maximumVisual: () => {
+      const value = window.__maximumVisualProbe?.();
       return value ? JSON.parse(JSON.stringify(value)) : null;
     },
     fetchCalls,
@@ -1058,6 +1082,25 @@ test("neutralizes stale rail geometry instead of leaving a valid-looking thumb",
   assert.match(source, /setGenericSliderVisual\(rail, selectedIndex, efforts\.length\);/);
 });
 
+test("synchronizes the native maximum highlight with effort previews", async () => {
+  const result = await executeModelSliderInjection({
+    controllerProps: {
+      models: [{
+        model: "gpt-5.6-sol",
+        supportedReasoningEfforts: ["low", "medium", "high", "max", "ultra"].map(
+          (reasoningEffort, powerSettingIndex) => ({ reasoningEffort, powerSettingIndex }),
+        ),
+      }],
+      reasoningEffort: "ultra",
+      onSelectReasoningEffort() {},
+    },
+  });
+  assert.deepEqual(result.maximumVisual(), {
+    maximum: { highlighted: "true", effortMaximum: "true", fastMaximum: "true" },
+    regular: { highlighted: "false", effortMaximum: "false", fastMaximum: "false" },
+  });
+});
+
 test("forwards native ladder effort selections to the controller", async () => {
   const selections = [];
   const controller = {
@@ -1070,6 +1113,35 @@ test("forwards native ladder effort selections to the controller", async () => {
   result.selectNativeEffort("opencode-go/hy3", "high");
   result.selectNativeEffort("opencode-go/hy3", "max");
   assert.deepEqual(selections, ["high", "max"]);
+});
+
+test("commits native ladder effort selections through the power controller", async () => {
+  const selections = [];
+  const commits = [];
+  const powerSelections = ["low", "medium", "high", "max"].map((reasoningEffort, powerSettingIndex) => ({
+    id: `opencode-go/hy3:${reasoningEffort}`,
+    model: "opencode-go/hy3",
+    reasoningEffort,
+    powerSettingIndex,
+  }));
+  const controller = {
+    models: [{
+      model: "opencode-go/hy3",
+      displayName: "Hy 3",
+      supportedReasoningEfforts: powerSelections.map(({ reasoningEffort }) => ({ reasoningEffort })),
+    }],
+    model: "opencode-go/hy3",
+    reasoningEffort: "medium",
+    powerSelections,
+    selectedPowerSelection: powerSelections[1],
+    onSelectPower(next) { selections.push(next); },
+    onCommitPower(next, previous) { commits.push({ next, previous }); },
+  };
+  const feature = modelSliderFeatureFixture();
+  const result = await executeModelSliderInjection({ controllerProps: controller, features: [feature] });
+  result.selectNativeEffort("Hy 3", "high");
+  assert.deepEqual(selections, [powerSelections[2]]);
+  assert.deepEqual(commits, [{ next: powerSelections[2], previous: powerSelections[1] }]);
 });
 
 test("recomputes Model Slider effort when the active Composer controller changes", async () => {
@@ -1161,6 +1233,13 @@ test("normalizes Composer trigger effort-label alignment under Model Slider", ()
     source,
     /data-codex-model-slider-trigger\] \[class\*="_ModelPickerTriggerEffortLabel_"\]\s*\{[\s\S]*?display: inline-flex; align-items: center; align-self: center;/,
   );
+});
+
+test("keeps the model-panel chevron beside the reasoning effort", () => {
+  const source = createInjectionSource([modelSliderFeatureFixture()]);
+  assert.match(source, /effortText\.style\.gridColumn = "2";/);
+  assert.match(source, /effortText\.style\.gridRow = "1";/);
+  assert.match(source, /nativeChevron\.style\.gridRow = "1";/);
 });
 
 test("rebuilds the upgraded native slider from the selected model capabilities", () => {

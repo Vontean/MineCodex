@@ -10,6 +10,7 @@ Codex Composer 原生模型选择器的轻量增强功能。它通过同级
 - 收藏常用 `provider/model`，保持原目录顺序；
 - 较长的模型列表保持紧凑、可滚动；
 - 所有模型共用 Slider，动态读取模型支持的思考档位；
+- 同时兼容旧版 reasoning 回调与新版 power selection 控制器契约；
 - 沿用原生面板的间距、重置入口；仅实际支持 Fast 时显示闪电按钮；
 - Chat／Temporary Chat 完全使用原生模型选择器，不注入增强面板或拦截模型菜单。
 
@@ -19,7 +20,18 @@ Codex Composer 原生模型选择器的轻量增强功能。它通过同级
 npm test
 ```
 
-真实 UI 仅在隔离 profile 中验证：
+真实 UI 仅在隔离 profile 中验证。先显式启动独立 Codex 实例：
+
+```bash
+open -na /Applications/ChatGPT.app --args \
+  --user-data-dir="$HOME/.codex-model-slider/codex-profile" \
+  --remote-debugging-address=127.0.0.1 \
+  --remote-debugging-port=9233 \
+  --remote-allow-origins=http://127.0.0.1:9233 \
+  --no-first-run
+```
+
+再启动只加载 Model Slider 的 RuntimeHost：
 
 ```bash
 CODEX_FEATURES_ROOT="$PWD/features" \

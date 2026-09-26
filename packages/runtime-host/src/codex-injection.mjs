@@ -995,9 +995,25 @@ export function createInjectionSource(features, {
     function nativeComposerModelController() {
       const trigger = nativeComposerTrigger();
       let fiber = currentReactFiber(trigger);
+      let powerController = null;
       for (let depth = 0; fiber && depth < 40; depth += 1, fiber = fiber.return) {
         const props = fiber.memoizedProps;
+        if (
+          Array.isArray(props?.powerSelections)
+          && typeof props.onCommitPower === "function"
+        ) powerController ??= props;
         if (Array.isArray(props?.models) && typeof props.onSelectReasoningEffort === "function") return props;
+        if (Array.isArray(props?.models) && typeof props.onCommitPower === "function") {
+          const power = powerController ?? props;
+          return {
+            ...props,
+            powerSelections: power.powerSelections ?? props.powerSelections,
+            selectedPowerSelection: power.selectedPowerSelection ?? props.selectedPowerSelection,
+            fallbackPowerSelection: power.fallbackPowerSelection ?? props.fallbackPowerSelection,
+            onSelectPower: power.onSelectPower ?? props.onSelectPower,
+            onCommitPower: power.onCommitPower,
+          };
+        }
         // Chat／Temporary Chat 使用原生模型选择器，不进入任务模型适配。
         if (props?.selectedModel && typeof props.onModelChange === "function") return null;
       }
@@ -1896,6 +1912,30 @@ export function createInjectionSource(features, {
         queueEnsure();
         return;
       }
+      if (typeof controller?.onCommitPower === "function") {
+        const normalizedEffort = String(effort).toLowerCase();
+        const activeModel = String(controller.model ?? nativeCatalogModelFor(identity)?.slug ?? identity.raw);
+        const next = controller.powerSelections?.find((selection) => (
+          String(selection?.model ?? "") === activeModel
+          && String(selection?.reasoningEffort ?? "").toLowerCase() === normalizedEffort
+        ));
+        const previous = controller.selectedPowerSelection
+          ?? controller.powerSelections?.find((selection) => (
+            String(selection?.model ?? "") === activeModel
+            && String(selection?.reasoningEffort ?? "").toLowerCase()
+              === String(controller.reasoningEffort ?? "").toLowerCase()
+          ))
+          ?? controller.fallbackPowerSelection;
+        if (!next || !previous) return;
+        controller.onSelectPower?.(next);
+        controller.onCommitPower(next, previous);
+        if (modelSelectorPendingOutsideDismiss) {
+          closeReactControlledMenu(nativeComposerTrigger());
+          modelSelectorPendingOutsideDismiss = false;
+        }
+        queueEnsure();
+        return;
+      }
       const row = nativeEffortRow(parentMenu);
       if (!row) return;
       beginNativeEffortTransaction();
@@ -1959,6 +1999,13 @@ export function createInjectionSource(features, {
         tick.setAttribute("data-selected", String(tickIndex <= index));
       });
       rail.setAttribute("aria-valuenow", String(index));
+    }
+
+    function syncGenericMaximumVisual(rail, effortText, fastButton, maximum) {
+      const value = String(maximum);
+      rail?.setAttribute("data-highlighted", value);
+      effortText?.setAttribute("data-maximum", value);
+      fastButton?.setAttribute("data-max-power-selection", value);
     }
 
     function neutralizeStaleSliderVisual(rail) {
@@ -2034,7 +2081,12 @@ export function createInjectionSource(features, {
       if (!button || !rail) return;
       button.setAttribute("aria-pressed", String(enabled));
       button.setAttribute("data-fast-mode-enabled", String(enabled));
-      button.setAttribute("data-max-power-selection", String(maxPowerSelection));
+      syncGenericMaximumVisual(
+        rail,
+        shell.querySelector("[data-codex-model-slider-effort-row] [data-maximum]"),
+        button,
+        maxPowerSelection,
+      );
       button.setAttribute("aria-label", enabled
         ? (locale === "zh-CN" ? "关闭 Fast 模式" : "Disable Fast mode")
         : (locale === "zh-CN" ? "开启 Fast 模式" : "Enable Fast mode"));
@@ -2162,6 +2214,9 @@ export function createInjectionSource(features, {
       const effortText = selectedEffortVisible ? document.createElement("span") : null;
       if (effortText) {
         effortText.className = classes.ViewToggleEffortLabel;
+        // 原生标签会跨满整行；收回中列，让 chevron 保持在强度右侧。
+        effortText.style.gridColumn = "2";
+        effortText.style.gridRow = "1";
         effortText.textContent = effortLabel(selectedEffort);
         effortText.setAttribute("data-accent", "true");
         effortText.setAttribute("data-effort-only", "false");
@@ -2175,6 +2230,7 @@ export function createInjectionSource(features, {
       )?.cloneNode(true);
       if (nativeChevron) {
         nativeChevron.classList.add(classes.ViewToggleIcon);
+        nativeChevron.style.gridRow = "1";
         nativeChevron.setAttribute("aria-hidden", "true");
         if (effortText) effortRow.append(effortText);
         effortRow.append(nativeChevron);
@@ -2299,6 +2355,12 @@ export function createInjectionSource(features, {
       setGenericSliderVisual(rail, selectedIndex, efforts.length);
       syncNativeFastParticles(rail, fastEnabled);
       setGenericSliderVisual(rail, selectedIndex, efforts.length);
+      syncGenericMaximumVisual(
+        rail,
+        effortText,
+        shell.querySelector("[data-codex-model-slider-fast]"),
+        selectedEffort === "ultra",
+      );
 
       let pendingIndex = selectedIndex;
       let dragging = false;
@@ -2317,10 +2379,9 @@ export function createInjectionSource(features, {
         rail.setAttribute("aria-valuetext", effortLabel(effort));
         if (effortText) {
           effortText.textContent = effortLabel(effort);
-          effortText.setAttribute("data-maximum", String(effort === "ultra"));
         }
         const fastButton = shell.querySelector("[data-codex-model-slider-fast]");
-        fastButton?.setAttribute("data-max-power-selection", String(effort === "ultra"));
+        syncGenericMaximumVisual(rail, effortText, fastButton, effort === "ultra");
       };
       const preview = (clientX) => previewIndex(indexAt(clientX));
       rail.addEventListener("pointerdown", (event) => {
