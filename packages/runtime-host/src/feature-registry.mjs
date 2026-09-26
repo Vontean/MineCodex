@@ -13,6 +13,8 @@ const HOST_ACTIONS = new Set([
   "open-sidebar",
   "resolve-file-paths",
   "import-generated-image",
+  "list-cloud-images",
+  "import-cloud-image",
   "create-image-edit-thread",
 ]);
 

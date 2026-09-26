@@ -292,3 +292,47 @@ test("current gallery contract records Work as the source without changing the i
     fixture.cleanup();
   }
 });
+
+test("cloud cache keeps versions and prompt provenance, including duplicate metadata repair", async context => {
+  const root=await mkdtemp(path.join(os.tmpdir(),"mcx-cloud-cache-"));
+  const library=new ImageLibrary({sourceRoot:path.join(root,"source"),dataDir:path.join(root,"data")});
+  context.after(async()=>{library.close();await rm(root,{recursive:true,force:true});});
+  await library.start();
+  const payload={bytes:ONE_PIXEL_PNG,mimeType:"image/png",itemId:"file_cloud",conversationId:"cloud-chat",sourceKind:"chat",prompt:"Original request",promptKind:"request",cloudLibraryId:"libfile_test",cloudVersion:"1"};
+  const first=await library.importExternalImage(payload);
+  assert.equal(first.imported,true);
+  assert.equal(library.get(first.id).promptKind,"request");
+  assert.deepEqual(library.cloudCache().map(x=>({...x})),[{libraryId:"libfile_test",version:"1"}]);
+  await library.importExternalImage({...payload,prompt:"Actual prompt",promptKind:"generation",cloudVersion:"2"});
+  assert.equal(library.count(),1);
+  assert.equal(library.get(first.id).prompt,"Actual prompt");
+  assert.equal(library.get(first.id).promptKind,"generation");
+  assert.equal(library.cloudCache()[0].version,"2");
+});
+
+test("feed snapshots keep pagination and stack previews stable while new images arrive", async context => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "mcx-feed-snapshot-"));
+  const library = new ImageLibrary({sourceRoot: path.join(root, "source"), dataDir: path.join(root, "data")});
+  context.after(async () => { library.close(); await rm(root, {recursive: true, force: true}); });
+  await library.start();
+  const add = (itemId, createdAt, conversationId = "one", sourceKind = "chat") => library.importExternalImage({
+    bytes: ONE_PIXEL_PNG, mimeType: "image/png", itemId, conversationId, sourceKind, createdAt,
+  });
+  await add("first", "2026-01-01T00:00:00.000Z");
+  await add("second", "2026-01-02T00:00:00.000Z");
+  const snapshot = library.snapshot();
+  const before = library.list({snapshot});
+  await add("newest", "2026-01-03T00:00:00.000Z");
+  await add("older", "2025-01-01T00:00:00.000Z");
+  await add("another-thread", "2026-01-04T00:00:00.000Z", "two", "work");
+  assert.equal(library.count({snapshot}), 2);
+  assert.equal(library.count(), 5);
+  assert.deepEqual(library.list({snapshot, offset: 1, limit: 1}), before.slice(1));
+  assert.equal(library.countGroups({snapshot}), 1);
+  assert.equal(library.countGroups(), 2);
+  const group = library.groups({snapshot})[0];
+  assert.equal(group.imageCount, 2);
+  assert.deepEqual(group.previews.map(x => x.id), before.toReversed().map(x => x.id));
+  assert.equal(library.count({source: "chat"}) - library.count({source: "chat", snapshot}), 2);
+  assert.equal(library.list({snapshot: 0}).length, 0);
+});

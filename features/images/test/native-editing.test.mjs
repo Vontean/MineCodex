@@ -79,8 +79,8 @@ test("native Image Details editor matches the measured Codex image toolbar and m
   assert.match(css, /\.image-edit-action > svg \{[^}]*width: 16px[^}]*height: 16px/s);
   assert.match(css, /data-native-image-icon="resize"[^}]*width: 18px[^}]*height: 18px/s);
   assert.match(css, /\[data-edit-send\][^}]*var\(--color-chart-blue\)[^}]*var\(--color-text-inverse\)/s);
-  assert.match(css, /\.image-editor \{[^}]*background: var\(--color-token-bg-primary\)/s);
-  assert.match(css, /\.image-editor-controls \{[^}]*position: sticky[^}]*top: 0[^}]*background: var\(--color-token-bg-primary\)/s);
+  assert.match(css, /\.image-editor \{[^}]*background: transparent/s);
+  assert.match(css, /\.image-editor-controls \{[^}]*position: sticky[^}]*top: 0[^}]*background: transparent/s);
   assert.match(css, /\.image-editor-toolbar \{[^}]*min-height: 48px[^}]*padding: 8px 16px[^}]*\}/s);
   assert.match(css, /\.image-comment-marker \{[^}]*width: 30px[^}]*height: 30px/s);
   assert.match(css, /\.image-comment-popover \{[^}]*width: min\(294px[^}]*height: 44px[^}]*border-radius: 22px/s);

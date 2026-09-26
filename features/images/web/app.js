@@ -5,6 +5,8 @@ const libraryHeader = document.querySelector(".library-header");
 const sidebarOpenButton = document.querySelector(".sidebar-open-button");
 const scrollArea = document.querySelector(".library-scroll");
 const grid = document.querySelector(".image-grid");
+const newImagesChip = document.querySelector(".new-images-chip");
+const newImagesLabel = newImagesChip.querySelector(".new-images-label");
 const pageSentinel = document.querySelector(".page-sentinel");
 const empty = document.querySelector(".empty-state");
 const emptyTitle = empty.querySelector("h2");
@@ -16,7 +18,8 @@ const filterLabel = document.querySelector(".filter-label");
 const filterCount = document.querySelector(".filter-count");
 const sourceMenu = document.querySelector(".source-menu");
 const densityButtonValue = document.querySelector(".density-button-value");
-const densitySlider = document.querySelector(".density-slider");
+const densityTrigger = document.querySelector(".density-trigger");
+const densityMenu = document.querySelector(".density-menu");
 const groupButton = document.querySelector(".group-button");
 const drawer = document.querySelector(".detail-drawer");
 const drawerImage = drawer.querySelector("img");
@@ -74,6 +77,8 @@ let activeThreadGroup = null;
 let savedBrowseState = null;
 let items = [];
 let totalItems = 0;
+let feedSnapshot = null;
+let pendingImageCount = 0;
 let filteredImageCount = 0;
 let pageRequest = null;
 let loadGeneration = 0;
@@ -82,6 +87,10 @@ let detailRequest = 0;
 let masonryTimer = null;
 let pendingScrollTop = null;
 let appliedHostTokens = new Set();
+let imagesReady = false;
+let syncPromise = null;
+let hasStartedCloudSync = false;
+let missingEditorTokenSignature = "";
 let densityColumns = null;
 let copyFeedbackTimer = null;
 let updateCheckTimer = null;
@@ -127,7 +136,7 @@ function applyHostTheme(payload) {
   for (const name of appliedHostTokens) root.style.removeProperty(name);
   appliedHostTokens = new Set();
   for (const [name, value] of Object.entries(payload.tokens ?? {})) {
-    if (!name.startsWith("--") || typeof value !== "string") continue;
+    if (!name.startsWith("--") || typeof value !== "string" || !value.trim()) continue;
     root.style.setProperty(name, value);
     appliedHostTokens.add(name);
   }
@@ -142,6 +151,13 @@ function applyHostTheme(payload) {
     "--radius-md", "--radius-xl", "--shadow-md", "--shadow-xl",
   ];
   editorControls.hidden = !editorTokens.every((name) => appliedHostTokens.has(name));
+  const missingTokens = editorTokens.filter((name) => !appliedHostTokens.has(name));
+  const signature = missingTokens.join(",");
+  if (signature && signature !== missingEditorTokenSignature) {
+    console.warn("[Images] Native editor theme contract is incomplete:", missingTokens);
+  }
+  missingEditorTokenSignature = signature;
+  if (imagesReady && !hasStartedCloudSync) void refreshImages();
 }
 
 function announce(message) {
@@ -155,6 +171,7 @@ function announce(message) {
 function applySidebarState(payload) {
   const available = Boolean(payload?.available);
   const open = Boolean(payload?.open);
+  root.dataset.sidebarOpen = String(available && open);
   const label = typeof payload?.label === "string" && payload.label.trim()
     ? payload.label.trim()
     : t("Show sidebar");
@@ -310,6 +327,7 @@ function moveSourceOption(delta) {
 }
 
 function openSourceMenu({ focusIndex = null } = {}) {
+  closeDensityMenu();
   sourceMenu.hidden = false;
   filterButton.setAttribute("aria-expanded", "true");
   const options = sourceOptions();
@@ -332,22 +350,17 @@ async function loadFacets() {
   renderSourceMenu();
 }
 
-function recommendedColumnsForWidth(width) {
-  if (width < 920) return 2;
-  if (width < 1900) return 3;
-  if (width < 2500) return 4;
-  if (width < 3150) return 5;
-  return 6;
-}
 
 function applyDensity() {
   if (densityColumns === null) {
-    densityColumns = recommendedColumnsForWidth(scrollArea.clientWidth || window.innerWidth);
+    densityColumns = 4;
   }
   grid.style.setProperty("--grid-columns", String(densityColumns));
-  densitySlider.value = String(densityColumns);
+  densityMenu.querySelectorAll("[data-columns]").forEach((option) => {
+    option.setAttribute("aria-selected", String(Number(option.dataset.columns) === densityColumns));
+  });
   densityButtonValue.textContent = String(densityColumns);
-  densitySlider.setAttribute("aria-valuetext", `${densityColumns} columns`);
+
   scheduleMasonry();
 }
 
@@ -393,6 +406,7 @@ function scheduleMasonry() {
 function createCard(image) {
   const button = document.createElement("button");
   button.className = "image-card";
+  button.classList.toggle("is-wide", image.width >= image.height * 2 && image.height > 0);
   button.type = "button";
   button.dataset.imageId = image.id;
   const createdAt = dateFormatter.format(new Date(image.createdAt));
@@ -408,7 +422,10 @@ function createCard(image) {
     preview.width = image.width;
     preview.height = image.height;
   }
-  preview.addEventListener("load", scheduleMasonry, { once: true });
+  preview.addEventListener("load", () => {
+    button.classList.toggle("is-wide", preview.naturalWidth >= preview.naturalHeight * 2 && preview.naturalHeight > 0);
+    scheduleMasonry();
+  }, { once: true });
 
   const caption = document.createElement("span");
   caption.className = "card-caption";
@@ -518,8 +535,9 @@ function render() {
   scheduleMasonry();
 }
 
-function pageUrl({ offset, limit = PAGE_SIZE } = {}) {
+function pageUrl({ offset, limit = PAGE_SIZE, snapshot = feedSnapshot } = {}) {
   const parameters = new URLSearchParams({ limit: String(limit), offset: String(offset ?? 0) });
+  if (snapshot !== null) parameters.set("snapshot", String(snapshot));
   if (viewContext === "thread") {
     parameters.set("threadId", activeThreadGroup.threadId);
     parameters.set("sort", "asc");
@@ -537,7 +555,7 @@ async function loadPage({ reset = false, preserveScroll = false } = {}) {
   const offset = reset ? 0 : items.length;
   const preservedScrollTop = reset && preserveScroll ? scrollArea.scrollTop : null;
   const request = (async () => {
-    const response = await fetch(pageUrl({ offset }));
+    const response = await fetch(pageUrl({ offset, snapshot: reset ? null : feedSnapshot }));
     if (!response.ok) throw new Error(t("Could not load images"));
     const payload = await response.json();
     if (generation !== loadGeneration) return;
@@ -547,6 +565,8 @@ async function loadPage({ reset = false, preserveScroll = false } = {}) {
     filteredImageCount = payload.imageCount ?? payload.count;
 
     if (reset) {
+      feedSnapshot = payload.snapshot;
+      setPendingImages(0);
       items = nextItems;
       if (preservedScrollTop === null) scrollArea.scrollTop = 0;
       else pendingScrollTop = preservedScrollTop;
@@ -590,24 +610,41 @@ async function toggleThreadGrouping() {
   await loadPage({ reset: true });
 }
 
+function setPendingImages(count) {
+  const changed = pendingImageCount !== count;
+  pendingImageCount = count;
+  newImagesChip.hidden = count === 0;
+  newImagesLabel.textContent = t("{count} new images", { count });
+  if (changed && count > 0) announce(newImagesLabel.textContent);
+}
+
 async function checkForUpdates() {
-  if (!canPollForUpdates()) return;
-  const response = await fetch(pageUrl({ offset: 0, limit: 1 }));
+  if (viewContext !== "browse" || feedSnapshot === null) return;
+  const generation = loadGeneration;
+  const response = await fetch(pageUrl({ offset: 0, limit: 1, snapshot: null }));
   if (!response.ok) throw new Error(t("Could not check for new images"));
   const payload = await response.json();
-  const nextItems = groupByThread ? payload.groups : payload.images;
-  const nextFirst = nextItems[0];
-  const currentFirst = items[0];
-  const changed = groupByThread
-    ? payload.count !== totalItems
-      || payload.imageCount !== filteredImageCount
-      || nextFirst?.threadId !== currentFirst?.threadId
-      || nextFirst?.updatedAt !== currentFirst?.updatedAt
-    : payload.count !== totalItems || nextFirst?.id !== currentFirst?.id;
-  if (changed) {
-    await Promise.all([loadFacets(), loadPage({ reset: true, preserveScroll: true })]);
-  }
+  if (generation !== loadGeneration) return;
+  setPendingImages(Math.max(0, (payload.imageCount ?? payload.count) - filteredImageCount));
 }
+
+newImagesChip.addEventListener("click", async () => {
+  newImagesChip.disabled = true;
+  try {
+    await loadPage({ reset: true, preserveScroll: true });
+    await loadFacets();
+    // 等待瀑布流恢复高度后再滚动，避免布局回写打断动画。
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    pendingScrollTop = null;
+    scrollArea.scrollTo({ top: 0, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
+    grid.querySelector("button")?.focus({ preventScroll: true });
+  } catch (error) {
+    announce(t("Could not load images"));
+    console.error(error);
+  } finally {
+    newImagesChip.disabled = false;
+  }
+});
 
 function canPollForUpdates() {
   return hostSurfaceActive
@@ -652,6 +689,7 @@ function setHostSurfaceActive(active) {
     cancelActiveCommentEditor();
   }
   refreshUpdatePolling({ immediate: changed && hostSurfaceActive });
+  if (changed && hostSurfaceActive && imagesReady && root.dataset.host === "codex") void refreshImages();
 }
 
 function setDocumentVisible(visible) {
@@ -820,6 +858,9 @@ function showImageDetails(image) {
   drawerDate.textContent = dateFormatter.format(new Date(image.createdAt));
   drawerSize.textContent = image.width && image.height ? `${image.width} × ${image.height}` : t("Original");
   drawerFileSize.textContent = formatBytes(image.byteLength);
+  const promptHeading = drawer.querySelector(".detail-section-heading h3");
+  promptHeading.dataset.i18n = image.promptKind === "request" ? "Original request" : "Generation prompt";
+  promptHeading.textContent = t(promptHeading.dataset.i18n);
   drawerPrompt.textContent = image.prompt || t("Prompt is not available for this image.");
   drawerPrompt.classList.toggle("is-missing", !image.prompt);
   promptCopyButton.disabled = !image.prompt;
@@ -867,6 +908,8 @@ async function openThreadGroup(group, originatingElement = null) {
     items: items.slice(),
     totalItems,
     filteredImageCount,
+    feedSnapshot,
+    pendingImageCount,
     scrollTop: scrollArea.scrollTop,
     nodes: [...grid.children],
   };
@@ -899,6 +942,8 @@ function leaveThreadGroup() {
     items = restore.items;
     totalItems = restore.totalItems;
     filteredImageCount = restore.filteredImageCount;
+    feedSnapshot = restore.feedSnapshot;
+    setPendingImages(restore.pendingImageCount);
     pendingScrollTop = restore.scrollTop;
     grid.replaceChildren(...restore.nodes);
     grid.classList.toggle("is-grouped", groupByThread);
@@ -991,14 +1036,49 @@ sourceMenu.addEventListener("keydown", (event) => {
   }
 });
 
-densitySlider.addEventListener("input", () => {
-  densityColumns = Number.parseInt(densitySlider.value, 10);
-  try {
-    localStorage.setItem(DENSITY_STORAGE_KEY, String(densityColumns));
-  } catch {
-    // The selected density still applies for the current window.
+function closeDensityMenu(restoreFocus = false) {
+  densityMenu.hidden = true;
+  densityTrigger.setAttribute("aria-expanded", "false");
+  if (restoreFocus) densityTrigger.focus();
+}
+
+function openDensityMenu() {
+  closeSourceMenu();
+  densityMenu.hidden = false;
+  densityTrigger.setAttribute("aria-expanded", "true");
+  densityMenu.querySelector('[aria-selected="true"]')?.focus();
+}
+
+densityTrigger.addEventListener("click", () => {
+  if (densityMenu.hidden) openDensityMenu();
+  else closeDensityMenu();
+});
+densityTrigger.addEventListener("keydown", (event) => {
+  if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+    event.preventDefault();
+    openDensityMenu();
   }
+});
+densityMenu.addEventListener("click", (event) => {
+  const option = event.target.closest("[data-columns]");
+  if (!option) return;
+  densityColumns = Number(option.dataset.columns);
+  try { localStorage.setItem(DENSITY_STORAGE_KEY, String(densityColumns)); } catch {}
   applyDensity();
+  closeDensityMenu(true);
+});
+densityMenu.addEventListener("keydown", (event) => {
+  const options = [...densityMenu.querySelectorAll("[data-columns]")];
+  const index = options.indexOf(document.activeElement);
+  if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
+    event.preventDefault();
+    const next = event.key === "Home" ? 0 : event.key === "End" ? options.length - 1
+      : (index + (event.key === "ArrowDown" ? 1 : -1) + options.length) % options.length;
+    options[next].focus();
+  } else if (event.key === "Escape") {
+    event.preventDefault();
+    closeDensityMenu(true);
+  } else if (event.key === "Tab") closeDensityMenu(true);
 });
 
 groupButton.addEventListener("click", () => toggleThreadGrouping().catch(console.error));
@@ -1016,42 +1096,72 @@ sidebarOpenButton.addEventListener("click", async () => {
 
 document.addEventListener("click", (event) => {
   if (!event.target.closest(".source-filter")) closeToolbarPopups();
+  if (!event.target.closest(".density-control")) closeDensityMenu();
 });
 
-rescan.addEventListener("click", async () => {
+async function refreshImages() {
+  if (syncPromise) return syncPromise;
+  hasStartedCloudSync = true;
   rescan.disabled = true;
   rescan.classList.add("is-loading");
   rescan.setAttribute("aria-busy", "true");
-  try {
-    await Promise.all([
-      (async () => {
-        const response = await fetch("/api/rescan", { method: "POST" });
-        if (!response.ok) throw new Error(t("Could not refresh images"));
-        const result = await response.json();
-        announce(result.inProgress ? t("Image refresh is already in progress.") : t("Images refreshed."));
-        await loadFacets();
-        if (shell.classList.contains("drawer-open") && activeImage) {
-          const detailResponse = await fetch(`/api/images/${activeImage.id}`);
-          if (detailResponse.ok) {
-            const payload = await detailResponse.json();
-            activeImage = payload.image;
-            updateSourceAction(activeImage);
+  syncPromise = (async () => {
+    let imported = 0, failures = 0;
+    const updateGallery = async () => {
+      await checkForUpdates();
+    };
+    try {
+      const local = await fetch("/api/rescan", { method: "POST" });
+      if (!local.ok) throw new Error(t("Could not refresh images"));
+      await updateGallery();
+      if (root.dataset.host === "codex") {
+        const cachedResponse = await fetch("/api/cloud-image-cache");
+        if (!cachedResponse.ok) throw new Error(t("Could not refresh images"));
+        const cached = new Map((await cachedResponse.json()).items.map(item => [item.libraryId, item.version]));
+        let cursor = null;
+        const cursors = new Set();
+        do {
+          rescan.title = t("Syncing cloud images… {count} added", { count: imported });
+          const page = await requestHostAction("list-cloud-images", { cursor }, 90_000);
+          for (const item of page.items) {
+            if (cached.get(item.libraryId) === item.version) continue;
+            try {
+              const result = await requestHostAction("import-cloud-image", { libraryId: item.libraryId }, 120_000);
+              if (result.imported) {
+                imported += 1;
+                if (imported % 5 === 0) await updateGallery();
+              }
+            } catch (error) {
+              failures += 1;
+              console.warn("[Images] Cloud image could not be synced", item.libraryId, error.message);
+            }
+            rescan.title = t("Syncing cloud images… {count} added", { count: imported });
           }
-        } else if (viewContext === "browse") {
-          await loadPage({ reset: true, preserveScroll: true });
-        }
-      })(),
-      new Promise((resolve) => setTimeout(resolve, 1000)),
-    ]);
-  } catch (error) {
-    announce(error.message);
-    console.error(error);
-  } finally {
-    rescan.disabled = false;
-    rescan.classList.remove("is-loading");
-    rescan.removeAttribute("aria-busy");
-  }
-});
+          await updateGallery();
+          cursor = page.cursor;
+          if (cursor && cursors.has(cursor)) throw new Error("Cloud Library returned a repeated cursor");
+          if (cursor) cursors.add(cursor);
+        } while (cursor);
+      }
+      const status = failures
+        ? t("Cloud sync finished: {count} added, {failed} failed. Refresh to retry.", { count: imported, failed: failures })
+        : t("Images refreshed.");
+      rescan.title = status;
+      announce(status);
+    } catch (error) {
+      rescan.title = t("Cloud sync unavailable. Local images are still available.");
+      announce(rescan.title);
+      console.error(error);
+    } finally {
+      rescan.disabled = false;
+      rescan.classList.remove("is-loading");
+      rescan.removeAttribute("aria-busy");
+      syncPromise = null;
+    }
+  })();
+  return syncPromise;
+}
+rescan.addEventListener("click", () => void refreshImages());
 
 drawer.querySelector(".drawer-close").addEventListener("click", closeDrawer);
 sourceButton.addEventListener("click", () => {
@@ -1178,14 +1288,14 @@ function resetZoom() {
   zoomTriggerValue.textContent = `${fitZoomPercent()}%`;
 }
 
-function requestHostAction(action, payload) {
+function requestHostAction(action, payload, timeoutMs = 30_000) {
   if (window.parent === window) return Promise.reject(new Error(t("Image editing is available inside Codex only.")));
   const requestId = crypto.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
       window.removeEventListener("message", onResult);
       reject(new Error(t("Codex did not respond to the image edit request.")));
-    }, 30_000);
+    }, timeoutMs);
     function onResult(event) {
       if (event.source !== window.parent || event.data?.type !== "codex-personal:host-result" || event.data?.requestId !== requestId) return;
       clearTimeout(timeout);
@@ -1641,9 +1751,12 @@ applyDensity();
 setLocale(navigator.language);
 translateDocument(document);
 await Promise.all([loadFacets(), loadPage({ reset: true })]);
+imagesReady = true;
+if (root.dataset.host === "codex") void refreshImages();
 await new Promise((resolve) => setTimeout(resolve, 0));
 
 new ResizeObserver(() => {
+  root.style.setProperty("--library-scrollbar-width", `${scrollArea.offsetWidth - scrollArea.clientWidth}px`);
   scheduleMasonry();
 }).observe(scrollArea);
 

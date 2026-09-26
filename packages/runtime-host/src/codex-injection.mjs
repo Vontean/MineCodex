@@ -3,7 +3,7 @@
 // CodexRuntime 与 CDP 客户端在 codex-runtime.mjs / codex-cdp.mjs。
 
 import { randomBytes } from "node:crypto";
-import { CODEX_THEME_TOKENS } from "./codex-design-contract.mjs";
+import { CODEX_THEME_TOKENS, CODEX_THEME_TOKEN_ALIASES } from "./codex-design-contract.mjs";
 
 export const RUNTIME_VERSION = 101;
 export const HOST_BINDING_NAME = "__codexPersonalHostAction";
@@ -158,6 +158,7 @@ export function createInjectionSource(features, {
       temporaryChat: ["temporary chat", "临时聊天", "临时对话"],
     };
     const themeTokenNames = config.themeTokens;
+    const themeTokenAliases = config.themeTokenAliases;
 
     function normalizedLocale(value) {
       return String(value ?? "").toLowerCase().startsWith("zh") ? "zh-CN" : "en";
@@ -2825,7 +2826,17 @@ export function createInjectionSource(features, {
           .map((name) => [name, style.getPropertyValue(name).trim()])
           .filter(([, value]) => value),
       );
-      const mode = root.classList.contains("electron-dark") || style.colorScheme === "dark"
+      // 按语义和命名空间解析，不依赖构建哈希或猜测近似名称。
+      for (const name of themeTokenNames) {
+        if (tokens[name]) continue;
+        const semanticNames = [name, ...(themeTokenAliases[name] ?? [])];
+        const candidates = semanticNames.flatMap((candidate) => candidate.startsWith("--color-")
+          ? [candidate, candidate.replace("--color-", "--app-color-")]
+          : [candidate]);
+        const value = candidates.map((candidate) => style.getPropertyValue(candidate).trim()).find(Boolean);
+        if (value) tokens[name] = value;
+      }
+      const mode = root.dataset.theme === "dark" || root.classList.contains("electron-dark") || style.colorScheme === "dark"
         ? "dark"
         : "light";
       return { root, style, tokens, mode };
@@ -3095,6 +3106,8 @@ export function createInjectionSource(features, {
       frame.title = title;
       frame.allow = "clipboard-write";
       frame.style.cssText = "width:100%;height:100%;border:0;display:block;background:transparent";
+      // 图片页覆盖原生标题栏，避免控件点击被窗口拖拽区域吞掉。
+      if (featureId === "images") frame.style.setProperty("-webkit-app-region", "no-drag");
       return frame;
     }
 
@@ -4294,7 +4307,7 @@ export function createInjectionSource(features, {
           respondToSurface(record, requestId, { ok: true, result: { paths } });
           return;
         }
-        if (["attach-file", "create-image-edit-thread"].includes(action)) {
+        if (["attach-file", "create-image-edit-thread", "list-cloud-images", "import-cloud-image"].includes(action)) {
           if (typeof globalThis[config.bindingName] !== "function") {
             throw new Error("The native file bridge is unavailable");
           }
@@ -4476,7 +4489,7 @@ export function createInjectionSource(features, {
     const themeObserver = new MutationObserver(queueTheme);
     themeObserver.observe(document.documentElement, {
       attributes: true,
-      attributeFilter: ["class", "style"],
+      attributeFilter: ["class", "style", "data-theme"],
     });
     domObservers.push(themeObserver);
 
@@ -4563,6 +4576,7 @@ export function createInjectionSource(features, {
     summaryLayout: RESPONSIVE_SUMMARY_LAYOUT,
     rightPanelRouteKinds: RIGHT_PANEL_ROUTE_KINDS,
     themeTokens: CODEX_THEME_TOKENS,
+    themeTokenAliases: CODEX_THEME_TOKEN_ALIASES,
     features: runtimeFeatures,
   })})`;
 }

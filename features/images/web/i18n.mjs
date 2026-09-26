@@ -10,6 +10,11 @@ export function setLocale(value) {
   return true;
 }
 const zh = {
+  "{count} new images": "{count} 张新图片",
+  "Original request": "原始请求",
+  "Syncing cloud images… {count} added": "正在同步云端图片…已新增 {count} 张",
+  "Cloud sync finished: {count} added, {failed} failed. Refresh to retry.": "云端同步完成：新增 {count} 张，{failed} 张失败，可刷新重试。",
+  "Cloud sync unavailable. Local images are still available.": "云端同步暂不可用，本地图片仍可浏览。",
   "Images": "图片",
   "Images · Codex": "图片 · Codex",
   "Show sidebar": "显示侧边栏",

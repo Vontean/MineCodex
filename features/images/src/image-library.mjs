@@ -28,9 +28,14 @@ function imageIdFor(sourcePath) {
   return createHash("sha256").update(sourcePath).digest("hex").slice(0, 24);
 }
 
-function buildWhere({ query = "", source = "all", threadId = null } = {}) {
+function buildWhere({ query = "", source = "all", threadId = null, snapshot = null } = {}) {
   const clauses = [];
   const parameters = [];
+
+  if (snapshot !== null) {
+    clauses.push("images.rowid <= ?");
+    parameters.push(snapshot);
+  }
 
   if (threadId) {
     clauses.push("images.thread_id = ?");
@@ -153,6 +158,7 @@ function rowToImage(row) {
     imageGenerationItemId: row.image_generation_item_id,
     sourcePath: row.source_path,
     prompt: row.prompt,
+    promptKind: row.prompt_kind ?? "generation",
     width: row.width,
     height: row.height,
     byteLength: row.byte_length,
@@ -235,6 +241,10 @@ export class ImageLibrary {
         updated_at TEXT NOT NULL
       );
     `);
+    const imageColumns = new Set(this.database.prepare("PRAGMA table_info(images)").all().map(column => column.name));
+    for (const name of ["prompt_kind", "cloud_library_id", "cloud_version"]) {
+      if (!imageColumns.has(name)) this.database.exec(`ALTER TABLE images ADD COLUMN ${name} TEXT`);
+    }
     const threadSourceColumns = new Set(
       this.database.prepare("PRAGMA table_info(thread_sources)").all().map((column) => column.name),
     );
@@ -299,6 +309,10 @@ export class ImageLibrary {
     });
   }
 
+  snapshot() {
+    return this.database.prepare("SELECT COALESCE(MAX(rowid), 0) AS value FROM images").get().value;
+  }
+
   count(options = {}) {
     const { sql, parameters } = buildWhere(options);
     return this.database.prepare(`
@@ -309,8 +323,8 @@ export class ImageLibrary {
     `).get(...parameters).count;
   }
 
-  list({ query = "", source = "all", threadId = null, sort = "desc", limit = null, offset = 0 } = {}) {
-    const { sql, parameters } = buildWhere({ query, source, threadId });
+  list({ query = "", source = "all", threadId = null, sort = "desc", limit = null, offset = 0, snapshot = null } = {}) {
+    const { sql, parameters } = buildWhere({ query, source, threadId, snapshot });
     const pagination = Number.isInteger(limit) ? "LIMIT ? OFFSET ?" : "";
     if (pagination) parameters.push(limit, offset);
     const direction = sort === "asc" ? "ASC" : "DESC";
@@ -358,8 +372,8 @@ export class ImageLibrary {
     return { total: this.count(), chats, works, projects };
   }
 
-  countGroups({ source = "all" } = {}) {
-    const { sql, parameters } = buildWhere({ source });
+  countGroups({ source = "all", snapshot = null } = {}) {
+    const { sql, parameters } = buildWhere({ source, snapshot });
     return this.database.prepare(`
       SELECT COUNT(DISTINCT images.thread_id) AS count
       FROM images
@@ -368,8 +382,8 @@ export class ImageLibrary {
     `).get(...parameters).count;
   }
 
-  groups({ source = "all", limit = null, offset = 0, previewLimit = 4 } = {}) {
-    const { sql, parameters } = buildWhere({ source });
+  groups({ source = "all", limit = null, offset = 0, previewLimit = 4, snapshot = null } = {}) {
+    const { sql, parameters } = buildWhere({ source, snapshot });
     const pagination = Number.isInteger(limit) ? "LIMIT ? OFFSET ?" : "";
     if (pagination) parameters.push(limit, offset);
     const rows = this.database.prepare(`
@@ -400,10 +414,11 @@ export class ImageLibrary {
           FROM images
           LEFT JOIN thread_sources ON thread_sources.thread_id = images.thread_id
           WHERE images.thread_id IN (${placeholders})
+            ${snapshot === null ? "" : "AND images.rowid <= ?"}
         )
         WHERE preview_rank <= ?
         ORDER BY thread_id ASC, created_at ASC, id ASC
-      `).all(...threadIds, previewLimit);
+      `).all(...threadIds, ...(snapshot === null ? [] : [snapshot]), previewLimit);
       for (const previewRow of previewRows) {
         const previews = previewsByThread.get(previewRow.thread_id) ?? [];
         previews.push(rowToImage(previewRow));
@@ -621,6 +636,10 @@ export class ImageLibrary {
     return true;
   }
 
+  cloudCache() {
+    return this.database.prepare("SELECT cloud_library_id AS libraryId, cloud_version AS version FROM images WHERE cloud_library_id IS NOT NULL").all();
+  }
+
   async importExternalImage({
     bytes,
     mimeType,
@@ -630,6 +649,9 @@ export class ImageLibrary {
     sourceKind,
     prompt = null,
     createdAt = null,
+    promptKind = "generation",
+    cloudLibraryId = null,
+    cloudVersion = null,
   } = {}) {
     if (!this.isLifecycleActive() || !Buffer.isBuffer(bytes)) return { imported: false, reason: "INVALID_BYTES" };
     const normalizedMime = normalizedImportMime(mimeType);
@@ -660,10 +682,15 @@ export class ImageLibrary {
     const assetDir = path.join(this.dataDir, "external-images");
     const sourcePath = path.join(assetDir, `${id}.${extension}`);
     const existing = this.database.prepare("SELECT source_path, byte_length FROM images WHERE id = ?").get(id);
+    const updateCloudMetadata = () => {
+      if (typeof cloudLibraryId !== "string" || !/^libfile_[\w-]+$/.test(cloudLibraryId)) return;
+      this.database.prepare("UPDATE images SET cloud_library_id = ?, cloud_version = ?, prompt = ?, prompt_kind = ? WHERE id = ?")
+        .run(cloudLibraryId, String(cloudVersion ?? "").slice(0, 256), safePrompt, promptKind === "request" ? "request" : "generation", id);
+    };
     if (existing && existing.byte_length === bytes.length) {
       try {
         const existingBytes = await readFile(existing.source_path);
-        if (existingBytes.equals(bytes)) return { imported: false, id, reason: "DUPLICATE" };
+        if (existingBytes.equals(bytes)) { updateCloudMetadata(); return { imported: false, id, reason: "DUPLICATE" }; }
       } catch (error) {
         if (error.code !== "ENOENT") throw error;
       }
@@ -712,6 +739,7 @@ export class ImageLibrary {
         normalizedCreatedAt,
         importedAt,
       );
+    updateCloudMetadata();
     this.database
       .prepare(`
         INSERT INTO thread_sources (

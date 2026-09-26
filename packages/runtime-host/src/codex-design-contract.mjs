@@ -3,6 +3,16 @@
 // 后经 CDP 注入），因此 install 内通过 config.themeTokens 拿到本模块的名单；
 // 名单只在这里维护，install 不再持有自己的字面量副本。
 
+// 同一语义的历史名称；app-color 前缀迁移由适配器统一处理。
+export const CODEX_THEME_TOKEN_ALIASES = Object.freeze({
+  "--color-text-foreground": ["--color-token-foreground"],
+  "--color-text-foreground-secondary": ["--color-token-text-secondary"],
+  "--color-text-foreground-tertiary": ["--color-token-text-tertiary"],
+  "--color-token-input-foreground": ["--color-text-foreground", "--color-token-foreground"],
+  "--color-text-accent": ["--color-token-text-link-foreground"],
+  "--color-border-focus": ["--color-token-focus-border"],
+});
+
 export const CODEX_THEME_TOKENS = Object.freeze([
   "--codex-base-accent",
   "--codex-base-ink",

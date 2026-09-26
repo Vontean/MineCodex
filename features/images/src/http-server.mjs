@@ -48,7 +48,7 @@ function publicImage(image, { includePrompt = false } = {}) {
     downloadUrl: `/api/images/${image.id}/download`,
     sourceUrl: image.threadId.startsWith("chatgpt:") ? null : `codex://threads/${image.threadId}`,
   };
-  if (includePrompt) result.prompt = image.prompt;
+  if (includePrompt) { result.prompt = image.prompt; result.promptKind = image.promptKind; }
   return result;
 }
 
@@ -295,11 +295,13 @@ export async function createHttpServer({
 
       if (request.method === "GET" && url.pathname === "/api/images") {
         const { limit, offset } = paginationFor(url);
+        const snapshot = parseIntegerQuery(url.searchParams, "snapshot", { defaultValue: library.snapshot(), min: 0, max: Number.MAX_SAFE_INTEGER });
         const source = url.searchParams.get("source") ?? "all";
         const threadId = url.searchParams.get("threadId") || null;
         const sort = url.searchParams.get("sort") === "asc" ? "asc" : "desc";
         const query = url.searchParams.get("q") ?? "";
         const images = library.list({
+          snapshot,
           query,
           source,
           threadId,
@@ -309,7 +311,8 @@ export async function createHttpServer({
         }).map(publicImage);
         json(response, 200, {
           images,
-          count: library.count({ query, source, threadId }),
+          count: library.count({ query, source, threadId, snapshot }),
+          snapshot,
           limit,
           offset,
         });
@@ -323,15 +326,22 @@ export async function createHttpServer({
 
       if (request.method === "GET" && url.pathname === "/api/image-groups") {
         const { limit, offset } = paginationFor(url);
+        const snapshot = parseIntegerQuery(url.searchParams, "snapshot", { defaultValue: library.snapshot(), min: 0, max: Number.MAX_SAFE_INTEGER });
         const source = url.searchParams.get("source") ?? "all";
-        const groups = library.groups({ source, limit, offset }).map(publicGroup);
+        const groups = library.groups({ source, limit, offset, snapshot }).map(publicGroup);
         json(response, 200, {
           groups,
-          count: library.countGroups({ source }),
-          imageCount: library.count({ source }),
+          count: library.countGroups({ source, snapshot }),
+          imageCount: library.count({ source, snapshot }),
+          snapshot,
           limit,
           offset,
         });
+        return;
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/cloud-image-cache") {
+        json(response, 200, { items: library.cloudCache() });
         return;
       }
 

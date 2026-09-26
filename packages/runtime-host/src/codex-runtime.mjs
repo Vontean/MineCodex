@@ -1,3 +1,4 @@
+import { cloudImagesAction } from "./cloud-images.mjs";
 // CodexRuntime：Codex Renderer 生命周期与 host action 执行。
 // 注入源（createInjectionSource）与 CDP 客户端分别在 codex-injection.mjs / codex-cdp.mjs。
 
@@ -553,6 +554,18 @@ export class CodexRuntime {
       await this.importGeneratedImage(feature, request.payload);
       return;
     }
+    if (["list-cloud-images", "import-cloud-image"].includes(request.action)) {
+      try {
+        let result = await cloudImagesAction(client, request.action === "list-cloud-images" ? "list" : "import", request.payload);
+        if (request.action === "import-cloud-image" && !result.skipped) {
+          result = await this.importGeneratedImage(feature, result);
+        }
+        await this.resolveHostAction(client, request.requestId, { ok: true, result });
+      } catch (error) {
+        await this.resolveHostAction(client, request.requestId, { ok: false, error: { code: "CLOUD_IMAGES_FAILED", message: error.message } });
+      }
+      return;
+    }
     try {
       const result = request.action === "create-image-edit-thread"
         ? await this.createImageEditThread(client, feature, request.payload, request.requestId)
@@ -580,6 +593,7 @@ export class CodexRuntime {
     if (!response?.ok) {
       throw new Error(`Generated image import returned HTTP ${response?.status ?? "error"}`);
     }
+    return response.json();
   }
 
   async refreshTargets() {
