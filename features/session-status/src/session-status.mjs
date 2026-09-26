@@ -4,17 +4,15 @@ const STYLE_ID = "minecodex-session-status-style";
 const copy = document.documentElement.lang.toLowerCase().startsWith("zh") ? {
   turns: "回合", steps: "步", speed: "TPS", cache: "缓存", cacheDetail: "缓存命中",
   statistics: "会话统计", usage: "Token 用量", context: "上下文详情", total: "总量",
-  modelTime: "模型用时", toolTime: "工具用时", firstToken: "平均首字延迟",
-  uncached: "未缓存输入", cached: "缓存输入", cacheWrite: "缓存写入", output: "输出",
-  observedTime: "观测用时", inputMix: "输入构成",
+  firstToken: "平均首字延迟", input: "输入", cached: "缓存输入", output: "输出",
+  tokenMix: "Token 构成",
   recentInput: "最近用量", capacity: "窗口容量", contextShare: "上下文占用", compactions: "压缩次数",
   visibleSections: "构成估算", instructions: "指令", messages: "消息", toolHistory: "工具交互", other: "未分类",
 } : {
   turns: "turns", steps: "steps", speed: "TPS", cache: "Cache", cacheDetail: "Cache hit",
   statistics: "Session stats", usage: "Token usage", context: "Context", total: "Total",
-  modelTime: "Model time", toolTime: "Tool time", firstToken: "Avg first token",
-  uncached: "Uncached input", cached: "Cached input", cacheWrite: "Cache write", output: "Output",
-  observedTime: "Observed time", inputMix: "Input mix",
+  firstToken: "Avg first token", input: "Input", cached: "Cached input", output: "Output",
+  tokenMix: "Token mix",
   recentInput: "Recent usage", capacity: "Window size", contextShare: "Context used", compactions: "Compactions",
   visibleSections: "Estimated mix", instructions: "Instructions", messages: "Messages", toolHistory: "Tool activity", other: "Unclassified",
 };
@@ -154,12 +152,13 @@ function appendMixBar(dl, title, parts) {
   const bar = document.createElement("div");
   bar.className = "mix-bar";
   bar.setAttribute("role", "img");
-  bar.setAttribute("aria-label", `${title}: ${visible.map(([, name, amount]) => `${name} ${Math.round(amount / total * 100)}%`).join(", ")}`);
+  const percent = (amount) => new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(amount / total * 100);
+  bar.setAttribute("aria-label", `${title}: ${visible.map(([, name, amount]) => `${name} ${percent(amount)}%`).join(", ")}`);
   for (const [tone, name, amount] of visible) {
     const segment = document.createElement("span");
     segment.dataset.tone = tone;
     segment.style.width = `${amount / total * 100}%`;
-    segment.title = `${name} ${Math.round(amount / total * 100)}%`;
+    segment.title = `${name} ${percent(amount)}%`;
     bar.append(segment);
   }
   dl.append(label, bar);
@@ -189,28 +188,21 @@ function showPanel(kind) {
   if (kind === "statistics") {
     row(dl, copy.turns, number(snapshot.turns));
     row(dl, copy.steps, number(snapshot.steps));
-    if (snapshot.speedSamples > 0) appendMixBar(dl, copy.observedTime, [
-      ["blue", copy.modelTime, snapshot.observedModelMs],
-      ["green", copy.toolTime, snapshot.toolMs],
-    ]);
-    row(dl, copy.modelTime, duration(snapshot.observedModelMs)).dataset.tone = "blue";
-    row(dl, copy.toolTime, duration(snapshot.toolMs)).dataset.tone = "green";
     row(dl, copy.firstToken, duration(snapshot.averageFirstTokenMs));
     row(dl, copy.speed, snapshot.observedTps == null ? "—" : `${number(snapshot.observedTps)} tok/s`);
   } else if (kind === "usage") {
     row(dl, copy.total, tokenValue(snapshot.totalTokens));
     row(dl, copy.cacheDetail, snapshot.cacheHitPercent == null ? "—" : `${snapshot.cacheHitPercent}%`);
-    appendMixBar(dl, copy.inputMix, [
-      ["blue", copy.uncached, snapshot.uncachedInputTokens],
+    const otherInput = snapshot.inputTokens == null || snapshot.cachedInputTokens == null
+      ? null : Math.max(0, snapshot.inputTokens - snapshot.cachedInputTokens);
+    appendMixBar(dl, copy.tokenMix, [
       ["green", copy.cached, snapshot.cachedInputTokens],
-      ["purple", copy.cacheWrite, snapshot.cacheWriteInputTokens],
+      ["blue", copy.input, otherInput],
+      ["purple", copy.output, snapshot.outputTokens],
     ]);
-    row(dl, copy.uncached, tokenValue(snapshot.uncachedInputTokens)).dataset.tone = "blue";
     row(dl, copy.cached, tokenValue(snapshot.cachedInputTokens)).dataset.tone = "green";
-    if (snapshot.cacheWriteInputTokens > 0) {
-      row(dl, copy.cacheWrite, tokenValue(snapshot.cacheWriteInputTokens)).dataset.tone = "purple";
-    }
-    row(dl, copy.output, tokenValue(snapshot.outputTokens));
+    row(dl, copy.input, tokenValue(otherInput)).dataset.tone = "blue";
+    row(dl, copy.output, tokenValue(snapshot.outputTokens)).dataset.tone = "purple";
   } else {
     if (snapshot.contextPercent != null) {
       const head = document.createElement("div");
