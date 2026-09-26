@@ -5,14 +5,12 @@ const copy = document.documentElement.lang.toLowerCase().startsWith("zh") ? {
   turns: "回合", steps: "步", speed: "TPS", cache: "缓存", cacheDetail: "缓存命中",
   statistics: "会话统计", usage: "Token 用量", context: "上下文详情", total: "总量",
   firstToken: "平均首字延迟", input: "输入", cached: "缓存输入", output: "输出",
-  tokenMix: "Token 构成",
   sum: "合计", capacity: "窗口容量", contextShare: "上下文占用", compactions: "压缩次数",
   instructions: "指令", messages: "消息", toolHistory: "工具交互", other: "未分类",
 } : {
   turns: "turns", steps: "steps", speed: "TPS", cache: "Cache", cacheDetail: "Cache hit",
   statistics: "Session stats", usage: "Token usage", context: "Context", total: "Total",
   firstToken: "Avg first token", input: "Input", cached: "Cached input", output: "Output",
-  tokenMix: "Token mix",
   sum: "Sum", capacity: "Window size", contextShare: "Context used", compactions: "Compactions",
   instructions: "Instructions", messages: "Messages", toolHistory: "Tool activity", other: "Unclassified",
 };
@@ -52,8 +50,7 @@ style.textContent = `
   [data-minecodex-session-status-panel] .mix-bar [data-tone="purple"], [data-minecodex-session-status-panel] dt[data-tone="purple"]::before { background:var(--mcx-purple); }
   [data-minecodex-session-status-panel] .mix-bar [data-tone="blue"], [data-minecodex-session-status-panel] dt[data-tone="blue"]::before { background:var(--mcx-blue); }
   [data-minecodex-session-status-panel] .mix-bar [data-tone="green"], [data-minecodex-session-status-panel] dt[data-tone="green"]::before { background:var(--mcx-green); }
-  [data-minecodex-session-status-panel] .context-section-heading { grid-column:1 / -1; margin-top:4px; padding-top:10px; border-top:1px solid var(--color-border-subtle); color:var(--color-text-tertiary); font-size:12px; }
-  [data-minecodex-session-status-panel] .context-summary-divider { grid-column:1 / -1; margin-top:4px; border-top:1px solid var(--color-border-subtle); }
+  [data-minecodex-session-status-panel] .detail-divider { grid-column:1 / -1; margin-top:4px; border-top:1px solid var(--color-border-subtle); }
   [data-minecodex-session-status-panel] dt[data-tone] { display:flex; align-items:center; gap:7px; }
   [data-minecodex-session-status-panel] dt[data-tone]::before { content:""; flex:none; width:7px; height:7px; border-radius:2px; }
 `;
@@ -143,13 +140,15 @@ function row(dl, label, value) {
   dl.append(dt, dd);
   return dt;
 }
+function divider(dl) {
+  const line = document.createElement("div");
+  line.className = "detail-divider";
+  dl.append(line);
+}
 function appendMixBar(dl, title, parts) {
   const visible = parts.filter(([, , amount]) => Number.isFinite(amount) && amount > 0);
   const total = visible.reduce((sum, [, , amount]) => sum + amount, 0);
   if (total === 0) return;
-  const label = document.createElement("div");
-  label.className = "context-section-heading";
-  label.textContent = title;
   const bar = document.createElement("div");
   bar.className = "mix-bar";
   bar.setAttribute("role", "img");
@@ -162,7 +161,7 @@ function appendMixBar(dl, title, parts) {
     segment.title = `${name} ${percent(amount)}%`;
     bar.append(segment);
   }
-  dl.append(label, bar);
+  dl.append(bar);
 }
 function closePanel() {
   panel?.remove();
@@ -193,17 +192,18 @@ function showPanel(kind) {
     row(dl, copy.speed, snapshot.observedTps == null ? "—" : `${number(snapshot.observedTps)} tok/s`);
   } else if (kind === "usage") {
     row(dl, copy.total, tokenValue(snapshot.totalTokens));
-    row(dl, copy.cacheDetail, snapshot.cacheHitPercent == null ? "—" : `${snapshot.cacheHitPercent}%`);
     const otherInput = snapshot.inputTokens == null || snapshot.cachedInputTokens == null
       ? null : Math.max(0, snapshot.inputTokens - snapshot.cachedInputTokens);
-    appendMixBar(dl, copy.tokenMix, [
-      ["green", copy.cached, snapshot.cachedInputTokens],
-      ["blue", copy.input, otherInput],
+    appendMixBar(dl, copy.total, [
       ["purple", copy.output, snapshot.outputTokens],
+      ["blue", copy.input, otherInput],
+      ["green", copy.cached, snapshot.cachedInputTokens],
     ]);
-    row(dl, copy.cached, tokenValue(snapshot.cachedInputTokens)).dataset.tone = "green";
-    row(dl, copy.input, tokenValue(otherInput)).dataset.tone = "blue";
     row(dl, copy.output, tokenValue(snapshot.outputTokens)).dataset.tone = "purple";
+    row(dl, copy.input, tokenValue(otherInput)).dataset.tone = "blue";
+    row(dl, copy.cached, tokenValue(snapshot.cachedInputTokens)).dataset.tone = "green";
+    divider(dl);
+    row(dl, copy.cacheDetail, snapshot.cacheHitPercent == null ? "—" : `${snapshot.cacheHitPercent}%`);
   } else {
     if (snapshot.contextPercent != null) {
       const head = document.createElement("div");
@@ -237,9 +237,7 @@ function showPanel(kind) {
         for (const [section, label, value] of sections) {
           row(dl, label, sectionValue(value)).dataset.tone = section === "instructions" ? "purple" : section === "tools" ? "green" : "blue";
         }
-        const divider = document.createElement("div");
-        divider.className = "context-summary-divider";
-        dl.append(divider);
+        divider(dl);
       }
     }
     row(dl, copy.sum, tokenValue(snapshot.contextUsedTokens));
