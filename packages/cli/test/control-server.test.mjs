@@ -65,7 +65,8 @@ test("control server exchanges a short-lived one-time value for a cookie and pro
 
     const status = await fetch(`${origin}/api/status`, { headers: { Cookie: cookie, "Accept-Language": "zh-CN" } });
     const initial = await status.json();
-    assert.equal(initial.features.length, 5);
+    assert.equal(initial.features.length, 6);
+    assert.equal(initial.features.find((feature) => feature.id === "usage-meter").label, "额度环");
     assert.equal(initial.features.every((feature) => feature.enabled), true);
     assert.equal(initial.features.find((feature) => feature.id === "images").label, "图片");
     assert.equal(initial.features.find((feature) => feature.id === "session-status").label, "会话状态");
@@ -138,6 +139,10 @@ test("control server exchanges a short-lived one-time value for a cookie and pro
     assert.equal(bannerIcon.status, 200);
     assert.match(bannerIcon.headers.get("content-type"), /image\/svg\+xml/);
     assert.match(await bannerIcon.text(), /<svg/);
+
+    const usageIcon = await fetch(`${origin}/api/icons/usage-meter.svg`, { headers: { Cookie: cookie } });
+    assert.equal(usageIcon.status, 200);
+    assert.match(await usageIcon.text(), /<circle/);
 
     const sessionIcon = await fetch(`${origin}/api/icons/session-status.svg`, { headers: { Cookie: cookie } });
     assert.equal(sessionIcon.status, 200);

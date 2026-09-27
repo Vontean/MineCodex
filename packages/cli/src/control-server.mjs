@@ -197,7 +197,7 @@ async function iconResponse(id, paths, response) {
     iconPath = path.join(paths.featuresRoot, id, "assets", "ui", "sparkles.svg");
   } else if (id === "notes") {
     iconPath = path.join(paths.featuresRoot, id, "assets", "icons", "sticky-note.svg");
-  } else if (["images", "hide-upsell-banner", "session-status"].includes(id)) {
+  } else if (["images", "hide-upsell-banner", "session-status", "usage-meter"].includes(id)) {
     const manifest = JSON.parse(await readFile(path.join(paths.featuresRoot, id, "codex-feature.json"), "utf8"));
     const viewBox = manifest.icon?.viewBox ?? "0 0 24 24";
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${manifest.icon.markup}</svg>`;

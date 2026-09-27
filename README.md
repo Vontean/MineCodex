@@ -12,6 +12,7 @@ MineCodex 给 Codex Desktop 增加一组轻量、本地优先的扩展功能。�
 | --- | --- |
 | **Model Slider** | 更清晰、更顺滑的模型切换面板：具备品牌标识、常用收藏与流畅交互 |
 | **Notes** | 跨会话管理待办事项、常用提示词与文件，可随时从 Codex 工具栏快速复用 |
+| **Usage Meter** | 在 Help 与 Account 之间显示剩余额度环，悬浮查看周 / 五小时额度，点击进入 Usage 设置 |
 | **Images** | 在原生 Library 图片详情中查看并复制提示词 |
 | **Hide Upsell Banner** | 隐藏输入框上方的用量提示横幅，仅优化界面展示，不影响正常的用量统计 |
 | **Session Status** | 在输入框下方查看当前任务的步骤、观测速度、Token 用量与上下文明细 |

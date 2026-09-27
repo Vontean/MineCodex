@@ -43,6 +43,8 @@ const requiredFiles = [
   "features/notes/codex-feature.json",
   "features/session-status/codex-feature.json",
   "features/session-status/src/session-status.mjs",
+  "features/usage-meter/codex-feature.json",
+  "features/usage-meter/src/usage-meter.mjs",
   "package.json",
   "packages/cli/bin/mcx.mjs",
   "packages/cli/native/MineCodex.app/Contents/Info.plist",

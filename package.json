@@ -41,14 +41,18 @@
     "apps/dashboard/favicon.svg",
     "apps/dashboard/index.html",
     "apps/dashboard/styles.css",
-    "README.md"
+    "README.md",
+    "features/usage-meter/src",
+    "features/usage-meter/codex-feature.json",
+    "features/usage-meter/DESIGN.md",
+    "features/usage-meter/README.md"
   ],
   "engines": {
     "node": ">=22.5.0"
   },
   "scripts": {
     "start": "node packages/cli/bin/mcx.mjs serve",
-    "test": "node --test packages/cli/test/*.test.mjs packages/runtime-host/test/*.test.mjs features/model-slider/test/*.test.mjs features/notes/test/*.test.mjs features/images/test/*.test.mjs features/hide-upsell-banner/test/*.test.mjs features/session-status/test/*.test.mjs apps/dashboard/test/*.test.mjs",
+    "test": "node --test packages/cli/test/*.test.mjs packages/runtime-host/test/*.test.mjs features/model-slider/test/*.test.mjs features/notes/test/*.test.mjs features/images/test/*.test.mjs features/hide-upsell-banner/test/*.test.mjs features/session-status/test/*.test.mjs features/usage-meter/test/*.test.mjs apps/dashboard/test/*.test.mjs",
     "test:cli": "node --test packages/cli/test/*.test.mjs",
     "test:runtime": "node --test packages/runtime-host/test/*.test.mjs",
     "check": "node --check packages/cli/bin/mcx.mjs && node --check packages/cli/src/*.mjs && node --check packages/runtime-host/src/*.mjs",

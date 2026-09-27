@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "usage-meter",
+  "version": "0.1.0",
+  "label": { "en": "Usage Meter", "zh-CN": "额度环" },
+  "description": {
+    "en": "Show remaining weekly and 5-hour limits between Help and Account and open Usage settings.",
+    "zh-CN": "在 Help 与 Account 之间显示周与五小时剩余额度，点击进入 Usage 设置。"
+  },
+  "entry": { "kind": "page-script", "script": "src/usage-meter.mjs" },
+  "icon": { "viewBox": "0 0 24 24", "markup": "<circle cx=\"12\" cy=\"12\" r=\"9\"></circle><circle cx=\"12\" cy=\"12\" r=\"5\"></circle>" },
+  "placement": { "order": 60 }
+}
