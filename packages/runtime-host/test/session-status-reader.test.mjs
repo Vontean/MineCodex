@@ -195,3 +195,88 @@ test("returns no snapshot for unavailable or malformed thread IDs", async () => 
   assert.equal(await reader.read(THREAD_ID), null);
   assert.equal(threadIdFromLocation(`/thread/${THREAD_ID}?view=chat`), THREAD_ID);
 });
+
+test("uses post-compaction native context counts without replacing cumulative billing totals", async (t) => {
+  const sessionsDir = await mkdtemp(path.join(os.tmpdir(), "mcx-context-reset-"));
+  t.after(() => rm(sessionsDir, { recursive: true, force: true }));
+  const file = path.join(sessionsDir, `rollout-${THREAD_ID}.jsonl`);
+  await writeFile(file, [
+    line("2026-09-27T06:40:45.630Z", "token_usage_record", {
+      response_id: "compact", usage: usage(221592, 210816, 3451),
+      thread_token_usage: usage(18_000_000, 17_000_000, 45000),
+    }),
+    line("2026-09-27T06:40:45.643Z", "compacted", { window_number: 1 }),
+  ].join(""));
+  const reader = new SessionStatusReader({ sessionsDir });
+  assert.equal((await reader.read(THREAD_ID)).contextPercent, null);
+  await appendFile(file, [
+    line("2026-09-27T06:40:45.651Z", "event_msg", {
+      type: "token_count", info: {
+        last_token_usage: { ...usage(0, 0, 0), total_tokens: 15971 },
+        total_token_usage: usage(100, 0, 10), model_context_window: 258400,
+      },
+    }),
+    line("2026-09-27T06:40:45.652Z", "event_msg", {
+      type: "item_completed", item: { type: "ContextCompaction" },
+    }),
+  ].join(""));
+  const snapshot = await reader.read(THREAD_ID);
+  assert.equal(snapshot.contextUsedTokens, 15971);
+  assert.equal(snapshot.contextPercent, 6);
+  assert.equal(snapshot.totalTokens, 18_045_000);
+  assert.equal(snapshot.compactions, 1);
+});
+
+test("late tool completion corrects TPS and duplicate usage does not consume the next sample", async (t) => {
+  const sessionsDir = await mkdtemp(path.join(os.tmpdir(), "mcx-late-tool-"));
+  t.after(() => rm(sessionsDir, { recursive: true, force: true }));
+  const file = path.join(sessionsDir, `rollout-${THREAD_ID}.jsonl`);
+  const response = line("1970-01-01T00:00:04Z", "token_usage_record", {
+    response_id: "one", usage: usage(100, 0, 140),
+  });
+  await writeFile(file, [
+    line("1970-01-01T00:00:01.100Z", "event_msg", {
+      type: "item_completed", item: { type: "Reasoning" }, started_at_ms: 1000, completed_at_ms: 1100,
+    }), response,
+  ].join(""));
+  const reader = new SessionStatusReader({ sessionsDir });
+  assert.equal((await reader.read(THREAD_ID)).observedModelMs, 3000);
+  await appendFile(file, [
+    line("1970-01-01T00:00:04.200Z", "event_msg", {
+      type: "item_completed", item: { type: "CommandExecution" }, started_at_ms: 1200, completed_at_ms: 2200,
+    }),
+    line("1970-01-01T00:00:04.300Z", "event_msg", {
+      type: "item_completed", item: { type: "McpToolCall" }, started_at_ms: 1800, completed_at_ms: 2800,
+    }),
+  ].join(""));
+  const corrected = await reader.read(THREAD_ID);
+  assert.equal(corrected.observedModelMs, 1400);
+  assert.equal(corrected.observedTps, 100);
+  await appendFile(file, [
+    line("1970-01-01T00:00:05.100Z", "event_msg", {
+      type: "item_completed", item: { type: "AgentMessage" }, started_at_ms: 5000, completed_at_ms: 5100,
+    }), response,
+    line("1970-01-01T00:00:06Z", "token_usage_record", {
+      response_id: "two", usage: usage(100, 0, 100),
+    }),
+  ].join(""));
+  const final = await reader.read(THREAD_ID);
+  assert.equal(final.speedSamples, 2);
+  assert.equal(final.observedTps, 100);
+});
+
+test("does not carry unfinished output timing into another turn", async (t) => {
+  const sessionsDir = await mkdtemp(path.join(os.tmpdir(), "mcx-turn-timing-"));
+  t.after(() => rm(sessionsDir, { recursive: true, force: true }));
+  await writeFile(path.join(sessionsDir, `rollout-${THREAD_ID}.jsonl`), [
+    line("1970-01-01T00:00:01Z", "event_msg", {
+      type: "item_completed", item: { type: "Reasoning" }, started_at_ms: 1000, completed_at_ms: 1100,
+    }),
+    line("1970-01-01T00:00:02Z", "event_msg", { type: "turn_aborted" }),
+    line("1970-01-01T00:00:03Z", "event_msg", { type: "task_started", turn_id: "next" }),
+    line("1970-01-01T00:00:04Z", "token_usage_record", {
+      response_id: "two", usage: usage(100, 0, 100),
+    }),
+  ].join(""));
+  assert.equal((await new SessionStatusReader({ sessionsDir }).read(THREAD_ID)).observedTps, null);
+});

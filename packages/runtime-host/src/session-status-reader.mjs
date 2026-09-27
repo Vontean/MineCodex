@@ -70,9 +70,7 @@ function emptyState(filePath) {
     contextWindow: null,
     firstOutputAt: null,
     pendingToolIntervals: [],
-    decodeTokens: 0,
-    decodeMs: 0,
-    speedSamples: 0,
+    speedMeasurements: [],
     ttftTotalMs: 0,
     ttftSamples: 0,
     toolMs: 0,
@@ -110,6 +108,9 @@ export function applySessionStatusEvent(state, event) {
   const payload = event?.payload ?? {};
   if (event?.type === "compacted") {
     state.compactionRecords += 1;
+    state.last = null;
+    state.firstOutputAt = null;
+    state.pendingToolIntervals = [];
     if (Number.isSafeInteger(payload.window_number) && payload.window_number >= 0) {
       state.compactionWindow = Math.max(state.compactionWindow, payload.window_number);
     }
@@ -134,12 +135,21 @@ export function applySessionStatusEvent(state, event) {
     state.baseInstructionTokens = estimatedTextTokens(payload.base_instructions?.text);
   }
   if (event?.type === "event_msg") {
-    if (payload.type === "context_compacted") state.compactionEvents += 1;
+    if (payload.type === "context_compacted") {
+      state.compactionEvents += 1;
+      state.last = null;
+      state.firstOutputAt = null;
+      state.pendingToolIntervals = [];
+    }
     if (payload.type === "task_started" && payload.turn_id) {
+      state.firstOutputAt = null;
+      state.pendingToolIntervals = [];
       state.turns.add(payload.turn_id);
       state.runningTurns.add(payload.turn_id);
     }
     if (["task_complete", "task_interrupted", "turn_aborted"].includes(payload.type)) {
+      state.firstOutputAt = null;
+      state.pendingToolIntervals = [];
       if (payload.turn_id) state.runningTurns.delete(payload.turn_id);
       else state.runningTurns.clear();
     }
@@ -158,13 +168,17 @@ export function applySessionStatusEvent(state, event) {
       if (TOOL_ITEMS.has(itemType) && Number.isFinite(start) && Number.isFinite(end)) {
         state.toolMs += Math.max(0, end - start);
         state.pendingToolIntervals.push([start, end]);
+        // 工具完成事件可能晚于用量记录落盘，补扣已记录样本中的重叠区间。
+        for (const sample of state.speedMeasurements) {
+          if (start < sample.end && end > sample.start) sample.tools.push([start, end]);
+        }
       }
     }
     if (payload.type === "token_count") {
       if (!state.hasResponseUsage && validUsage(payload.info?.total_token_usage)) {
         state.total = payload.info.total_token_usage;
       }
-      if (!state.hasResponseUsage && validUsage(payload.info?.last_token_usage)) {
+      if (validUsage(payload.info?.last_token_usage)) {
         state.last = payload.info.last_token_usage;
       }
       if (Number.isFinite(payload.info?.model_context_window)) {
@@ -174,18 +188,18 @@ export function applySessionStatusEvent(state, event) {
   }
   if (event?.type === "token_usage_record") {
     const responseId = payload.response_id;
-    if (responseId && !state.responses.has(responseId)) {
+    if (responseId && state.responses.has(responseId)) return;
+    if (responseId) {
       state.responses.add(responseId);
       const responseEnd = Date.parse(event.timestamp);
-      const elapsed = state.firstOutputAt == null ? null : responseEnd - state.firstOutputAt
-        - overlappingToolMs(state.pendingToolIntervals, state.firstOutputAt, responseEnd);
       const output = payload.usage?.output_tokens;
-      // 会话事件只给出首个可见条目的时间，故 TPS 是观测估算。
+      // 起止点来自会话事件，并非模型首末 token 时间；只能提供观测约值。
       if (Number.isFinite(output) && output > 0 && state.firstOutputAt != null
-        && Number.isFinite(elapsed) && elapsed > 0 && elapsed < 600_000) {
-        state.decodeTokens += output;
-        state.decodeMs += elapsed;
-        state.speedSamples += 1;
+        && Number.isFinite(responseEnd) && responseEnd > state.firstOutputAt) {
+        state.speedMeasurements.push({
+          start: state.firstOutputAt, end: responseEnd, output,
+          tools: state.pendingToolIntervals.slice(),
+        });
       }
     }
     state.firstOutputAt = null;
@@ -200,6 +214,16 @@ export function applySessionStatusEvent(state, event) {
 }
 
 export function sessionStatusSnapshot(state, threadId) {
+  let decodeTokens = 0;
+  let decodeMs = 0;
+  let speedSamples = 0;
+  for (const sample of state.speedMeasurements) {
+    const elapsed = sample.end - sample.start - overlappingToolMs(sample.tools, sample.start, sample.end);
+    if (elapsed <= 0 || elapsed >= 600_000) continue;
+    decodeTokens += sample.output;
+    decodeMs += elapsed;
+    speedSamples += 1;
+  }
   const total = state.total;
   const input = total?.input_tokens ?? 0;
   const cached = total?.cached_input_tokens ?? 0;
@@ -218,9 +242,9 @@ export function sessionStatusSnapshot(state, threadId) {
     uncachedInputTokens: total ? Math.max(0, input - cached - cacheWrite) : null,
     outputTokens: total?.output_tokens ?? null,
     cacheHitPercent: input > 0 ? Math.round(cached / input * 100) : null,
-    observedTps: state.decodeMs > 0 ? Math.round(state.decodeTokens / (state.decodeMs / 1000)) : null,
-    speedSamples: state.speedSamples,
-    observedModelMs: state.decodeMs,
+    observedTps: decodeMs > 0 ? Math.round(decodeTokens / (decodeMs / 1000)) : null,
+    speedSamples,
+    observedModelMs: decodeMs,
     toolMs: state.toolMs,
     averageFirstTokenMs: state.ttftSamples > 0 ? Math.round(state.ttftTotalMs / state.ttftSamples) : null,
     contextUsedTokens: contextUsed,

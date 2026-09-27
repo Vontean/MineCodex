@@ -277,6 +277,80 @@ function currentThreadId(composer) {
   const value = portal?.getAttribute('data-above-composer-conversation-id');
   return value?.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i)?.[0] ?? null;
 }
+// 与原生 Context 指示器订阅同一会话状态；不以日志百分比覆盖它。
+const emptyNativeContext = () => ({ contextUsedTokens: null, contextWindow: null, contextPercent: null });
+let nativeContext = emptyNativeContext();
+let nativeContextFamily = null;
+let nativeContextSubscription = null;
+let nativeContextThread = null;
+function findNativeScope(element) {
+  let fiber;
+  for (let node = element; node && !fiber; node = node.parentElement) {
+    fiber = node[Object.keys(node).find((key) => key.startsWith("__reactFiber"))];
+  }
+  for (let depth = 0; fiber && depth < 200; depth++, fiber = fiber.return) {
+    const chain = fiber.memoizedProps?.value;
+    if (!(chain instanceof Map)) continue;
+    for (const node of chain.values()) {
+      if (node?.token?.__scopeBrand === "AppScope" && typeof node.store?.sub === "function") {
+        return { node, chain };
+      }
+    }
+  }
+  return null;
+}
+function contextFromNativeUsage(usage) {
+  const windowSize = usage?.modelContextWindow;
+  const total = usage?.last?.totalTokens;
+  if (!Number.isFinite(windowSize) || windowSize <= 0 || !Number.isFinite(total) || total < 0) {
+    return emptyNativeContext();
+  }
+  const used = Math.min(total, windowSize);
+  return { contextUsedTokens: used, contextWindow: windowSize, contextPercent: Math.round(used / windowSize * 100) };
+}
+function syncNativeContext(composer) {
+  if (nativeContextThread === activeThreadId && nativeContextSubscription) return;
+  nativeContextSubscription?.();
+  nativeContextSubscription = null;
+  nativeContextThread = null;
+  nativeContext = emptyNativeContext();
+  if (!activeThreadId || !nativeContextFamily) return;
+  const scope = findNativeScope(composer);
+  if (!scope) return;
+  try {
+    const threadId = activeThreadId;
+    const descriptor = nativeContextFamily.resolve(scope.node, scope.chain, threadId);
+    const atom = descriptor.resolve(scope.node, scope.chain);
+    const update = () => {
+      if (disposed || activeThreadId !== threadId) return;
+      nativeContext = contextFromNativeUsage(scope.node.store.get(atom));
+      render();
+    };
+    nativeContextThread = threadId;
+    nativeContextSubscription = scope.node.store.sub(atom, update);
+    update();
+  } catch {
+    nativeContextThread = null;
+  }
+}
+async function loadNativeContextFamily() {
+  try {
+    const url = [...document.querySelectorAll("link[rel=modulepreload]")].map((link) => link.href)
+      .find((name) => /\/app-shared-[^/]+\.js(?:$|\?)/.test(name));
+    if (!url) return;
+    const source = await (await fetch(url, { signal })).text();
+    // 从当前构建解析导出，避免依赖每次更新都会变化的压缩符号或资源哈希。
+    const local = source.match(/([\w$]+)=[\w$]+\(\(\{latestTokenUsageInfo:/)?.[1];
+    if (!local) return;
+    const exported = [...source.matchAll(/([\w$]+) as ([\w$]+)/g)]
+      .find((match) => match[1] === local)?.[2];
+    if (!exported) return;
+    const module = await import(url);
+    if (signal.aborted || disposed) return;
+    nativeContextFamily = module[exported];
+    syncNativeContext(findComposer());
+  } catch { /* 原生接口不可用时保留占位，不显示过期的日志百分比。 */ }
+}
 function requestRefresh() {
   if (!activeThreadId || signal.aborted) return;
   if (typeof window[config.bindingName] === "function") {
@@ -312,6 +386,7 @@ function ensurePosition() {
   const threadId = currentThreadId(composer);
   if (threadId !== activeThreadId) {
     activeThreadId = threadId;
+    nativeContext = emptyNativeContext();
     // 会话建立后先展示占位，不让日志落盘速度决定状态栏是否出现。
     snapshot = threadId ? { threadId } : null;
     closePanel();
@@ -319,6 +394,7 @@ function ensurePosition() {
     requestRefresh();
     scheduleRefresh();
   }
+  syncNativeContext(composer);
   if (!composer) { root.remove(); closePanel(); return; }
   const form = composer.closest("form");
   const card = composer.closest("[data-codex-composer-root]") ?? form ?? composer.parentElement?.parentElement;
@@ -330,6 +406,7 @@ function ensurePosition() {
   syncVisibility(composer);
 }
 function render() {
+  if (snapshot) snapshot = { ...snapshot, ...nativeContext };
   syncVisibility(findComposer());
   if (root.hidden) return;
   buttons[0].querySelector(".status-label").textContent = `${number(snapshot.turns)} ${copy.turns} ${number(snapshot.steps)} ${copy.steps} · ${snapshot.observedTps == null ? "—" : number(snapshot.observedTps)} tok/s`;
@@ -367,6 +444,7 @@ const localeObserver = new MutationObserver(() => {
 });
 localeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["lang"] });
 ensurePosition();
+void loadNativeContextFamily();
 const previous = window.__minecodexSessionStatus;
 const receiver = {
   update(value, revision) {
@@ -385,6 +463,7 @@ const receiver = {
 window.__minecodexSessionStatus = receiver;
 return () => {
   disposed = true;
+  nativeContextSubscription?.();
   clearTimeout(refreshTimer);
   observer.disconnect();
   localeObserver.disconnect();
