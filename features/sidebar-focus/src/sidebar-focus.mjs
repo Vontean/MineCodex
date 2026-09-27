@@ -93,10 +93,12 @@ function reconcile() {
     button.setAttribute("aria-pressed", pressed);
     button.firstElementChild.innerHTML = active ? EXPAND_GLYPH : COLLAPSE_GLYPH;
   }
+  button.setAttribute("data-color", "secondary");
   button.setAttribute("data-variant", "ghost");
   const items = branches(), path = target(items);
-  button.disabled = !active && !restoring && !path;
-  if (bell.getAttribute("aria-pressed") === "true") return;
+  const activityActive = bell.getAttribute("aria-pressed") === "true";
+  button.disabled = activityActive || (!active && !restoring && !path);
+  if (activityActive) { hideTip(); return; }
   if (restoring) {
     // 先恢复已挂载的子分支，再恢复分类，避免父节点收起后子节点消失。
     const change = items.filter(b => b.key.startsWith("project:")).concat(items.filter(b => b.key.startsWith("section:")))
