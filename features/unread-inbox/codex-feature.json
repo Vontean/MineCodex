@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "id": "unread-inbox",
+  "version": "0.1.0",
+  "label": { "en": "Unread Chats", "zh-CN": "未读会话" },
+  "description": { "en": "Hover over the bell to open unread chats while the sidebar is collapsed.", "zh-CN": "侧栏收起时，悬停铃铛快速查看和切换未读会话。" },
+  "entry": { "kind": "page-script", "script": "src/unread-inbox.mjs" },
+  "placement": { "order": 70 }
+}

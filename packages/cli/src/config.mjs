@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-export const FEATURE_IDS = Object.freeze(["model-slider", "notes", "images", "hide-upsell-banner", "session-status", "usage-meter"]);
+export const FEATURE_IDS = Object.freeze(["model-slider", "notes", "images", "hide-upsell-banner", "session-status", "usage-meter", "unread-inbox"]);
 export const DEFAULT_CONFIG = Object.freeze({
   schemaVersion: 1,
   features: Object.freeze({
@@ -12,6 +12,7 @@ export const DEFAULT_CONFIG = Object.freeze({
     "hide-upsell-banner": true,
     "session-status": true,
     "usage-meter": true,
+    "unread-inbox": true,
   }),
 });
 

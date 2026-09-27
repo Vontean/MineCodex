@@ -23,6 +23,7 @@ test("config defaults every known plugin on and preserves unknown fields", async
     "hide-upsell-banner": true,
     "session-status": true,
     "usage-meter": true,
+    "unread-inbox": true,
   });
   assert.deepEqual(config.future, { channel: "preview" });
 
