@@ -89,6 +89,14 @@ window.addEventListener("storage", (event) => {
   globalExpanded = event.newValue !== "false";
   for (const instance of instances.values()) instance.setExpanded(globalExpanded);
 }, { signal });
+// Codex 会把离屏输入框搬到 Quick Chat 浮层；节点仍连接不代表当前页面是聊天。
+function isActiveComposer(composer) {
+  const card = composer.closest('[data-codex-composer-root]');
+  return Boolean(composer.isConnected
+    && card?.getAttribute('data-composer-placement') === 'thread'
+    && !composer.closest('[hidden], [inert], [aria-hidden="true"], [data-floating-chat-surface], [data-right-panel-composer-overlay-content]')
+    && composer.checkVisibility({ visibilityProperty: true }));
+}
 function createInstance(composerElement) {
 let copy = selectedCopy();
 const controller = new AbortController();
@@ -372,7 +380,7 @@ function showPanel(kind) {
 }
 
 function findComposer() {
-  return composerElement.isConnected ? composerElement : null;
+  return isActiveComposer(composerElement) ? composerElement : null;
 }
 function currentThreadId(composer) {
   if (!composer) return null;
@@ -607,10 +615,10 @@ return { update: receiver.update, setExpanded, dispose() {
 }
 function syncInstances() {
   for (const [composer, instance] of instances) {
-    if (!composer.isConnected) { instance.dispose(); instances.delete(composer); }
+    if (!isActiveComposer(composer)) { instance.dispose(); instances.delete(composer); }
   }
   for (const composer of document.querySelectorAll('[data-codex-composer="true"][contenteditable="true"]')) {
-    if (!instances.has(composer)) instances.set(composer, createInstance(composer));
+    if (isActiveComposer(composer) && !instances.has(composer)) instances.set(composer, createInstance(composer));
   }
 }
 const previous = window.__minecodexSessionStatus;
@@ -620,7 +628,10 @@ const receiver = { update(value, revision) {
 } };
 window.__minecodexSessionStatus = receiver;
 const instanceObserver = new MutationObserver(syncInstances);
-instanceObserver.observe(document.documentElement, { childList:true, subtree:true });
+instanceObserver.observe(document.documentElement, {
+  childList:true, subtree:true, attributes:true,
+  attributeFilter:["class", "style", "hidden", "inert", "aria-hidden", "data-composer-placement"],
+});
 syncInstances();
 return () => {
   instanceObserver.disconnect();

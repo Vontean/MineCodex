@@ -37,3 +37,5 @@ TPS 根据 Codex 会话事件计算有效样本的会话平均约值，以 `N to
 - Tooltip 沿用原生 context 内容：上下文窗口、使用/剩余比例、已用/容量（k tokens）；背景、边框、文字、圆角与阴影使用原生 tooltip tokens。
 - 点击环展开输入框下方详情，右侧 chevron-up 收起；200ms grid 高度与160ms透明度过渡，尊重 reduced-motion。展开状态跨会话、主聊天和 side chat 共享并持久保存。展开时隐藏输入框内的 context 环；收起动效完成后容器 display:none，不保留父级 gap，收起内容不参与键盘焦点。每个输入框订阅自己的会话上下文和统计。
 - Cache 按原始 cachedInputTokens / inputTokens 计算：大于99%显示一位小数，其余取整数，状态栏和详情共用格式。
+
+输入框实例仅绑定可见的 thread composer。全屏标签页中的隐藏聊天、浮动 Quick Chat（含 right-panel composer overlay）、inert 区域不注入；原生移动输入框或切换可见性时销毁实例并取消订阅，返回聊天后重建。

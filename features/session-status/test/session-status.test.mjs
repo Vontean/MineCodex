@@ -72,3 +72,37 @@ test("cache hit retains precision above 99 percent from raw token counts", async
   assert.equal(format({ inputTokens: 1000, cachedInputTokens: 956 }), "96%");
   assert.equal(format({}), "—");
 });
+
+
+test("only visible thread composers own session status, including after tab moves", async () => {
+  const source = await readFile(path.join(featureDir, "src/session-status.mjs"), "utf8");
+  const eligible = new Function(source.slice(source.indexOf("function isActiveComposer("), source.indexOf("function createInstance(")) + ";return isActiveComposer;")();
+  let placement = "thread", blocked = false, visible = true;
+  const composer = { isConnected: true, checkVisibility: () => visible,
+    closest: selector => selector === '[data-codex-composer-root]' ? { getAttribute: () => placement } : blocked };
+  assert.equal(eligible(composer), true);
+  blocked = true; // 全屏标签页切到浮动 Quick Chat，或祖先隐藏。
+  assert.equal(eligible(composer), false);
+  blocked = false; visible = false;
+  assert.equal(eligible(composer), false);
+  visible = true; placement = "home";
+  assert.equal(eligible(composer), false);
+  placement = "thread";
+  assert.equal(eligible(composer), true);
+  composer.isConnected = false;
+  assert.equal(eligible(composer), false);
+});
+
+test("moving a composer offscreen disposes only its instance and restores it on return", async () => {
+  const source = await readFile(path.join(featureDir, "src/session-status.mjs"), "utf8");
+  const main = {active:true}, side = {active:true};
+  let created=0, disposed=0;
+  const instances=new Map();
+  const sync=new Function('instances','document','isActiveComposer','createInstance',
+    source.slice(source.indexOf('function syncInstances('),source.indexOf('const previous = window.__minecodexSessionStatus'))+';return syncInstances;')(
+      instances,{querySelectorAll:()=>[main,side]},composer=>composer.active,()=>{created++;return {dispose(){disposed++;}};});
+  sync();assert.equal(instances.size,2);
+  main.active=false;sync();assert.equal(instances.size,1);assert.equal(disposed,1);assert.ok(instances.has(side));
+  sync();assert.equal(disposed,1);
+  main.active=true;sync();assert.equal(instances.size,2);assert.equal(created,3);
+});
