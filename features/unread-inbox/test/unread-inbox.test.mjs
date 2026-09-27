@@ -40,21 +40,75 @@ test('relative time handles unknown and future times without fabricating a date'
 });
 
 test('priority includes working read threads and loading wins over unread time', () => {
-  const read = new Function(`${source.slice(source.indexOf('function isUnread('), source.indexOf('function projectForRow('))};return {isPriority,isWorking};`)();
+  const read = new Function(`${source.slice(source.indexOf('function isUnread('), source.indexOf('function projectForRow('))};return {isUnread,isWorking};`)();
   const row=(type,unread)=>({__reactFiberFixture:{memoizedProps:{statusState:{type},isUnread:unread}}});
-  assert.equal(read.isPriority(row('idle',true)),true);
-  assert.equal(read.isPriority(row('loading',false)),true);
+  assert.equal(read.isUnread(row('idle',true)),true);
+  assert.equal(read.isWorking(row('loading',false)),true);
   assert.equal(read.isWorking(row('loading',true)),true);
-  assert.equal(read.isPriority(row('idle',false)),false);
+  assert.equal(read.isUnread(row('idle',false)),false);
 });
 
 
 test('union of working, unread and recently opened sorts only by message time', () => {
-  const sort = new Function('threadDetails', source.slice(source.indexOf('function isUnread('), source.indexOf('function projectForRow(')) + ';return priorityRows;')(row=>({timestamp:row.time}));
-  const row=(id,type,unread,time)=>({time,dataset:{appActionSidebarThreadId:id},__reactFiberFixture:{memoizedProps:{statusState:{type},isUnread:unread}}});
-  const current=row('current','idle',false,100);
-  const rows=[current,row('unread','idle',true,300),row('working','loading',false,400),row('old-read','idle',false,500),current];
-  const recent=new Map([['current',5000],['old-read',0]]);
-  assert.deepEqual(sort(rows,recent,3600001).map(r=>r.dataset.appActionSidebarThreadId),['working','unread','current']);
-  assert.deepEqual(sort(rows,new Map(),3600001).map(r=>r.dataset.appActionSidebarThreadId),['working','unread']);
+  const sort = new Function(source.slice(source.indexOf('function selectThreads('), source.indexOf('function captureCurrentRow(')) + ';return selectThreads;')();
+  const rows = [{key:'current', timestamp:100}, {key:'unread', unread:true, timestamp:300},
+    {key:'working',working:true,timestamp:400},{key:'expired',timestamp:500}];
+  const recent = new Map([['current',5000],['expired',0]]);
+  assert.deepEqual(sort(rows,recent,3600001).map(r=>r.key),['working','unread','current']);
+});
+
+test('recent records keep native navigation after React unmounts the source row', () => {
+  let calls = 0;
+  const record = new Function('threadDetails','isUnread',source.slice(source.indexOf('function threadRecord('),source.indexOf('function selectThreads('))+';return threadRecord;')(
+    () => ({title:'Recent task',timestamp:100}), () => false);
+  const row = {dataset:{appActionSidebarThreadId:'local:one'},__reactFiberFixture:{memoizedProps:{statusState:{type:'idle'},onClick:()=>calls++}}};
+  const item = record(row);
+  delete row.__reactFiberFixture;
+  item.activate();
+  assert.equal(calls,1);
+  assert.equal(item.title,'Recent task');
+  assert.equal(Object.values(item).includes(row),false);
+});
+
+test('missing current identity clears selection and lets recent entries expire', () => {
+  let selected = {dataset:{appActionSidebarThreadId:'local:one'}}, id = 'one', now = 100;
+  const doc = {querySelector:s=>s.includes('thread-selected') ? selected : id ? {getAttribute:()=>id} : null};
+  const run = new Function('document','Date','threadRecord',`let selectedKey=null;const recentRows=new Map(),openedAt=new Map(),messageUpdates=new Map();
+    ${source.slice(source.indexOf('function captureCurrentRow('),source.indexOf('function projectForRow('))}
+    return {captureCurrentRow,openedAt,recentRows,key:()=>selectedKey};`)(doc,{now:()=>now},row=>({key:row.dataset.appActionSidebarThreadId}));
+  run.captureCurrentRow(); selected = null;
+  run.captureCurrentRow(); assert.equal(run.key(),'local:one'); // Activity 隐藏当前已读行，composer 仍提供身份。
+  id = null; now += 7200000; run.captureCurrentRow();
+  assert.equal(run.key(),null); assert.equal(run.recentRows.size,0); assert.equal(run.openedAt.size,0);
+});
+
+test('streaming updates retain scroll and keyboard focus while rendering loading cards', () => {
+  let doc;
+  class Element {
+    constructor(tag) { this.tagName=tag; this.children=[]; this.dataset={}; this.scrollTop=0; }
+    append(...nodes) { this.children.push(...nodes); }
+    replaceChildren(...nodes) { this.children=nodes; }
+    setAttribute() {}
+    addEventListener() {}
+    contains(node) { return node===this || this.children.some(child=>child.contains?.(node)); }
+    querySelector(selector) { return this.children.find(child=>child.className===selector.slice(1)) ?? null; }
+    focus() { doc.activeElement=this; }
+  }
+  const panel=new Element('div');
+  const records=[{key:'one',title:'Working',working:true,timestamp:1000,summary:'First',spinner:'<svg></svg>'}];
+  doc={createElement:tag=>new Element(tag),querySelectorAll:()=>records,activeElement:null};
+  const fragment=source.slice(source.indexOf('function renderRows('),source.indexOf('function open('));
+  const render=new Function('document','panel','records',`
+    const captureCurrentRow=()=>{}, threadRecord=x=>x, selectThreads=x=>x, text=x=>x, relativeTime=()=>'';
+    const openedAt=new Map(),recentRows=new Map(),projectIcons=new Map(),deviceGlyphs={local:''};
+    const selectedKey='one';let signature='';const close=()=>{};
+    ${fragment};return renderRows;
+  `)(doc,panel,records);
+  render();
+  const list=panel.querySelector('.mcx-thread-list');list.scrollTop=140;list.children[0].focus();
+  records[0].summary='Next streamed message';render();
+  const refreshed=panel.querySelector('.mcx-thread-list');
+  assert.equal(refreshed.scrollTop,140);
+  assert.equal(doc.activeElement,refreshed.children[0]);
+  assert.equal(doc.activeElement.dataset.threadKey,'one');
 });

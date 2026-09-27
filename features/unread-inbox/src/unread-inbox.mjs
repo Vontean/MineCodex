@@ -47,7 +47,6 @@ document.body.append(scrim);
 scrim.addEventListener("click", () => close(true), { signal });
 let trigger = null, badge = null, binding = null, standalone = false;
 let activityFrame = null, activityTimer = null;
-let currentRow = null;
 const recentRows = new Map();
 const openedAt = new Map();
 const messageUpdates = new Map();
@@ -71,28 +70,30 @@ function isWorking(row) {
   }
   return false;
 }
-function isPriority(row) { return isUnread(row) || isWorking(row); }
-function priorityRows(rows, recent = new Map(), now = Date.now()) {
-  const unique = [...new Map(rows.map((row, index) => [row.dataset?.appActionSidebarThreadId || index, row])).values()];
-  return unique.filter(row => isPriority(row) || now - (recent.get(row.dataset?.appActionSidebarThreadId) ?? -Infinity) < 3600000)
-    .map(row => ({row, time:threadDetails(row).timestamp ?? 0}))
-    .sort((a, b) => b.time - a.time).map(item => item.row);
+// 缓存数据与原生导航动作，不保留会被 React 卸载的会话 DOM。
+function threadRecord(row) {
+  let fiber = row[Object.keys(row).find(key => key.startsWith("__reactFiber"))];
+  let activate = null;
+  for (let depth = 0; fiber && depth < 35; depth++, fiber = fiber.return) {
+    const props = fiber.memoizedProps;
+    if (props?.statusState && typeof props.onClick === "function") { activate = props.onClick; break; }
+  }
+  return { ...threadDetails(row), key:row.dataset.appActionSidebarThreadId, unread:isUnread(row), activate, spinner:row.querySelector?.('[class~="motion-safe:animate-spin"]')?.outerHTML ?? "" };
+}
+function selectThreads(records, recent, now = Date.now()) {
+  return [...new Map(records.map(item => [item.key, item])).values()]
+    .filter(item => item.working || item.unread || now - (recent.get(item.key) ?? -Infinity) < 3600000)
+    .sort((a, b) => (b.timestamp ?? 0) - (a.timestamp ?? 0));
 }
 function captureCurrentRow() {
   const selected = document.querySelector('#app-shell-sidebar [data-app-action-sidebar-thread-selected="true"]');
-  if (selected) {
-    currentRow = selected;
-    const key = selected.dataset.appActionSidebarThreadId;
-    if (key !== selectedKey) {
-      selectedKey = key;
-      openedAt.set(key, Date.now());
-    }
-    recentRows.set(key, selected);
-  }
-  // 当前打开的会话仍属于最近访问集合；其他会话按离开后的时间过期。
+  const id = document.querySelector('[data-above-composer-conversation-id]')?.getAttribute('data-above-composer-conversation-id');
+  selectedKey = selected?.dataset.appActionSidebarThreadId
+    ?? [...recentRows.keys()].find(key => id && key.endsWith(":" + id)) ?? null;
+  if (selected) recentRows.set(selectedKey, threadRecord(selected));
   if (selectedKey) openedAt.set(selectedKey, Date.now());
   for (const [key, time] of openedAt) if (Date.now() - time >= 3600000) {
-    openedAt.delete(key); recentRows.delete(key);
+    openedAt.delete(key); recentRows.delete(key); messageUpdates.delete(key);
   }
 }
 function projectForRow(row) {
@@ -159,23 +160,25 @@ function close(restoreFocus = false) {
 }
 function position() {
   if (!trigger) return;
-  const rail = document.querySelector("[data-app-navigation-rail]")?.getBoundingClientRect();
-  const header = trigger.closest("header")?.getBoundingClientRect();
-  panel.style.left = `${(rail?.right ?? 0) + 16}px`;
-  panel.style.top = `${(header?.bottom ?? 44) + 16}px`;
-  panel.style.maxWidth = `${innerWidth - (rail?.right ?? 0) - 32}px`;
+  const rect = trigger.getBoundingClientRect();
+  const width = Math.min(320, innerWidth - 16);
+  panel.style.left = `${Math.max(8, Math.min(rect.left, innerWidth - width - 8))}px`;
+  panel.style.top = `${rect.bottom + 8}px`;
+  panel.style.maxWidth = `${width}px`;
+  panel.style.maxHeight = `${Math.max(0, Math.min(660, innerHeight - rect.bottom - 24))}px`;
 }
 function renderRows() {
   captureCurrentRow();
-  const nativeRows = [...document.querySelectorAll('#app-shell-sidebar [data-app-action-sidebar-thread-row]')];
-  const currentKey = currentRow?.dataset.appActionSidebarThreadId;
-  if (currentRow && !nativeRows.some(row => row.dataset.appActionSidebarThreadId === currentKey)) nativeRows.unshift(currentRow);
-  for (const [key, row] of recentRows) if (!nativeRows.some(item => item.dataset.appActionSidebarThreadId === key)) nativeRows.push(row);
-  const rows = priorityRows(nativeRows, openedAt);
-  const details = rows.map(row => ({...threadDetails(row), current:row.dataset.appActionSidebarThreadId === currentKey}));
+  const records = [...document.querySelectorAll('#app-shell-sidebar [data-app-action-sidebar-thread-row]')].map(threadRecord);
+  const mounted = new Set(records.map(item => item.key));
+  for (const item of records) if (openedAt.has(item.key)) recentRows.set(item.key, item);
+  for (const [key, item] of recentRows) if (!mounted.has(key)) records.push({ ...item, working:false, unread:false });
+  const details = selectThreads(records, openedAt).map(item => ({ ...item, current:item.key === selectedKey }));
   const next = JSON.stringify([text("Priority", "优先事项"), details, Math.floor(Date.now() / 60000)]);
   if (signature === next) return;
   signature = next;
+  const scrollTop = panel.querySelector(".mcx-thread-list")?.scrollTop ?? 0;
+  const focusedKey = panel.contains(document.activeElement) ? document.activeElement?.dataset.threadKey : null;
   panel.replaceChildren();
   panel.setAttribute("aria-label", text("Priority", "优先事项"));
   const heading = document.createElement("h2");
@@ -184,11 +187,11 @@ function renderRows() {
   const list = document.createElement("div");
   list.className = "mcx-thread-list";
   panel.append(list);
-  rows.forEach((row, index) => {
-    const item = details[index];
+  details.forEach(item => {
     const card = document.createElement("button");
     card.type = "button";
     card.dataset.unreadRow = "";
+    card.dataset.threadKey = item.key;
     if (item.current) card.setAttribute("aria-current", "page");
     const header = document.createElement("span");
     header.className = "mcx-thread-header";
@@ -209,8 +212,7 @@ function renderRows() {
       loading.setAttribute("role", "status");
       loading.setAttribute("aria-label", text("Working", "正在工作"));
       // 直接复用当前会话原生 loading，保持动画与 reduced-motion 行为一致。
-      const spinner = row.querySelector('[class~="motion-safe:animate-spin"]');
-      if (spinner) loading.append(spinner.cloneNode(true));
+      loading.innerHTML = item.spinner;
       header.append(loading);
     } else if (elapsed) {
       const time = document.createElement("time");
@@ -237,15 +239,26 @@ function renderRows() {
       project.append(name);
       card.append(project);
     }
-    card.addEventListener("click", () => { if (!item.current) row.click(); close(); });
+    card.addEventListener("click", () => {
+      if (!item.current) {
+        const native = [...document.querySelectorAll('#app-shell-sidebar [data-app-action-sidebar-thread-row]')]
+          .find(row => row.dataset.appActionSidebarThreadId === item.key);
+        const activate = native ? threadRecord(native).activate : item.activate;
+        if (!activate) return;
+        activate();
+      }
+      close();
+    });
     list.append(card);
   });
-  if (!rows.length) {
+  if (!details.length) {
     const empty = document.createElement("p");
     empty.className = "mcx-empty";
     empty.textContent = text("You're all caught up", "暂无未读会话");
     list.append(empty);
   }
+  if (focusedKey) [...list.children].find(card => card.dataset.threadKey === focusedKey)?.focus({ preventScroll:true });
+  list.scrollTop = scrollTop;
 }
 function open() {
   if (!trigger) return;
