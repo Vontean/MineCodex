@@ -266,18 +266,15 @@ function showPanel(kind) {
 }
 
 function findComposer() {
-  return document.querySelector('[data-codex-composer="true"][contenteditable="true"]')
-    ?? document.querySelector('[contenteditable="true"][role="textbox"]');
+  return document.querySelector('[data-codex-composer="true"][contenteditable="true"]');
 }
 function currentThreadId(composer) {
   if (!composer) return null;
-  const card = composer?.closest('[data-codex-composer-root]');
+  const card = composer.closest('[data-codex-composer-root]');
   const portal = card?.querySelector('[data-above-composer-portal]');
-  let value;
-  if (portal) value = portal.getAttribute('data-above-composer-conversation-id');
-  else if (card?.getAttribute('data-composer-placement') === 'home') return null;
-  else value = document.querySelector('[data-app-action-sidebar-thread-selected="true"]')?.getAttribute('data-app-action-sidebar-thread-id')
-    ?? window.location.pathname + window.location.search + window.location.hash;
+  // 只认 Codex 输入框绑定的会话；侧栏和 URL 在切换模式时可能仍指向旧会话。
+  if (card?.getAttribute('data-composer-placement') !== 'thread') return null;
+  const value = portal?.getAttribute('data-above-composer-conversation-id');
   return value?.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i)?.[0] ?? null;
 }
 function requestRefresh() {
@@ -360,7 +357,7 @@ const observer = new MutationObserver(() => {
 });
 observer.observe(document.documentElement, {
   childList: true, subtree: true, attributes: true,
-  attributeFilter: ["data-above-composer-conversation-id", "data-composer-placement", "data-app-action-sidebar-thread-selected"],
+  attributeFilter: ["data-above-composer-conversation-id", "data-composer-placement"],
 });
 const localeObserver = new MutationObserver(() => {
   const nextCopy = selectedCopy();

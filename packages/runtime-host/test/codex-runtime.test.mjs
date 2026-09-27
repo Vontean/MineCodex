@@ -64,9 +64,9 @@ test("authenticates immediate status requests, coalesces reads, and invalidates 
   assert.equal(runtime.sessionStatusUpdates.size, 0);
 });
 
-test("session status reads the composer thread when its sidebar project is collapsed", () => {
+test("session status reads only the active Codex composer thread", () => {
   const threadId = "01a0db9f-71af-74d2-9189-17dfb57c096e";
-  const read = ({ portalId, placement = "thread", selectedId = null, portalPresent = true }) => {
+  const read = ({ portalId, placement = "thread", selectedId = null, portalPresent = true, codexComposer = true }) => {
     const portal = portalPresent ? { getAttribute: () => portalId } : null;
     const card = {
       querySelector: () => portal,
@@ -74,7 +74,7 @@ test("session status reads the composer thread when its sidebar project is colla
     };
     const document = {
       querySelector(selector) {
-        if (selector.includes("data-codex-composer=")) return { closest: () => card };
+        if (selector.includes("data-codex-composer=")) return codexComposer ? { closest: () => card } : null;
         if (selector.includes("data-app-action-sidebar-thread-selected")) {
           return selectedId ? { getAttribute: () => selectedId } : null;
         }
@@ -89,7 +89,8 @@ test("session status reads the composer thread when its sidebar project is colla
 
   assert.equal(read({ portalId: threadId }), threadId);
   assert.equal(read({ portalId: null, placement: "home", selectedId: `local:${threadId}` }), null);
-  assert.equal(read({ portalPresent: false, selectedId: `local:${threadId}` }), `local:${threadId}`);
+  assert.equal(read({ portalPresent: false, selectedId: `local:${threadId}` }), null);
+  assert.equal(read({ portalId: threadId, codexComposer: false, selectedId: `local:${threadId}` }), null);
 });
 
 function modelSliderFeatureFixture() {
