@@ -18,11 +18,18 @@ const ICONS = {
     '<svg\n  class="lucide lucide-book-open"\n  xmlns="http://www.w3.org/2000/svg"\n  width="20"\n  height="20"\n  viewBox="-1.5 -1.5 27 27"\n  fill="none"\n  stroke="currentColor"\n  stroke-width="1.8"\n  stroke-linecap="round"\n  stroke-linejoin="round"\n>\n  <path d="M12 7v14 M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z" />\n</svg>',
 };
 const MARKER = "data-minecodex-quick-prompts";
-const zh = () => document.documentElement.lang.toLowerCase().startsWith("zh");
+const zh = () => (document.documentElement.lang || navigator.language || "en").toLowerCase().startsWith("zh");
 const text = (en, cn) => (zh() ? cn : en);
 const style = document.createElement("style");
 style.textContent = `
-  [${MARKER}=panel] { position:fixed; z-index:50; zoom:var(--codex-window-zoom,1); transform:translateY(-100%); box-sizing:border-box; display:flex; flex-direction:column; overflow:hidden; padding:var(--spacing); border:1px solid var(--color-token-border-default); border-radius:var(--radius-suggestion-menu,var(--radius-2xl)); background:var(--color-surface-elevated-secondary); color:var(--color-text-primary); font-family:var(--font-sans-default); font-size:var(--text-sm); line-height:1.43; }
+  [${MARKER}=page] .pm-title-control { display:flex; align-items:stretch; min-height:40px; border:1px solid var(--color-border-primary-outline); border-radius:var(--radius-lg); background:var(--color-background-primary-soft); overflow:hidden; }
+  [${MARKER}=page] .pm-title-control:focus-within { border-color:var(--color-ring); }
+  [${MARKER}=page] .pm-title-control>.pm-emoji-trigger { display:flex; flex:none; align-items:center; justify-content:center; width:40px; padding:0; border-inline-end:1px solid var(--color-border); }
+  [${MARKER}=page] .pm-title-control>.pm-emoji-trigger:hover { background:var(--color-background-primary-ghost-hover); }
+  [${MARKER}=page] .pm-title-control>.pm-emoji-trigger:focus-visible { outline-offset:-3px; }
+  [${MARKER}=page] .pm-editor .pm-title-control>input { flex:1; min-width:0; border:0; border-radius:0; background:transparent; padding:8px 10px; outline:none; box-shadow:none; }
+
+  [${MARKER}=panel] { position:fixed; z-index:50; zoom:var(--codex-window-zoom,1); transform:translateY(-100%); box-sizing:border-box; display:flex; flex-direction:column; overflow:hidden; padding:var(--spacing); border:1px solid var(--color-border); border-radius:var(--radius-suggestion-menu,var(--radius-2xl)); background:var(--color-surface-elevated-secondary); color:var(--color-text-primary); font-family:var(--font-sans-default); font-size:var(--text-sm); line-height:1.43; }
   [${MARKER}=panel] *, [${MARKER}=button] { box-sizing:border-box; }
   [${MARKER}=panel] button { cursor:var(--cursor-interaction,pointer); }
   [${MARKER}=panel] button:disabled { opacity:.4; cursor:default; }
@@ -39,18 +46,17 @@ style.textContent = `
   [${MARKER}=panel] .qp-command { padding:var(--spacing) calc(var(--spacing)*2); border-radius:var(--radius-xl); }
   [${MARKER}=panel] .qp-command:hover { background:var(--color-background-primary-ghost-hover); }
   [${MARKER}=panel] .qp-error { color:var(--color-text-danger,var(--color-text-primary)); padding:var(--spacing) var(--padding-row-x,8px); }
-  [data-mcx-prompts-open] [data-app-navigation-rail] [data-sidebar-destination][data-selected] { background:transparent; }
   .qp-symbol { display:inline-flex; width:20px; height:20px; flex:none; align-items:center; justify-content:center; font-size:18px; line-height:1; color:var(--prompt-icon-light,var(--color-text-secondary)); }
   .qp-symbol svg { width:20px; height:20px; }
   .dark .qp-symbol, [data-theme=dark] .qp-symbol { color:var(--prompt-icon-dark,var(--color-text-secondary)); }
-  [${MARKER}=page] { position:fixed; z-index:20; overflow:auto; border-radius:var(--radius-2xl,20px); background:var(--color-surface-elevated-secondary,#fff); color:var(--color-text-primary); font:var(--text-sm,13px)/1.5 var(--font-sans-default); }
+  [${MARKER}=page] { position:fixed; z-index:20; overflow:auto; border-radius:var(--radius-xl-base); background:var(--color-surface); color:var(--color-text-primary); font-family:var(--font-sans-default); font-size:var(--text-sm); line-height:var(--text-sm--line-height); }
   [${MARKER}=page] * { box-sizing:border-box; }
   [${MARKER}=page] button { cursor:var(--cursor-interaction,pointer); }
   [${MARKER}=page] button:disabled { opacity:.35; cursor:default; }
   [${MARKER}=page] button:focus-visible, [${MARKER}=page] input:focus-visible, [${MARKER}=page] textarea:focus-visible { outline:2px solid var(--color-text-secondary); outline-offset:2px; }
   [${MARKER}=page] .pm-wrap { max-width:1440px; margin:auto; padding:28px 48px 48px; }
   [${MARKER}=page] .pm-heading { display:flex; align-items:center; justify-content:space-between; gap:16px; min-height:36px; margin-bottom:24px; }
-  [${MARKER}=page] h1 { font-size:var(--text-heading-lg,24px); font-weight:600; line-height:36px; margin:0; }
+  [${MARKER}=page] h1 { font-size:var(--text-heading-lg); font-weight:var(--font-weight-medium); line-height:1.2; margin:0; }
   [${MARKER}=page] h2 { font-size:var(--text-base,14px); font-weight:600; margin:24px 0 12px; }
   [${MARKER}=page] .pm-header-actions { display:flex; align-items:center; gap:8px; }
   [${MARKER}=page] .pm-tab-row { display:flex; align-items:center; gap:8px; margin-bottom:24px; }
@@ -59,24 +65,24 @@ style.textContent = `
   [${MARKER}=page] .pm-icon[hidden] { display:none; }
   [${MARKER}=page] .pm-icon svg { width:16px; height:16px; }
   [${MARKER}=page] .pm-icon:hover, [${MARKER}=page] .pm-icon[aria-expanded=true], [${MARKER}=page] .pm-icon[aria-pressed=true] { background:var(--color-background-primary-ghost-hover); color:var(--color-text-primary); }
-  [${MARKER}=page] .pm-popup { position:fixed; z-index:30; width:200px; padding:var(--app-menu-gutter,var(--spacing)); border-radius:var(--radius-2xl); background:color-mix(in srgb,var(--color-surface-elevated-secondary) 90%,transparent); box-shadow:0 0 0 .5px var(--color-token-border-default),var(--shadow-xl-spread,0 8px 16px -4px rgba(0,0,0,.12)); backdrop-filter:blur(4px); }
+  [${MARKER}=page] .pm-popup { position:fixed; z-index:30; width:200px; padding:var(--app-menu-gutter,var(--spacing)); border-radius:var(--radius-2xl); background:color-mix(in srgb,var(--color-surface-elevated-secondary) 90%,transparent); box-shadow:0 0 0 .5px var(--color-border),var(--shadow-xl-spread,0 8px 16px -4px rgba(0,0,0,.12)); backdrop-filter:blur(4px); }
   [${MARKER}=page] .pm-popup button { width:100%; min-height:var(--app-menu-item-height,30px); display:flex; align-items:center; justify-content:space-between; gap:16px; padding:var(--app-menu-item-padding,5px 8px); border-radius:var(--radius-xl); text-align:left; }
   [${MARKER}=page] .pm-popup button:hover, [${MARKER}=page] .pm-popup button:focus-visible { background:var(--color-background-primary-ghost-hover); }
   [${MARKER}=page] .pm-popup svg { width:16px; height:16px; }
   [${MARKER}=page] .pm-command { display:inline-flex; align-items:center; justify-content:center; gap:6px; min-height:32px; padding:6px 12px; border-radius:var(--radius-full,999px); color:inherit; white-space:nowrap; }
   [${MARKER}=page] .pm-command:hover { background:var(--color-background-primary-ghost-hover); }
-  [${MARKER}=page] .pm-primary { background:var(--color-text-primary); color:var(--color-surface-elevated-secondary,#fff); }
-  [${MARKER}=page] .pm-primary:hover { opacity:.85; background:var(--color-text-primary); }
+  [${MARKER}=page] .pm-primary { background:var(--color-background-primary-solid); color:var(--color-text-primary-solid); }
+  [${MARKER}=page] .pm-primary:hover { background:var(--color-background-primary-solid-hover); }
   [${MARKER}=page] .pm-tabs { display:flex; gap:4px; overflow:auto; padding-bottom:4px; margin-bottom:24px; }
   [${MARKER}=page] .pm-tab { display:flex; align-items:center; gap:6px; flex:none; height:36px; border-radius:999px; padding:0 16px; font-weight:500; color:var(--color-text-secondary); }
   [${MARKER}=page] .pm-tab:hover, [${MARKER}=page] .pm-tab[aria-selected=true] { background:var(--color-background-primary-ghost-hover); color:var(--color-text-primary); }
-  [${MARKER}=page] input, [${MARKER}=page] textarea { font:inherit; color:inherit; background:transparent; border:1px solid var(--color-token-border-default); border-radius:var(--radius-lg,12px); padding:8px 12px; }
+  [${MARKER}=page] input, [${MARKER}=page] textarea { font:inherit; color:inherit; background:transparent; border:1px solid var(--color-border); border-radius:var(--radius-lg,12px); padding:8px 12px; }
   [${MARKER}=page] .pm-list { display:flex; flex-direction:column; gap:4px; }
   [${MARKER}=page] .pm-row { display:flex; align-items:center; gap:12px; padding:16px 12px; border-radius:var(--radius-xl,16px); }
   [${MARKER}=page] .pm-row:hover { background:var(--color-background-primary-ghost-hover); }
   [${MARKER}=page] .pm-info { flex:1; min-width:0; text-align:left; }
   [${MARKER}=page] .pm-title { font-weight:500; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
-  [${MARKER}=page] .pm-preview { color:var(--color-text-tertiary); overflow:hidden; white-space:nowrap; text-overflow:ellipsis; margin-top:3px; }
+  [${MARKER}=page] .pm-preview { color:var(--color-text-secondary); overflow:hidden; white-space:nowrap; text-overflow:ellipsis; margin-top:3px; }
   [${MARKER}=page] .pm-stats { color:var(--color-text-tertiary); min-width:130px; text-align:right; font-variant-numeric:tabular-nums; font-size:var(--text-xs,12px); }
   [${MARKER}=page] .pm-count { color:var(--color-text-secondary); }
   [${MARKER}=page] .pm-empty { color:var(--color-text-tertiary); padding:48px 0; text-align:center; }
@@ -92,7 +98,7 @@ style.textContent = `
   [${MARKER}=page] .pm-editor h2 { margin-top:0; }
   @media(max-width:800px) { [${MARKER}=page] .pm-wrap { padding:24px 30px; } [${MARKER}=page] .pm-stats { min-width:90px; } }
   [${MARKER}=page] .pm-modal-layer { position:fixed; inset:0; z-index:60; display:grid; place-items:center; padding:24px; background:var(--color-background-overlay,rgba(0,0,0,.16)); }
-  [${MARKER}=page] .pm-editor { position:relative; top:auto; width:440px; max-width:calc(100vw - 48px); max-height:calc(100vh - 64px); margin:0; padding:20px; overflow:auto; border:0; border-radius:var(--radius-3xl,25px); background:color-mix(in srgb,var(--color-surface-elevated-secondary) 90%,transparent); box-shadow:0 0 0 .5px var(--color-token-border-default),var(--shadow-lg); backdrop-filter:blur(24px); }
+  [${MARKER}=page] .pm-editor { position:relative; top:auto; width:440px; max-width:calc(100vw - 48px); max-height:calc(100vh - 64px); margin:0; padding:20px; overflow:auto; border:0; border-radius:var(--radius-3xl,25px); background:color-mix(in srgb,var(--color-surface-elevated-secondary) 90%,transparent); box-shadow:0 0 0 .5px var(--color-border),var(--shadow-lg); backdrop-filter:blur(24px); }
   [${MARKER}=page] .pm-prompt-editor { width:520px; }
   [${MARKER}=page] .pm-modal-heading { display:flex; align-items:center; gap:8px; margin:0 0 16px; }
   [${MARKER}=page] .pm-modal-heading h2 { flex:1; font-size:var(--text-lg,18px); font-weight:600; line-height:28px; margin:0; }
@@ -103,12 +109,13 @@ style.textContent = `
   [${MARKER}=page] .pm-editor input, [${MARKER}=page] .pm-editor textarea { border-radius:var(--radius-md); padding:8px 10px; background:var(--color-background-primary-soft,rgba(0,0,0,.025)); }
   [${MARKER}=page] .pm-editor .pm-footer { margin-top:20px; gap:12px; }
   [${MARKER}=page] .pm-editor .pm-footer .pm-command { border-radius:var(--radius-button-action,999px); min-height:32px; padding:6px 16px; background:var(--color-background-primary-ghost-hover); }
-  [${MARKER}=page] .pm-editor .pm-footer .pm-primary { background:var(--color-text-primary); }
+  [${MARKER}=page] .pm-editor .pm-footer .pm-primary { background:var(--color-background-primary-solid); color:var(--color-text-primary-solid); }
+  [${MARKER}=page] .pm-editor .pm-footer .pm-primary:hover { background:var(--color-background-primary-solid-hover); }
   [${MARKER}=page] .pm-grid { gap:4px; }
   [${MARKER}=page] .pm-choice { width:36px; height:36px; border-radius:var(--radius-lg); }
   [${MARKER}=page] .pm-choice svg { width:20px; height:20px; }
-  [${MARKER}=page] .pm-choice[aria-pressed=true] { outline:none; box-shadow:inset 0 0 0 1px var(--color-token-border-default); }
-  [${MARKER}=page] .pm-search-inline { display:flex; align-items:center; width:clamp(150px,22vw,300px); height:32px; padding:0 12px; gap:8px; border:1px solid var(--color-border-primary-outline,var(--color-token-border-default)); border-radius:var(--radius-full); background:transparent; }
+  [${MARKER}=page] .pm-choice[aria-pressed=true] { outline:none; box-shadow:inset 0 0 0 1px var(--color-border); }
+  [${MARKER}=page] .pm-search-inline { display:flex; align-items:center; width:clamp(150px,22vw,300px); height:32px; padding:0 12px; gap:8px; border:1px solid var(--color-border-primary-outline,var(--color-border)); border-radius:var(--radius-full); background:transparent; }
   [${MARKER}=page] .pm-search-inline input { min-width:0; width:100%; padding:0; border:0; background:transparent; outline:none; }
   [${MARKER}=page] .pm-search-inline>svg { width:16px; height:16px; flex:none; color:var(--color-text-tertiary); }
   [${MARKER}=page] .pm-list>h2 { color:var(--color-text-tertiary); font-size:var(--text-sm,13px); font-weight:500; }
@@ -116,10 +123,10 @@ style.textContent = `
   [${MARKER}=page] .pm-modal-heading>.pm-icon:first-child { margin-left:-11px; }
   [${MARKER}=page] .pm-modal-heading>.pm-icon:last-child { margin-right:-10px; }
   [${MARKER}=page] .pm-editor input:focus, [${MARKER}=page] .pm-editor textarea:focus, [${MARKER}=page] .pm-popup input:focus { outline:none; box-shadow:none; border-color:var(--color-ring,var(--color-border-primary-outline)); }
-  [${MARKER}=page] .pm-editor .pm-footer .pm-danger { color:var(--color-text-danger,#d92d20); background:var(--color-background-danger-soft,rgba(220,38,38,.08)); }
-  [${MARKER}=page] .pm-editor .pm-footer .pm-danger:hover { background:var(--color-background-danger-soft-hover,rgba(220,38,38,.15)); }
+  [${MARKER}=page] .pm-editor .pm-footer .pm-danger { color:var(--color-text-danger); background:var(--color-background-danger-soft-alpha); }
+  [${MARKER}=page] .pm-editor .pm-footer .pm-danger:hover { background:var(--color-background-danger-soft-alpha-hover); }
   [${MARKER}=page] .pm-confirm-description { color:var(--color-text-secondary); line-height:1.6; }
-  [${MARKER}=page] .pm-select { display:flex; align-items:center; gap:8px; min-height:36px; padding:8px 10px; background:var(--color-background-primary-soft); border:1px solid var(--color-token-border-default); border-radius:var(--radius-md); text-align:left; }
+  [${MARKER}=page] .pm-select { display:flex; align-items:center; gap:8px; min-height:36px; padding:8px 10px; background:var(--color-background-primary-soft); border:1px solid var(--color-border); border-radius:var(--radius-md); text-align:left; }
   [${MARKER}=page] .pm-select>svg { width:16px; height:16px; }
   [${MARKER}=page] .pm-option-label { flex:1; }
   [${MARKER}=page] .pm-empty-state { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:340px; gap:8px; text-align:center; }
@@ -129,9 +136,8 @@ style.textContent = `
   [${MARKER}=page] .pm-empty-state>.pm-command { margin-top:24px; }
   [${MARKER}=page] .pm-drag { cursor:grab; color:var(--color-text-tertiary); }
   [${MARKER}=page] .pm-drag:active { cursor:grabbing; }
-  [${MARKER}=page] .pm-dragging { opacity:.4; }
-  [${MARKER}=page] [data-drop=before] { box-shadow:0 -2px var(--color-text-tertiary); }
-  [${MARKER}=page] [data-drop=after] { box-shadow:0 2px var(--color-text-tertiary); }
+  [${MARKER}=page] .pm-drop-placeholder { flex:none; border:1px dashed var(--color-border-primary-outline,var(--color-border)); border-radius:var(--radius-xl); background:var(--color-background-primary-ghost-hover); box-sizing:border-box; }
+  [${MARKER}=page] .pm-dragging { position:absolute; opacity:0; pointer-events:none; }
   [${MARKER}=page] .pm-popup { z-index:70; max-height:calc(100vh - 32px); overflow:auto; }
   [${MARKER}=page] .pm-symbol-picker { width:320px; padding:12px; display:flex; flex-direction:column; gap:12px; }
   [${MARKER}=page] .pm-symbol-picker>input { width:100%; flex:none; border-radius:var(--radius-full); }
@@ -152,6 +158,23 @@ let disposed = false;
 let categories = [];
 let nativeIcons = {};
 let nativeEmojis = [];
+
+const appearanceLabels = {"bar-chart": "柱状图", "book": "书籍", "brain": "大脑", "currency-dollar": "美元", "customize": "自定义", "dumbbell": "哑铃", "edit": "编辑", "flask": "烧瓶", "folder": "文件夹", "function": "函数", "globe": "地球", "graduation-cap": "学士帽", "heart": "爱心", "kettlebell": "壶铃", "logs": "笔记", "lotus": "莲花", "music": "音乐", "palette": "调色盘", "paw": "爪印", "plant": "植物", "popcorn": "爆米花", "scale": "天平", "stethoscope": "听诊器", "terminal": "终端", "wrench": "扳手", "writing": "写作", "blue": "蓝色", "green": "绿色", "orange": "橙色", "pink": "粉色", "purple": "紫色", "red": "红色", "yellow": "黄色", "black": "中性色"};
+function appearanceLabel(key) {
+  return text(key.replaceAll("-", " "), appearanceLabels[key] ?? key);
+}
+function errorMessage(error) {
+  const messages = {
+    "Category was not found": "未找到该分类",
+    "Prompt was not found": "未找到该提示词",
+    "Choose one emoji or leave it empty": "请选择一个 Emoji，或留空以继承分类图标",
+    "Invalid sort order": "排序无效，请重试",
+    "Invalid order": "排序无效，请重试",
+    "Invalid category": "分类无效，请重试",
+    "Items changed; refresh and try again": "条目已发生变化，请刷新后重试",
+  };
+  return text(error.message || "Something went wrong. Please try again.", messages[error.message] ?? "操作失败，请重试。");
+}
 
 // DOM 与图标工具
 function element(tag, className, content) {
@@ -182,7 +205,7 @@ async function api(route, { method = "GET", body } = {}) {
 function showError(error) {
   if (!panel) return;
   panel.querySelector(".qp-error")?.remove();
-  const message = element("div", "qp-error", error.message);
+  const message = element("div", "qp-error", errorMessage(error));
   message.setAttribute("role", "alert");
   panel.append(message);
 }
@@ -330,7 +353,7 @@ function open() {
   panel = element("div");
   panel.setAttribute(MARKER, "panel");
   panel.setAttribute("role", "dialog");
-  panel.setAttribute("aria-label", "Quick Prompts");
+  panel.setAttribute("aria-label", text("Quick Prompts", "快捷提示词"));
   document.body.append(panel);
   button.setAttribute("aria-expanded", "true");
   button.setAttribute("data-state", "open");
@@ -375,8 +398,8 @@ function sync() {
     button.removeAttribute("id");
     button.removeAttribute("data-composer-navigation-target");
     button.setAttribute(MARKER, "button");
-    button.setAttribute("aria-label", "Quick Prompts");
-    button.title = "Quick Prompts";
+    button.setAttribute("aria-label", text("Quick Prompts", "快捷提示词"));
+    button.title = text("Quick Prompts", "快捷提示词");
     button.setAttribute("aria-haspopup", "dialog");
     button.setAttribute("aria-expanded", "false");
     button.setAttribute("data-state", "closed");
@@ -417,6 +440,7 @@ let searchText = "";
 let editor = null;
 let pageFocus = null;
 const hiddenSurfaces = new Map();
+const nativeNavigationSelection = new Map();
 
 function pageControl(label, handler, primary = false) {
   return control(label, handler, `pm-command${primary ? " pm-primary" : ""}`);
@@ -424,7 +448,7 @@ function pageControl(label, handler, primary = false) {
 function pageError(error) {
   if (!page) return;
   page.querySelector(".pm-error")?.remove();
-  const message = element("div", "pm-error", error.message);
+  const message = element("div", "pm-error", errorMessage(error));
   message.setAttribute("role", "alert");
   (editor ?? page.querySelector(".pm-wrap") ?? page).append(message);
 }
@@ -441,12 +465,40 @@ function positionPage() {
   page.style.right = "4px";
   page.style.bottom = "4px";
 }
+function syncNavigationSelection() {
+  if (!page) return;
+  for (const node of document.querySelectorAll('[data-app-navigation-rail] [data-sidebar-destination][data-selected], [data-app-navigation-rail] [data-sidebar-destination][aria-current="page"]')) {
+    if (!nativeNavigationSelection.has(node)) {
+      nativeNavigationSelection.set(node, new Map(
+        ["data-selected", "aria-current", "data-suppress-active-style"].map(name => [name, node.getAttribute(name)]),
+      ));
+    }
+    node.removeAttribute("data-selected");
+    node.removeAttribute("aria-current");
+    node.setAttribute("data-suppress-active-style", "");
+  }
+  if (navButton && !navButton.hasAttribute("data-selected")) navButton.setAttribute("data-selected", "");
+  if (navButton?.getAttribute("aria-current") !== "page") navButton?.setAttribute("aria-current", "page");
+}
+function restoreNavigationSelection() {
+  // 退出覆盖页时还原原生状态，随后由原生路由接管新的选择。
+  for (const [node, attributes] of nativeNavigationSelection) {
+    if (!node.isConnected) continue;
+    for (const [name, value] of attributes) {
+      if (value === null) node.removeAttribute(name);
+      else node.setAttribute(name, value);
+    }
+  }
+  nativeNavigationSelection.clear();
+}
 function closePage(restoreFocus = false) {
+  dragState?.cancel();
   pageGeneration++;
   closePagePopup();
   closeEditor(false);
   page?.remove();
   page = null;
+  restoreNavigationSelection();
   editor = null;
   for (const [surface, inert] of hiddenSurfaces) surface.inert = inert;
   hiddenSurfaces.clear();
@@ -476,7 +528,7 @@ function openPage() {
   pageFocus = document.activeElement;
   page = element("section");
   page.setAttribute(MARKER, "page");
-  page.setAttribute("aria-label", "Prompts");
+  page.setAttribute("aria-label", text("Prompts", "提示词"));
   document.body.append(page);
   // 只隔离主内容的焦点，保留导航栏与原生窗口控件。
   for (const surface of document.querySelectorAll(
@@ -488,6 +540,7 @@ function openPage() {
   document.documentElement.setAttribute("data-mcx-prompts-open", "");
   navButton?.setAttribute("data-selected", "");
   navButton?.setAttribute("aria-current", "page");
+  syncNavigationSelection();
   positionPage();
   page.append(element("div", "pm-empty", text("Loading…", "加载中…")));
   void loadPage();
@@ -507,7 +560,7 @@ function closePagePopup(restoreFocus = false) {
     popupTrigger.focus({ preventScroll: true });
   popupTrigger = null;
 }
-function makePagePopup(trigger, className, role) {
+function makePagePopup(trigger, className, role, matchTriggerWidth = false) {
   if (popupTrigger === trigger) {
     closePagePopup(true);
     return null;
@@ -519,8 +572,12 @@ function makePagePopup(trigger, className, role) {
   pagePopup.setAttribute("role", role);
   pagePopup.setAttribute("aria-label", trigger.getAttribute("aria-label"));
   (editorLayer ?? page).append(pagePopup);
-  const r = trigger.getBoundingClientRect(),
-    width = pagePopup.getBoundingClientRect().width;
+  const r = trigger.getBoundingClientRect();
+  if (matchTriggerWidth) {
+    pagePopup.style.boxSizing = "border-box";
+    pagePopup.style.width = `${r.width}px`;
+  }
+  const width = pagePopup.getBoundingClientRect().width;
   pagePopup.style.top = `${r.bottom + 6}px`;
   pagePopup.style.left = `${Math.max(8, Math.min(r.right - width, innerWidth - width - 8))}px`;
   return pagePopup;
@@ -648,7 +705,7 @@ function renderPage() {
     searchField,
     pageControl(text("New prompt", "新建提示词"), () => editPrompt(), true),
   );
-  heading.append(element("h1", "", "Prompts"), actions);
+  heading.append(element("h1", "", text("Prompts", "提示词")), actions);
   const tabs = element("div", "pm-tabs");
   tabs.setAttribute("role", "tablist");
   tabs.setAttribute("aria-label", text("Categories", "分类"));
@@ -667,8 +724,8 @@ function renderPage() {
       },
       "pm-tab",
     );
-    if (categories.includes(category))
-      tab.prepend(categoryIcon({ categoryId: category.id }));
+    if (category.id !== "all")
+      tab.prepend(categoryIcon({ categoryId: category.id === "uncategorized" ? null : category.id }));
     tab.setAttribute("role", "tab");
     tab.setAttribute("aria-selected", String(activeCategory === category.id));
     tab.tabIndex = activeCategory === category.id ? 0 : -1;
@@ -745,7 +802,13 @@ function renderRows(list) {
         element(
           "div",
           "pm-count",
-          text(`${item.useCount} calls`, `${item.useCount} 次调用`),
+          pageSort === "recent"
+            ? item.calledAt == null
+              ? text("Never used", "尚未调用")
+              : new Intl.DateTimeFormat(zh() ? "zh-CN" : "en", {
+                  month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
+                }).format(new Date(item.calledAt))
+            : text(`${item.useCount} ${item.useCount === 1 ? "call" : "calls"}`, `${item.useCount} 次调用`),
         ),
       );
       row.append(categoryIcon(item), info, stats);
@@ -819,51 +882,85 @@ function orderControls(item, ordered, isCategory, row) {
       pageError(error);
     }
   }
-  // 从手柄开始拖动；正文仍可正常点击和选取。
-  handle.addEventListener("pointerdown", () => {
-    row.draggable = true;
-  });
+  // 原生拖影跟随指针，占位块负责布局；仅同组条目参与让位。
+  handle.addEventListener("pointerdown", () => { row.draggable = true; });
+  handle.addEventListener("pointerup", () => { row.draggable = false; });
   row.addEventListener("dragstart", (event) => {
-    dragState = { id: item.id, group };
+    if (dragState) return;
+    const parent = row.parentElement;
+    const siblings = [...parent.children].filter(node => node.dataset.orderGroup === group);
+    const originalNext = row.nextSibling;
+    const placeholder = element("div", "pm-drop-placeholder");
+    placeholder.style.height = `${row.getBoundingClientRect().height}px`;
+    placeholder.setAttribute("aria-hidden", "true");
+    const lifetime = new AbortController();
+    const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const animations = new Map();
+    let started = false;
+    let finished = false;
+    const duration = reduced ? 0 : 180;
+    function movePlaceholder(before) {
+      if (placeholder.nextSibling === before || before === placeholder) return;
+      const positions = new Map(siblings.filter(node => node !== row).map(node => [node, node.getBoundingClientRect().top]));
+      for (const animation of animations.values()) animation.cancel();
+      animations.clear();
+      parent.insertBefore(placeholder, before);
+      for (const [node, top] of positions) {
+        const delta = top - node.getBoundingClientRect().top;
+        if (delta && duration) animations.set(node, node.animate([
+          { transform: `translateY(${delta}px)` }, { transform: "translateY(0)" },
+        ], { duration, easing: "cubic-bezier(.2,.8,.2,1)" }));
+      }
+    }
+    function finish(commit) {
+      if (finished) return;
+      finished = true;
+      lifetime.abort();
+      dragState = null;
+      row.draggable = false;
+      if (!started) return;
+      if (!commit) movePlaceholder(originalNext);
+      parent.insertBefore(row, placeholder);
+      row.classList.remove("pm-dragging");
+      placeholder.remove();
+      const ids = [...parent.children].filter(node => node.dataset.orderGroup === group).map(node => node.dataset.orderId);
+      const landing = row.animate([{ opacity: .45 }, { opacity: 1 }], { duration: reduced ? 0 : 140, easing: "ease-out" });
+      if (commit && ids.some((id, index) => id !== ordered[index].id)) {
+        void landing.finished.catch(() => {}).then(() => save(ids));
+      }
+    }
+    dragState = { cancel: () => finish(false) };
     event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData("text/plain", item.id);
-    row.classList.add("pm-dragging");
-  });
-  row.addEventListener("dragover", (event) => {
-    if (!dragState || dragState.group !== group || dragState.id === item.id)
-      return;
-    event.preventDefault();
-    event.dataTransfer.dropEffect = "move";
-    const after =
-      event.clientY >
-      row.getBoundingClientRect().top + row.getBoundingClientRect().height / 2;
-    row.dataset.drop = after ? "after" : "before";
-  });
-  row.addEventListener("dragleave", (event) => {
-    if (!row.contains(event.relatedTarget)) delete row.dataset.drop;
-  });
-  row.addEventListener("drop", (event) => {
-    if (!dragState || dragState.group !== group || dragState.id === item.id)
-      return;
-    event.preventDefault();
-    const ids = ordered.map((x) => x.id).filter((id) => id !== dragState.id);
-    ids.splice(
-      ids.indexOf(item.id) + (row.dataset.drop === "after" ? 1 : 0),
-      0,
-      dragState.id,
-    );
-    delete row.dataset.drop;
-    dragState = null;
-    void save(ids);
-  });
-  row.addEventListener("dragend", () => {
-    row.draggable = false;
-    dragState = null;
-    row.classList.remove("pm-dragging");
-    page?.querySelectorAll("[data-drop]").forEach((x) => delete x.dataset.drop);
-  });
-  handle.addEventListener("pointerup", () => {
-    row.draggable = false;
+    // 等浏览器截取拖影后再隐藏原行，避免拖影变成空白。
+    requestAnimationFrame(() => {
+      if (finished || !row.isConnected) return;
+      row.before(placeholder);
+      row.classList.add("pm-dragging");
+      started = true;
+    });
+    parent.addEventListener("dragover", event => {
+      if (!started) return;
+      const target = event.target.closest("[data-order-group], .pm-drop-placeholder");
+      if (target !== placeholder && (!siblings.includes(target) || target === row)) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "move";
+      if (target === placeholder) return;
+      // 使用布局位置判断插入点，不受让位动画的 transform 影响。
+      const rect = target.getBoundingClientRect();
+      const transform = getComputedStyle(target).transform;
+      const translateY = transform === "none" ? 0 : new DOMMatrixReadOnly(transform).m42;
+      const after = event.clientY > rect.top - translateY + rect.height / 2;
+      movePlaceholder(after ? target.nextSibling : target);
+    }, { signal: lifetime.signal });
+    parent.addEventListener("drop", event => {
+      const target = event.target.closest("[data-order-group], .pm-drop-placeholder");
+      if (target !== placeholder && !siblings.includes(target)) return;
+      event.preventDefault();
+      finish(true);
+    }, { signal: lifetime.signal });
+    row.addEventListener("dragend", () => finish(false), { once: true, signal: lifetime.signal });
+    signal.addEventListener("abort", () => finish(false), { once: true, signal: lifetime.signal });
   });
   handle.addEventListener("keydown", (event) => {
     if (!event.altKey || !["ArrowUp", "ArrowDown"].includes(event.key)) return;
@@ -885,6 +982,7 @@ function field(label, input) {
 let editorLayer = null;
 let editorReturnFocus = null;
 function closeEditor(restoreFocus = true) {
+  dragState?.cancel();
   closePagePopup();
   editorLayer?.remove();
   editorLayer = null;
@@ -968,7 +1066,7 @@ function editPrompt(item = null) {
   const categoryButton = control(
     "",
     () => {
-      const popup = makePagePopup(categoryButton, "pm-category-menu", "menu");
+      const popup = makePagePopup(categoryButton, "pm-category-menu", "menu", true);
       if (!popup) return;
       for (const c of [
         ...categories,
@@ -1000,7 +1098,7 @@ function editPrompt(item = null) {
   const emojiButton = control(
     text("Choose icon", "选择图标"),
     () => openEmojiPicker(emojiButton, emoji, refreshAppearance),
-    "pm-select pm-emoji-trigger",
+    "pm-emoji-trigger",
   );
   emojiButton.setAttribute("aria-haspopup", "dialog");
   function refreshAppearance() {
@@ -1016,23 +1114,22 @@ function editPrompt(item = null) {
     );
     emojiButton.replaceChildren(
       categoryIcon({ categoryId: category.value || null, emoji: emoji.value }),
-      element(
-        "span",
-        "",
-        emoji.value
-          ? text("Change icon", "更改图标")
-          : text("Category icon", "分类图标"),
-      ),
     );
+    emojiButton.title = text("Choose icon", "选择图标");
   }
   refreshAppearance();
   const body = element("textarea");
   body.value = item?.body ?? "";
   body.required = true;
+  const titleControl = element("div", "pm-title-control");
+  titleControl.setAttribute("role", "group");
+  titleControl.setAttribute("aria-label", text("Prompt title and icon", "提示词标题与图标"));
+  title.setAttribute("aria-label", text("Title", "标题"));
+  title.placeholder = text("Title", "标题");
+  titleControl.append(emojiButton, title);
   form.append(
-    field(text("Title", "标题"), title),
+    titleControl,
     field(text("Category", "分类"), categoryButton),
-    field(text("Icon", "图标"), emojiButton),
     field(text("Prompt", "提示词"), body),
   );
   const footer = element("div", "pm-footer");
@@ -1136,6 +1233,7 @@ function openEmojiPicker(trigger, selected, refresh) {
   render();
   search.focus();
   const r = popup.getBoundingClientRect();
+  popup.style.left = `${Math.max(8, Math.min(trigger.getBoundingClientRect().left, innerWidth - r.width - 8))}px`;
   if (r.bottom > innerHeight - 16)
     popup.style.top = `${Math.max(16, innerHeight - r.height - 16)}px`;
   popup.addEventListener("keydown", (event) => {
@@ -1213,7 +1311,8 @@ function editCategory(category = null) {
       ).documentElement;
       btn.replaceChildren(svg);
       btn.setAttribute("aria-pressed", String(key === selectedIcon));
-      btn.title = key;
+      btn.title = appearanceLabel(key);
+      btn.setAttribute("aria-label", appearanceLabel(key));
       icons.append(btn);
     }
   }
@@ -1235,7 +1334,8 @@ function editCategory(category = null) {
     swatch.append(element("span", "pm-swatch"));
     btn.replaceChildren(swatch);
     btn.setAttribute("aria-pressed", String(key === selectedColor));
-    btn.title = key;
+    btn.title = appearanceLabel(key);
+      btn.setAttribute("aria-label", appearanceLabel(key));
     colors.append(btn);
   }
   form.append(
@@ -1360,18 +1460,19 @@ function syncNavigation() {
     navButton.removeAttribute("aria-current");
     navButton.removeAttribute("data-suppress-active-style");
     navButton.setAttribute(MARKER, "nav");
-    navButton.setAttribute("aria-label", "Prompts");
-    navButton.title = "Prompts";
+    navButton.setAttribute("aria-label", text("Prompts", "提示词"));
+    navButton.title = text("Prompts", "提示词");
     const inner = element("span", source.firstElementChild?.className ?? "");
     const glyph = icon("prompt-nav");
     glyph.setAttribute("aria-hidden", "true");
-    inner.append(glyph, element("span", "sr-only", "Prompts"));
+    inner.append(glyph, element("span", "sr-only", text("Prompts", "提示词")));
     navButton.append(inner);
     navButton.addEventListener("click", openPage);
   }
   if (navButton.parentElement !== group || navButton !== group.lastElementChild)
     group.append(navButton);
   if (group !== ownNavGroup) ownNavGroup?.remove();
+  syncNavigationSelection();
   positionPage();
 }
 document.addEventListener(
@@ -1405,6 +1506,8 @@ observer.observe(document.documentElement, {
     "data-composer-placement",
     "data-above-composer-conversation-id",
     "aria-expanded",
+    "data-selected",
+    "aria-current",
   ],
 });
 document.addEventListener(

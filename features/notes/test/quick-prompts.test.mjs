@@ -206,3 +206,14 @@ test("Prompt categories, ordering, emoji and successful insert counts persist in
   product = await new CodexNotesProduct({ databasePath }).open();
   assert.deepEqual(product.listPromptCategories(), []);
 });
+
+test("Prompts localizes appearance labels and errors without modifying saved content", async () => {
+  const source = await readFile(new URL("../src/quick-prompts-page.mjs", import.meta.url), "utf8");
+  const helpers = source.slice(source.indexOf("const appearanceLabels ="), source.indexOf("// DOM 与图标工具"));
+  const read = cn => new Function("text", `${helpers}; return {appearanceLabel, errorMessage};`)((en, zh) => cn ? zh : en);
+  assert.equal(read(true).appearanceLabel("terminal"), "终端");
+  assert.equal(read(true).appearanceLabel("blue"), "蓝色");
+  assert.equal(read(false).appearanceLabel("terminal"), "terminal");
+  assert.equal(read(true).errorMessage({message:"Prompt was not found"}), "未找到该提示词");
+  assert.equal(read(false).errorMessage({message:"Prompt was not found"}), "Prompt was not found");
+});
