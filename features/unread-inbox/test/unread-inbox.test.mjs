@@ -14,7 +14,7 @@ test('unread rows use native state, not title or summary text', () => {
 });
 
 test('each thread keeps its own project, device and native recency time', () => {
-  const read = new Function(`${source.slice(source.indexOf('function isWorking('), source.indexOf('function cacheProjectIcons('))};return threadDetails;`)();
+  const read = new Function(`${source.slice(source.indexOf('function isWorking('), source.indexOf('function cacheProjectIcons('))};const messageUpdates = new Map();return threadDetails;`)();
   const row = (id, hostId='local') => ({
     dataset:{appActionSidebarThreadTitle:'Title',appActionSidebarThreadHostId:hostId},
     querySelector:()=>({textContent:'AI summary'}),
@@ -48,10 +48,13 @@ test('priority includes working read threads and loading wins over unread time',
   assert.equal(read.isPriority(row('idle',false)),false);
 });
 
-test('working threads sort first while preserving native order within each state', () => {
-  const sort = new Function(source.slice(source.indexOf('function isUnread('), source.indexOf('function projectForRow(')) + ';return priorityRows;')();
-  const row=(id,type,unread)=>({id,__reactFiberFixture:{memoizedProps:{statusState:{type},isUnread:unread}}});
-  const rows=[row('done-a','idle',true),row('work-a','loading',false),row('read','idle',false),row('done-b','idle',true),row('work-b','loading',true)];
-  assert.deepEqual(sort(rows).map(r=>r.id),['work-a','work-b','done-a','done-b']);
-  assert.equal(rows[0].id,'done-a');
+
+test('union of working, unread and recently opened sorts only by message time', () => {
+  const sort = new Function('threadDetails', source.slice(source.indexOf('function isUnread('), source.indexOf('function projectForRow(')) + ';return priorityRows;')(row=>({timestamp:row.time}));
+  const row=(id,type,unread,time)=>({time,dataset:{appActionSidebarThreadId:id},__reactFiberFixture:{memoizedProps:{statusState:{type},isUnread:unread}}});
+  const current=row('current','idle',false,100);
+  const rows=[current,row('unread','idle',true,300),row('working','loading',false,400),row('old-read','idle',false,500),current];
+  const recent=new Map([['current',5000],['old-read',0]]);
+  assert.deepEqual(sort(rows,recent,3600001).map(r=>r.dataset.appActionSidebarThreadId),['working','unread','current']);
+  assert.deepEqual(sort(rows,new Map(),3600001).map(r=>r.dataset.appActionSidebarThreadId),['working','unread']);
 });
