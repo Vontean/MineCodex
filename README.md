@@ -12,7 +12,7 @@ MineCodex 给 Codex Desktop 增加一组轻量、本地优先的扩展功能。�
 | --- | --- |
 | **Model Slider** | 更清晰、更顺滑的模型切换面板：具备品牌标识、常用收藏与流畅交互 |
 | **Notes** | 跨会话管理待办事项、常用提示词与文件，可随时从 Codex 工具栏快速复用 |
-| **Images** | 集中浏览生成的图片、Prompt 和来源任务，轻松保存原图或快速返回原会话 |
+| **Images** | 在原生 Library 图片详情中查看并复制提示词 |
 | **Hide Upsell Banner** | 隐藏输入框上方的用量提示横幅，仅优化界面展示，不影响正常的用量统计 |
 | **Session Status** | 在输入框下方查看当前任务的步骤、观测速度、Token 用量与上下文明细 |
 
@@ -54,7 +54,7 @@ mcx open
 
 ## 工作原理
 
-MineCodex 统一管理 Codex 内的菜单入口、主题风格与界面适配。Model Slider、Notes、Images 各自管理数据与操作页面；Session Status 只读汇总本机 Codex 会话事件，Hide Upsell Banner 优化界面展示。所有功能按需开启，关闭后即停止运行。
+MineCodex 统一管理 Codex 内的菜单入口、主题风格与界面适配。Model Slider、Notes 各自管理操作界面，Images 增强原生 Library 的提示词查看；Session Status 只读汇总本机 Codex 会话事件，Hide Upsell Banner 优化界面展示。所有功能按需开启，关闭后即停止运行。
 
 ## 开发
 

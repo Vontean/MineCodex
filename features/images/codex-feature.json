@@ -7,32 +7,15 @@
     "zh-CN": "图片"
   },
   "description": {
-    "en": "Browse generated images, inspect prompts and sources, and return to the original task.",
-    "zh-CN": "集中浏览生成图片，查看提示词和来源任务，并保存原图或返回原任务。"
+    "en": "View image prompts inside the native Library image viewer.",
+    "zh-CN": "在原生 Library 图片详情中查看并复制提示词。"
   },
-  "surfaceUrl": "http://127.0.0.1:47831/",
-  "healthUrl": "http://127.0.0.1:47831/api/health",
-  "runtimePortEnvironment": "CODEX_IMAGE_HOST_PORT",
-  "pageScript": {
-    "resource": "src/chatgpt-image-source-page.mjs"
-  },
-  "hostActions": [
-    "import-generated-image",
-    "create-image-edit-thread",
-    "open-sidebar",
-    "list-cloud-images",
-    "import-cloud-image"
-  ],
-  "placement": {
-    "after": "sites",
-    "order": 10
-  },
-  "command": [
-    "node",
-    "src/main.mjs"
-  ],
   "icon": {
     "viewBox": "0 0 24 24",
     "markup": "<rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\" ry=\"2\"></rect><circle cx=\"9\" cy=\"9\" r=\"2\"></circle><path d=\"m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21\"></path>"
+  },
+  "entry": {
+    "kind": "page-script",
+    "script": "src/library-prompt-page.mjs"
   }
 }

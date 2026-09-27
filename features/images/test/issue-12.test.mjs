@@ -4,13 +4,20 @@ import { request as httpRequest } from "node:http";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { fileURLToPath } from "node:url";
 import { pageScriptServiceOrigin } from "../../../packages/runtime-host/src/codex-runtime.mjs";
-import { discoverFeatures } from "../../../packages/runtime-host/src/feature-registry.mjs";
 import { buildImportMetadata, classifyGeneratedImage, sourceKindForSurface } from "../src/chatgpt-image-source.mjs";
 import { createHttpServer } from "../src/http-server.mjs";
 import { ImageLibrary } from "../src/image-library.mjs";
 import { runPageScriptFixture } from "./fixtures/page-script-runtime.mjs";
+
+// 旧导入工具独立验证，不再依赖新版 Library 页面脚本的 manifest。
+async function legacyImportFeature() {
+  return {
+    surfaceUrl: "http://127.0.0.1:49123/",
+    healthUrl: "http://127.0.0.1:49123/api/health",
+    pageScript: { source: await readFile(new URL("../src/chatgpt-image-source-page.mjs", import.meta.url), "utf8") },
+  };
+}
 
 const ONE_PIXEL_PNG = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
@@ -199,11 +206,8 @@ test("image edit drafts only expose the selected source plus a bounded PNG auxil
   assert.equal(foreign.status, 403);
 });
 
-test("page script derives its endpoint, forwards Content-Type, and requires an assistant/tool role", async () => {
-  const features = await discoverFeatures(fileURLToPath(new URL("../..", import.meta.url)), {
-    env: { CODEX_IMAGE_HOST_PORT: "49123" },
-  });
-  const images = features.find((feature) => feature.id === "images");
+test("legacy page script derives its endpoint, forwards Content-Type, and requires an assistant/tool role", async () => {
+  const images = await legacyImportFeature();
   assert.equal(images.surfaceUrl, "http://127.0.0.1:49123/");
   assert.equal(images.healthUrl, "http://127.0.0.1:49123/api/health");
   const serviceOrigin = pageScriptServiceOrigin(images);
@@ -241,11 +245,8 @@ test("page script derives its endpoint, forwards Content-Type, and requires an a
   }
 });
 
-test("page script imports the current Generated Image gallery contract without generated class names", async () => {
-  const features = await discoverFeatures(fileURLToPath(new URL("../..", import.meta.url)), {
-    env: { CODEX_IMAGE_HOST_PORT: "49123" },
-  });
-  const images = features.find((feature) => feature.id === "images");
+test("legacy page script imports the current Generated Image gallery contract without generated class names", async () => {
+  const images = await legacyImportFeature();
   const fixture = await runPageScriptFixture({
     source: images.pageScript.source,
     serviceOrigin: pageScriptServiceOrigin(images),
@@ -273,8 +274,7 @@ test("page script imports the current Generated Image gallery contract without g
 });
 
 test("current gallery contract records Work as the source without changing the import path", async () => {
-  const features = await discoverFeatures(fileURLToPath(new URL("../..", import.meta.url)));
-  const images = features.find((feature) => feature.id === "images");
+  const images = await legacyImportFeature();
   const fixture = await runPageScriptFixture({
     source: images.pageScript.source,
     serviceOrigin: pageScriptServiceOrigin(images),

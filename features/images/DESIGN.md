@@ -1,149 +1,67 @@
-# Images design contract
+# Images: native Library prompt contract
 
-## Native token source
+## Scope
 
-Images never owns a light or dark palette. RuntimeHost resolves Codex Renderer
-tokens from the live app and sends them as `codex-personal:theme`; `app.js`
-applies only those `--color-*`, `--radius-*`, `--shadow-*`, and `--text-*`
-variables on the surface root. The editor is intentionally hidden by the host
-when the surface identity/token handshake is unavailable, rather than drawing a
-look-alike palette.
+Images enhances Codex's native Library image viewer. It does not inject a sidebar
+item after Sites, open its own gallery, import image bytes, or replace native
+editing/download controls. The previous standalone gallery and local index code
+remain available as legacy utilities, but the feature manifest no longer starts
+that service or registers that surface.
 
-## Page header
+## Entry and identity
 
-The library follows the image-first rhythm of ChatGPT Library: a 72px title
-row containing the source filter, compact column selector, grouping, and refresh.
-There is no divider above the gallery.
-The title is 26px; source selection is a 36px transparent dropdown trigger, with a neutral
-background only on hover or while expanded. Existing source,
-refresh, density, and grouping controls retain their behavior.
+The native `data-testid="viewer-header"` is the entry anchor. The current React
+ancestor's Library image record supplies the Library ID, file ID, version and
+originating conversation/message IDs. Non-Library viewers and non-image files
+are excluded. No title, filename, image position or minified component name is
+used as identity. Missing native anchors fail closed.
 
-When Codex's native left sidebar is hidden, the Images title row exposes the
-native sidebar glyph at its leading edge. RuntimeHost owns sidebar state and the
-native click; the iframe only mirrors availability, visibility, and the native
-localized accessible label. Its 28px hit area, 16px rendered glyph, and leading
-position mirror the live native trigger so it clears the macOS traffic lights in
-windowed mode. The control disappears again when the sidebar opens.
+Resolve the prompt before adding the button. Missing/empty prompts, uploaded
+references without generated metadata, inaccessible conversations, and unresolved
+native API capabilities all leave the toolbar unchanged. There is no disabled
+button, loading placeholder, or empty prompt panel.
 
-## Gallery and detail composition
+The text button is placed immediately before the native percentage/zoom menu and
+reuses its live base classes for capsule sizing, colors, border, hover and focus.
+Dropdown/zoom variants are excluded: width is max-content, flex is 0 0 auto, and
+symmetric inline padding is three native spacing units (12px in this runtime).
+The label is Prompt / 提示词, following the native document locale.
 
-Layout tokens live in `web/styles.css`: `--library-gutter` is 20–56px,
-`--library-card-radius` is 16px, `--library-detail-gutter` is 20–40px, and
-`--library-card-shadow` uses neutral black shadows selected by the active color scheme.
-ChatGPT Library measured on 2026-09-26 uses 16px card corners and a
-0 4px 16px shadow at 5% black, together with a 1px border at 5% black.
-Cards use that combination: the faint border defines light image edges while
-the single broad shadow provides soft depth. Do not compensate with a heavier
-contact shadow. Dark mode uses the native subtle border and 16% black shadow.
-The library canvas mixes 1.2% foreground
-into the native surface to provide the subtle backdrop seen in Library. Gallery spacing is 16px in both directions, matching the measured Library grid.
-Grid images with aspect ratio at least 2:1 use 7% black shadow (20% in dark mode)
-to compensate for their smaller height; blur and offset remain unchanged.
-Grouped cards retain the standard shadow.
-The default is four columns; saved user choices remain honored and narrow
-containers still reduce to two or one. All images is the first control in the right-aligned toolbar. Source and column
-triggers share 13px normal-weight muted text. Column count uses a custom listbox
-matching the source menu, including selected state, arrow navigation and Escape.
-The gallery has no top padding, including the thumbnail rail and narrow layout.
-The column listbox is 76px wide. The source menu uses 16px corners, 6px inset, and 36px rows with 10px corners. Images retain their intrinsic aspect ratios in the
-existing masonry layout, without a permanent caption strip. Source/date
-captions appear inside the image on hover or keyboard focus; touch devices show
-them persistently. Accessible image names continue to include source and date.
-Grouped cards retain visible titles and source metadata.
+## Prompt panel
 
-Image Details retains the thumbnail rail and full-width mobile drawer. Its
-transparent image stage is inset from the page edges, without an extra padded
-canvas or minimum height. Images keep natural proportions using auto width and
-height within the existing size limits, with prompt and
-metadata aligned beneath it. Only the metadata section and fixed action footer
-use dividers. Footer actions are 34px pills in a 56px row with 10px vertical padding. The Close glyph aligns with the image stage edge using a 14px offset that compensates for its hit area and internal SVG whitespace. At widths of 520px and below,
-gutters and card radii reduce to 16px and headers to 60px. Theme colors remain
-semantic; this composition does not introduce a separate light/dark palette.
+The panel follows the native Library Version history implementation inspected in
+the isolated Codex runtime on 2026-09-27 (`layout` asset, version-history aside):
 
-## Image Details editor
+- `absolute inset-x-2 top-toolbar bottom-2 z-30 ms-auto mt-2 max-w-75`.
+- `rounded-2xl border border-default bg-surface shadow-lg`.
+- Header: `flex items-center justify-between py-2 ps-4 pe-2`;
+  title: `text-base font-semibold text-default`.
+- Body: `min-h-0 flex-1 overflow-y-auto px-3`, with one spacing unit of
+  top padding (4px). The panel reserves three spacing units below the scroll
+  viewport (12px), so scrolling text never meets the rounded bottom edge.
+- Prompt: `text-sm leading-5 text-default whitespace-pre-wrap select-text`.
 
-The image stage keeps the existing prompt, metadata, Open Thread, and Save as
-areas. Its only added controls are the native-isomorphic floating toolbar:
+These are native tokens, not a plugin palette or fixed radius. In the inspected
+runtime they resolve to 300px width and 20px corners. The close glyph is cloned
+from the native viewer control. Long text scrolls inside the panel, remains
+selectable, and is rendered with textContent. The header Copy icon button reuses the existing Images Lucide copy/check glyphs
+at 16px, with a 32px hit area and an accessible label/tooltip. It writes only the
+prompt body to the clipboard and briefly confirms success. No source label or
+explanatory metadata appears in the panel. Close and Escape return focus to
+the prompt button; Escape does not close the underlying viewer on the same press.
 
-| Element | Token mapping | Contract |
-| --- | --- | --- |
-| ActionBar | `--color-surface-tertiary`, `--color-border-subtle`, `--shadow-md` | 32px pill, 2px inset padding, 28px controls, centered inside a 48px transparent sticky strip with 8px breathing room above and below; the image editor bounds its sticky lifetime before prompt or metadata content |
-| Buttons / menus | `--color-text-foreground`, `--color-background-primary-ghost-hover`, `--color-border-focus` | Native source SVGs render at 16px (Comment/Remove/ratios) and 18px (Resize); hover/open/focus use semantic tokens |
-| Menus | `--color-surface-elevated-secondary`, `--color-border`, `--shadow-xl` | Resize is 160px; Zoom is 136px with 6px padding and 10px radius |
-| Zoom | `--color-text-foreground-tertiary` | Right aligned; shows the measured fit percentage and preserves the native check-mark menu |
-| Active edit mode | `--color-chart-blue`, `--color-text-inverse` | Native SVG Cancel and Undo/Redo controls; history controls remain hidden until a stroke exists |
-| Comment draft / edit | `--color-text-accent`, `--color-surface-elevated-secondary` | New drafts use the 30px marker and 294×44 input; the input flips to the marker's left when the right edge lacks room, so it never covers the spatial anchor. Empty Enter keeps the draft editor active, while Escape or leaving the surface discards it. Committed comments reopen in the native 294×120 editor with Delete, Cancel, and Save; empty edits disable Save rather than deleting implicitly |
-| Comment markers / brush preview | `--color-text-accent`, `--color-text-on-accent` | Position and size remain expressed in source-image coordinates |
+## Data and lifecycle
 
-At narrow widths action labels collapse to their existing icon controls; their
-accessible names remain stable. Menus close on outside click and Escape. Escape
-inside an open comment input closes only that input. Cancel drops the current
-comment/remove session and returns to the closed toolbar.
+Read the source conversation through the running renderer's native authenticated
+API; discover the API export through Library metadata's actual module imports,
+without fixed build hashes. No credentials, signed download URLs or image bytes
+are copied or sent to another service.
 
-## Editing and send boundary
+Match both the originating message and exact image asset pointer, and require
+assistant/tool generation metadata. Prefer a recorded generator prompt. Otherwise use only the nearest user ancestor
+of that image. Provenance stays internal; the UI simply calls this Prompt / 提示词. Unrelated branches are never used.
 
-Comment produces the original image plus an annotated PNG. Remove produces the
-original image plus a black PNG mask with white strokes. Resize sends only the
-original image and its selected ratio instruction. The loopback Images server
-creates bounded temporary auxiliary PNGs and returns a one-shot draft ID; the
-only privileged operation is the allowlisted `create-image-edit-thread` action.
-RuntimeHost exchanges that ID directly with Images, verifies regular absolute
-files, opens a fresh native Chat, attaches the source and optional
-auxiliary image, inserts the instruction, and clicks the native Send control.
-It never changes the source Thread or creates a Project task. On a failure the
-surface retains the current editing state and announces the error.
-
-## Embedded boundary and pointer interaction
-
-When the host reports an open sidebar, Images draws a 1px semantic border at
-its left edge without consuming layout width. The line hides with the sidebar.
-The refresh icon aligns optically with the gallery right edge: its 36px hit
-area extends 10px beyond its 16px glyph, with scrollbar width accounted for.
-The Images iframe explicitly uses `-webkit-app-region: no-drag` to exclude the
-native 46px draggable titlebar beneath it. Header buttons, the column select,
-and the source menu also opt out of dragging.
-
-Host theme observation includes `data-theme` as well as class and style changes,
-so embedded surfaces update when the current client switches appearance.
-
-The source filter panel reserves an 8px bottom inset outside its scrolling
-content, so partially visible rows do not touch the rounded panel edge.
-
-RuntimeHost resolves canonical theme tokens by semantic name: existing names
-take priority, followed by the equivalent `--app-color-*` namespace and explicit
-historical aliases in `codex-design-contract.mjs`. It never guesses by build
-hash or fuzzy matching. Missing editor tokens are reported once per changed
-missing-token set, so a future incompatible contract is diagnosable.
-Prompt indexing parses JavaScript syntax without executing it. It supports static
-strings, templates, concatenation, and store/load references, including explicitly
-echoed historical command output with recorded string transformations. Truncated
-or unsupported expressions stay unresolved. It also follows exec-to-wait cell IDs;
-images without a recorded result path retain the missing-prompt state.
-
-## Cloud Library sync
-
-On entering Images, cached images render first. The existing Refresh control
-stays busy while local scanning and paginated cloud Library synchronization run.
-New or changed generated images are cached as originals; unchanged Library
-versions skip downloads. The current feed and pagination retain their image snapshot
-while new images accumulate. A 36px pill floats 12px below the content area's top,
-centered horizontally, showing an up arrow and the number of new images in the
-current filter. Clicking applies the latest snapshot and scrolls to the top
-(smoothly unless reduced motion is requested). Background polling also uses this
-flow. The pill is hidden while viewing details or a thread; changing filters or
-view mode starts a fresh snapshot. Cached images remain browsable during sync.
-Per-image failures leave the cache intact and are reported in the Refresh tooltip
-and live status; another refresh retries failed items. No cloud deletion is mirrored.
-
-RuntimeHost uses the current native account session. Asset filenames and minified
-exports are discovered from the running app's module references and Library
-capabilities rather than pinned build hashes. Authentication remains in the
-native renderer. Only listed images with an exact source-message/file match and
-explicit generation metadata are imported; uploaded references are excluded.
-The cache keeps Library identity/version separately from image identity.
-
-A recorded generator prompt is labeled Generation prompt. When unavailable, the
-nearest user message on that image's actual ancestry is labeled Original request.
-A missing conversation fails that item without inventing metadata. Local prompt
-recovery likewise applies general syntax/record association rules to all images,
-not a hard-coded image ID.
+Changing images or leaving the viewer aborts the pending lookup and removes the
+old UI. Late results cannot mount against a different image. Disabling the feature
+removes the observer, keyboard handler, button and panel. Prompt data is retained
+only for the current viewer; there is no persistent conversation cache.

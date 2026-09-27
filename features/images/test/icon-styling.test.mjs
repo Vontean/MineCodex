@@ -14,7 +14,7 @@ test("uses Codex's 1px visual weight for all 24px outline icons", async () => {
   assert.doesNotMatch(styles, /\.lucide\s*\{[^}]*stroke-width:\s*2;/s);
 });
 
-test("restores native sidebar access from the Images header when the sidebar is hidden", async () => {
+test("legacy gallery retains its sidebar control without registering a native sidebar entry", async () => {
   const [html, app, styles, manifestSource, runtime] = await Promise.all([
     readFile(new URL("../web/index.html", import.meta.url), "utf8"),
     readFile(new URL("../web/app.js", import.meta.url), "utf8"),
@@ -31,7 +31,8 @@ test("restores native sidebar access from the Images header when the sidebar is 
   assert.match(app, /requestHostAction\("open-sidebar", \{\}\)/);
   assert.match(styles, /\.sidebar-open-button\[hidden\] \{ display: none; \}/);
   assert.match(styles, /\.sidebar-toggle-icon \{[^}]*width: 16px;[^}]*height: 16px;/s);
-  assert.ok(manifest.hostActions.includes("open-sidebar"));
+  assert.equal(manifest.entry.kind, "page-script");
+  assert.equal(manifest.hostActions, undefined);
   assert.match(runtime, /button\[data-app-shell-sidebar-trigger="true"\]/);
   assert.match(runtime, /if \(action === "open-sidebar"\)/);
   assert.match(runtime, /type: "codex-personal:sidebar-state"/);
