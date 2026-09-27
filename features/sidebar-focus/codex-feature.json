@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "sidebar-focus",
+  "version": "0.1.0",
+  "label": {
+    "en": "Sidebar Focus",
+    "zh-CN": "侧栏聚焦"
+  },
+  "description": {
+    "en": "Keep the current task path expanded and collapse other branches.",
+    "zh-CN": "保留当前任务路径，收起其他分支。"
+  },
+  "entry": {
+    "kind": "page-script",
+    "script": "src/sidebar-focus.mjs"
+  },
+  "placement": {
+    "order": 80
+  }
+}

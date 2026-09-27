@@ -65,7 +65,7 @@ test("control server exchanges a short-lived one-time value for a cookie and pro
 
     const status = await fetch(`${origin}/api/status`, { headers: { Cookie: cookie, "Accept-Language": "zh-CN" } });
     const initial = await status.json();
-    assert.equal(initial.features.length, 7);
+    assert.equal(initial.features.length, 8);
     assert.equal(initial.features.find((feature) => feature.id === "usage-meter").label, "额度环");
     assert.equal(initial.features.every((feature) => feature.enabled), true);
     assert.equal(initial.features.find((feature) => feature.id === "images").label, "图片");

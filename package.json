@@ -49,14 +49,18 @@
     "features/usage-meter/README.md",
     "features/unread-inbox/src",
     "features/unread-inbox/codex-feature.json",
-    "features/unread-inbox/DESIGN.md"
+    "features/unread-inbox/DESIGN.md",
+    "features/sidebar-focus/src",
+    "features/sidebar-focus/codex-feature.json",
+    "features/sidebar-focus/DESIGN.md",
+    "features/sidebar-focus/vendor/lucide-LICENSE"
   ],
   "engines": {
     "node": ">=22.5.0"
   },
   "scripts": {
     "start": "node packages/cli/bin/mcx.mjs serve",
-    "test": "node --test packages/cli/test/*.test.mjs packages/runtime-host/test/*.test.mjs features/model-slider/test/*.test.mjs features/notes/test/*.test.mjs features/images/test/*.test.mjs features/hide-upsell-banner/test/*.test.mjs features/session-status/test/*.test.mjs features/usage-meter/test/*.test.mjs apps/dashboard/test/*.test.mjs features/unread-inbox/test/*.test.mjs",
+    "test": "node --test packages/cli/test/*.test.mjs packages/runtime-host/test/*.test.mjs features/model-slider/test/*.test.mjs features/notes/test/*.test.mjs features/images/test/*.test.mjs features/hide-upsell-banner/test/*.test.mjs features/session-status/test/*.test.mjs features/usage-meter/test/*.test.mjs apps/dashboard/test/*.test.mjs features/unread-inbox/test/*.test.mjs features/sidebar-focus/test/*.test.mjs",
     "test:cli": "node --test packages/cli/test/*.test.mjs",
     "test:runtime": "node --test packages/runtime-host/test/*.test.mjs",
     "check": "node --check packages/cli/bin/mcx.mjs && node --check packages/cli/src/*.mjs && node --check packages/runtime-host/src/*.mjs",

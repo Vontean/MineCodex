@@ -71,3 +71,7 @@ npm run pack:audit
 ## 许可
 
 MineCodex 是非官方独立扩展项目，与 OpenAI 无关联。项目自有代码以 MIT License 授权；第三方图标、品牌和兼容资产遵循各自的权利说明，见 [`features/model-slider/THIRD_PARTY_NOTICES.md`](features/model-slider/THIRD_PARTY_NOTICES.md) 与 [`features/session-status/vendor/lucide-LICENSE`](features/session-status/vendor/lucide-LICENSE)。
+
+### Sidebar Focus / 侧栏聚焦
+
+展开侧栏时，点击铃铛与搜索之间的聚焦按钮，保留当前任务路径并收起其他分支。再次点击恢复原先布局；切换任务时跟随路径，手动调整分支时退出聚焦。
