@@ -1288,7 +1288,8 @@ test("distinguishes placeholder from real model label, hugging real names", () =
   assert.match(source, /function restoreTriggerLabelWithoutNative\(trigger, selector\)/);
   // 原生开合钉定与弹层居中都依赖 Measurement 探针，MCX 标签必须同步探针文本。
   assert.match(source, /_ModelPickerTriggerMeasurement_/);
-  assert.match(source, /measurement\.textContent !== label/);
+  assert.match(source, /firstVisibleTextNode\(measurement\)/);
+  assert.doesNotMatch(source, /measurement\.textContent\s*=/);
   // 0.152.1 的 _ModelPickerTriggerModelLabel_ 是名称行容器而非名称本身，
   // 绝不能对它做隐藏或标签匹配，否则整行名称连 MCX 标签一起消失。
   assert.doesNotMatch(

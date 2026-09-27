@@ -2779,9 +2779,10 @@ export function createInjectionSource(features, {
       }
       // 原生开合的临时 min-width 钉定与弹层水平居中都基于对 Measurement
       // 探针的测量；把探针文本同步为 MCX 显示标签，原生机制即可测得
-      // 真实显示宽度（含 110px 名称上限与 160px Content 上限）。
+      // 真实显示宽度。保留 React 持有的子节点，避免切模型时卸载失败。
       const measurement = trigger.querySelector('[class*="_ModelPickerTriggerMeasurement_"]');
-      if (measurement && measurement.textContent !== label) measurement.textContent = label;
+      const measurementText = measurement && firstVisibleTextNode(measurement);
+      if (measurementText && measurementText.nodeValue !== label) measurementText.nodeValue = label;
     }
 
     function ensureModelSelector() {
