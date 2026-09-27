@@ -18,7 +18,6 @@ function selectedCopy() {
   const language = document.documentElement.lang || navigator.languages?.[0] || navigator.language || "en";
   return String(language).toLowerCase().startsWith("zh") ? copyByLocale["zh-CN"] : copyByLocale.en;
 }
-let copy = selectedCopy();
 
 // 图标来自 Lucide Static 与 Phosphor Icons；许可见 vendor/。
 const icons = {
@@ -30,11 +29,23 @@ document.getElementById(STYLE_ID)?.remove();
 const style = document.createElement("style");
 style.id = STYLE_ID;
 style.textContent = `
-  [${MARKER}] { box-sizing:border-box; display:flex; flex-wrap:wrap; justify-content:center; align-items:center; gap:0 12px; margin:-2px auto -6px; padding-top:2px; max-width:100%; min-height:24px; min-width:0; font-family:var(--font-sans-default,inherit); font-size:var(--text-xs,12px); line-height:16px; font-variant-numeric:tabular-nums; color:var(--color-text-tertiary); }
+  [${MARKER}] { box-sizing:border-box; display:flex; flex-wrap:wrap; justify-content:center; align-items:center; gap:0 12px; margin:0 auto; padding-top:2px; max-width:100%; min-height:24px; min-width:0; font-family:var(--font-sans-default,inherit); font-size:var(--text-xs,12px); line-height:16px; font-variant-numeric:tabular-nums; color:var(--color-text-tertiary); }
   [${MARKER}][hidden] { display:none; }
-  [${MARKER}]:not([hidden]) { animation:mcx-session-status-enter 160ms ease-out both; }
-  @keyframes mcx-session-status-enter { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }
-  @media (prefers-reduced-motion: reduce) { [${MARKER}]:not([hidden]) { animation:none; } }
+  [data-minecodex-session-reveal] { display:grid; grid-template-rows:0fr; opacity:0; transition:grid-template-rows 200ms ease,opacity 160ms ease; }
+  [data-minecodex-session-reveal][data-expanded] { grid-template-rows:1fr; opacity:1; }
+  @starting-style { [data-minecodex-session-reveal][data-expanded] { grid-template-rows:0fr; opacity:0; } }
+  [data-minecodex-session-reveal] > div { min-height:0; overflow:hidden; }
+  [data-minecodex-session-reveal]:not([data-expanded]) { pointer-events:none; }
+  [data-minecodex-session-reveal][hidden] { display:none; }
+  [data-minecodex-context-trigger] { display:inline-flex; align-items:center; justify-content:center; flex:none; width:24px; height:var(--height-token-button-composer,28px); padding:0; border:0; border-radius:var(--radius-full); background:transparent; color:var(--color-text-tertiary); cursor:pointer; }
+  [data-minecodex-context-trigger][hidden] { display:none; }
+  [data-context-progress] { transition:stroke-dashoffset 120ms ease-out; }
+  [data-minecodex-context-trigger]:hover { background:var(--color-background-primary-ghost-hover); }
+  [data-minecodex-context-trigger]:focus-visible { outline:2px solid var(--color-ring); }
+  [data-minecodex-context-trigger] svg { width:12px; height:12px; }
+  [data-minecodex-native-context] { display:none !important; }
+  [data-minecodex-context-tooltip] { position:fixed; z-index:2147483000; pointer-events:none; width:max-content; padding:5px 12px; border:1px solid var(--color-border-tooltip); border-radius:var(--radius-2xl); background:var(--color-background-tooltip); color:var(--color-text-tooltip); box-shadow:var(--shadow-tooltip); font-family:var(--font-sans-default); font-size:var(--text-sm); line-height:18px; text-align:center; white-space:pre-line; }
+  @media (prefers-reduced-motion:reduce) { [data-minecodex-session-reveal], [data-context-progress] { transition:none; } }
   [${MARKER}] button { box-sizing:border-box; display:inline-flex; align-items:center; gap:5px; height:22px; color:inherit; font:inherit; border:0; border-radius:var(--radius-xl,12px); background:transparent; padding:3px 7px; cursor:pointer; white-space:nowrap; }
   [${MARKER}] svg, [data-minecodex-session-status-panel] h3 svg { width:14px; height:14px; flex:none; stroke-width:1.75; }
   [${MARKER}] [data-kind="context"] svg, [data-minecodex-session-status-panel] h3 .context-ring { width:12px; height:12px; stroke-width:2; }
@@ -64,6 +75,25 @@ style.textContent = `
 `;
 document.head.append(style);
 
+const instances = new Map();
+const expansionKey = "minecodex:session-status:expanded";
+let globalExpanded = localStorage.getItem(expansionKey) !== "false";
+let instanceSequence = 0;
+function setGlobalExpanded(value) {
+  globalExpanded = value;
+  localStorage.setItem(expansionKey, String(value));
+  for (const instance of instances.values()) instance.setExpanded(value);
+}
+window.addEventListener("storage", (event) => {
+  if (event.key !== expansionKey) return;
+  globalExpanded = event.newValue !== "false";
+  for (const instance of instances.values()) instance.setExpanded(globalExpanded);
+}, { signal });
+function createInstance(composerElement) {
+let copy = selectedCopy();
+const controller = new AbortController();
+const signal = controller.signal;
+const instanceId = ++instanceSequence;
 const root = document.createElement("div");
 root.setAttribute(MARKER, "");
 root.hidden = true;
@@ -90,6 +120,71 @@ function createContextRing() {
   }
   return svg;
 }
+const reveal = document.createElement("div");
+reveal.dataset.minecodexSessionReveal = "";
+const clip = document.createElement("div");
+clip.append(root);
+reveal.append(clip);
+root.id = `minecodex-session-details-${instanceId}`;
+const trigger = document.createElement("button");
+trigger.type = "button";
+trigger.dataset.minecodexContextTrigger = "";
+trigger.setAttribute("aria-controls", root.id);
+trigger.append(createContextRing());
+const tooltip = document.createElement("div");
+tooltip.id = `minecodex-context-tooltip-${instanceId}`;
+tooltip.dataset.minecodexContextTooltip = "";
+tooltip.setAttribute("role", "tooltip");
+tooltip.hidden = true;
+document.body.append(tooltip);
+let expanded = globalExpanded;
+let collapseTimer = null;
+let collapsing = false;
+const nativeIndicators = new Set();
+function setExpanded(value) {
+  clearTimeout(collapseTimer);
+  collapsing = expanded && !value && !matchMedia("(prefers-reduced-motion: reduce)").matches;
+  expanded = value;
+  if (collapsing) collapseTimer = setTimeout(() => {
+    collapsing = false;
+    syncVisibility(findComposer());
+  }, 200);
+  reveal.toggleAttribute("data-expanded", expanded);
+  clip.inert = !expanded;
+  trigger.setAttribute("aria-expanded", String(expanded));
+  tooltip.hidden = true;
+  if (expanded) reveal.hidden = false;
+  syncVisibility(findComposer());
+  if (!expanded) closePanel();
+}
+trigger.addEventListener("click", () => setGlobalExpanded(!expanded), { signal });
+function hideTooltip() { tooltip.hidden = true; trigger.removeAttribute("aria-describedby"); }
+function showContextTooltip() {
+  const value = snapshot;
+  const percent = value?.contextPercent;
+  const zh = copy === copyByLocale["zh-CN"];
+  const status = percent == null ? "—" : percent >= 50
+    ? (zh ? `已占用 ${percent}%` : `${percent}% full`)
+    : (zh ? `已使用 ${percent}%（剩余 ${100 - percent}%）` : `${percent}% used (${100 - percent}% left)`);
+  const tokens = value?.contextWindow == null ? "" : `${zh ? "已使用 " : ""}${Math.round(value.contextUsedTokens / 1000)}k / ${Math.round(value.contextWindow / 1000)}k ${zh ? "Token" : "tokens used"}`;
+  tooltip.replaceChildren();
+  for (const [text, muted] of [[zh ? "上下文窗口：" : "Context window:", true], [status, percent >= 50], [tokens, false]]) {
+    if (!text) continue;
+    const line = document.createElement("div");
+    line.textContent = text;
+    if (muted) line.style.opacity = "0.6";
+    tooltip.append(line);
+  }
+  tooltip.hidden = false;
+  trigger.setAttribute("aria-describedby", tooltip.id);
+  const rect = trigger.getBoundingClientRect();
+  tooltip.style.left = `${Math.max(8, Math.min(innerWidth - tooltip.offsetWidth - 8, rect.left + (rect.width - tooltip.offsetWidth) / 2))}px`;
+  tooltip.style.top = `${rect.top - tooltip.offsetHeight - 4}px`;
+}
+trigger.addEventListener("pointerenter", showContextTooltip, { signal });
+trigger.addEventListener("focus", showContextTooltip, { signal });
+trigger.addEventListener("pointerleave", hideTooltip, { signal });
+trigger.addEventListener("blur", hideTooltip, { signal });
 const buttons = ["statistics", "usage", "context"].map((kind) => {
   const button = document.createElement("button");
   button.type = "button";
@@ -104,6 +199,12 @@ const buttons = ["statistics", "usage", "context"].map((kind) => {
   root.append(button);
   return button;
 });
+const collapse = document.createElement("button");
+collapse.type = "button";
+// Lucide chevron-up，与状态栏其余线性图标保持相同笔画。
+collapse.innerHTML = '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>';
+collapse.addEventListener("click", () => { setGlobalExpanded(false); trigger.focus(); hideTooltip(); }, { signal });
+root.append(collapse);
 let snapshot = null;
 let panel = null;
 let openKind = null;
@@ -114,6 +215,11 @@ let refreshSequence = 0;
 let disposed = false;
 let lastRevision = 0;
 
+function cachePercent(value) {
+  const percent = value?.inputTokens > 0 && value.cachedInputTokens != null
+    ? value.cachedInputTokens / value.inputTokens * 100 : value?.cacheHitPercent;
+  return percent == null ? "—" : `${percent > 99 ? percent.toFixed(1) : Math.round(percent)}%`;
+}
 function number(value) { return value == null ? "—" : new Intl.NumberFormat().format(value); }
 function compact(value) {
   if (value == null) return "—";
@@ -216,7 +322,7 @@ function showPanel(kind) {
     row(dl, copy.input, tokenValue(otherInput)).dataset.tone = "blue";
     row(dl, copy.cached, tokenValue(snapshot.cachedInputTokens)).dataset.tone = "green";
     divider(dl);
-    row(dl, copy.cacheDetail, snapshot.cacheHitPercent == null ? "—" : `${snapshot.cacheHitPercent}%`);
+    row(dl, copy.cacheDetail, cachePercent(snapshot));
   } else {
     if (snapshot.contextPercent != null) {
       const head = document.createElement("div");
@@ -266,7 +372,7 @@ function showPanel(kind) {
 }
 
 function findComposer() {
-  return document.querySelector('[data-codex-composer="true"][contenteditable="true"]');
+  return composerElement.isConnected ? composerElement : null;
 }
 function currentThreadId(composer) {
   if (!composer) return null;
@@ -378,7 +484,10 @@ function scheduleRefresh() {
 function syncVisibility(composer) {
   const threadId = currentThreadId(composer);
   root.hidden = !threadId || snapshot?.threadId !== threadId;
-  if (root.hidden) closePanel();
+  // 收起时退出布局，避免空 grid 仍触发原生 flex gap。
+  reveal.hidden = root.hidden || (!expanded && !collapsing);
+  trigger.hidden = root.hidden || expanded;
+  if (root.hidden) { closePanel(); hideTooltip(); }
 }
 function ensurePosition() {
   if (disposed || signal.aborted) return;
@@ -395,12 +504,28 @@ function ensurePosition() {
     scheduleRefresh();
   }
   syncNativeContext(composer);
-  if (!composer) { root.remove(); closePanel(); return; }
+  if (!composer) { reveal.remove(); trigger.remove(); closePanel(); return; }
   const form = composer.closest("form");
   const card = composer.closest("[data-codex-composer-root]") ?? form ?? composer.parentElement?.parentElement;
   if (!card?.parentElement) return;
-  if (root.previousElementSibling !== card || root.parentElement !== card.parentElement) {
-    card.after(root);
+  const model = card.querySelector('[data-composer-navigation-target="reasoning"]');
+  // 沿模型按钮的包装层找到横向控制组，不依赖本地化文案。
+  let anchor = model;
+  while (anchor?.parentElement && !anchor.parentElement.classList.contains("items-center")) anchor = anchor.parentElement;
+  if (anchor && trigger.nextElementSibling !== anchor) anchor.before(trigger);
+  for (const indicator of nativeIndicators) {
+    if (!threadId || !indicator.isConnected) {
+      indicator.removeAttribute("data-minecodex-native-context");
+      nativeIndicators.delete(indicator);
+    }
+  }
+  for (const indicator of threadId ? card.querySelectorAll('[role="img"][aria-label]') : []) {
+    if (!indicator.querySelector('svg circle')) continue;
+    indicator.setAttribute("data-minecodex-native-context", "");
+    nativeIndicators.add(indicator);
+  }
+  if (reveal.previousElementSibling !== card || reveal.parentElement !== card.parentElement) {
+    card.after(reveal);
     closePanel();
   }
   syncVisibility(composer);
@@ -409,11 +534,16 @@ function render() {
   if (snapshot) snapshot = { ...snapshot, ...nativeContext };
   syncVisibility(findComposer());
   if (root.hidden) return;
+  trigger.querySelector("[data-context-progress]").setAttribute("stroke-dashoffset", String(100 - (snapshot.contextPercent ?? 0)));
+  trigger.setAttribute("aria-label", `${copy.context}: ${snapshot.contextPercent == null ? "—" : `${snapshot.contextPercent}%`}`);
+  collapse.setAttribute("aria-label", copy === copyByLocale["zh-CN"] ? "收起会话状态" : "Collapse session status");
+  if (!tooltip.hidden) showContextTooltip();
   buttons[0].querySelector(".status-label").textContent = `${number(snapshot.turns)} ${copy.turns} ${number(snapshot.steps)} ${copy.steps} · ${snapshot.observedTps == null ? "—" : number(snapshot.observedTps)} tok/s`;
-  buttons[1].querySelector(".status-label").textContent = `${compact(snapshot.totalTokens)} · ${copy.cache} ${snapshot.cacheHitPercent == null ? "—" : `${snapshot.cacheHitPercent}%`}`;
+  buttons[1].querySelector(".status-label").textContent = `${compact(snapshot.totalTokens)} · ${copy.cache} ${cachePercent(snapshot)}`;
   buttons[2].querySelector(".status-label").textContent = snapshot.contextPercent == null ? "—" : `${snapshot.contextPercent}%`;
   buttons[2].querySelector("[data-context-progress]").setAttribute("stroke-dashoffset", String(100 - (snapshot.contextPercent ?? 0)));
   buttons[2].setAttribute("aria-label", `${copy.context}: ${snapshot.contextPercent == null ? "—" : `${snapshot.contextPercent}%`}`);
+  for (const ring of [trigger, buttons[2]]) ring.querySelector("[data-context-progress]").setAttribute("opacity", snapshot.contextPercent > 0 ? "1" : "0");
   if (openKind) showPanel(openKind);
 }
 for (const button of buttons) button.addEventListener("click", () => {
@@ -443,9 +573,9 @@ const localeObserver = new MutationObserver(() => {
   render();
 });
 localeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["lang"] });
+setExpanded(globalExpanded);
 ensurePosition();
 void loadNativeContextFamily();
-const previous = window.__minecodexSessionStatus;
 const receiver = {
   update(value, revision) {
     ensurePosition();
@@ -460,15 +590,42 @@ const receiver = {
     scheduleRefresh();
   },
 };
-window.__minecodexSessionStatus = receiver;
-return () => {
+return { update: receiver.update, setExpanded, dispose() {
+  controller.abort();
   disposed = true;
   nativeContextSubscription?.();
   clearTimeout(refreshTimer);
+  clearTimeout(collapseTimer);
   observer.disconnect();
   localeObserver.disconnect();
   closePanel();
-  root.remove();
+  reveal.remove();
+  trigger.remove();
+  tooltip.remove();
+  for (const indicator of nativeIndicators) indicator.removeAttribute("data-minecodex-native-context");
+} };
+}
+function syncInstances() {
+  for (const [composer, instance] of instances) {
+    if (!composer.isConnected) { instance.dispose(); instances.delete(composer); }
+  }
+  for (const composer of document.querySelectorAll('[data-codex-composer="true"][contenteditable="true"]')) {
+    if (!instances.has(composer)) instances.set(composer, createInstance(composer));
+  }
+}
+const previous = window.__minecodexSessionStatus;
+const receiver = { update(value, revision) {
+  syncInstances();
+  for (const instance of instances.values()) instance.update(value, revision);
+} };
+window.__minecodexSessionStatus = receiver;
+const instanceObserver = new MutationObserver(syncInstances);
+instanceObserver.observe(document.documentElement, { childList:true, subtree:true });
+syncInstances();
+return () => {
+  instanceObserver.disconnect();
+  for (const instance of instances.values()) instance.dispose();
+  instances.clear();
   style.remove();
   if (window.__minecodexSessionStatus === receiver) window.__minecodexSessionStatus = previous;
 };

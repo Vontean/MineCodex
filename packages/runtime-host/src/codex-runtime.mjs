@@ -47,11 +47,11 @@ export {
 } from "./codex-injection.mjs";
 
 export const SESSION_STATUS_THREAD_ID_EXPRESSION = `(() => {
-  const composer = document.querySelector('[data-codex-composer="true"][contenteditable="true"]');
-  const card = composer?.closest('[data-codex-composer-root]');
-  if (card?.getAttribute('data-composer-placement') !== 'thread') return null;
-  const portal = card?.querySelector('[data-above-composer-portal]');
-  return portal?.getAttribute('data-above-composer-conversation-id') ?? null;
+  return [...new Set([...document.querySelectorAll('[data-codex-composer="true"][contenteditable="true"]')].map(composer => {
+    const card = composer.closest('[data-codex-composer-root]');
+    if (card?.getAttribute('data-composer-placement') !== 'thread') return null;
+    return card.querySelector('[data-above-composer-portal]')?.getAttribute('data-above-composer-conversation-id');
+  }).filter(Boolean))];
 })()`;
 
 export class CodexRuntime {
@@ -760,17 +760,19 @@ export class CodexRuntime {
             expression: SESSION_STATUS_THREAD_ID_EXPRESSION,
             returnByValue: true,
           }, { timeoutMs: 3_000 });
-          const threadId = threadIdFromLocation(response.result?.value);
-          const data = threadId ? await this.sessionStatusReader.read(threadId) : null;
-          const snapshot = data ?? (threadId ? {
-            threadId,
-            retryAfterMs: this.sessionStatusReader.retryAfterMs?.(threadId) ?? 500,
-          } : null);
-          if (this.stopping || this.clients.get(targetId) !== client) return;
-          await client.send("Runtime.evaluate", {
-            expression: `window.__minecodexSessionStatus?.update(${JSON.stringify(snapshot)}, ${revision})`,
-            returnByValue: true,
-          }, { timeoutMs: 3_000 });
+          for (const value of response.result?.value ?? []) {
+            const threadId = threadIdFromLocation(value);
+            const data = threadId ? await this.sessionStatusReader.read(threadId) : null;
+            const snapshot = data ?? (threadId ? {
+              threadId,
+              retryAfterMs: this.sessionStatusReader.retryAfterMs?.(threadId) ?? 500,
+            } : null);
+            if (this.stopping || this.clients.get(targetId) !== client) return;
+            await client.send("Runtime.evaluate", {
+              expression: `window.__minecodexSessionStatus?.update(${JSON.stringify(snapshot)}, ${revision})`,
+              returnByValue: true,
+            }, { timeoutMs: 3_000 });
+          }
         } catch (error) {
           this.logger.warn?.("Session Status update failed", error.message);
           if (this.clients.get(targetId) === client) {

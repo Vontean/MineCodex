@@ -61,3 +61,14 @@ test("native context subscription updates immediately, clears missing data, and 
   harness.switchThread(null, null);
   assert.equal(disposedSubscriptions, 2);
 });
+
+test("cache hit retains precision above 99 percent from raw token counts", async () => {
+  const source = await readFile(path.join(featureDir, "src/session-status.mjs"), "utf8");
+  const format = new Function(`${source.slice(source.indexOf("function cachePercent("), source.indexOf("function number("))}; return cachePercent;`)();
+  assert.equal(format({ inputTokens: 1000, cachedInputTokens: 994, cacheHitPercent: 99 }), "99.4%");
+  assert.equal(format({ inputTokens: 1000, cachedInputTokens: 990 }), "99%");
+  assert.equal(format({ inputTokens: 1000, cachedInputTokens: 991 }), "99.1%");
+  assert.equal(format({ inputTokens: 1000, cachedInputTokens: 1000 }), "100.0%");
+  assert.equal(format({ inputTokens: 1000, cachedInputTokens: 956 }), "96%");
+  assert.equal(format({}), "—");
+});

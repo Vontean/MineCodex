@@ -35,7 +35,7 @@ test("authenticates immediate status requests, coalesces reads, and invalidates 
     async send(method, params, options) {
       assert.equal(options.timeoutMs, 3000);
       if (fail) throw new Error("CDP request timed out");
-      if (params.expression === SESSION_STATUS_THREAD_ID_EXPRESSION) return { result: { value: threadId } };
+      if (params.expression === SESSION_STATUS_THREAD_ID_EXPRESSION) return { result: { value: [threadId] } };
       updates.push(params.expression);
       return {};
     },
@@ -64,7 +64,7 @@ test("authenticates immediate status requests, coalesces reads, and invalidates 
   assert.equal(runtime.sessionStatusUpdates.size, 0);
 });
 
-test("session status reads only the active Codex composer thread", () => {
+test("session status reads composer-bound threads only", () => {
   const threadId = "01a0db9f-71af-74d2-9189-17dfb57c096e";
   const read = ({ portalId, placement = "thread", selectedId = null, portalPresent = true, codexComposer = true }) => {
     const portal = portalPresent ? { getAttribute: () => portalId } : null;
@@ -73,24 +73,24 @@ test("session status reads only the active Codex composer thread", () => {
       getAttribute: () => placement,
     };
     const document = {
-      querySelector(selector) {
-        if (selector.includes("data-codex-composer=")) return codexComposer ? { closest: () => card } : null;
+      querySelectorAll(selector) {
+        if (selector.includes("data-codex-composer=")) return codexComposer ? [{ closest: () => card }] : [];
         if (selector.includes("data-app-action-sidebar-thread-selected")) {
           return selectedId ? { getAttribute: () => selectedId } : null;
         }
         return null;
       },
     };
-    return vm.runInNewContext(SESSION_STATUS_THREAD_ID_EXPRESSION, {
+    return Array.from(vm.runInNewContext(SESSION_STATUS_THREAD_ID_EXPRESSION, {
       document,
       location: { pathname: "/index.html", search: "", hash: "" },
-    });
+    }));
   };
 
-  assert.equal(read({ portalId: threadId }), threadId);
-  assert.equal(read({ portalId: null, placement: "home", selectedId: `local:${threadId}` }), null);
-  assert.equal(read({ portalPresent: false, selectedId: `local:${threadId}` }), null);
-  assert.equal(read({ portalId: threadId, codexComposer: false, selectedId: `local:${threadId}` }), null);
+  assert.deepEqual(read({ portalId: threadId }), [threadId]);
+  assert.deepEqual(read({ portalId: null, placement: "home", selectedId: `local:${threadId}` }), []);
+  assert.deepEqual(read({ portalPresent: false, selectedId: `local:${threadId}` }), []);
+  assert.deepEqual(read({ portalId: threadId, codexComposer: false, selectedId: `local:${threadId}` }), []);
 });
 
 function modelSliderFeatureFixture() {
@@ -2405,7 +2405,7 @@ test("reconnects a closed renderer and publishes the first turn before token usa
         socket: { readyState: 1, close() { this.readyState = 3; } },
         async send(method, params = {}) {
           if (method === "Page.addScriptToEvaluateOnNewDocument") return { identifier: "script" };
-          if (params.expression === SESSION_STATUS_THREAD_ID_EXPRESSION) return { result: { value: threadId } };
+          if (params.expression === SESSION_STATUS_THREAD_ID_EXPRESSION) return { result: { value: [threadId] } };
           if (params.expression?.startsWith("window.__minecodexSessionStatus?.update(")) updates.push(params.expression);
           return { result: { value: true } };
         },
@@ -2923,4 +2923,17 @@ test("Quick Prompts bridge permits only declared prompt routes on the registered
     assert.equal(replies.at(-1).ok, false);
   }
   assert.equal(calls.length, 1);
+});
+
+test("session status discovers main and side chat IDs without duplicates", () => {
+  const cards = ["main", "side", "main", null].map(id => ({
+    closest: () => ({
+      getAttribute: () => "thread",
+      querySelector: () => ({ getAttribute: () => id }),
+    }),
+  }));
+  const ids = vm.runInNewContext(SESSION_STATUS_THREAD_ID_EXPRESSION, {
+    document: { querySelectorAll: () => cards },
+  });
+  assert.deepEqual(Array.from(ids), ["main", "side"]);
 });
