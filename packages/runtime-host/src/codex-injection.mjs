@@ -1657,7 +1657,11 @@ export function createInjectionSource(features, {
       if (!wrapper?.hasAttribute("data-radix-popper-content-wrapper")) return;
       const existing = modelSelectorPositionObservers.get(wrapper);
       if (existing) {
-        existing.menu = menu;
+        if (existing.menu !== menu) {
+          existing.resizeObserver.unobserve(existing.menu);
+          existing.resizeObserver.observe(menu);
+          existing.menu = menu;
+        }
         return;
       }
       const record = {
@@ -1704,6 +1708,32 @@ export function createInjectionSource(features, {
         toggle.removeEventListener("click", handlers.openModels);
         toggle.removeEventListener("keydown", handlers.onKeyDown);
         modelSelectorNativeToggleHandlers.delete(toggle);
+      }
+    }
+
+    function restoreGenericModelPicker(container) {
+      const original = modelSelectorGenericContainers.get(container);
+      if (!original) return;
+      original.effectMirror?.disconnect();
+      if (container.isConnected) {
+        const menu = container.parentElement;
+        menu?.querySelector(":scope > [data-codex-model-slider-generic]")?.remove();
+        menu?.removeAttribute("data-codex-model-slider-generic-menu");
+        menu?.style.removeProperty("--codex-model-slider-menu-center-shift");
+        container.style.position = original.position;
+        container.style.inset = original.inset;
+        container.style.opacity = original.opacity;
+        container.style.pointerEvents = original.pointerEvents;
+        if (original.ariaHidden == null) container.removeAttribute("aria-hidden");
+        else container.setAttribute("aria-hidden", original.ariaHidden);
+        container.inert = original.inert;
+      }
+      modelSelectorGenericContainers.delete(container);
+    }
+
+    function pruneGenericModelPickerContainers() {
+      for (const container of modelSelectorGenericContainers.keys()) {
+        if (!container.isConnected) restoreGenericModelPicker(container);
       }
     }
 
@@ -2166,7 +2196,7 @@ export function createInjectionSource(features, {
         const scratchContext = scratch.getContext("2d");
         const cloneContext = cloneCanvas.getContext("2d");
         const copyCanvas = () => {
-          if (!shell.isConnected) {
+          if (!source.isConnected || !shell.isConnected) {
             disconnect();
             return;
           }
@@ -2193,7 +2223,7 @@ export function createInjectionSource(features, {
       const cloneEffects = clone.querySelector('[class*="_MaxEffects_"]');
       if (!sourceEffects || !cloneEffects) return { disconnect };
       const sync = () => {
-        if (!shell.isConnected) {
+        if (!source.isConnected || !shell.isConnected) {
           disconnect();
           return;
         }
@@ -2602,8 +2632,6 @@ export function createInjectionSource(features, {
         centerGenericModelPicker(parentMenu);
         return true;
       }
-      modelSelectorGenericContainers.get(parentMenu.firstElementChild)?.effectObserver?.disconnect();
-      existing?.remove();
       const nativeContainer = parentMenu.firstElementChild;
       if (!nativeContainer) return false;
       const shell = createGenericModelSlider(
@@ -2613,7 +2641,12 @@ export function createInjectionSource(features, {
         displayModel,
         selectedEffortValue,
       );
-      if (!shell) return false;
+      if (!shell) {
+        restoreGenericModelPicker(nativeContainer);
+        return false;
+      }
+      modelSelectorGenericContainers.get(nativeContainer)?.effectMirror?.disconnect();
+      existing?.remove();
       if (!modelSelectorGenericContainers.has(nativeContainer)) {
         modelSelectorGenericContainers.set(nativeContainer, {
           position: nativeContainer.style.position,
@@ -2634,7 +2667,7 @@ export function createInjectionSource(features, {
       shell.setAttribute("data-codex-model-slider-generic", key);
       shell.setAttribute("data-codex-model-slider-structure-key", structureKey);
       parentMenu.append(shell);
-      modelSelectorGenericContainers.get(nativeContainer).effectObserver = syncClonedPowerEffects(nativeContainer, shell);
+      modelSelectorGenericContainers.get(nativeContainer).effectMirror = syncClonedPowerEffects(nativeContainer, shell);
       centerGenericModelPicker(parentMenu);
       return true;
     }
@@ -2760,6 +2793,7 @@ export function createInjectionSource(features, {
       }
       pruneModelSubmenuPositionObservers();
       pruneNativeModelToggleHandlers();
+      pruneGenericModelPickerContainers();
       document.documentElement.setAttribute("data-codex-model-slider-catalog-ready", "");
       if (!modelSelectorStyle.isConnected) document.head?.append(modelSelectorStyle);
       enhanceComposerModelTrigger(selector);
@@ -2830,16 +2864,8 @@ export function createInjectionSource(features, {
         if (handlers.originalAriaExpanded == null) toggle.removeAttribute("aria-expanded");
         else toggle.setAttribute("aria-expanded", handlers.originalAriaExpanded);
       }
-      for (const [container, original] of modelSelectorGenericContainers) {
-        original.effectObserver?.disconnect();
-        if (!container.isConnected) continue;
-        container.style.position = original.position;
-        container.style.inset = original.inset;
-        container.style.opacity = original.opacity;
-        container.style.pointerEvents = original.pointerEvents;
-        if (original.ariaHidden == null) container.removeAttribute("aria-hidden");
-        else container.setAttribute("aria-hidden", original.ariaHidden);
-        container.inert = original.inert;
+      for (const container of modelSelectorGenericContainers.keys()) {
+        restoreGenericModelPicker(container);
       }
       document.querySelectorAll("[data-codex-model-slider-divider]")
         .forEach((element) => element.remove());
@@ -2856,7 +2882,6 @@ export function createInjectionSource(features, {
       document.documentElement.removeAttribute("data-codex-model-slider-catalog-ready");
       modelSelectorStyle.remove();
       modelSelectorOriginalToggleLabels.clear();
-      modelSelectorGenericContainers.clear();
       modelSelectorNativeToggleHandlers.clear();
     }
 

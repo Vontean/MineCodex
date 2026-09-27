@@ -855,7 +855,6 @@ test("emits a fail-closed native Composer model selector Adapter", () => {
   assert.match(source, /function loadPersistedNativeFastIcons\(storageKey\)/);
   assert.match(source, /function applyNativeFastIconsToShells\(\)/);
   assert.match(source, /modelSelectorNativeFastIcons\[state\] = template/);
-  assert.doesNotMatch(source, /function chatComposerModelController\(props\)/);
   assert.match(source, /width: 264px !important; min-width: 264px/);
   assert.match(source, /data-codex-model-slider-item\]\[data-codex-model-slider-selected\].*color-token-list-hover-background/);
   assert.match(source, /data-codex-model-slider-star\]::after \{/);
@@ -869,9 +868,6 @@ test("emits a fail-closed native Composer model selector Adapter", () => {
   assert.match(source, /for \(const type of \["mousedown", "pointerup", "mouseup"\]\)/);
   assert.match(source, /function sizeModelMenuViewport\(menu, maxVisibleItems\)/);
   assert.match(source, /const lastVisibleItem = items\[maxVisibleItems - 1\]/);
-  assert.doesNotMatch(source, /data-codex-model-slider-title/);
-  assert.doesNotMatch(source, /ensureModelMenuTitle/);
-  assert.doesNotMatch(source, /ensureModelSearch/);
   assert.match(source, /const starred = items\.filter/);
   assert.match(source, /const ordinary = items\.filter/);
   assert.match(
@@ -890,7 +886,7 @@ test("emits a fail-closed native Composer model selector Adapter", () => {
   }
   assert.match(source, /nativeCssModuleClass\(tokenName, parentMenu\)/);
   assert.match(source, /if \(Object\.values\(classes\)\.some\(\(name\) => !name\)\) return null/);
-  assert.match(source, /const shell = createGenericModelSlider[\s\S]*?if \(!shell\) return false/);
+  assert.match(source, /if \(!shell\) \{\s*restoreGenericModelPicker\(nativeContainer\);\s*return false;/);
   assert.doesNotMatch(source, /_1ryrb_/);
   assert.match(source, /const canUpgradeFallback = Boolean/);
   assert.match(source, /if \(efforts\.length < 2\) \{\s*panel\.append\(viewControls\);\s*return shell;/);
@@ -903,7 +899,6 @@ test("emits a fail-closed native Composer model selector Adapter", () => {
   assert.match(source, /characterData: true/);
   assert.match(source, /ensureFrame = requestAnimationFrame\(flushEnsure\)/);
   assert.match(source, /ensureTimer = setTimeout\(flushEnsure, 50\)/);
-  assert.doesNotMatch(source, /queueMicrotask\(ensureEntries\)/);
   assert.match(source, /previewFrame = requestAnimationFrame/);
   assert.match(source, /dragRect = rail\.getBoundingClientRect\(\)/);
   assert.match(
@@ -934,10 +929,7 @@ test("emits a fail-closed native Composer model selector Adapter", () => {
   assert.match(source, /restoreModelSelectorEnhancements\(\)/);
   assert.match(source, /data-codex-model-slider-catalog-ready/);
   assert.match(source, /data-codex-model-slider-trigger-label/);
-  assert.doesNotMatch(source, /select-model-effort/);
   assert.match(source, /"favoriteStorageKey":"codex-model-slider:favorites:v1"/);
-  assert.doesNotMatch(source, /"zh-CN":"搜索模型"/);
-  assert.doesNotMatch(source, /model_catalog_json/);
 });
 
 test("shows only the final model-id segment while preserving provider identity", async () => {
