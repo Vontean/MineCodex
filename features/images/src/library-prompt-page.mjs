@@ -1,6 +1,6 @@
 // 仅增强原生 Library 图片详情；不创建第二个图库或侧栏入口。
 const PANEL_ID = "minecodex-library-prompt";
-const zh = () => (document.documentElement.lang || navigator.language).toLowerCase().startsWith("zh");
+const zh = () => (document.documentElement.lang || navigator.language || "en").toLowerCase().startsWith("zh");
 const label = (en, cn) => zh() ? cn : en;
 let mounted = null;
 let apiPromise = null;
@@ -192,7 +192,15 @@ async function scan() {
   );
   panel.append(heading, body);
   host.append(panel);
-  const record = { header, file, identity, button, panel, body, close, request: null };
+  const record = { header, file, identity, button, panel, body, close, request: null,
+    refreshLocale() {
+      button.textContent = label("Prompt", "提示词");
+      panel.setAttribute("aria-label", label("Image prompt", "图片提示词"));
+      close.setAttribute("aria-label", label("Close prompt", "关闭提示词"));
+      heading.firstElementChild.textContent = label("Prompt", "提示词");
+      copyFeedback();
+    },
+  };
   mounted = record;
   copy.addEventListener("click", async () => {
     try {
@@ -210,6 +218,8 @@ async function scan() {
   close.addEventListener("click", () => closePanel(record, true));
 }
 
+const localeObserver = new MutationObserver(() => mounted?.refreshLocale());
+localeObserver.observe(document.documentElement, { attributes:true, attributeFilter:["lang"] });
 const observer = new MutationObserver(() => {
   if (scheduled) return;
   scheduled = true;
@@ -223,7 +233,7 @@ function escape(event) {
   closePanel(mounted, true);
 }
 document.addEventListener("keydown", escape, true);
-const cleanup = () => { candidate?.request.abort(); candidate = null; observer.disconnect(); document.removeEventListener("keydown", escape, true); unmount(); };
+const cleanup = () => { candidate?.request.abort(); candidate = null; observer.disconnect(); localeObserver.disconnect(); document.removeEventListener("keydown", escape, true); unmount(); };
 signal.addEventListener("abort", cleanup, { once: true });
 scan();
 return cleanup;

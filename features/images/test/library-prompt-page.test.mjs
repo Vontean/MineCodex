@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const source = await readFile(new URL("../src/library-prompt-page.mjs", import.meta.url), "utf8");
-const { libraryImage, promptFromConversation } = new Function(`${source.slice(0, source.indexOf("const observer ="))}\nreturn {libraryImage, promptFromConversation};`)();
+const { libraryImage, promptFromConversation } = new Function(`${source.slice(0, source.indexOf("const localeObserver ="))}\nreturn {libraryImage, promptFromConversation};`)();
 const file = { id: "libfile_a", file_id: "file_a", mime_type: "image/png", origination_message_id: "image", origination_thread_id: "thread" };
 function conversation({ prompt = "exact prompt", role = "tool", asset = "sediment://file_a", generation = true } = {}) {
   return { mapping: {
