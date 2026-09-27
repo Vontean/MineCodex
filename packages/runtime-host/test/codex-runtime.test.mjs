@@ -196,6 +196,8 @@ async function executeModelSliderInjection({
     appendChild(child) { this.append(child); return child; }
     matches(selector) {
       if (selector === this.tagName.toLowerCase()) return true;
+      const classContains = selector.match(/^\[class\*="([^"]+)"\]$/);
+      if (classContains) return String(this.className ?? this.getAttribute("class") ?? "").includes(classContains[1]);
       if (selector === '[style*="--thread-wide-block-inline-shift"]') {
         return Boolean(this.style.getPropertyValue("--thread-wide-block-inline-shift"));
       }
@@ -415,11 +417,18 @@ async function executeModelSliderInjection({
     };
     window.__maximumVisualProbe = () => {
       const rail = document.createElement("div");
+      const maxEffects = document.createElement("span");
+      maxEffects.className = "_MaxEffects_test";
+      maxEffects.style.opacity = "0";
+      rail.append(maxEffects);
       const effortText = document.createElement("span");
       const fastButton = document.createElement("button");
       syncGenericMaximumVisual(rail, effortText, fastButton, true);
       const maximum = {
         highlighted: rail.getAttribute("data-highlighted"),
+        max: rail.getAttribute("data-max"),
+        effectsOpacity: maxEffects.style.opacity,
+        effectsTransform: maxEffects.style.transform,
         effortMaximum: effortText.getAttribute("data-maximum"),
         fastMaximum: fastButton.getAttribute("data-max-power-selection"),
       };
@@ -428,6 +437,8 @@ async function executeModelSliderInjection({
         maximum,
         regular: {
           highlighted: rail.getAttribute("data-highlighted"),
+          max: rail.getAttribute("data-max"),
+          effectsOpacity: maxEffects.style.opacity,
           effortMaximum: effortText.getAttribute("data-maximum"),
           fastMaximum: fastButton.getAttribute("data-max-power-selection"),
         },
@@ -832,14 +843,14 @@ test("emits a fail-closed native Composer model selector Adapter", () => {
   // P2b guard: localStorage persist is dirty-flagged instead of running every ensure.
   assert.match(source, /if \(!modelSelectorNativeFastIcons \|\| !modelSelectorNativeFastIconsDirty\) return;/);
   assert.match(source, /modelSelectorNativeFastIconsDirty = true;/);
-  // P2c guard: the full-page SVG scan is gated to Fast-control visibility transitions.
+  // P2c guard: Fast 图标直接从原生控件获取，并在状态切换后更新缓存。
   // Sidebar selection must use the native selected class bg-primary-ghost-hover:
   // highlight the active MineCodex entry with it and strip it from native items.
   assert.match(source, /entry\.classList\.toggle\(\"bg-primary-ghost-hover", selected\);/);
   assert.match(source, /element\.classList\.remove\(\"bg-primary-ghost-hover"\);/);
   assert.match(source, /classList\.toggle\(\"bg-primary-ghost-hover", Boolean\(selection\.hadPrimaryGhost\)\);/);
-  assert.match(source, /const justBecameVisible = visible && !modelSelectorFastControlVisible;/);
-  assert.match(source, /if \(visible && justBecameVisible\) \{/);
+  assert.match(source, /const nativeContent = Array\.from\(document\.querySelectorAll\('\[class\*="_FastModeToggleContent_"\]'\)\)/);
+  assert.match(source, /const state = toggle\?\.getAttribute\("data-fast-mode-enabled"\) === "true" \? "active" : "inactive"/);
   assert.match(source, /function loadNativeFastIconFromBundle\(\)/);
   assert.match(source, /modelSelectorFastIconStorageKey = "codex-model-slider:fast-icons:v1"/);
   assert.match(source, /function persistNativeFastIcons\(\)/);
@@ -1096,8 +1107,8 @@ test("synchronizes the native maximum highlight with effort previews", async () 
     },
   });
   assert.deepEqual(result.maximumVisual(), {
-    maximum: { highlighted: "true", effortMaximum: "true", fastMaximum: "true" },
-    regular: { highlighted: "false", effortMaximum: "false", fastMaximum: "false" },
+    maximum: { highlighted: "true", max: "true", effectsOpacity: "1", effectsTransform: "translateX(0)", effortMaximum: "true", fastMaximum: "true" },
+    regular: { highlighted: "false", max: "false", effectsOpacity: "0", effortMaximum: "false", fastMaximum: "false" },
   });
 });
 
@@ -1202,8 +1213,9 @@ test("resolves Model Slider effort from the native controller before the trigger
   assert.match(source, /const currentReasoningLevel = String\(controller\?\.reasoningEffort \?\? ""\)\.toLowerCase\(\)/);
   // 已解析 effort 决定最终滑杆索引：max 落在最右档。
   assert.match(source, /const selectedIndex = efforts\.indexOf\(selectedEffort\)/);
-  // 任务切换时按可控状态重建：key 包含已解析 effort，key 变化即重建菜单。
-  assert.match(source, /const key = `\$\{identity\.raw\}:\$\{selectedEffortValue\}:/);
+  // 任务切换时按可控状态重建：结构 key 包含已解析 effort。
+  assert.match(source, /const structureKey = `\$\{identity\.raw\}:\$\{selectedEffortValue\}:/);
+  assert.match(source, /const key = `\$\{structureKey\}:\$\{serviceTierKey\}`/);
   assert.match(source, /existing\?\.getAttribute\("data-codex-model-slider-generic"\) === key/);
 });
 
@@ -1235,11 +1247,13 @@ test("normalizes Composer trigger effort-label alignment under Model Slider", ()
   );
 });
 
-test("keeps the model-panel chevron beside the reasoning effort", () => {
+test("keeps the model-panel chevron beside the model name", () => {
   const source = createInjectionSource([modelSliderFeatureFixture()]);
   assert.match(source, /effortText\.style\.gridColumn = "2";/);
   assert.match(source, /effortText\.style\.gridRow = "1";/);
-  assert.match(source, /nativeChevron\.style\.gridRow = "1";/);
+  assert.match(source, /modelRow\.append\(buttonLabel\);/);
+  assert.match(source, /modelRow\.append\(nativeChevron\);/);
+  assert.match(source, /buttonContent\.append\(effortRow, modelRow\);/);
 });
 
 test("rebuilds the upgraded native slider from the selected model capabilities", () => {

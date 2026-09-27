@@ -254,8 +254,6 @@ export function createInjectionSource(features, {
     let modelSelectorNativeFastIcons = null;
     // Fast 图标来源标记：bundle 静态提取 vs DOM 克隆，DOM 克隆优先以保持像素一致。
     let modelSelectorNativeFastIconSources = null;
-    // DOM 克隆可见性门控：仅在 Fast 控件从无到有时扫描一次，常驻会话不逐帧扫描。
-    let modelSelectorFastControlVisible = false;
     // 持久化脏标记：仅在图标实际变化时写一次 localStorage。
     let modelSelectorNativeFastIconsDirty = false;
     const modelSelectorFastIconStorageKey = "codex-model-slider:fast-icons:v1";
@@ -345,10 +343,12 @@ export function createInjectionSource(features, {
       }
       [data-codex-model-slider-generic] { box-sizing: border-box; width: 100%; }
       [data-codex-model-slider-fast] { border: 0; background: transparent; cursor: pointer; }
+      [data-codex-model-slider-fast]:not(:hover) [data-codex-model-slider-fast-content] { background: transparent; }
       [data-codex-model-slider-fast]:focus-visible { outline: 2px solid var(--color-border-focus); outline-offset: 1px; }
       [data-codex-model-slider-rail][data-codex-model-slider-fallback] { position: relative; height: 38px; margin: 1px 8px 0; outline: none; cursor: pointer; }
       [data-codex-model-slider-track] { position: absolute; top: 12px; right: 0; left: 0; height: 16px; border-radius: 999px; background: var(--color-background-control); }
       [data-codex-model-slider-range] { position: absolute; top: 0; bottom: 0; left: 0; width: var(--codex-model-slider-progress); border-radius: inherit; background: var(--color-text-accent); }
+      [data-codex-model-slider-rail][data-max="true"] [data-codex-model-slider-range] { background: var(--color-chart-purple); }
       [data-codex-model-slider-fallback] [data-codex-model-slider-tick] {
         position: absolute; top: 16px; width: 6px; height: 6px; transform: translate(-50%, -50%); border: 0; border-radius: 50%;
         padding: 0; background: var(--color-text-foreground-tertiary); pointer-events: none;
@@ -823,50 +823,26 @@ export function createInjectionSource(features, {
       }
     }
 
-    function hasVisibleFastControl() {
-      return Boolean(
-        document.querySelector("[data-codex-model-slider-fast]")
-        || document.querySelector('[class*="_FastModeToggle_"]')
-        || document.querySelector('[class*="_ModelPickerTriggerFastIndicator_"] svg'),
-      );
-    }
-
     function captureNativeFastIcon() {
-      // Fast 图标只在 Fast 控件渲染后才出现在 DOM（打开菜单或 GPT 模型）；
-      // 只在控件可见性从无到有时做一次全页扫描（升级为 DOM 克隆），
-      // 常驻会话不逐帧扫描整个文档；缺图标时由 bundle/持久化兜底。
-      const visible = hasVisibleFastControl();
-      const justBecameVisible = visible && !modelSelectorFastControlVisible;
-      modelSelectorFastControlVisible = visible;
-      if (visible && justBecameVisible) {
-        const capture = (state, pathPrefix) => {
-          const current = modelSelectorNativeFastIcons?.[state];
-          const currentSource = modelSelectorNativeFastIconSources?.[state];
-          if (current && currentSource === "dom") return;
-          const path = Array.from(document.querySelectorAll("svg path")).find(
-            (candidate) => candidate.getAttribute("d")?.startsWith(pathPrefix),
-          );
-          const svg = path?.closest("svg");
-          if (!svg) return;
-          const template = svg.cloneNode(true);
-          template.removeAttribute("id");
-          // 统一呈现尺寸：保留原生 viewBox，固定 20px。DOM 克隆来源是
-          // 原生 active(24px)/inactive(20px) 两套 SVG，若不归一化，
-          // active 24px 放进 26px 的 Fast content 容器会显得大一圈。
-          template.setAttribute("width", "20");
-          template.setAttribute("height", "20");
-          if (!modelSelectorNativeFastIcons) {
-            modelSelectorNativeFastIcons = {};
-            modelSelectorNativeFastIconSources = {};
-          }
-          modelSelectorNativeFastIcons[state] = template;
-          modelSelectorNativeFastIconSources[state] = "dom";
-          modelSelectorNativeFastIconsDirty = true;
-        };
-        capture("active", "M11.9125 21.4125");
-        // 现版 app 的 inactive bolt 为 20x20，路径以 M9.80999 开头；
-        // 旧的 M7.38 前缀已匹配不到任何图标，导致 inactive 缺失。
-        capture("inactive", "M9.80999 17.8302");
+      // 原生控件每次只渲染当前状态；状态切换后按控件本身更新缓存。
+      const nativeContent = Array.from(document.querySelectorAll('[class*="_FastModeToggleContent_"]'))
+        .find((content) => !content.closest("[data-codex-model-slider-generic]"));
+      const toggle = nativeContent?.closest('[class*="_FastModeToggle_"]');
+      const state = toggle?.getAttribute("data-fast-mode-enabled") === "true" ? "active" : "inactive";
+      const svg = nativeContent?.querySelector("svg");
+      const current = modelSelectorNativeFastIcons?.[state];
+      if (svg && (current?.innerHTML !== svg.innerHTML
+        || current.getAttribute("viewBox") !== svg.getAttribute("viewBox")
+        || current.getAttribute("width") !== svg.getAttribute("width"))) {
+        const template = svg.cloneNode(true);
+        template.removeAttribute("id");
+        if (!modelSelectorNativeFastIcons) {
+          modelSelectorNativeFastIcons = {};
+          modelSelectorNativeFastIconSources = {};
+        }
+        modelSelectorNativeFastIcons[state] = template;
+        modelSelectorNativeFastIconSources[state] = "dom";
+        modelSelectorNativeFastIconsDirty = true;
       }
       const ready = Boolean(
         modelSelectorNativeFastIcons?.active && modelSelectorNativeFastIcons?.inactive,
@@ -881,25 +857,37 @@ export function createInjectionSource(features, {
     function applyNativeFastIconsToShells() {
       document.querySelectorAll("[data-codex-model-slider-fast]").forEach((button) => {
         const content = button.querySelector("[data-codex-model-slider-fast-content]");
-        // 幂等补装：只给还没有图标的按钮补上，避免每次 ensure 都重建节点。
-        if (!content || content.querySelector("svg")) return;
+        if (!content) return;
         const icon = createNativeFastIcon(button.getAttribute("aria-pressed") === "true");
-        if (icon) content.replaceChildren(icon);
+        if (!icon) return;
+        const current = content.querySelector("svg");
+        if (!current || current.innerHTML !== icon.innerHTML
+          || current.getAttribute("viewBox") !== icon.getAttribute("viewBox")
+          || current.getAttribute("width") !== icon.getAttribute("width")) {
+          content.replaceChildren(icon);
+        }
       });
     }
 
     function createNativeFastIcon(active) {
       // 直接读取已就绪的图标存储（启动时由 bundle/持久化填充，运行期由
       // captureNativeFastIcon 升级为 DOM 克隆），避免再次触发捕获造成递归。
-      // 优先克隆当前面板的图标，保留原生尺寸和路径，不使用旧版图标规格。
-      const nativeContent = Array.from(document.querySelectorAll('[class*="_FastModeToggleContent_"]'))
-        .find((content) => !content.closest("[data-codex-model-slider-generic]")
-          && (content.getAttribute("data-fast-mode-enabled")
-            ?? content.closest('[class*="_FastModeToggle_"]')?.getAttribute("data-fast-mode-enabled")) === String(active));
+      // 优先克隆当前面板的图标；切换瞬间使用缓存时，也沿用原生图标尺寸。
+      const nativeContents = Array.from(document.querySelectorAll('[class*="_FastModeToggleContent_"]'))
+        .filter((content) => !content.closest("[data-codex-model-slider-generic]"));
+      const nativeContent = nativeContents.find((content) => (
+        (content.getAttribute("data-fast-mode-enabled")
+          ?? content.closest('[class*="_FastModeToggle_"]')?.getAttribute("data-fast-mode-enabled")) === String(active)
+      ));
+      const nativeSvg = nativeContent?.querySelector("svg") ?? nativeContents[0]?.querySelector("svg");
       const template = nativeContent?.querySelector("svg")
         ?? modelSelectorNativeFastIcons?.[active ? "active" : "inactive"];
       if (!template) return null;
       const icon = template.cloneNode(true);
+      if (nativeSvg) {
+        icon.setAttribute("width", nativeSvg.getAttribute("width") ?? "16");
+        icon.setAttribute("height", nativeSvg.getAttribute("height") ?? "16");
+      }
       icon.setAttribute("aria-hidden", "true");
       return icon;
     }
@@ -2004,8 +1992,14 @@ export function createInjectionSource(features, {
     function syncGenericMaximumVisual(rail, effortText, fastButton, maximum) {
       const value = String(maximum);
       rail?.setAttribute("data-highlighted", value);
+      rail?.setAttribute("data-max", value);
       effortText?.setAttribute("data-maximum", value);
       fastButton?.setAttribute("data-max-power-selection", value);
+      const maxEffects = rail?.querySelector('[class*="_MaxEffects_"]');
+      if (maxEffects) {
+        maxEffects.style.opacity = maximum ? "1" : "0";
+        if (maximum) maxEffects.style.transform = "translateX(0)";
+      }
     }
 
     function neutralizeStaleSliderVisual(rail) {
@@ -2031,9 +2025,21 @@ export function createInjectionSource(features, {
       return value - Math.floor(value);
     }
 
-    function syncNativeFastParticles(rail, enabled) {
+    function syncNativeFastParticles(rail, enabled, entering = false) {
       const track = Array.from(rail.children).find((element) => String(element.className).includes("_Track_"));
       if (!track) return;
+      const staticParticles = rail.querySelector('[class*="_ParticleTransition_"]');
+      if (staticParticles && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        staticParticles.__codexStaticParticleFade?.cancel();
+        staticParticles.style.opacity = enabled ? "0" : "1";
+        if (entering) {
+          // 动态粒子渐显时，让原有星点在同一时间淡出。
+          staticParticles.__codexStaticParticleFade = staticParticles.animate(
+            [{ opacity: 1 }, { opacity: 0 }],
+            { duration: 240, easing: "ease-out" },
+          );
+        }
+      }
       track.querySelectorAll('[class*="_FastParticleClip_"]').forEach((element) => element.remove());
       if (!enabled || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
       const clipClass = nativeCssModuleClass("FastParticleClip");
@@ -2073,6 +2079,10 @@ export function createInjectionSource(features, {
       clip.append(particles);
       const tickRail = Array.from(track.children).find((element) => String(element.className).includes("_TickRail_"));
       track.insertBefore(clip, tickRail ?? null);
+      if (entering) {
+        // 首帧沿用关闭 Fast 时的星点，再渐显流动粒子。
+        clip.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 240, easing: "ease-out" });
+      }
     }
 
     function syncGenericFastVisual(shell, enabled, maxPowerSelection, animate = false) {
@@ -2095,8 +2105,18 @@ export function createInjectionSource(features, {
       if (icon && content) content.replaceChildren(icon);
       rail.setAttribute("data-fast-mode", String(enabled));
       rail.setAttribute("data-fast-mode-dot-transition", animate ? (enabled ? "entering" : "exiting") : (enabled ? "active" : "inactive"));
-      syncNativeFastParticles(rail, enabled);
+      syncNativeFastParticles(rail, enabled, animate && enabled);
       setGenericSliderVisual(rail, Number(rail.getAttribute("aria-valuenow") ?? 0), Number(rail.getAttribute("aria-valuemax") ?? 0) + 1);
+      if (animate && enabled) {
+        shell.setAttribute("data-codex-model-slider-fast-transitioning", "");
+        setTimeout(() => {
+          if (!shell.isConnected) return;
+          shell.removeAttribute("data-codex-model-slider-fast-transitioning");
+          queueEnsure();
+        }, 260);
+      } else {
+        shell.removeAttribute("data-codex-model-slider-fast-transitioning");
+      }
       if (animate) {
         setTimeout(() => {
           if (rail.isConnected && rail.getAttribute("data-fast-mode") === String(enabled)) {
@@ -2155,6 +2175,88 @@ export function createInjectionSource(features, {
       return clone;
     }
 
+    function syncClonedPowerEffects(nativeContainer, shell) {
+      const source = nativeContainer.querySelector("[data-model-picker-power-slider]");
+      const clone = shell.querySelector("[data-codex-model-slider-native-slider]");
+      if (!source || !clone) return null;
+      const sourceCanvas = source.querySelector("canvas");
+      const cloneCanvas = clone.querySelector("canvas");
+      let canvasTimer = null;
+      let observer = null;
+      const disconnect = () => {
+        observer?.disconnect();
+        if (canvasTimer != null) clearInterval(canvasTimer);
+      };
+      if (sourceCanvas && cloneCanvas) {
+        // 原生 canvas 可能在首次克隆时尚未绘制；持续同步其高光纹理。
+        const scratch = document.createElement("canvas");
+        const scratchContext = scratch.getContext("2d");
+        const cloneContext = cloneCanvas.getContext("2d");
+        const copyCanvas = () => {
+          if (!shell.isConnected) {
+            disconnect();
+            return;
+          }
+          if (scratch.width !== sourceCanvas.width || scratch.height !== sourceCanvas.height) {
+            scratch.width = sourceCanvas.width;
+            scratch.height = sourceCanvas.height;
+            cloneCanvas.width = sourceCanvas.width;
+            cloneCanvas.height = sourceCanvas.height;
+          }
+          scratchContext.clearRect(0, 0, scratch.width, scratch.height);
+          scratchContext.drawImage(sourceCanvas, 0, 0);
+          const y = Math.floor(scratch.height / 2);
+          const hasDrawing = [0.25, 0.5, 0.75].some((ratio) => (
+            scratchContext.getImageData(Math.floor(scratch.width * ratio), y, 1, 1).data[3] > 0
+          ));
+          if (!hasDrawing) return;
+          cloneContext.clearRect(0, 0, cloneCanvas.width, cloneCanvas.height);
+          cloneContext.drawImage(scratch, 0, 0);
+        };
+        copyCanvas();
+        canvasTimer = setInterval(copyCanvas, 80);
+      }
+      const sourceEffects = source.querySelector('[class*="_MaxEffects_"]');
+      const cloneEffects = clone.querySelector('[class*="_MaxEffects_"]');
+      if (!sourceEffects || !cloneEffects) return { disconnect };
+      const sync = () => {
+        if (!shell.isConnected) {
+          disconnect();
+          return;
+        }
+        const sourceTransition = sourceEffects.querySelector('[class*="_ParticleTransition_"]');
+        let cloneTransition = cloneEffects.querySelector('[class*="_ParticleTransition_"]');
+        if (!sourceTransition) {
+          if (clone.querySelector("[data-fast-mode]")?.getAttribute("data-fast-mode") !== "true") {
+            cloneTransition?.remove();
+          }
+          return;
+        }
+        const sourceParticles = sourceTransition.querySelectorAll('[class*="_TrackParticle_"]');
+        let cloneParticles = cloneTransition?.querySelectorAll('[class*="_TrackParticle_"]');
+        if (!cloneTransition || sourceParticles.length !== cloneParticles.length) {
+          cloneTransition?.remove();
+          cloneTransition = sourceTransition.cloneNode(true);
+          cloneEffects.append(cloneTransition);
+          cloneParticles = cloneTransition.querySelectorAll('[class*="_TrackParticle_"]');
+        }
+        cloneTransition.setAttribute("style", sourceTransition.getAttribute("style") ?? "");
+        sourceParticles.forEach((particle, index) => {
+          const style = particle.getAttribute("style") ?? "";
+          if (cloneParticles[index].getAttribute("style") !== style) {
+            cloneParticles[index].setAttribute("style", style);
+          }
+        });
+        if (!matchMedia("(prefers-reduced-motion: reduce)").matches) {
+          cloneTransition.style.opacity = clone.querySelector("[data-fast-mode]")?.getAttribute("data-fast-mode") === "true" ? "0" : "1";
+        }
+      };
+      observer = new MutationObserver(sync);
+      observer.observe(sourceEffects, { attributes: true, attributeFilter: ["style"], childList: true, subtree: true });
+      sync();
+      return { disconnect };
+    }
+
     function createGenericModelSlider(parentMenu, selector, identity, model, selectedEffort) {
       const efforts = model.supportedReasoningLevels.map((level) => level.effort);
       const selectedIndex = efforts.indexOf(selectedEffort);
@@ -2211,10 +2313,19 @@ export function createInjectionSource(features, {
       buttonLabel.className = classes.ViewToggleModelLabel;
       buttonLabel.setAttribute("data-codex-model-slider-model-label", "");
       buttonLabel.textContent = modelDisplayLabel(identity, selector);
+      const modelRow = document.createElement("span");
+      modelRow.setAttribute("data-codex-model-slider-model-row", "");
+      modelRow.style.display = "inline-flex";
+      modelRow.style.alignItems = "center";
+      modelRow.style.justifyContent = "center";
+      modelRow.style.gap = "calc(var(--spacing) / 2)";
+      modelRow.style.minWidth = "0";
+      modelRow.style.maxWidth = "100%";
+      modelRow.append(buttonLabel);
       const effortText = selectedEffortVisible ? document.createElement("span") : null;
       if (effortText) {
         effortText.className = classes.ViewToggleEffortLabel;
-        // 原生标签会跨满整行；收回中列，让 chevron 保持在强度右侧。
+        // 原生标签会跨满整行；收回中列，使上下两行各自居中。
         effortText.style.gridColumn = "2";
         effortText.style.gridRow = "1";
         effortText.textContent = effortLabel(selectedEffort);
@@ -2230,14 +2341,13 @@ export function createInjectionSource(features, {
       )?.cloneNode(true);
       if (nativeChevron) {
         nativeChevron.classList.add(classes.ViewToggleIcon);
-        nativeChevron.style.gridRow = "1";
+        nativeChevron.style.gridArea = "auto";
+        nativeChevron.style.flexShrink = "0";
         nativeChevron.setAttribute("aria-hidden", "true");
-        if (effortText) effortRow.append(effortText);
-        effortRow.append(nativeChevron);
-      } else {
-        if (effortText) effortRow.append(effortText);
+        modelRow.append(nativeChevron);
       }
-      buttonContent.append(effortRow, buttonLabel);
+      if (effortText) effortRow.append(effortText);
+      buttonContent.append(effortRow, modelRow);
       modelButton.append(buttonContent);
       const openModels = () => openControllerModelMenu(parentMenu, modelButton, selector);
       modelButton.addEventListener("click", openModels);
@@ -2483,7 +2593,8 @@ export function createInjectionSource(features, {
       const selectedServiceTier = nativeComposerModelController()?.selectedServiceTier;
       const serviceTierKey = selectedServiceTier?.id ?? selectedServiceTier ?? "standard";
       const selectionMode = nativeComposerModelController()?.selectionMode ?? "";
-      const key = `${identity.raw}:${selectedEffortValue}:${serviceTierKey}:${selectionMode}:${efforts.map((level) => level.effort).join(",")}`;
+      const structureKey = `${identity.raw}:${selectedEffortValue}:${selectionMode}:${efforts.map((level) => level.effort).join(",")}`;
+      const key = `${structureKey}:${serviceTierKey}`;
       const existing = parentMenu.querySelector(":scope > [data-codex-model-slider-generic]");
       const nativeTemplateReady = Boolean(
         parentMenu.firstElementChild
@@ -2501,10 +2612,25 @@ export function createInjectionSource(features, {
       const canUpgradeFallback = Boolean(
         existing?.querySelector("[data-codex-model-slider-fallback]") && nativeTemplateReady,
       );
+      if (existing?.getAttribute("data-codex-model-slider-structure-key") === structureKey
+        && existing.hasAttribute("data-codex-model-slider-fast-transitioning") && !canUpgradeFallback) {
+        centerGenericModelPicker(parentMenu);
+        return true;
+      }
+      const currentFast = existing?.querySelector("[data-codex-model-slider-rail]")?.getAttribute("data-fast-mode");
+      const nativeFast = parentMenu.firstElementChild
+        ?.querySelector("[data-model-picker-power-slider] [data-fast-mode]")?.getAttribute("data-fast-mode");
+      if (existing?.getAttribute("data-codex-model-slider-structure-key") === structureKey
+        && currentFast != null && currentFast === nativeFast && !canUpgradeFallback) {
+        existing.setAttribute("data-codex-model-slider-generic", key);
+        centerGenericModelPicker(parentMenu);
+        return true;
+      }
       if (existing?.getAttribute("data-codex-model-slider-generic") === key && !canUpgradeFallback) {
         centerGenericModelPicker(parentMenu);
         return true;
       }
+      modelSelectorGenericContainers.get(parentMenu.firstElementChild)?.effectObserver?.disconnect();
       existing?.remove();
       const nativeContainer = parentMenu.firstElementChild;
       if (!nativeContainer) return false;
@@ -2517,12 +2643,26 @@ export function createInjectionSource(features, {
       );
       if (!shell) return false;
       if (!modelSelectorGenericContainers.has(nativeContainer)) {
-        modelSelectorGenericContainers.set(nativeContainer, nativeContainer.style.display);
+        modelSelectorGenericContainers.set(nativeContainer, {
+          position: nativeContainer.style.position,
+          inset: nativeContainer.style.inset,
+          opacity: nativeContainer.style.opacity,
+          pointerEvents: nativeContainer.style.pointerEvents,
+          ariaHidden: nativeContainer.getAttribute("aria-hidden"),
+          inert: nativeContainer.inert,
+        });
       }
       parentMenu.setAttribute("data-codex-model-slider-generic-menu", "");
-      nativeContainer.style.display = "none";
+      nativeContainer.style.position = "absolute";
+      nativeContainer.style.inset = "0";
+      nativeContainer.style.opacity = "0";
+      nativeContainer.style.pointerEvents = "none";
+      nativeContainer.setAttribute("aria-hidden", "true");
+      nativeContainer.inert = true;
       shell.setAttribute("data-codex-model-slider-generic", key);
+      shell.setAttribute("data-codex-model-slider-structure-key", structureKey);
       parentMenu.append(shell);
+      modelSelectorGenericContainers.get(nativeContainer).effectObserver = syncClonedPowerEffects(nativeContainer, shell);
       centerGenericModelPicker(parentMenu);
       return true;
     }
@@ -2533,7 +2673,15 @@ export function createInjectionSource(features, {
       parentMenu.style.removeProperty("--codex-model-slider-menu-center-shift");
       const nativeContainer = parentMenu.firstElementChild;
       if (nativeContainer && modelSelectorGenericContainers.has(nativeContainer)) {
-        nativeContainer.style.display = modelSelectorGenericContainers.get(nativeContainer);
+        const original = modelSelectorGenericContainers.get(nativeContainer);
+        original.effectObserver?.disconnect();
+        nativeContainer.style.position = original.position;
+        nativeContainer.style.inset = original.inset;
+        nativeContainer.style.opacity = original.opacity;
+        nativeContainer.style.pointerEvents = original.pointerEvents;
+        if (original.ariaHidden == null) nativeContainer.removeAttribute("aria-hidden");
+        else nativeContainer.setAttribute("aria-hidden", original.ariaHidden);
+        nativeContainer.inert = original.inert;
         modelSelectorGenericContainers.delete(nativeContainer);
       }
     }
@@ -2729,8 +2877,16 @@ export function createInjectionSource(features, {
         if (handlers.originalAriaExpanded == null) toggle.removeAttribute("aria-expanded");
         else toggle.setAttribute("aria-expanded", handlers.originalAriaExpanded);
       }
-      for (const [container, display] of modelSelectorGenericContainers) {
-        if (container.isConnected) container.style.display = display;
+      for (const [container, original] of modelSelectorGenericContainers) {
+        original.effectObserver?.disconnect();
+        if (!container.isConnected) continue;
+        container.style.position = original.position;
+        container.style.inset = original.inset;
+        container.style.opacity = original.opacity;
+        container.style.pointerEvents = original.pointerEvents;
+        if (original.ariaHidden == null) container.removeAttribute("aria-hidden");
+        else container.setAttribute("aria-hidden", original.ariaHidden);
+        container.inert = original.inert;
       }
       document.querySelectorAll("[data-codex-model-slider-divider]")
         .forEach((element) => element.remove());
