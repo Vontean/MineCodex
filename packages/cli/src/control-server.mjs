@@ -196,7 +196,7 @@ async function iconResponse(id, paths, response) {
   if (id === "model-slider") {
     iconPath = path.join(paths.featuresRoot, id, "assets", "ui", "sparkles.svg");
   } else if (id === "notes") {
-    iconPath = path.join(paths.featuresRoot, id, "assets", "icons", "sticky-note.svg");
+    iconPath = path.join(paths.featuresRoot, id, "assets", "icons", "book-open.svg");
   } else if (["images", "hide-upsell-banner", "session-status", "usage-meter"].includes(id)) {
     const manifest = JSON.parse(await readFile(path.join(paths.featuresRoot, id, "codex-feature.json"), "utf8"));
     const viewBox = manifest.icon?.viewBox ?? "0 0 24 24";

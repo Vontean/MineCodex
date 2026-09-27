@@ -3,80 +3,19 @@
   "id": "notes",
   "version": "0.1.11",
   "label": {
-    "en": "Notes",
-    "zh-CN": "笔记"
+    "en": "Prompts",
+    "zh-CN": "提示词"
   },
   "description": {
-    "en": "Manage cross-session todos, reusable prompts, and files from the Codex toolbar.",
-    "zh-CN": "在 Codex 中跨会话管理待办、常用提示词和文件，并快速复用。"
+    "en": "Organize prompts, track usage, and insert them from the composer.",
+    "zh-CN": "分类管理提示词、统计调用次数，并从输入框快速调用。"
   },
-  "surfaceUrl": "http://127.0.0.1:47832/?surface=summary",
+  "surfaceUrl": "http://127.0.0.1:47832/",
   "healthUrl": "http://127.0.0.1:47832/api/health",
   "entry": {
-    "kind": "conversation-toolbar",
-    "ariaLabel": {
-      "en": "Toggle pinned notes",
-      "zh-CN": "切换固定笔记"
-    }
+    "kind": "page-script",
+    "script": "src/quick-prompts-page.mjs"
   },
-  "pinnedSummary": {
-    "label": {
-      "en": "Pinned Notes",
-      "zh-CN": "固定笔记"
-    },
-    "presentation": "responsive-summary",
-    "overlayLabel": {
-      "en": "Toggle notes",
-      "zh-CN": "切换笔记"
-    },
-    "pinnedLabel": {
-      "en": "Toggle pinned notes",
-      "zh-CN": "切换固定笔记"
-    },
-    "surfaceUrl": "http://127.0.0.1:47832/?surface=summary"
-  },
-  "detailTabs": [
-    {
-      "id": "todo",
-      "label": {
-        "en": "Todo",
-        "zh-CN": "待办"
-      },
-      "surfaceUrl": "http://127.0.0.1:47832/?surface=todo",
-      "icon": {
-        "resource": "assets/icons/list-todo.svg"
-      }
-    },
-    {
-      "id": "prompts",
-      "label": {
-        "en": "Prompts",
-        "zh-CN": "提示词"
-      },
-      "surfaceUrl": "http://127.0.0.1:47832/?surface=prompts",
-      "icon": {
-        "resource": "assets/icons/message-square-quote.svg"
-      }
-    },
-    {
-      "id": "files",
-      "label": {
-        "en": "Files",
-        "zh-CN": "文件"
-      },
-      "surfaceUrl": "http://127.0.0.1:47832/?surface=files",
-      "icon": {
-        "resource": "assets/icons/paperclip.svg"
-      }
-    }
-  ],
-  "hostActions": [
-    "insert-text",
-    "attach-file",
-    "open-detail-tab",
-    "open-editor-modal",
-    "resolve-file-paths"
-  ],
   "placement": {
     "order": 20
   },
@@ -85,6 +24,9 @@
     "src/main.mjs"
   ],
   "icon": {
-    "resource": "assets/icons/sticky-note.svg"
-  }
+    "resource": "assets/icons/book-open.svg"
+  },
+  "hostActions": [
+    "quick-prompts"
+  ]
 }

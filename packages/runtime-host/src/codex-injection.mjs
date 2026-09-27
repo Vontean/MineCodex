@@ -390,12 +390,14 @@ export function createInjectionSource(features, {
           "config",
           `"use strict";\n${source}`,
         );
+        const pageConfig = feature.pageScript.config ??= {};
+        pageConfig.requestHostAction = (action, payload) => requestPageHostAction(feature.id, action, payload);
         const cleanup = installer(
           lifetime.signal,
           window,
           document,
           MutationObserver,
-          feature.pageScript.config ?? {},
+          pageConfig,
         );
         if (typeof cleanup === "function") pageScriptCleanups.push(cleanup);
       } catch (error) {
@@ -4526,10 +4528,36 @@ export function createInjectionSource(features, {
       }
     }
 
+    function requestPageHostAction(featureId, action, payload) {
+      if (!featureById.get(featureId)?.hostActions.has(action)) return Promise.reject(new Error("Host action is not registered"));
+      if (typeof globalThis[config.bindingName] !== "function") return Promise.reject(new Error("Host bridge is unavailable"));
+      return new Promise((resolve, reject) => {
+        const requestId = crypto.randomUUID();
+        const timer = setTimeout(() => {
+          pendingHostActions.delete(requestId);
+          reject(new Error("Host request timed out"));
+        }, 10_000);
+        pendingHostActions.set(requestId, { kind: "page-script", resolve, reject, timer });
+        try {
+          globalThis[config.bindingName](JSON.stringify({ token: config.bindingToken, featureId, requestId, action, payload }));
+        } catch (error) {
+          clearTimeout(timer);
+          pendingHostActions.delete(requestId);
+          reject(error);
+        }
+      });
+    }
+
     function resolveHostAction(requestId, response) {
       const pending = pendingHostActions.get(requestId);
       if (!pending) return false;
       pendingHostActions.delete(requestId);
+      if (pending.kind === "page-script") {
+        clearTimeout(pending.timer);
+        if (response.ok) pending.resolve(response.result);
+        else pending.reject(new Error(response.error?.message ?? "Host request failed"));
+        return true;
+      }
       const record = surfaceRecords.get(pending.recordKey);
       if (!record) return false;
       if (pending.kind === "surface-load") {
@@ -4712,6 +4740,12 @@ export function createInjectionSource(features, {
       resolveHostAction,
       dispose: () => {
         lifetime.abort();
+        for (const [id, pending] of pendingHostActions) {
+          if (pending.kind !== "page-script") continue;
+          clearTimeout(pending.timer);
+          pending.reject(new Error("Runtime disposed"));
+          pendingHostActions.delete(id);
+        }
         for (const cleanup of pageScriptCleanups.splice(0)) {
           try { cleanup(); } catch (error) {
             console.warn("[codex-personal] page-script cleanup failed", error);

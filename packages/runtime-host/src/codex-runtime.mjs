@@ -546,6 +546,29 @@ export class CodexRuntime {
       });
       return;
     }
+    if (feature.id === "notes" && request.action === "quick-prompts") {
+      try {
+        const { route, method = "GET", body } = request.payload ?? {};
+        const allowed = (route === "/api/state" && method === "GET")
+          || (["/api/prompts", "/api/categories", "/api/reorder"].includes(route) && method === "POST")
+          || (/^\/api\/categories\/[a-zA-Z0-9-]+$/.test(route) && ["PATCH", "DELETE"].includes(method))
+          || (/^\/api\/prompts\/[a-zA-Z0-9-]+$/.test(route) && ["PATCH", "DELETE"].includes(method))
+          || (/^\/api\/prompts\/[a-zA-Z0-9-]+\/use$/.test(route) && method === "POST");
+        const origin = pageScriptServiceOrigin(feature);
+        if (!allowed || !origin) throw new Error("Prompt request is not allowed");
+        const response = await this.fetchImpl(new URL(route, origin), {
+          method, headers: { "Content-Type": "application/json", Origin: CODEX_APP_ORIGIN },
+          body: body === undefined ? undefined : JSON.stringify(body),
+          signal: AbortSignal.timeout(8_000),
+        });
+        const result = response.status === 204 ? null : await response.json();
+        if (!response.ok) throw new Error(result?.error?.message ?? "Prompt request failed");
+        await this.resolveHostAction(client, request.requestId, { ok: true, result });
+      } catch (error) {
+        await this.resolveHostAction(client, request.requestId, { ok: false, error: { code: "PROMPT_REQUEST_FAILED", message: error.message } });
+      }
+      return;
+    }
     if (request.action === "import-generated-image") {
       await this.importGeneratedImage(feature, request.payload);
       return;

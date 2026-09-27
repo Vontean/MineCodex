@@ -2894,3 +2894,33 @@ test("filters OpenCodex mock tiers to configured real efforts", async () => {
   const result = await executeModelSliderInjection({ controllerProps: controller, features: [feature] });
   assert.deepEqual(result.realEffortProbe("commandcode-auth/Qwen-Qwen3.8-Flash"), ["low", "medium", "xhigh"]);
 });
+
+test("Quick Prompts bridge permits only declared prompt routes on the registered service", async () => {
+  const calls = [];
+  const replies = [];
+  const runtime = new CodexRuntime({
+    features: [{ id: "notes", hostActions: ["quick-prompts"], pageScript: {},
+      surfaceUrl: "http://127.0.0.1:47832/", healthUrl: "http://127.0.0.1:47832/api/health" }],
+    profileDir: "/tmp/mcx-prompts-bridge",
+    fetchImpl: async (url, options) => {
+      calls.push({ url: String(url), method: options.method });
+      return { ok: true, status: 200, json: async () => ({ prompts: [] }) };
+    },
+  });
+  runtime.bindingTokens.set("renderer", "expected");
+  runtime.resolveHostAction = async (_client, _id, response) => replies.push(response);
+  const request = (route, method, token = "expected") => runtime.handleBindingCalled("renderer", {}, {
+    name: HOST_BINDING_NAME, payload: JSON.stringify({
+      featureId: "notes", action: "quick-prompts", requestId: "request", token, payload: { route, method },
+    }),
+  });
+  await request("/api/state", "GET", "wrong");
+  assert.equal(calls.length, 0);
+  await request("/api/state", "GET");
+  assert.deepEqual(calls, [{ url: "http://127.0.0.1:47832/api/state", method: "GET" }]);
+  for (const route of ["/api/files", "/api/todos", "https://example.com/api/state", "/api/prompts/../files"]) {
+    await request(route, "POST");
+    assert.equal(replies.at(-1).ok, false);
+  }
+  assert.equal(calls.length, 1);
+});

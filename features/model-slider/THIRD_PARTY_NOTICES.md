@@ -39,7 +39,7 @@ license text, including the Feather-derived icon notice, is preserved in
 
 ## Codex compatibility assets
 
-File-type and action glyphs under `features/notes/web/codex-*.svg` mirror the Codex
+Prompt category glyphs and emoji metadata under `features/notes/assets/` mirror the Codex
 Desktop visual language for compatibility. Codex, ChatGPT, OpenAI, and related marks
 and assets remain the property of OpenAI and their respective rights holders. These
 assets are not relicensed by MineCodex's MIT License.

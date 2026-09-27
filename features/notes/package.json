@@ -3,13 +3,13 @@
   "version": "0.1.11",
   "private": true,
   "type": "module",
-  "description": "Local-first Todo, Prompts, and Files surfaces for Codex.",
+  "description": "Local-first prompt management and composer shortcuts for Codex.",
   "engines": {
     "node": ">=22.5.0"
   },
   "scripts": {
     "start": "node src/main.mjs",
     "test": "node --test",
-    "check": "node --check src/main.mjs && node --check src/product.mjs && node --check src/http-server.mjs && node --check web/app.js"
+    "check": "node --check src/main.mjs && node --check src/product.mjs && node --check src/prompt-schema.mjs && node --check src/quick-prompts-server.mjs"
   }
 }

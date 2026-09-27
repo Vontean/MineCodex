@@ -6,6 +6,7 @@ import path from "node:path";
 
 const MANIFEST_NAME = "codex-feature.json";
 const HOST_ACTIONS = new Set([
+  "quick-prompts",
   "insert-text",
   "attach-file",
   "open-detail-tab",

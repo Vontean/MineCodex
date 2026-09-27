@@ -3,7 +3,7 @@
 import os from "node:os";
 import path from "node:path";
 
-import { createCodexNotesServer } from "./http-server.mjs";
+import { createQuickPromptsServer } from "./quick-prompts-server.mjs";
 import { CodexNotesProduct } from "./product.mjs";
 
 const host = process.env.CODEX_NOTES_HOST ?? "127.0.0.1";
@@ -22,7 +22,7 @@ const product = await new CodexNotesProduct({ databasePath }).open();
 let app;
 
 try {
-  app = createCodexNotesServer({ product, host, port });
+  app = createQuickPromptsServer({ product, host, port });
   await app.listen();
 } catch (error) {
   product.close();
