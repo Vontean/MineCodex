@@ -372,7 +372,6 @@ async function executeModelSliderInjection({
   }).replace(
     "void loadNativeFastIconFromBundle();",
     `window.__fastIconProbe = () => ({
-      sources: { ...modelSelectorNativeFastIconSources },
       states: Object.keys(modelSelectorNativeFastIcons ?? {}),
       dirty: modelSelectorNativeFastIconsDirty,
     });
@@ -671,7 +670,6 @@ test("restores persisted Fast icons before the bundle fallback runs", async () =
 
   assert.equal(result.runtimeInstalled, true);
   assert.deepEqual(result.probe.states.sort(), ["active", "inactive"]);
-  assert.deepEqual(result.probe.sources, { active: "persisted", inactive: "persisted" });
   assert.equal(result.probe.dirty, false);
   assert.equal(result.fetchCalls, 0);
 });
@@ -856,7 +854,6 @@ test("emits a fail-closed native Composer model selector Adapter", () => {
   assert.match(source, /function persistNativeFastIcons\(\)/);
   assert.match(source, /function loadPersistedNativeFastIcons\(storageKey\)/);
   assert.match(source, /function applyNativeFastIconsToShells\(\)/);
-  assert.match(source, /modelSelectorNativeFastIconSources\[state\] = "dom"/);
   assert.match(source, /modelSelectorNativeFastIcons\[state\] = template/);
   assert.doesNotMatch(source, /function chatComposerModelController\(props\)/);
   assert.match(source, /width: 264px !important; min-width: 264px/);
@@ -914,7 +911,6 @@ test("emits a fail-closed native Composer model selector Adapter", () => {
     /beginNativeEffortTransaction\(\);[\s\S]*?setReactControlledMenuOpen\(row, true\)/,
   );
   assert.match(source, /function setReactControlledMenuOpen\(element, open\)/);
-  assert.doesNotMatch(source, /function openNativeModelSubmenu[\s\S]*?dispatchPointerClick\(row\)/);
   assert.match(source, /function isNativeEffortSubmenu\(menu\)/);
   assert.match(source, /function invokeNativeMenuItemSelect\(item\)/);
   assert.match(source, /observer = new MutationObserver\(select\)/);
@@ -972,7 +968,6 @@ test("keeps the generic model menu on the Composer controller lifecycle", () => 
   assert.match(source, /function openControllerModelMenu\(parentMenu, modelButton, selector\)/);
   assert.match(source, /currentController\.onSelectModel\(raw, reasoningEffort\)/);
   assert.match(source, /querySelector\('\[data-codex-model-slider-selected\]'\)\s*\?\? menu\.querySelector\('\[role="menuitem"\]'\)/);
-  assert.doesNotMatch(source, /const openModels = \(\) => openNativeModelSubmenu\(parentMenu\)/);
 });
 
 test("hides effortless OCX aliases of native GPT models while retaining distinct routes", async () => {
@@ -1015,7 +1010,6 @@ test("rebuilds the upgraded native Slider and routes its compact model entry to 
   assert.match(source, /function pruneNativeModelToggleHandlers\(\)/);
   assert.match(source, /if \(enhanceGenericModelPicker\(parentMenu, selector\)\) return;/);
   assert.match(source, /currentController\.onSelectModel\(raw, reasoningEffort\)/);
-  assert.doesNotMatch(source, /toggle\.addEventListener\("click", \(\) => openNativeModelSubmenu\(parentMenu\)\)/);
 });
 
 test("maps current controller effort separately from the model default", async () => {
@@ -1263,10 +1257,6 @@ test("rebuilds the upgraded native slider from the selected model capabilities",
   assert.match(
     source,
     /function enhanceNativeModelPicker\(parentMenu, selector\) \{\s*if \(enhanceGenericModelPicker\(parentMenu, selector\)\) return;/,
-  );
-  assert.doesNotMatch(
-    source,
-    /if \(toggle\) \{[\s\S]*?restoreGenericModelPicker\(parentMenu\)/,
   );
 });
 

@@ -252,8 +252,6 @@ export function createInjectionSource(features, {
     let modelSelectorObservedTrigger = null;
     let modelSelectorControllerMenu = null;
     let modelSelectorNativeFastIcons = null;
-    // Fast 图标来源标记：bundle 静态提取 vs DOM 克隆，DOM 克隆优先以保持像素一致。
-    let modelSelectorNativeFastIconSources = null;
     // 持久化脏标记：仅在图标实际变化时写一次 localStorage。
     let modelSelectorNativeFastIconsDirty = false;
     const modelSelectorFastIconStorageKey = "codex-model-slider:fast-icons:v1";
@@ -372,10 +370,6 @@ export function createInjectionSource(features, {
       const persistedIcons = loadPersistedNativeFastIcons(modelSelectorFastIconStorageKey);
       if (persistedIcons) {
         modelSelectorNativeFastIcons = persistedIcons;
-        modelSelectorNativeFastIconSources = {};
-        for (const state of Object.keys(persistedIcons)) {
-          modelSelectorNativeFastIconSources[state] = "persisted";
-        }
       }
       void loadNativeFastIconFromBundle();
     }
@@ -790,7 +784,6 @@ export function createInjectionSource(features, {
         const source = await fetch(sourceLink.href).then((response) => response.text());
         if (!modelSelectorNativeFastIcons) {
           modelSelectorNativeFastIcons = {};
-          modelSelectorNativeFastIconSources = {};
         }
         let gained = false;
         const define = (state, prefix, definition) => {
@@ -807,7 +800,6 @@ export function createInjectionSource(features, {
           svg.setAttribute("width", "20");
           svg.setAttribute("height", "20");
           modelSelectorNativeFastIcons[state] = svg;
-          modelSelectorNativeFastIconSources[state] = "bundle";
           gained = true;
         };
         define("active", "M11\\.9125 21\\.4125", { viewBox: "0 0 24 24" });
@@ -838,10 +830,8 @@ export function createInjectionSource(features, {
         template.removeAttribute("id");
         if (!modelSelectorNativeFastIcons) {
           modelSelectorNativeFastIcons = {};
-          modelSelectorNativeFastIconSources = {};
         }
         modelSelectorNativeFastIcons[state] = template;
-        modelSelectorNativeFastIconSources[state] = "dom";
         modelSelectorNativeFastIconsDirty = true;
       }
       const ready = Boolean(
@@ -851,7 +841,6 @@ export function createInjectionSource(features, {
         persistNativeFastIcons();
         applyNativeFastIconsToShells();
       }
-      return modelSelectorNativeFastIcons;
     }
 
     function applyNativeFastIconsToShells() {
@@ -1858,22 +1847,6 @@ export function createInjectionSource(features, {
     // 原生 effort 子菜单与滑条视觉 — effort 事务、Fast/通用滑条视觉与状态同步
     // ========================================================================
 
-    function openNativeModelSubmenu(parentMenu) {
-      let attempts = 0;
-      const open = () => {
-        attempts += 1;
-        const currentMenu = nativeModelPickerMenu() ?? parentMenu;
-        const row = nativeModelPickerRow(currentMenu);
-        if (row) {
-          setReactControlledMenuOpen(row, true);
-          setTimeout(queueEnsure, 0);
-          return;
-        }
-        if (attempts < 12) requestAnimationFrame(open);
-      };
-      setTimeout(open, 80);
-    }
-
     function nativeEffortRow(parentMenu) {
       return Array.from(parentMenu?.querySelectorAll('[role="menuitem"][aria-haspopup="menu"]') ?? [])
         .filter((row) => !row.hasAttribute("data-model-picker-view-toggle"))[1] ?? null;
@@ -2464,7 +2437,6 @@ export function createInjectionSource(features, {
       }
       setGenericSliderVisual(rail, selectedIndex, efforts.length);
       syncNativeFastParticles(rail, fastEnabled);
-      setGenericSliderVisual(rail, selectedIndex, efforts.length);
       syncGenericMaximumVisual(
         rail,
         effortText,
@@ -2665,25 +2637,6 @@ export function createInjectionSource(features, {
       modelSelectorGenericContainers.get(nativeContainer).effectObserver = syncClonedPowerEffects(nativeContainer, shell);
       centerGenericModelPicker(parentMenu);
       return true;
-    }
-
-    function restoreGenericModelPicker(parentMenu) {
-      parentMenu.querySelector(":scope > [data-codex-model-slider-generic]")?.remove();
-      parentMenu.removeAttribute("data-codex-model-slider-generic-menu");
-      parentMenu.style.removeProperty("--codex-model-slider-menu-center-shift");
-      const nativeContainer = parentMenu.firstElementChild;
-      if (nativeContainer && modelSelectorGenericContainers.has(nativeContainer)) {
-        const original = modelSelectorGenericContainers.get(nativeContainer);
-        original.effectObserver?.disconnect();
-        nativeContainer.style.position = original.position;
-        nativeContainer.style.inset = original.inset;
-        nativeContainer.style.opacity = original.opacity;
-        nativeContainer.style.pointerEvents = original.pointerEvents;
-        if (original.ariaHidden == null) nativeContainer.removeAttribute("aria-hidden");
-        else nativeContainer.setAttribute("aria-hidden", original.ariaHidden);
-        nativeContainer.inert = original.inert;
-        modelSelectorGenericContainers.delete(nativeContainer);
-      }
     }
 
     function enhanceNativeModelPicker(parentMenu, selector) {
