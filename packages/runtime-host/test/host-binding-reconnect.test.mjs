@@ -14,7 +14,7 @@ test("same-session reinjection updates the binding before ensuring the UI", () =
   };
   const window = { __codexPersonalRuntime: runtime };
   window.top = window;
-  const start = source.indexOf("function install(config)");
+  const start = source.indexOf("function install(config, installTooltips)");
   const end = source.indexOf("const lifetime =", start);
   const install = vm.runInNewContext(`(${source.slice(start, end)} })`, {
     window, document: { documentElement: {} },

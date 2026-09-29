@@ -2,10 +2,11 @@
 // 该字符串经 CDP 注入后独立执行，因此 install 函数体必须自包含；
 // CodexRuntime 与 CDP 客户端在 codex-runtime.mjs / codex-cdp.mjs。
 
+import { installFeatureTooltips } from "./feature-tooltips.mjs";
 import { randomBytes } from "node:crypto";
 import { CODEX_THEME_TOKENS, CODEX_THEME_TOKEN_ALIASES } from "./codex-design-contract.mjs";
 
-export const RUNTIME_VERSION = 101;
+export const RUNTIME_VERSION = 102;
 export const HOST_BINDING_NAME = "__codexPersonalHostAction";
 export const CSP_BOOTSTRAP_VERSION = 1;
 export const CSP_BOOTSTRAP_KEY = "__mineCodexCspBootstrapVersion";
@@ -119,14 +120,14 @@ export function createInjectionSource(features, {
   bindingToken = "test-binding-token",
   runtimeSessionId = randomBytes(16).toString("hex"),
 } = {}) {
-  function install(config) {
+  function install(config, installTooltips) {
     if (window.top !== window) return;
     if (!document.documentElement) {
       // The document bootstrap runs before the root element exists. Defer the
       // whole install until the DOM is ready instead of crashing on a null
       // documentElement (which previously left the runtime permanently absent
       // after a renderer reload).
-      document.addEventListener("DOMContentLoaded", () => install(config), { once: true });
+      document.addEventListener("DOMContentLoaded", () => install(config, installTooltips), { once: true });
       return;
     }
     const currentRuntime = window.__codexPersonalRuntime;
@@ -138,6 +139,7 @@ export function createInjectionSource(features, {
     currentRuntime?.dispose?.();
 
     const lifetime = new AbortController();
+    installTooltips(lifetime.signal);
     const rightPanelRouteKinds = new Set(config.rightPanelRouteKinds);
 
     const entryMarker = "data-codex-personal-feature";
@@ -1497,7 +1499,7 @@ export function createInjectionSource(features, {
         button.replaceChildren(createModelSelectorIcon(starred ? selector.icons.unstar : selector.icons.star));
         const itemLabel = item.querySelector("[data-codex-model-slider-name]")?.textContent ?? label;
         button.setAttribute("aria-label", selector.strings[starred ? "unstar" : "star"].replace("{model}", itemLabel));
-        button.setAttribute("title", selector.strings[starred ? "unstar" : "star"].replace("{model}", itemLabel));
+        button.setAttribute("data-minecodex-tooltip", selector.strings[starred ? "unstar" : "star"].replace("{model}", itemLabel));
       }
       renderEnhancedModelMenu(menu, selector);
     }
@@ -1559,7 +1561,7 @@ export function createInjectionSource(features, {
       star.type = "button";
       star.setAttribute("data-codex-model-slider-star", starred ? "unstar" : "star");
       star.setAttribute("aria-label", selector.strings[starred ? "unstar" : "star"].replace("{model}", display));
-      star.setAttribute("title", selector.strings[starred ? "unstar" : "star"].replace("{model}", display));
+      star.setAttribute("data-minecodex-tooltip", selector.strings[starred ? "unstar" : "star"].replace("{model}", display));
       star.append(createModelSelectorIcon(starred ? selector.icons.unstar : selector.icons.star));
       row.append(star);
       item.replaceChildren(row);
@@ -3285,7 +3287,7 @@ export function createInjectionSource(features, {
         const pressed = String(open);
         const state = open ? "open" : "closed";
         if (entry.getAttribute("aria-label") !== label) entry.setAttribute("aria-label", label);
-        if (entry.getAttribute("title") !== label) entry.setAttribute("title", label);
+        if (entry.getAttribute("data-minecodex-tooltip") !== label) entry.setAttribute("data-minecodex-tooltip", label);
         if (entry.getAttribute("aria-pressed") !== pressed) entry.setAttribute("aria-pressed", pressed);
         if (entry.getAttribute("aria-expanded") !== pressed) entry.setAttribute("aria-expanded", pressed);
         if (entry.getAttribute("data-state") !== state) entry.setAttribute("data-state", state);
@@ -4262,8 +4264,10 @@ export function createInjectionSource(features, {
       if (!button) return null;
       const label = summaryButtonLabel(feature);
       button.setAttribute(entryMarker, feature.id);
+      button.removeAttribute("title");
+      button.removeAttribute("aria-describedby");
       button.setAttribute("aria-label", label);
-      button.setAttribute("title", label);
+      button.setAttribute("data-minecodex-tooltip", label);
       button.setAttribute("aria-pressed", "false");
       button.setAttribute("aria-expanded", "false");
       button.setAttribute("data-state", "closed");
@@ -4808,7 +4812,7 @@ export function createInjectionSource(features, {
     themeTokens: CODEX_THEME_TOKENS,
     themeTokenAliases: CODEX_THEME_TOKEN_ALIASES,
     features: runtimeFeatures,
-  })})`;
+  })}, ${installFeatureTooltips.toString()})`;
 }
 
 export function createRuntimeReadyContract({

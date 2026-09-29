@@ -47,7 +47,7 @@ style.textContent = `
   [data-minecodex-context-trigger]:focus-visible { outline:2px solid var(--color-ring); }
   [data-minecodex-context-trigger] svg { width:12px; height:12px; }
   [data-minecodex-native-context] { display:none !important; }
-  [data-minecodex-context-tooltip] { position:fixed; z-index:2147483000; pointer-events:none; width:max-content; padding:5px 12px; border:1px solid var(--color-border-tooltip); border-radius:var(--radius-2xl); background:var(--color-background-tooltip); color:var(--color-text-tooltip); box-shadow:var(--shadow-tooltip); font-family:var(--font-sans-default); font-size:var(--text-sm); line-height:18px; text-align:center; white-space:pre-line; }
+  [data-minecodex-context-tooltip] { position:fixed; z-index:2147483000; pointer-events:none; width:max-content; padding:5px 12px; border:1px solid var(--color-border-tooltip); border-radius:var(--radius-2xl); background:var(--color-background-tooltip); color:var(--color-text-tooltip); box-shadow:var(--shadow-tooltip); font-family:var(--font-sans-default); font-size:var(--text-sm); line-height:18px; font-weight:var(--tooltip-compact-font-weight); letter-spacing:var(--tracking-tooltip); text-align:center; white-space:pre-line; }
   @media (prefers-reduced-motion:reduce) { [data-minecodex-session-reveal], [data-context-progress] { transition:none; } }
   [${MARKER}] button { box-sizing:border-box; display:inline-flex; align-items:center; gap:6px; height:22px; color:inherit; font:inherit; border:0; border-radius:var(--radius-xl,12px); background:transparent; padding:3px 6px; cursor:pointer; white-space:nowrap; }
   [${MARKER}] svg, [data-minecodex-session-status-panel] h3 svg { width:14px; height:14px; flex:none; stroke-width:1.75; }
@@ -288,7 +288,7 @@ function appendMixBar(dl, title, parts) {
     const segment = document.createElement("span");
     segment.dataset.tone = tone;
     segment.style.width = `${amount / total * 100}%`;
-    segment.title = `${name} ${percent(amount)}%`;
+    segment.setAttribute("data-minecodex-tooltip", `${name} ${percent(amount)}%`);
     bar.append(segment);
   }
   dl.append(bar);
@@ -351,7 +351,7 @@ function showPanel(kind) {
         const segment = document.createElement("span");
         segment.dataset.segment = kind;
         segment.style.width = `${amount / snapshot.contextWindow * 100}%`;
-        segment.title = copy[kind === "tools" ? "toolHistory" : kind];
+        segment.setAttribute("data-minecodex-tooltip", copy[kind === "tools" ? "toolHistory" : kind]);
         bar.append(segment);
       }
       panel.insertBefore(head, dl);

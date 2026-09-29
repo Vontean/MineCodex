@@ -178,7 +178,7 @@ async function scan() {
   copy.type = "button";
   function copyFeedback(copied = false, failed = false) {
     const text = failed ? label("Try copying again", "重试复制") : copied ? label("Copied", "已复制") : label("Copy prompt", "复制提示词");
-    copy.title = text;
+    copy.setAttribute("data-minecodex-tooltip", text);
     copy.setAttribute("aria-label", text);
     copy.replaceChildren(copyGlyph(copied));
   }

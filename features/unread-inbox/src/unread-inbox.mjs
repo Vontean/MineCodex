@@ -242,7 +242,7 @@ function renderRows(details = activityRecords()) {
     device.className = "mcx-device";
     const remote = item.hostId !== "local";
     device.innerHTML = deviceGlyphs[remote ? "remote" : "local"];
-    device.title = text("Remote", "远程");
+    device.setAttribute("data-minecodex-tooltip", text("Remote", "远程"));
     device.setAttribute("aria-label", device.title);
     header.append(title);
     if (remote) header.append(device);
@@ -265,7 +265,7 @@ function renderRows(details = activityRecords()) {
       const time = document.createElement("time");
       time.dateTime = new Date(item.timestamp).toISOString();
       time.textContent = elapsed;
-      time.title = new Date(item.timestamp).toLocaleString();
+      time.setAttribute("data-minecodex-tooltip", new Date(item.timestamp).toLocaleString());
       header.append(time);
     }
     card.append(header);

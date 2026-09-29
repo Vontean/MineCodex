@@ -1,6 +1,6 @@
 const ICONS = {
   prompt:
-    '<svg\n  class="lucide lucide-book-open"\n  xmlns="http://www.w3.org/2000/svg"\n  width="24"\n  height="24"\n  viewBox="0 0 24 24"\n  fill="none"\n  stroke="currentColor"\n  stroke-width="2.1"\n  stroke-linecap="round"\n  stroke-linejoin="round"\n>\n  <path d="M12 7v14" />\n  <path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z" />\n</svg>',
+    '<svg\n  class="lucide lucide-book-open"\n  xmlns="http://www.w3.org/2000/svg"\n  width="24"\n  height="24"\n  viewBox="-1.5 -1.5 27 27"\n  fill="none"\n  stroke="currentColor"\n  stroke-width="1.5"\n  stroke-linecap="round"\n  stroke-linejoin="round"\n>\n  <path vector-effect="non-scaling-stroke" d="M12 7v14" />\n  <path vector-effect="non-scaling-stroke" d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z" />\n</svg>',
   chevron:
     '<!-- @license lucide-static v0.577.0 - ISC -->\n<svg\n  class="lucide lucide-chevron-down"\n  xmlns="http://www.w3.org/2000/svg"\n  width="24"\n  height="24"\n  viewBox="0 0 24 24"\n  fill="none"\n  stroke="currentColor"\n  stroke-width="2"\n  stroke-linecap="round"\n  stroke-linejoin="round"\n>\n  <path d="m6 9 6 6 6-6" />\n</svg>\n',
   search:
@@ -194,7 +194,7 @@ function control(label, handler, className = "qp-command", iconName = null) {
   node.setAttribute("aria-label", label);
   if (iconName) {
     node.append(icon(iconName));
-    node.title = label;
+    node.setAttribute("data-minecodex-tooltip", label);
   }
   node.addEventListener("click", handler);
   return node;
@@ -395,11 +395,13 @@ function sync() {
     close();
   if (!button) {
     button = add.cloneNode(false);
+    button.removeAttribute("title");
+    button.removeAttribute("aria-describedby");
     button.removeAttribute("id");
     button.removeAttribute("data-composer-navigation-target");
     button.setAttribute(MARKER, "button");
     button.setAttribute("aria-label", text("Quick Prompts", "快捷提示词"));
-    button.title = text("Quick Prompts", "快捷提示词");
+    button.setAttribute("data-minecodex-tooltip", text("Quick Prompts", "快捷提示词"));
     button.setAttribute("aria-haspopup", "dialog");
     button.setAttribute("aria-expanded", "false");
     button.setAttribute("data-state", "closed");
@@ -549,7 +551,7 @@ let pagePopup = null;
 let popupTrigger = null;
 function pageIcon(label, name, handler) {
   const button = control(label, handler, "pm-icon", name);
-  button.title = label;
+  button.setAttribute("data-minecodex-tooltip", label);
   return button;
 }
 function closePagePopup(restoreFocus = false) {
@@ -859,10 +861,10 @@ function orderControls(item, ordered, isCategory, row) {
     () => {},
   );
   handle.classList.add("pm-drag");
-  handle.title = text(
+  handle.setAttribute("data-minecodex-tooltip", text(
     "Drag to reorder · Alt + ↑ / ↓",
     "拖拽排序 · Alt + ↑ / ↓",
-  );
+  ));
   row.dataset.orderId = item.id;
   const group = isCategory ? "categories" : `prompts:${item.categoryId ?? ""}`;
   row.dataset.orderGroup = group;
@@ -1115,7 +1117,7 @@ function editPrompt(item = null) {
     emojiButton.replaceChildren(
       categoryIcon({ categoryId: category.value || null, emoji: emoji.value }),
     );
-    emojiButton.title = text("Choose icon", "选择图标");
+    emojiButton.setAttribute("data-minecodex-tooltip", text("Choose icon", "选择图标"));
   }
   refreshAppearance();
   const body = element("textarea");
@@ -1311,7 +1313,7 @@ function editCategory(category = null) {
       ).documentElement;
       btn.replaceChildren(svg);
       btn.setAttribute("aria-pressed", String(key === selectedIcon));
-      btn.title = appearanceLabel(key);
+      btn.setAttribute("data-minecodex-tooltip", appearanceLabel(key));
       btn.setAttribute("aria-label", appearanceLabel(key));
       icons.append(btn);
     }
@@ -1334,7 +1336,7 @@ function editCategory(category = null) {
     swatch.append(element("span", "pm-swatch"));
     btn.replaceChildren(swatch);
     btn.setAttribute("aria-pressed", String(key === selectedColor));
-    btn.title = appearanceLabel(key);
+    btn.setAttribute("data-minecodex-tooltip", appearanceLabel(key));
       btn.setAttribute("aria-label", appearanceLabel(key));
     colors.append(btn);
   }
@@ -1455,13 +1457,16 @@ function syncNavigation() {
   }
   if (!navButton?.isConnected) {
     navButton = source.cloneNode(false);
+    navButton.removeAttribute("id");
+    navButton.removeAttribute("title");
+    navButton.removeAttribute("aria-describedby");
     navButton.removeAttribute("data-sidebar-destination");
     navButton.removeAttribute("data-selected");
     navButton.removeAttribute("aria-current");
     navButton.removeAttribute("data-suppress-active-style");
     navButton.setAttribute(MARKER, "nav");
     navButton.setAttribute("aria-label", text("Prompts", "提示词"));
-    navButton.title = text("Prompts", "提示词");
+    navButton.setAttribute("data-minecodex-tooltip", text("Prompts", "提示词"));
     const inner = element("span", source.firstElementChild?.className ?? "");
     const glyph = icon("prompt-nav");
     glyph.setAttribute("aria-hidden", "true");

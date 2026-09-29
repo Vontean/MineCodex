@@ -6,7 +6,7 @@ Prompts 页面负责新增、编辑、分类、Emoji、排序和统计；Quick P
 ## 原生依据
 2026-09-27 在隔离 Codex 实测导航扩展区、Library 页面及 Add files and more。
 - Prompts 导航项位于固定扩展区末尾，顺序跟随扩展区而非硬编码 Projects。仅定位 `data-app-navigation-rail`，不匹配设置菜单。
-- Quick Prompts 位于 Add 与 Change permissions 之间，克隆 Add 的按钮 classes 与响应式图标容器。入口采用 Lucide book-open；20px 图标描边折算 1.75px（24 viewBox / stroke-width 2.1）。
+- Quick Prompts 位于 Add 与 Change permissions 之间，克隆 Add 的按钮 classes 与响应式图标容器。入口采用 Lucide book-open；保留 16 / 20px 图标容器，viewBox 扩为 27，将图形缩小约 11%；non-scaling-stroke 保持 1.5px 笔画，热区仍为 28px。
 - 页面沿用 Library 的大标题和胶囊 Tabs；分类图标取自当前 Codex 原生 SymbolBrowser / project appearance catalogue，记录于 `assets/native-prompt-icons.json`，不手绘路径。
 
 | 角色 | Token / 权威来源 | 值或用途 |
@@ -64,3 +64,8 @@ Category 下拉面板与触发栏等宽、左右对齐，宽度包含内边距�
 
 ## 语言
 界面名称、操作、Tooltip、无障碍标签、空状态、错误提示与图标/颜色名称按 Codex 的语言显示中英文；日期按对应 locale 格式化。用户保存的提示词与分类名称原样展示，不随界面语言改写。
+
+## Tooltip
+
+
+所有简短悬浮提示使用运行时的 data-minecodex-tooltip 标记，取原生 background/text/border-tooltip、radius-2xl、shadow-tooltip、tooltip-compact-font-weight 和 tracking-tooltip；padding 5px 12px、行高 18px。支持悬浮与键盘聚焦、Escape 关闭及卸载清理，不再使用浏览器 title 气泡。
