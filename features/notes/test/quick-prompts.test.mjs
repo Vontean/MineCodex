@@ -42,7 +42,7 @@ test("Quick Prompts reuses saved prompts and exposes no Todo, Files, or old page
     "prompts",
     "revision",
   ]);
-  assert.equal(state.prompts[0].id, saved.item.id);
+  assert.equal(state.prompts.find(p => p.id === saved.item.id).id, saved.item.id);
   for (const route of [
     "/",
     "/?surface=todo",
@@ -195,7 +195,7 @@ test("Prompt categories, ordering, emoji and successful insert counts persist in
   );
   product.deletePromptCategory(category.id);
   state = await product.getState();
-  assert.equal(state.prompts.length, 2);
+  assert.equal(state.prompts.length, 26);
   assert.equal(state.prompts.find((p) => p.id === a.id).categoryId, null);
   assert.equal(state.prompts.find((p) => p.id === a.id).useCount, 2);
   // 删除所有分类后重启也不会再次填充默认分类。

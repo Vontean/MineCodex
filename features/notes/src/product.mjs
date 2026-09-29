@@ -1,3 +1,4 @@
+import { seedDefaultPrompts } from "./default-prompts.mjs";
 import { migratePromptSchema } from "./prompt-schema.mjs";
 import { randomUUID } from "node:crypto";
 import { chmod, mkdir, open as openFile } from "node:fs/promises";
@@ -120,6 +121,7 @@ export class CodexNotesProduct {
     );
     try {
       migratePromptSchema(this.db);
+      seedDefaultPrompts(this.db, this.clock());
     } catch (error) {
       this.close();
       throw error;

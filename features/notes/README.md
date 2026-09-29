@@ -4,7 +4,7 @@
 
 ## 管理页面
 - All 与分类 Tabs，搜索、新增、编辑、删除。
-- 默认分类：生图、编程、文案、研究、翻译、效率；支持新增、改名、删除与排序。
+- 默认分类：生图、编程、文案、研究、翻译、效率、思考、学习；支持新增、改名、删除与排序。
 - 分类图标和颜色复用 Codex 原生 SymbolBrowser 的资源。单条提示词可设置一个 Emoji，否则继承分类图标。
 - 使用右侧三横手柄拖拽调整组内顺序，也可按调用次数、最近调用排序。
 - 删除分类会将提示词移至其他，保留正文、Emoji 和统计。
@@ -23,3 +23,5 @@
 运行入口为 `src/main.mjs` → `quick-prompts-server.mjs`，仅开放提示词、分类、排序、调用记录及健康检查。页面经已认证 Runtime Host binding 访问固定允许的接口。旧 HTTP 服务、网页、Todo / Files 操作及文件清理代码已删除。`prompt-schema.mjs` 只负责向前迁移；`product.mjs` 负责提示词、分类和统计的事务读写。历史 Todo / Files 表保持原样。
 
 服务仅监听 loopback，默认端口 47832。沿用 CODEX_NOTES_PORT、CODEX_NOTES_DATA_DIR、CODEX_NOTES_DATABASE。设计依据见 [DESIGN.md](./DESIGN.md)。入口采用 Lucide book-open，拖拽手柄采用 Lucide menu。分类 SVG 来自当前 Codex 原生图标目录，未手绘替代路径。
+
+内置 24 条已分类、带 Emoji 的快捷提示词，来自 MIT 授权的 dsh-prompt 0.1.13。首次启动或升级仅导入一次，后续编辑与删除不会被覆盖。个人提示词不随包发布。来源和完整许可见 [dsh-prompt-LICENSE.txt](./assets/dsh-prompt-LICENSE.txt)。

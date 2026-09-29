@@ -117,3 +117,36 @@ test("Prompt service rejects unsafe origins and malformed input without mutation
   assert.throws(() => product.updatePrompt(saved.id, { useCount: 99 }));
   assert.throws(() => product.updatePrompt(saved.id, {}));
 });
+
+test("Built-in prompts seed once; edits, deletions and personal prompts survive reopening", async t => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "mcx-prompt-defaults-"));
+  const databasePath = path.join(dir, "notes.sqlite");
+  let product = await new CodexNotesProduct({ databasePath }).open();
+  t.after(async () => { product.close(); await rm(dir, { recursive: true, force: true }); });
+  const defaults = product.getState().prompts;
+  assert.equal(defaults.length, 24);
+  assert.equal(new Set(defaults.map(p => p.id)).size, 24);
+  for (const p of defaults) {
+    assert.ok(p.body.trim());
+    assert.ok(p.emoji);
+    assert.ok(product.listPromptCategories().some(c => c.id === p.categoryId));
+    product.promptMetadata({ emoji: p.emoji });
+    assert.equal(p.useCount, 0);
+    assert.equal(p.calledAt, null);
+  }
+  product.updatePrompt("dsh-fp", { body: "My own adaptation" });
+  product.deletePrompt("dsh-socratic");
+  product.deletePromptCategory("thinking");
+  const personal = product.createPrompt({ title: "Private", body: "Local only", emoji: "🔒" }).item;
+  const revision = product.revision;
+  product.close();
+  product = await new CodexNotesProduct({ databasePath }).open();
+  assert.equal(product.revision, revision);
+  const state = product.getState();
+  assert.equal(state.prompts.length, 24);
+  assert.equal(state.prompts.find(p => p.id === "dsh-fp").body, "My own adaptation");
+  assert.equal(state.prompts.find(p => p.id === "dsh-fp").categoryId, null);
+  assert.ok(!state.prompts.some(p => p.id === "dsh-socratic"));
+  assert.ok(!state.categories.some(c => c.id === "thinking"));
+  assert.deepEqual(state.prompts.find(p => p.id === personal.id), personal);
+});

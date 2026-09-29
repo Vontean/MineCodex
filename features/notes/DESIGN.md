@@ -29,7 +29,7 @@ Prompts 页面负责新增、编辑、分类、Emoji、排序和统计；Quick P
 分类颜色复用原生选择器的亮 / 暗模式色值：blue #0285ff / #339cff、green #04b84c / #40c977、orange #fb6a22 / #ff8549、pink #ff66ad / #ff8cc1、purple #924ff7 / #ad7bf9、red #fa423e / #ff6764、yellow #ffc300 / #ffd240；black 使用原生次级文字 token。
 
 ## 页面
-Header 为 Prompts；右侧依次为排序图标、分类调节图标、常驻搜索框、New prompt。搜索框直接采用原生 Library 的透明背景、1px outline、32px 高、胶囊圆角、12px 水平 padding 和 16px 搜索 SVG。分类管理使用原生 sliders 图标，不再放在 Tabs 行。排序菜单沿用原生 Library 的 4px gutter、20px radius、5px / 8px item padding、90% elevated surface 与 shadow-xl-spread。Tabs 仅包含 All、分类和 Other。默认分类生图、编程、文案、研究、翻译、效率，允许新增、改名、删除、换图标和颜色。删除分类仅解除归属，保留提示词和统计。
+Header 为 Prompts；右侧依次为排序图标、分类调节图标、常驻搜索框、New prompt。搜索框直接采用原生 Library 的透明背景、1px outline、32px 高、胶囊圆角、12px 水平 padding 和 16px 搜索 SVG。分类管理使用原生 sliders 图标，不再放在 Tabs 行。排序菜单沿用原生 Library 的 4px gutter、20px radius、5px / 8px item padding、90% elevated surface 与 shadow-xl-spread。Tabs 仅包含 All、分类和 Other。默认分类生图、编程、文案、研究、翻译、效率、思考、学习，允许新增、改名、删除、换图标和颜色。删除分类仅解除归属，保留提示词和统计。
 
 分类管理在 440px 宽居中模态面板中完成，复用原生 New folder 弹窗的 20px padding、25px radius、弱描边与背景遮罩。分类编辑保留箭头返回和关闭按钮，不使用文字 Back 或整页替换。模态内限制 Tab 焦点，Escape 关闭后恢复入口焦点。提示词编辑使用同一结构，宽 520px。
 
@@ -65,7 +65,8 @@ Category 下拉面板与触发栏等宽、左右对齐，宽度包含内边距�
 ## 语言
 界面名称、操作、Tooltip、无障碍标签、空状态、错误提示与图标/颜色名称按 Codex 的语言显示中英文；日期按对应 locale 格式化。用户保存的提示词与分类名称原样展示，不随界面语言改写。
 
-## Tooltip
+## 内置提示词与 Tooltip
 
+内置 24 条来自 dsh-prompt 0.1.13 的 MIT 提示词，正文保持原样，按思考、学习、编程、效率分类并配 Emoji。来源与许可保存在 assets/dsh-prompt-LICENSE.txt。首次启动或旧库升级时单次导入；随后允许编辑和删除，重启不还原，也不重建被删除的分类。用户个人内容只保留在本机数据库，不纳入默认资源。
 
 所有简短悬浮提示使用运行时的 data-minecodex-tooltip 标记，取原生 background/text/border-tooltip、radius-2xl、shadow-tooltip、tooltip-compact-font-weight 和 tracking-tooltip；padding 5px 12px、行高 18px。支持悬浮与键盘聚焦、Escape 关闭及卸载清理，不再使用浏览器 title 气泡。
