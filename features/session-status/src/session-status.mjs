@@ -29,14 +29,17 @@ document.getElementById(STYLE_ID)?.remove();
 const style = document.createElement("style");
 style.id = STYLE_ID;
 style.textContent = `
-  [${MARKER}] { box-sizing:border-box; display:flex; flex-wrap:wrap; justify-content:center; align-items:center; gap:0 12px; margin:0 auto; padding-top:2px; max-width:100%; min-height:24px; min-width:0; font-family:var(--font-sans-default,inherit); font-size:var(--text-xs,12px); line-height:16px; font-variant-numeric:tabular-nums; color:var(--color-text-tertiary); }
+  [${MARKER}] { box-sizing:border-box; display:flex; flex-wrap:wrap; justify-content:center; align-items:center; gap:0 4px; margin:0 auto; padding-top:2px; max-width:100%; min-height:24px; min-width:0; font-family:var(--font-sans-default,inherit); font-size:var(--text-xs,12px); line-height:16px; font-variant-numeric:tabular-nums; color:var(--color-text-tertiary); }
   [${MARKER}][hidden] { display:none; }
   [data-minecodex-session-reveal] { display:grid; grid-template-rows:0fr; opacity:0; transition:grid-template-rows 200ms ease,opacity 160ms ease; }
   [data-minecodex-session-reveal][data-expanded] { grid-template-rows:1fr; opacity:1; }
   @starting-style { [data-minecodex-session-reveal][data-expanded] { grid-template-rows:0fr; opacity:0; } }
+  [data-minecodex-session-reveal][data-expanded]:not([hidden]) { margin-top:-4px; }
   [data-minecodex-session-reveal] > div { min-height:0; overflow:hidden; }
   [data-minecodex-session-reveal]:not([data-expanded]) { pointer-events:none; }
   [data-minecodex-session-reveal][hidden] { display:none; }
+  /* 仅展开状态行时缩减原生底部留白；收起或卸载后自动恢复。 */
+  .bottom-0.pb-4:has([data-minecodex-session-reveal][data-expanded]:not([hidden])) { padding-bottom:4px; }
   [data-minecodex-context-trigger] { display:inline-flex; align-items:center; justify-content:center; flex:none; width:24px; height:var(--height-token-button-composer,28px); padding:0; border:0; border-radius:var(--radius-full); background:transparent; color:var(--color-text-tertiary); cursor:pointer; }
   [data-minecodex-context-trigger][hidden] { display:none; }
   [data-context-progress] { transition:stroke-dashoffset 120ms ease-out; }
@@ -46,7 +49,7 @@ style.textContent = `
   [data-minecodex-native-context] { display:none !important; }
   [data-minecodex-context-tooltip] { position:fixed; z-index:2147483000; pointer-events:none; width:max-content; padding:5px 12px; border:1px solid var(--color-border-tooltip); border-radius:var(--radius-2xl); background:var(--color-background-tooltip); color:var(--color-text-tooltip); box-shadow:var(--shadow-tooltip); font-family:var(--font-sans-default); font-size:var(--text-sm); line-height:18px; text-align:center; white-space:pre-line; }
   @media (prefers-reduced-motion:reduce) { [data-minecodex-session-reveal], [data-context-progress] { transition:none; } }
-  [${MARKER}] button { box-sizing:border-box; display:inline-flex; align-items:center; gap:5px; height:22px; color:inherit; font:inherit; border:0; border-radius:var(--radius-xl,12px); background:transparent; padding:3px 7px; cursor:pointer; white-space:nowrap; }
+  [${MARKER}] button { box-sizing:border-box; display:inline-flex; align-items:center; gap:6px; height:22px; color:inherit; font:inherit; border:0; border-radius:var(--radius-xl,12px); background:transparent; padding:3px 6px; cursor:pointer; white-space:nowrap; }
   [${MARKER}] svg, [data-minecodex-session-status-panel] h3 svg { width:14px; height:14px; flex:none; stroke-width:1.75; }
   [${MARKER}] [data-kind="context"] svg, [data-minecodex-session-status-panel] h3 .context-ring { width:12px; height:12px; stroke-width:2; }
   [${MARKER}] button:hover, [${MARKER}] button[aria-expanded="true"] { background:var(--color-token-list-hover-background); }
