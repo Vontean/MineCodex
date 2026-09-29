@@ -42,7 +42,7 @@ function nativeContext(rail) {
 function currentWindows(context) {
   const { auth, client } = context;
   if (auth?.isLoading || !auth?.userId || !auth?.accountId || !["chatgpt", "chatgptAuthTokens"].includes(auth.authMethod)) return null;
-  const data = client?.getQueryData(["rate-limit-status", auth.userId, auth.accountId]);
+  const data = client?.getQueryData(["rate-limit-status"]);
   // 账号与缓存必须同时一致；旧账号的最后一次响应不能留在导航栏。
   if (!data || data.user_id !== auth.userId || data.account_id !== auth.accountId) return null;
   return remainingWindows(data);

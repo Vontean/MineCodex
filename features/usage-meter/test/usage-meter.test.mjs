@@ -38,9 +38,10 @@ test("cache reads require exact current account and user, including after accoun
   const auth = { authMethod: "chatgpt", userId: "user-a", accountId: "account-a" };
   const stored = data(bucket(25, 604800));
   const reads = [];
-  const client = { getQueryData: key => { reads.push(key); return stored; } };
+  const cache = new Map([[JSON.stringify(["rate-limit-status"]), stored]]);
+  const client = { getQueryData: key => { reads.push(key); return cache.get(JSON.stringify(key)); } };
   assert.equal(currentWindows({ auth, client }).primary, 75);
-  assert.deepEqual(reads[0], ["rate-limit-status", "user-a", "account-a"]);
+  assert.deepEqual(reads[0], ["rate-limit-status"]);
   assert.equal(currentWindows({ auth: { ...auth, accountId: "account-b" }, client }), null);
   assert.equal(currentWindows({ auth: { ...auth, userId: "user-b" }, client }), null);
   assert.equal(currentWindows({ auth: { ...auth, isLoading: true }, client }), null);

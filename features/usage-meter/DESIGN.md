@@ -8,9 +8,9 @@
 
 ## 数据契约
 
-已在 2026-09-27 的隔离 Codex 中确认：原生 QueryClient 缓存
-`["rate-limit-status", userId, accountId]`，由 Codex 自行通过流/轮询更新。
-插件只订阅该缓存，按当前原生 auth 的 userId/accountId 精确读取，不自行请求
+已在 2026-09-29 的运行中 Codex 确认：原生 QueryClient 的成功额度数据缓存键为
+`["rate-limit-status"]`，由 Codex 自行更新。
+插件只订阅该缓存，校验响应的 user_id/account_id 与当前原生 auth 一致，不自行请求
 接口，不持久化账号或额度数据。切换账号、退出登录、额度数据缺失时隐藏旧值。
 
 窗口按 `limit_window_seconds` 识别：604800 为周、18000 为五小时；不依赖
