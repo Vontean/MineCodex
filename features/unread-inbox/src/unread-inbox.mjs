@@ -1,3 +1,5 @@
+// 原生完整侧栏图标，取自当前 Codex 16px/20px 资源。
+const sidebarGlyphs = {"16": "<svg aria-hidden=\"true\" class=\"_Icon_uttcz_1\" focusable=\"false\" height=\"16\" viewBox=\"0 0 16 16\" width=\"16\"><path d=\"M4.66699 4.80859C4.95683 4.80873 5.19238 5.04412 5.19238 5.33398V10.667C5.19238 10.9569 4.95683 11.1923 4.66699 11.1924C4.37704 11.1924 4.1416 10.9569 4.1416 10.667V5.33398C4.1416 5.04403 4.37704 4.80859 4.66699 4.80859Z\" fill=\"currentColor\"></path> <path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M11.5 2.30762C13.1707 2.30762 14.5254 3.66235 14.5254 5.33301V10.666C14.5254 12.3367 13.1707 13.6914 11.5 13.6914H4.5C2.82934 13.6914 1.47461 12.3367 1.47461 10.666V5.33301C1.47461 3.66235 2.82934 2.30762 4.5 2.30762H11.5ZM4.5 3.3584C3.40924 3.3584 2.52539 4.24225 2.52539 5.33301V10.666C2.52539 11.7568 3.40924 12.6416 4.5 12.6416H11.5C12.5908 12.6416 13.4746 11.7568 13.4746 10.666V5.33301C13.4746 4.24225 12.5908 3.3584 11.5 3.3584H4.5Z\" fill=\"currentColor\"></path></svg>", "20": "<svg aria-hidden=\"true\" class=\"_Icon_uttcz_1\" focusable=\"false\" height=\"20\" viewBox=\"0 0 20 20\" width=\"20\"><path d=\"M5.83301 6.00098C6.20028 6.00098 6.49805 6.29875 6.49805 6.66602V13.333C6.49787 13.7001 6.20017 13.998 5.83301 13.998C5.46596 13.9979 5.16814 13.7 5.16797 13.333V6.66602C5.16797 6.29883 5.46585 6.00111 5.83301 6.00098Z\" fill=\"currentColor\"></path> <path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M14.5 2.87695C16.5241 2.87695 18.165 4.51787 18.165 6.54199V13.459C18.1649 15.483 16.524 17.124 14.5 17.124H5.5C3.47598 17.124 1.83514 15.483 1.83496 13.459V6.54199C1.83496 4.51787 3.47588 2.87695 5.5 2.87695H14.5ZM5.5 4.20703C4.21042 4.20703 3.16504 5.25241 3.16504 6.54199V13.459C3.16521 14.7484 4.21052 15.7939 5.5 15.7939H14.5C15.7895 15.7939 16.8348 14.7484 16.835 13.459V6.54199C16.835 5.25241 15.7896 4.20703 14.5 4.20703H5.5Z\" fill=\"currentColor\"></path></svg>"};
 const taskGlyph = "<svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\" aria-hidden=\"true\"><path d=\"M13.3336 11.4749C13.6234 11.475 13.858 11.7104 13.858 12.0002C13.8579 12.2899 13.6233 12.5255 13.3336 12.5256H6.66663C6.37678 12.5256 6.1414 12.2901 6.14124 12.0002C6.14124 11.7103 6.37668 11.4749 6.66663 11.4749H13.3336Z\" fill=\"currentColor\"/> <path d=\"M3.07874 10.9827C3.50002 10.9827 3.84226 11.3241 3.84241 11.7454C3.84241 12.1667 3.50011 12.509 3.07874 12.509C2.65748 12.5089 2.31604 12.1666 2.31604 11.7454C2.31619 11.3242 2.65758 10.9828 3.07874 10.9827Z\" fill=\"currentColor\"/> <path d=\"M13.3336 7.47485C13.6234 7.47503 13.858 7.7104 13.858 8.00024C13.8579 8.28995 13.6233 8.52546 13.3336 8.52563H6.66663C6.37678 8.52563 6.1414 8.29005 6.14124 8.00024C6.14124 7.71029 6.37668 7.47485 6.66663 7.47485H13.3336Z\" fill=\"currentColor\"/> <path d=\"M3.07874 6.98267C3.50002 6.98267 3.84226 7.32411 3.84241 7.74536C3.84241 8.16674 3.50011 8.50903 3.07874 8.50903C2.65748 8.50888 2.31604 8.16665 2.31604 7.74536C2.31619 7.3242 2.65758 6.98281 3.07874 6.98267Z\" fill=\"currentColor\"/> <path d=\"M13.3336 3.47485C13.6234 3.47503 13.858 3.7104 13.858 4.00024C13.8579 4.28995 13.6233 4.52546 13.3336 4.52563H6.66663C6.37678 4.52563 6.1414 4.29005 6.14124 4.00024C6.14124 3.71029 6.37668 3.47485 6.66663 3.47485H13.3336Z\" fill=\"currentColor\"/> <path d=\"M3.07874 2.98267C3.50002 2.98267 3.84226 3.32411 3.84241 3.74536C3.84241 4.16674 3.50011 4.50903 3.07874 4.50903C2.65748 4.50888 2.31604 4.16665 2.31604 3.74536C2.31619 3.3242 2.65758 2.98281 3.07874 2.98267Z\" fill=\"currentColor\"/></svg>";
 const deviceGlyphs = {"local": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" fill=\"none\" aria-hidden=\"true\"><path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M12.6667 2.47461C13.6928 2.47479 14.525 3.30694 14.5251 4.33301V10.1445C15.0248 10.184 15.3787 10.6177 15.3787 11.0928V11.9355C15.3785 12.9036 14.6274 13.7373 13.6433 13.7373H2.34644C1.36254 13.7371 0.611273 12.9035 0.611084 11.9355V11.0928C0.611084 10.6149 0.970003 10.1796 1.47437 10.1445V4.33301C1.47454 3.30702 2.3068 2.47492 3.33276 2.47461H12.6667ZM1.66187 11.9355C1.66205 12.3765 1.99397 12.6863 2.34644 12.6865H13.6433C13.9959 12.6865 14.3287 12.3767 14.3289 11.9355V11.1924H1.66187V11.9355ZM3.33276 3.52539C2.8867 3.5257 2.52532 3.88692 2.52515 4.33301V10.1416H13.4744V4.33301C13.4742 3.88684 13.1129 3.52557 12.6667 3.52539H3.33276Z\" fill=\"currentColor\"/></svg>", "remote": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" fill=\"none\" aria-hidden=\"true\"><path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M11.5005 1.1416C12.4346 1.14184 13.1919 1.89985 13.1919 2.83398V6.55859H13.3335C13.8259 6.55859 14.1917 6.9676 14.1919 7.42969V8.2959C14.1914 9.14015 13.5269 9.85938 12.6665 9.85938H3.3335C2.47306 9.85938 1.80856 9.14015 1.80811 8.2959V7.42969C1.80834 6.9677 2.17428 6.55877 2.6665 6.55859H2.80811V2.83398C2.80811 1.8997 3.56621 1.1416 4.50049 1.1416H11.5005ZM2.85889 8.2959C2.85933 8.59786 3.08989 8.80859 3.3335 8.80859H12.6665C12.9101 8.80859 13.1416 8.59786 13.1421 8.2959V7.60938H2.85889V8.2959ZM4.50049 2.19238C4.14611 2.19238 3.85889 2.4796 3.85889 2.83398V6.55859H12.1421V2.83398C12.1421 2.47975 11.8547 2.19262 11.5005 2.19238H4.50049Z\" fill=\"currentColor\"/> <path d=\"M2.8595 13.4307C3.28863 13.4308 3.63684 13.7788 3.63684 14.208C3.63677 14.6371 3.28859 14.9852 2.8595 14.9854C2.43029 14.9854 2.08222 14.6372 2.08215 14.208C2.08215 13.7788 2.43025 13.4307 2.8595 13.4307Z\" fill=\"currentColor\"/> <path d=\"M5.42981 13.4307C5.859 13.4307 6.20715 13.7788 6.20715 14.208C6.20709 14.6372 5.85896 14.9853 5.42981 14.9854C5.0006 14.9854 4.65253 14.6372 4.65247 14.208C4.65247 13.7788 5.00056 13.4307 5.42981 13.4307Z\" fill=\"currentColor\"/> <path d=\"M8.00012 13.4307C8.42937 13.4307 8.77747 13.7788 8.77747 14.208C8.7774 14.6372 8.42933 14.9854 8.00012 14.9854C7.57092 14.9854 7.22284 14.6372 7.22278 14.208C7.22278 13.7788 7.57087 13.4307 8.00012 13.4307Z\" fill=\"currentColor\"/> <path d=\"M10.5704 13.4307C10.9997 13.4307 11.3478 13.7788 11.3478 14.208C11.3477 14.6372 10.9996 14.9854 10.5704 14.9854C10.1414 14.9852 9.79413 14.6371 9.79407 14.208C9.79407 13.7789 10.1414 13.4309 10.5704 13.4307Z\" fill=\"currentColor\"/> <path d=\"M13.1417 13.4307C13.5707 13.4309 13.9181 13.7789 13.9181 14.208C13.918 14.637 13.5707 14.9851 13.1417 14.9854C12.7125 14.9854 12.3644 14.6372 12.3644 14.208C12.3644 13.7788 12.7125 13.4307 13.1417 13.4307Z\" fill=\"currentColor\"/> <path d=\"M8.00012 10.8809C8.42925 10.8809 8.77727 11.2281 8.77747 11.6572C8.77747 12.0865 8.42937 12.4346 8.00012 12.4346C7.57087 12.4346 7.22278 12.0865 7.22278 11.6572C7.22298 11.2281 7.571 10.8809 8.00012 10.8809Z\" fill=\"currentColor\"/></svg>"};
 const text = (en, cn) => (document.documentElement.lang || navigator.language || "en").startsWith("zh") ? cn : en;
@@ -9,27 +11,32 @@ style.textContent = `
 [data-minecodex-task-title] { pointer-events:auto; -webkit-app-region:no-drag; cursor:pointer; border-radius:var(--radius-lg); min-height:32px; padding-inline:6px; }
 [data-minecodex-task-title]:hover { background:var(--color-background-primary-ghost-hover); }
 [data-minecodex-task-title]:focus-visible { outline:2px solid var(--color-ring); outline-offset:-2px; }
-[data-minecodex-task-badge] { display:inline-flex; flex-shrink:0; align-items:center; gap:4px; color:var(--color-text-secondary); font-family:var(--font-sans-default); font-size:var(--text-xs); font-variant-numeric:tabular-nums; }
+[data-minecodex-task-badge] { display:inline-flex; flex-shrink:0; align-items:center; gap:4px; color:var(--color-text-secondary); font-family:var(--font-sans-default); font-size:var(--text-xs); font-variant-numeric:tabular-nums; position:relative; }
+[data-minecodex-task-badge][data-notification]::after { content:""; position:absolute; width:6px; height:6px; right:-2px; top:-1px; border-radius:50%; background:var(--blue-400,#3A83F7); box-shadow:0 0 0 1.5px var(--color-token-dropdown-background); }
+[data-minecodex-task-badge][data-notification=red]::after { background:#FF3B30; }
+[data-minecodex-sidebar-original] { display:none !important; }
 [data-minecodex-unread=trigger] { -webkit-app-region:no-drag; }
-[${marker}=scrim] { position:fixed; inset:0; z-index:2147482999; background:var(--modal-backdrop-background); -webkit-app-region:no-drag; }
-[${marker}=scrim][hidden] { display:none; }
-[${marker}=panel] { position:fixed; z-index:2147483000; box-sizing:border-box; width:min(320px,calc(100vw - 16px)); max-height:min(660px,calc(100vh - 64px)); display:flex; flex-direction:column; overflow:hidden; padding:var(--app-menu-gutter,4px); padding-bottom:calc(var(--spacing,4px) * 3); border:1px solid var(--color-border); border-radius:var(--radius-2xl); background:var(--color-token-dropdown-background); color:var(--color-text-primary); box-shadow:var(--shadow-xl-spread); font-family:var(--font-sans-default); font-size:var(--text-sm); }
+[${marker}=panel] { position:fixed; z-index:2147483000; box-sizing:border-box; width:min(320px,calc(100vw - 16px)); max-height:min(440px,calc(100vh - 64px)); display:flex; flex-direction:column; overflow:hidden; padding:6px 0; border:1px solid var(--color-border); border-radius:16px; background:var(--color-token-dropdown-background); color:var(--color-text-primary); box-shadow:var(--shadow-md,0 4px 16px rgba(0,0,0,.12)); font-family:var(--font-sans-default); font-size:var(--text-sm); }
 [${marker}=panel][hidden] { display:none; }
-[${marker}=panel] .mcx-thread-list { min-height:0; overflow-y:auto; overscroll-behavior:contain; }
-[${marker}=panel] h2 { flex-shrink:0; margin:8px 10px; font-size:var(--text-sm); font-weight:500; color:var(--color-text-secondary); }
-[${marker}=panel] [data-unread-row] { display:flex; flex-direction:column; gap:6px; width:100%; padding:10px; box-sizing:border-box; border:0; border-radius:var(--radius-xl); background:transparent; text-align:start; color:var(--color-text-primary); font:inherit; cursor:pointer; }
-[${marker}=panel] [data-unread-row][aria-current=page] { background:var(--color-background-primary-ghost-hover); }
+[${marker}=panel] .mcx-thread-list { min-height:0; overflow-y:auto; overscroll-behavior:contain; padding:0 6px; scrollbar-width:thin; scrollbar-color:var(--color-border) transparent; }
+[${marker}=panel] .mcx-thread-list:hover, [${marker}=panel] .mcx-thread-list:active { scrollbar-color:var(--color-border-strong) transparent; }
+[${marker}=panel] h2 { flex-shrink:0; margin:8px 16px; font-size:var(--text-sm); font-weight:500; color:var(--color-text-tertiary); }
+[${marker}=panel] [data-unread-row] { display:flex; flex-direction:column; gap:4px; width:100%; padding:10px 12px; box-sizing:border-box; border:0; border-radius:10px; background:transparent; text-align:start; color:var(--color-text-primary); font:inherit; cursor:pointer; }
+[${marker}=panel] [data-unread-row][aria-current=page] .mcx-thread-title::before { content:""; display:inline-block; width:5px; height:5px; margin-inline-end:6px; border-radius:50%; background:currentColor; vertical-align:middle; }
 [${marker}=panel] [data-unread-row]:hover { background:var(--color-background-primary-ghost-hover); }
 [${marker}=panel] [data-unread-row]:focus-visible { outline:2px solid var(--color-ring); outline-offset:-2px; }
 [${marker}=panel] .mcx-thread-header { display:flex; align-items:center; gap:8px; width:100%; min-width:0; }
-[${marker}=panel] .mcx-thread-title { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; font-weight:500; }
+[${marker}=panel] .mcx-thread-title { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; font-size:13px; line-height:18px; font-weight:500; }
 [${marker}=panel] .mcx-device { display:flex; flex-shrink:0; color:var(--color-text-tertiary); }
 [${marker}=panel] .mcx-loading { margin-inline-start:auto; flex-shrink:0; display:flex; align-items:center; color:var(--color-text-tertiary); }
 [${marker}=panel] time { margin-inline-start:auto; flex-shrink:0; font-size:var(--text-xs); color:var(--color-text-tertiary); }
-[${marker}=panel] .mcx-summary { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; white-space:normal; overflow-wrap:anywhere; font-size:var(--text-xs); line-height:var(--text-xs--line-height,1.4); color:var(--color-text-tertiary); }
-[${marker}=panel] .mcx-project { display:flex; align-items:center; gap:6px; padding:0; min-width:0; font-size:var(--text-xs); color:var(--color-text-secondary); font-weight:500; }
+[${marker}=panel] .mcx-summary { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12px; line-height:16px; color:var(--color-text-tertiary); }
+[${marker}=panel] .mcx-project { display:flex; align-items:center; gap:6px; padding:0; min-width:0; font-size:11px; line-height:16px; color:var(--color-text-tertiary); font-weight:400; }
 [${marker}=panel] .mcx-project > span:last-child { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-[${marker}=panel] .mcx-project svg { width:16px; height:16px; }
+[${marker}=panel] .mcx-project svg, [${marker}=panel] .mcx-project-icon { width:12px; height:12px; flex:none; }
+[${marker}=panel] .mcx-project-icon > * { width:12px; height:12px; }
+[${marker}=panel] .mcx-attention { margin-inline-start:auto; flex:none; max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; border-radius:999px; padding:2px 10px 2px 8px; font-size:12px; line-height:16px; color:var(--color-chart-blue); background:color-mix(in srgb,var(--color-chart-blue) 15%,transparent); }
+[${marker}=panel] .mcx-attention[data-attention="approval"] { color:var(--color-chart-green); background:color-mix(in srgb,var(--color-chart-green) 20%,transparent); }
 [${marker}=panel] .mcx-empty { margin:20px 12px; color:var(--color-text-tertiary); }
 `;
 document.head.append(style);
@@ -39,14 +46,23 @@ panel.id = "minecodex-unread-panel";
 panel.setAttribute("role", "dialog");
 panel.hidden = true;
 document.body.append(panel);
-const scrim = document.createElement("div");
-scrim.setAttribute(marker, "scrim");
-scrim.setAttribute("aria-hidden", "true");
-scrim.hidden = true;
-document.body.append(scrim);
-scrim.addEventListener("click", () => close(true), { signal });
 let trigger = null, badge = null, binding = null, standalone = false;
 let activityFrame = null, activityTimer = null;
+let hoverOpenTimer = null, hoverCloseTimer = null;
+function cancelHoverTimers() {
+  clearTimeout(hoverOpenTimer); clearTimeout(hoverCloseTimer);
+}
+function scheduleHoverOpen() {
+  cancelHoverTimers();
+  if (panel.hidden) hoverOpenTimer = setTimeout(open, 150);
+}
+function scheduleHoverClose() {
+  cancelHoverTimers();
+  // 留出跨越入口与浮层间隙的时间。
+  hoverCloseTimer = setTimeout(() => close(), 250);
+}
+panel.addEventListener("pointerenter", cancelHoverTimers, { signal });
+panel.addEventListener("pointerleave", scheduleHoverClose, { signal });
 const recentRows = new Map();
 const openedAt = new Map();
 const messageUpdates = new Map();
@@ -80,10 +96,14 @@ function threadRecord(row) {
   }
   return { ...threadDetails(row), key:row.dataset.appActionSidebarThreadId, unread:isUnread(row), activate, spinner:row.querySelector?.('[class~="motion-safe:animate-spin"]')?.outerHTML ?? "" };
 }
-function selectThreads(records, recent, now = Date.now()) {
+function notificationColor(records) {
+  return records.some(item => item.attention) ? "red" : records.some(item => item.unread) ? "blue" : null;
+}
+function selectThreads(records, recent, now = Date.now(), currentKey = null) {
+  const rank = item => item.attention === "input" ? 0 : item.attention === "approval" ? 1 : item.unread ? 2 : item.working ? 3 : 4;
   return [...new Map(records.map(item => [item.key, item])).values()]
-    .filter(item => item.working || item.unread || now - (recent.get(item.key) ?? -Infinity) < 3600000)
-    .sort((a, b) => (b.timestamp ?? 0) - (a.timestamp ?? 0));
+    .filter(item => item.key !== currentKey && (item.attention || item.working || item.unread || now - (recent.get(item.key) ?? -Infinity) < 3600000))
+    .sort((a, b) => rank(a) - rank(b) || (b.timestamp ?? 0) - (a.timestamp ?? 0));
 }
 function captureCurrentRow() {
   const selected = document.querySelector('#app-shell-sidebar [data-app-action-sidebar-thread-selected="true"]');
@@ -101,6 +121,16 @@ function projectForRow(row) {
   for (let depth = 0; fiber && depth < 35; depth++, fiber = fiber.return) {
     const group = fiber.memoizedProps?.secondaryContent?.props?.projectGroup;
     if (group?.projectId) return { id:group.projectId, name:group.label };
+  }
+  return null;
+}
+function attentionState(row) {
+  let fiber = row[Object.keys(row).find(key => key.startsWith("__reactFiber"))];
+  for (let depth = 0; fiber && depth < 35; depth++, fiber = fiber.return) {
+    const props = fiber.memoizedProps;
+    // 复用原生状态契约，不从摘要文案推断待确认状态。
+    if (props?.chips?.some(chip => chip.id === "awaiting-approval")) return "approval";
+    if (props?.statusPill?.label?.props?.id === "codex.localTaskRow.needsInput") return "input";
   }
   return null;
 }
@@ -129,6 +159,7 @@ function threadDetails(row) {
     hostId, hostName:hostConfig?.display_name || hostId,
     project:projectForRow(row),
     working:isWorking(row),
+    attention:attentionState(row),
   };
 }
 function relativeTime(timestamp, now = Date.now()) {
@@ -146,10 +177,10 @@ function cacheProjectIcons() {
   }
 }
 function close(restoreFocus = false) {
+  cancelHoverTimers();
   cancelAnimationFrame(activityFrame); clearTimeout(activityTimer);
   activityFrame = null; activityTimer = null;
   panel.hidden = true;
-  scrim.hidden = true;
   if (trigger?.getAttribute("aria-expanded") !== "false") trigger?.setAttribute("aria-expanded", "false");
   if (restoreActivity) {
     restoreActivity = false;
@@ -165,24 +196,33 @@ function position() {
   panel.style.left = `${Math.max(8, Math.min(rect.left, innerWidth - width - 8))}px`;
   panel.style.top = `${rect.bottom + 8}px`;
   panel.style.maxWidth = `${width}px`;
-  panel.style.maxHeight = `${Math.max(0, Math.min(660, innerHeight - rect.bottom - 24))}px`;
+  panel.style.maxHeight = `${Math.max(0, Math.min(440, innerHeight - rect.bottom - 24))}px`;
 }
-function renderRows() {
+function activityRecords() {
   captureCurrentRow();
   const records = [...document.querySelectorAll('#app-shell-sidebar [data-app-action-sidebar-thread-row]')].map(threadRecord);
   const mounted = new Set(records.map(item => item.key));
   for (const item of records) if (openedAt.has(item.key)) recentRows.set(item.key, item);
-  for (const [key, item] of recentRows) if (!mounted.has(key)) records.push({ ...item, working:false, unread:false });
-  const details = selectThreads(records, openedAt).map(item => ({ ...item, current:item.key === selectedKey }));
-  const next = JSON.stringify([text("Priority", "优先事项"), details, Math.floor(Date.now() / 60000)]);
+  for (const [key, item] of recentRows) if (!mounted.has(key)) records.push({ ...item, working:false, unread:false, attention:null });
+  return selectThreads(records, openedAt, Date.now(), selectedKey);
+}
+function syncNotification(details) {
+  const color = notificationColor(details);
+  if (color) { if (badge?.dataset.notification !== color) badge?.setAttribute("data-notification", color); }
+  else badge?.removeAttribute("data-notification");
+}
+function renderRows(details = activityRecords()) {
+  syncNotification(details);
+  if (!details.length) { close(); return; }
+  const next = JSON.stringify([text("Recent activity", "最近活动"), details, Math.floor(Date.now() / 60000)]);
   if (signature === next) return;
   signature = next;
   const scrollTop = panel.querySelector(".mcx-thread-list")?.scrollTop ?? 0;
   const focusedKey = panel.contains(document.activeElement) ? document.activeElement?.dataset.threadKey : null;
   panel.replaceChildren();
-  panel.setAttribute("aria-label", text("Priority", "优先事项"));
+  panel.setAttribute("aria-label", text("Recent activity", "最近活动"));
   const heading = document.createElement("h2");
-  heading.textContent = text("Priority", "优先事项");
+  heading.textContent = text("Recent activity", "最近活动");
   panel.append(heading);
   const list = document.createElement("div");
   list.className = "mcx-thread-list";
@@ -202,11 +242,18 @@ function renderRows() {
     device.className = "mcx-device";
     const remote = item.hostId !== "local";
     device.innerHTML = deviceGlyphs[remote ? "remote" : "local"];
-    device.title = remote ? item.hostName : text("This computer", "本机");
+    device.title = text("Remote", "远程");
     device.setAttribute("aria-label", device.title);
-    header.append(title, device);
+    header.append(title);
+    if (remote) header.append(device);
     const elapsed = relativeTime(item.timestamp);
-    if (item.working) {
+    if (item.attention) {
+      const label = document.createElement("span");
+      label.className = "mcx-attention";
+      label.dataset.attention = item.attention;
+      label.textContent = item.attention === "approval" ? text("Awaiting approval", "等待批准") : text("Needs input", "需要回复");
+      header.append(label);
+    } else if (item.working) {
       const loading = document.createElement("span");
       loading.className = "mcx-loading";
       loading.setAttribute("role", "status");
@@ -231,9 +278,12 @@ function renderRows() {
     if (item.project) {
       const project = document.createElement("span");
       project.className = "mcx-project";
+      const icon = document.createElement("span");
+      icon.className = "mcx-project-icon";
       const glyph = projectIcons.get(item.project.id)?.cloneNode(true);
-      if (glyph) project.append(glyph);
-      else project.innerHTML = folderGlyph;
+      if (glyph) icon.append(glyph);
+      else icon.innerHTML = folderGlyph;
+      project.append(icon);
       const name = document.createElement("span");
       name.textContent = item.project.name;
       project.append(name);
@@ -266,10 +316,12 @@ function open() {
   captureCurrentRow();
   const native = activityButton();
   if (!native) return;
+  const details = activityRecords();
+  syncNotification(details);
+  if (!details.length) return;
   panel.hidden = false;
-  scrim.hidden = false;
   trigger.setAttribute("aria-expanded", "true");
-  renderRows(); position();
+  renderRows(details); position();
   // 先呈现浮层，下一帧之后再更新原生 Activity，避免同步 React 切换阻塞点击反馈。
   if (native.getAttribute("aria-pressed") !== "true") {
     activityFrame = requestAnimationFrame(() => {
@@ -288,7 +340,36 @@ function open() {
 function visible(element) {
   return element && !element.closest('[aria-hidden="true"], [inert]') && element.checkVisibility();
 }
+const nativeSidebarIcons = new Map();
+function restoreSidebarIcons() {
+  for (const [original, replacement] of nativeSidebarIcons) {
+    original.removeAttribute("data-minecodex-sidebar-original"); replacement.remove();
+  }
+  nativeSidebarIcons.clear();
+}
+function syncSidebarIcons(toggle) {
+  for (const [original, replacement] of nativeSidebarIcons) {
+    if (!original.isConnected || !toggle.contains(original)) {
+      original.removeAttribute("data-minecodex-sidebar-original"); replacement.remove(); nativeSidebarIcons.delete(original);
+    }
+  }
+  for (const original of toggle.querySelectorAll('svg:not([data-minecodex-sidebar-replacement])')) {
+    if (nativeSidebarIcons.has(original)) continue;
+    const glyph = sidebarGlyphs[original.getAttribute("width")];
+    if (!glyph) continue;
+    const container = document.createElement("span");
+    container.innerHTML = glyph;
+    const replacement = container.firstElementChild;
+    replacement.setAttribute("class", original.getAttribute("class") || "");
+    replacement.setAttribute("data-minecodex-sidebar-replacement", "");
+    replacement.setAttribute("data-no-autosize", "true");
+    // 不移除 React 所有的 SVG，只切换显示并插入独立资源。
+    original.setAttribute("data-minecodex-sidebar-original", "");
+    original.after(replacement); nativeSidebarIcons.set(original, replacement);
+  }
+}
 function detachTrigger() {
+  restoreSidebarIcons();
   binding?.abort(); binding = null;
   if (standalone) trigger?.remove();
   else if (trigger) {
@@ -332,7 +413,9 @@ function sync() {
     badge.setAttribute("data-minecodex-task-badge", "");
     badge.innerHTML = taskGlyph;
     trigger.prepend(badge);
-    trigger.addEventListener("click", event => { event.stopPropagation(); panel.hidden ? open() : close(); }, {signal:binding.signal});
+    trigger.addEventListener("click", event => { event.stopPropagation(); if (panel.hidden) open(); }, {signal:binding.signal});
+    trigger.addEventListener("pointerenter", scheduleHoverOpen, { signal:binding.signal });
+    trigger.addEventListener("pointerleave", scheduleHoverClose, { signal:binding.signal });
     trigger.addEventListener("keydown", event => {
       if (["Enter", " ", "ArrowDown"].includes(event.key)) {
         event.preventDefault(); event.stopPropagation();
@@ -340,9 +423,12 @@ function sync() {
       }
     }, {signal:binding.signal});
   }
-  const label = text("Switch tasks", "切换任务");
+  syncSidebarIcons(sidebarToggle);
+  const details = activityRecords();
+  syncNotification(details);
+  const label = text("Recent activity", "最近活动");
   if (trigger.getAttribute("aria-label") !== label) trigger.setAttribute("aria-label", label);
-  if (!panel.hidden) { renderRows(); position(); }
+  if (!panel.hidden) { renderRows(details); position(); }
 }
 const observer = new MutationObserver(() => {
   if (queued) return;
@@ -350,11 +436,11 @@ const observer = new MutationObserver(() => {
   queueMicrotask(() => { queued = false; sync(); });
 });
 observer.observe(document.documentElement, { childList:true, subtree:true, attributes:true, attributeFilter:["aria-expanded", "aria-pressed", "aria-hidden", "data-app-shell-header-layout", "data-app-action-sidebar-thread-selected", "lang"] });
-document.addEventListener("pointerdown", event => { if (event.target !== scrim && !trigger?.contains(event.target) && !panel.contains(event.target)) close(); }, { signal });
+document.addEventListener("pointerdown", event => { if (!trigger?.contains(event.target) && !panel.contains(event.target)) close(); }, { signal });
 document.addEventListener("keydown", event => { if (event.key === "Escape" && !panel.hidden) { event.preventDefault(); close(true); } }, { signal });
 window.addEventListener("resize", position, { signal });
-const refreshTimer = setInterval(() => { if (!panel.hidden) renderRows(); }, 30000);
+const refreshTimer = setInterval(sync, 30000);
 sync();
 return () => {
-  disposed = true; clearInterval(refreshTimer); observer.disconnect(); close(); detachTrigger(); panel.remove(); scrim.remove(); style.remove();
+  disposed = true; clearInterval(refreshTimer); observer.disconnect(); close(); detachTrigger(); panel.remove(); style.remove();
 };

@@ -49,12 +49,12 @@ test('priority includes working read threads and loading wins over unread time',
 });
 
 
-test('union of working, unread and recently opened sorts only by message time', () => {
+test('activity ranks unread before working and recent idle threads', () => {
   const sort = new Function(source.slice(source.indexOf('function selectThreads('), source.indexOf('function captureCurrentRow(')) + ';return selectThreads;')();
   const rows = [{key:'current', timestamp:100}, {key:'unread', unread:true, timestamp:300},
     {key:'working',working:true,timestamp:400},{key:'expired',timestamp:500}];
   const recent = new Map([['current',5000],['expired',0]]);
-  assert.deepEqual(sort(rows,recent,3600001).map(r=>r.key),['working','unread','current']);
+  assert.deepEqual(sort(rows,recent,3600001).map(r=>r.key),['unread','working','current']);
 });
 
 test('recent records keep native navigation after React unmounts the source row', () => {
@@ -101,7 +101,7 @@ test('streaming updates retain scroll and keyboard focus while rendering loading
   const render=new Function('document','panel','records',`
     const captureCurrentRow=()=>{}, threadRecord=x=>x, selectThreads=x=>x, text=x=>x, relativeTime=()=>'';
     const openedAt=new Map(),recentRows=new Map(),projectIcons=new Map(),deviceGlyphs={local:''};
-    const selectedKey='one';let signature='';const close=()=>{};
+    const selectedKey='one';let signature='';const close=()=>{};const syncNotification=()=>{};const activityRecords=()=>records;
     ${fragment};return renderRows;
   `)(doc,panel,records);
   render();
@@ -111,4 +111,34 @@ test('streaming updates retain scroll and keyboard focus while rendering loading
   assert.equal(refreshed.scrollTop,140);
   assert.equal(doc.activeElement,refreshed.children[0]);
   assert.equal(doc.activeElement.dataset.threadKey,'one');
+});
+
+test('attention labels use native input and approval contracts, not summary words', () => {
+  const read = new Function(source.slice(source.indexOf('function attentionState('), source.indexOf('function threadDetails(')) + ';return attentionState;')();
+  const row = props => ({__reactFiberFixture:{memoizedProps:props}});
+  assert.equal(read(row({statusPill:{label:{props:{id:'codex.localTaskRow.needsInput'}}}})), 'input');
+  assert.equal(read(row({chips:[{id:'awaiting-approval'}]})), 'approval');
+  assert.equal(read(row({statusPill:{label:'Needs input'},summary:'Awaiting approval'})), null);
+  const select = new Function(source.slice(source.indexOf('function selectThreads('), source.indexOf('function captureCurrentRow(')) + ';return selectThreads;')();
+  assert.equal(select([{key:'waiting',attention:'input',timestamp:1}],new Map()).length,1);
+});
+
+
+test('needs input precedes approval, then unread, working and idle; current is excluded', () => {
+  const select = new Function(source.slice(source.indexOf('function selectThreads('), source.indexOf('function captureCurrentRow(')) + ';return selectThreads;')();
+  const rows = [{key:'idle',timestamp:900}, {key:'working',working:true,timestamp:800},
+    {key:'unread',unread:true,timestamp:700}, {key:'approval',attention:'approval',timestamp:600},
+    {key:'input',attention:'input',timestamp:500}, {key:'current',attention:'input',timestamp:1000}];
+  const recent = new Map([['idle',1000]]);
+  assert.deepEqual(select(rows,recent,1000,'current').map(x=>x.key), ['input','approval','unread','working','idle']);
+  assert.deepEqual(select([rows[5]],recent,1000,'current'), []);
+});
+
+test('notification is red for attention, blue for unread, absent for running or idle only', () => {
+  const color = new Function(source.slice(source.indexOf('function notificationColor('), source.indexOf('function selectThreads(')) + ';return notificationColor;')();
+  assert.equal(color([{unread:true},{attention:'input'}]),'red');
+  assert.equal(color([{attention:'approval'}]),'red');
+  assert.equal(color([{unread:true}]),'blue');
+  assert.equal(color([{working:true}]),null);
+  assert.equal(color([]),null);
 });
