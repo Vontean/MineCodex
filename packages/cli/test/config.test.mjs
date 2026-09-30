@@ -25,6 +25,7 @@ test("config defaults every known plugin on and preserves unknown fields", async
     "usage-meter": true,
     "unread-inbox": true,
     "sidebar-focus": true,
+    sites: true,
   });
   assert.deepEqual(config.future, { channel: "preview" });
 

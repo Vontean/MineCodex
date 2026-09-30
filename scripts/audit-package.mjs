@@ -31,6 +31,9 @@ if (packageMetadata.license !== "MIT") {
 
 const files = report.files.map(({ path: filePath }) => filePath).sort();
 const requiredFiles = [
+  "features/sites/codex-feature.json",
+  "features/sites/src/sites-page.mjs",
+  "features/sites/src/sites-service.mjs",
   "LICENSE",
   "README.md",
   "apps/dashboard/index.html",

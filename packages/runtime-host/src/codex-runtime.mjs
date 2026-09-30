@@ -32,6 +32,7 @@ import {
   attachFilesToComposer,
   createImageEditThread,
 } from "./host-actions.mjs";
+import { SitesService } from "../../../features/sites/src/sites-service.mjs";
 import { SessionStatusReader, threadIdFromLocation } from "./session-status-reader.mjs";
 
 
@@ -73,9 +74,11 @@ export class CodexRuntime {
     featureInstanceId = null,
     runtimeSessionId = randomBytes(16).toString("hex"),
     onStatusChange = null,
+    sitesService = null,
     onManagedCodexPidChange = null,
   }) {
     this.features = features;
+    this.sitesService = sitesService ?? (features.some(feature => feature.id === "sites") ? new SitesService() : null);
     this.profileDir = profileDir;
     this.appPath = appPath;
     this.cdpPort = cdpPort;
@@ -546,6 +549,15 @@ export class CodexRuntime {
       });
       return;
     }
+    if (feature.id === "sites" && request.action === "sites") {
+      try {
+        const result = await this.sitesService.action(request.payload);
+        await this.resolveHostAction(client, request.requestId, { ok: true, result });
+      } catch (error) {
+        await this.resolveHostAction(client, request.requestId, { ok: false, error: { code: "SITES_REQUEST_FAILED", message: error.message } });
+      }
+      return;
+    }
     if (feature.id === "notes" && request.action === "quick-prompts") {
       try {
         const { route, method = "GET", body } = request.payload ?? {};
@@ -791,6 +803,7 @@ export class CodexRuntime {
   }
 
   async stop() {
+    this.sitesService?.launcher?.stop();
     if (this.stopPromise) return this.stopPromise;
     this.stopPromise = (async () => {
       this.stopping = true;
