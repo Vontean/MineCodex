@@ -51,7 +51,7 @@ function currentWindows(context) {
 const style = document.createElement("style");
 style.id = STYLE_ID;
 style.textContent = `
-[${MARKER}] { position:relative; display:flex; align-items:center; justify-content:center; flex:none; -webkit-app-region:no-drag; }
+[${MARKER}] { position:relative; display:flex; align-items:center; justify-content:center; flex:none; color:var(--color-text-tertiary); -webkit-app-region:no-drag; }
 [${MARKER}] .mcx-usage-ring { display:block; width:24px; height:24px; overflow:visible; }
 [${MARKER}] .mcx-usage-number { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:inherit; font-family:var(--font-sans-default); font-size:calc(var(--text-xs) * 2 / 3); line-height:1; font-weight:var(--font-weight-medium,500); letter-spacing:0; font-variant-numeric:tabular-nums; pointer-events:none; }
 [${MARKER}] [data-window="weekly"] { color:inherit; }
@@ -132,21 +132,32 @@ function removeControl() {
   record = null;
 }
 
-function mount(help, rail) {
-  // 只克隆按钮的外观属性，不携带原生 Help 的菜单行为或 id。
-  const button = help.cloneNode(false);
+function findAvatar(rail) {
+  const buttons = [...(rail?.querySelectorAll("button") ?? [])];
+  return buttons.find(button => /\b(account|profile|avatar|user)\b|账户|帐户|个人资料|头像/i.test(button.getAttribute("aria-label") ?? ""))
+    ?? buttons.find(button => button.matches('[data-sidebar-destination="builtin:account"]'))
+    ?? buttons.findLast(button => button.querySelector('img[alt], img[src], [data-avatar]'))
+    ?? null;
+}
+
+function avatarAnchor(avatar) {
+  return avatar.parentElement?.classList.contains("contents") ? avatar.parentElement : avatar;
+}
+
+function mount(avatar, rail) {
+  // 克隆 Avatar 热区的外观，不携带原生账号菜单行为。
+  const button = avatar.cloneNode(false);
   for (const attribute of [...button.attributes]) {
-    if (attribute.name.startsWith("aria-") || attribute.name === "id" || attribute.name === "data-state") button.removeAttribute(attribute.name);
+    if (attribute.name.startsWith("aria-") || ["id", "title", "data-state", "data-sidebar-destination", "data-testid"].includes(attribute.name)) button.removeAttribute(attribute.name);
   }
   button.setAttribute(MARKER, "");
   const tooltip = document.createElement("div");
   tooltip.id = TIP_ID;
   tooltip.setAttribute("role", "tooltip");
   tooltip.hidden = true;
-  const anchor = help.parentElement.classList.contains("contents") ? help.parentElement : help;
-  anchor.after(button);
+  avatarAnchor(avatar).before(button);
   document.body.append(tooltip);
-  record = { button, tooltip, rail, help, signature: null };
+  record = { button, tooltip, rail, avatar, signature: null };
   button.addEventListener("pointerenter", () => { hoverTimer = setTimeout(showTooltip, 350); });
   button.addEventListener("pointerleave", hideTooltip);
   button.addEventListener("focus", showTooltip);
@@ -163,7 +174,7 @@ function sync() {
   queued = false;
   if (signal.aborted) return;
   const rail = [...document.querySelectorAll('nav[data-app-navigation-rail="true"]')].find(rail => rail.getBoundingClientRect().width > 0);
-  const help = rail?.querySelector('button[aria-label="Help menu"],button[aria-label="帮助菜单"]');
+  const avatar = findAvatar(rail);
   const context = rail ? nativeContext(rail) : {};
   if (client !== context.client) {
     unsubscribe?.();
@@ -173,8 +184,9 @@ function sync() {
     });
   }
   const windows = currentWindows(context);
-  if (!help || !context.router || !windows) { removeControl(); return; }
-  if (record?.help !== help || !record?.button.isConnected) { removeControl(); mount(help, rail); }
+  if (!avatar || !context.router || !windows) { removeControl(); return; }
+  if (record?.avatar !== avatar || !record?.button.isConnected) { removeControl(); mount(avatar, rail); }
+  else if (record.button.nextElementSibling !== avatarAnchor(avatar)) avatarAnchor(avatar).before(record.button);
   const signature = JSON.stringify(windows);
   if (record.signature !== signature) { record.signature = signature; draw(windows); }
 }

@@ -4,6 +4,7 @@ import test from "node:test";
 
 const source = await readFile(new URL("../src/usage-meter.mjs", import.meta.url), "utf8");
 const { remainingWindows, currentWindows, nativeContext } = new Function(`${source.slice(0, source.indexOf("const style ="))}\nreturn { remainingWindows, currentWindows, nativeContext };`)();
+const findAvatar = new Function(`${source.slice(source.indexOf("function findAvatar("), source.indexOf("function mount("))}\nreturn findAvatar;`)();
 const bucket = (used_percent, limit_window_seconds) => ({ used_percent, limit_window_seconds });
 const data = (primary, secondary = null) => ({ user_id: "user-a", account_id: "account-a", rate_limit: { primary_window: primary, secondary_window: secondary } });
 
@@ -58,6 +59,40 @@ test("native context uses provider capabilities rather than minified component n
   } } };
   assert.deepEqual(nativeContext(rail), { auth, client, router });
   assert.deepEqual(nativeContext({}), { auth: null, client: null, router: null });
+});
+
+test("Avatar anchor remains discoverable when Help moves out of the navigation rail", () => {
+  const button = (label, hasImage = false) => ({
+    getAttribute: name => name === "aria-label" ? label : null,
+    matches: () => false,
+    querySelector: () => hasImage ? {} : null,
+  });
+  const projects = button("Projects"), avatar = button("Open account menu");
+  assert.equal(findAvatar({ querySelectorAll: () => [projects, avatar] }), avatar);
+  assert.equal(findAvatar({ querySelectorAll: () => [projects, button("", true)] })?.querySelector() != null, true);
+  assert.equal(findAvatar({ querySelectorAll: () => [projects] }), null);
+});
+
+test("usage button mounts immediately above the Avatar without inheriting account navigation", () => {
+  class Node {
+    constructor() { this.attributes = []; this.children = []; this.classList = { contains: () => false }; }
+    cloneNode() { const clone = new Node(); clone.attributes = this.attributes.map(attribute => ({ ...attribute })); return clone; }
+    setAttribute(name, value) { this.attributes.push({ name, value }); }
+    removeAttribute(name) { this.attributes = this.attributes.filter(attribute => attribute.name !== name); }
+    addEventListener() {}
+    append(child) { this.children.push(child); }
+    before(child) { this.parentElement.children.splice(this.parentElement.children.indexOf(this), 0, child); child.parentElement = this.parentElement; }
+  }
+  const rail = new Node(), avatar = new Node();
+  avatar.setAttribute("data-sidebar-destination", "builtin:account");
+  avatar.setAttribute("title", "Account");
+  avatar.parentElement = rail;
+  rail.children = [avatar];
+  const document = { createElement: () => new Node(), body: new Node() };
+  const mount = new Function("document", "MARKER", "TIP_ID", `let record, hoverTimer; const hideTooltip = () => {}, showTooltip = () => {}; ${source.slice(source.indexOf("function avatarAnchor("), source.indexOf("function sync()"))}\nreturn (avatar, rail) => { mount(avatar, rail); return record; };`)(document, "data-minecodex-usage-meter", "minecodex-usage-tooltip");
+  const record = mount(avatar, rail);
+  assert.deepEqual(rail.children, [record.button, avatar]);
+  assert.equal(record.button.attributes.some(attribute => attribute.name === "data-sidebar-destination" || attribute.name === "title"), false);
 });
 
 // 用轻量 DOM 验证真实渲染函数的行顺序和环数据，不改动原生账号缓存。
