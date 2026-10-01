@@ -7,7 +7,7 @@ import { createUIInstallerSource } from "../../ui/src/install.mjs";
 import { randomBytes } from "node:crypto";
 import { CODEX_THEME_TOKENS, CODEX_THEME_TOKEN_ALIASES } from "../../ui/src/native/tokens.mjs";
 
-export const RUNTIME_VERSION = 105;
+export const RUNTIME_VERSION = 106;
 export const HOST_BINDING_NAME = "__codexPersonalHostAction";
 export const CSP_BOOTSTRAP_VERSION = 1;
 export const CSP_BOOTSTRAP_KEY = "__mineCodexCspBootstrapVersion";

@@ -24,7 +24,7 @@ Quick Prompts 以当前可见 Codex 输入框定位；打开原生 Add、权限�
 
 运行入口为 `src/main.mjs` → `quick-prompts-server.mjs`，仅开放提示词、分类、排序、调用记录及健康检查。页面经已认证 Runtime Host binding 访问固定允许的接口。旧 HTTP 服务、网页、Todo / Files 操作及文件清理代码已删除。`prompt-schema.mjs` 只负责向前迁移；`product.mjs` 负责提示词、分类和统计的事务读写。历史 Todo / Files 表保持原样。
 
-服务仅监听 loopback，默认端口 47832。沿用 CODEX_NOTES_PORT、CODEX_NOTES_DATA_DIR、CODEX_NOTES_DATABASE。设计依据见 [DESIGN.md](./DESIGN.md)。入口采用 Lucide book-open，拖拽手柄采用 Lucide menu。分类 SVG 来自当前 Codex 原生图标目录，未手绘替代路径。
+服务仅监听 loopback，默认端口 47832。沿用 CODEX_NOTES_PORT、CODEX_NOTES_DATA_DIR、CODEX_NOTES_DATABASE。设计依据见 [DESIGN.md](./DESIGN.md)。未选中入口采用 Lucide book-open，选中导航入口采用 Phosphor book-open-fill（MIT，许可见 [phosphor-LICENSE](./vendor/phosphor-LICENSE)），拖拽手柄采用 Lucide menu。分类 SVG 来自当前 Codex 原生图标目录，未手绘替代路径。
 
 内置 24 条已分类、带 Emoji 的快捷提示词，来自 MIT 授权的 dsh-prompt 0.1.13。首次启动或升级仅导入一次，后续编辑与删除不会被覆盖。个人提示词不随包发布。来源和完整许可见 [dsh-prompt-LICENSE.txt](./assets/dsh-prompt-LICENSE.txt)。
 

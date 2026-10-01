@@ -302,7 +302,7 @@ let searchText = "";
 let editor = null;
 let pageFocus = null;
 const hiddenSurfaces = new Map();
-const nativeNavigationSelection = new Map();
+let navigationRail = null;
 
 function pageControl(label, handler, primary = false, tone = "secondary") {
   return config.ui.action(control(label, handler, `pm-command${primary ? " pm-primary" : ""}`), primary ? "primary" : tone);
@@ -328,30 +328,10 @@ function positionPage() {
   page.style.bottom = "4px";
 }
 function syncNavigationSelection() {
-  if (!page) return;
-  for (const node of document.querySelectorAll('[data-app-navigation-rail] [data-sidebar-destination][data-selected], [data-app-navigation-rail] [data-sidebar-destination][aria-current="page"]')) {
-    if (!nativeNavigationSelection.has(node)) {
-      nativeNavigationSelection.set(node, new Map(
-        ["data-selected", "aria-current", "data-suppress-active-style"].map(name => [name, node.getAttribute(name)]),
-      ));
-    }
-    node.removeAttribute("data-selected");
-    node.removeAttribute("aria-current");
-    node.setAttribute("data-suppress-active-style", "");
-  }
-  if (navButton && !navButton.hasAttribute("data-selected")) navButton.setAttribute("data-selected", "");
-  if (navButton?.getAttribute("aria-current") !== "page") navButton?.setAttribute("aria-current", "page");
+  navigationRail?.select(Boolean(page));
 }
 function restoreNavigationSelection() {
-  // 退出覆盖页时还原原生状态，随后由原生路由接管新的选择。
-  for (const [node, attributes] of nativeNavigationSelection) {
-    if (!node.isConnected) continue;
-    for (const [name, value] of attributes) {
-      if (value === null) node.removeAttribute(name);
-      else node.setAttribute(name, value);
-    }
-  }
-  nativeNavigationSelection.clear();
+  navigationRail?.select(false);
 }
 function closePage(restoreFocus = false) {
   dragState?.cancel();
@@ -1292,6 +1272,7 @@ function syncNavigation() {
     group = ownNavGroup;
   }
   if (!navButton?.isConnected) {
+    navigationRail?.restore();
     navButton = source.cloneNode(false);
     navButton.removeAttribute("id");
     navButton.removeAttribute("title");
@@ -1308,6 +1289,9 @@ function syncNavigation() {
     glyph.setAttribute("aria-hidden", "true");
     inner.append(glyph, element("span", "sr-only", text("Prompts", "提示词")));
     navButton.append(inner);
+    navigationRail = config.ui.navigationRail(navButton, {
+      defaultIcon:glyph, selectedIcon:icon("prompt-nav-selected"),
+    });
     navButton.addEventListener("click", openPage);
   }
   if (navButton.parentElement !== group || navButton !== group.lastElementChild)

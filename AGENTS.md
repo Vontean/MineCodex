@@ -17,6 +17,7 @@
 | 领域、架构层与模块接口 | 根 `ARCHITECTURE.md` | 全项目架构约定 |
 | 组件库结构与接入 | `packages/ui/ARCHITECTURE.md`、`packages/ui/DESIGN.md` | 已建立的UI组件库 |
 | 共享Dialog、Button、Scrim、Surface | `packages/ui/src/components/dialog.mjs`、`button.mjs`、`foundation/surfaces.mjs` | UI组件库 |
+| 共享Navbar状态与原生图标 | `packages/ui/src/components/navigation-rail.mjs`、`native/navigation-rail.mjs` | UI组件库 |
 | 共享Tooltip | `packages/ui/src/components/tooltip.mjs` | UI组件库 |
 | token名单与必要别名 | `packages/ui/src/native/tokens.mjs` | UI组件库 |
 | CDP与运行生命周期 | `packages/runtime-host/src/codex-cdp.mjs`、`codex-runtime.mjs` | Runtime Host |

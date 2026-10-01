@@ -14,12 +14,13 @@
 - 材质与层级基础：按Dialog、Dropdown、Popover、ComposerMenu、Page的原生分支提供有限选项，将遮罩与Portal规则同所选组件匹配。
 - Dialog：提供容器、标题、Close及操作区的结构；插件填表单、列表或确认内容。
 - Button：表达操作角色和状态，保留Cancel ghost、实际次级outline与主操作solid的语义区分；业务动作由插件传入。
+- Navbar：使用成对 default/selected 图标管理展示状态；原生图标与选中状态适配集中在 native 层，保留原生路由与 sidebar hover。
 - Tooltip：处理声明式标记、hover/focus、aria关联、关闭与卸载，不接管原生Tooltip。
 - 页面、菜单与浮层：提供对应类型的外壳、挂载和通用交互，不读取提示词、会话或站点业务数据。
 
 ## 接入约束
 
-当前page-script通过 `config.ui` 使用公共能力；现有API包括 `heading`、`footer`、`action`、`overlay`、`surface`。`surface(node, kind, options)` 显式区分原生材质；`page`、`mount`、`trapFocus`、`composerMenu`、`tooltipSurface` 维护实际复用的层级、焦点与定位。`entry.resources` 通过 `config.resources` 提供插件自身 CSS 与图标，通用视觉仍由组件库维护。
+当前page-script通过 `config.ui` 使用公共能力；现有API包括 `heading`、`footer`、`action`、`overlay`、`surface`。`surface(node, kind, options)` 显式区分原生材质；`page`、`mount`、`trapFocus`、`composerMenu`、`tooltipSurface`、`navigationRail` 维护实际复用的层级、焦点与定位。`entry.resources` 通过 `config.resources` 提供插件自身 CSS 与图标，通用视觉仍由组件库维护。
 
 Renderer安装函数经序列化注入，必须自包含。组件代码与Node/CDP隔离，宿主负责组装注入源码、生命周期和iframe主题桥；不为整理目录引入不必要的打包系统。
 

@@ -37,7 +37,7 @@ test("serialized shared shell preserves content and callbacks and releases its s
   const footer = ui.footer(new Node()), save = ui.action(new Node(), "primary");
   footer.append(save);
   assert.equal(save.attributes.get("data-mcx-ui-action"), "primary");
-  assert.equal(document.head.children.length, 5);
+  assert.equal(document.head.children.length, 6);
   controller.abort();
   assert.ok(document.head.children.every(node => node.removed));
   assert.equal(content.removed, undefined);

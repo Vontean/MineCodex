@@ -78,6 +78,20 @@ sidebar规则分状态：
 
 保留原生的固定展开、收起与hover状态。hover sidebar应能覆盖注入页面，鼠标能进入操作，移回页面后可正常收起；不要通过页面层级、pointer-events或额外遮罩挡住它。原生overflow和contain切换负责浮出与裁切，插件不复制一套侧栏状态机。
 
+## 左侧 Navbar
+
+导航入口复用原生按钮容器，三种状态分别维护：
+
+| 状态 | 图标 | 容器 |
+| --- | --- | --- |
+| 未选中 | outline/default 资源 | 原生未选中色与透明底 |
+| 悬浮 | 保持 default 图标 | 原生 hover 底色；保留 sidebar peeking 行为 |
+| 当前页面选中 | 独立 filled/selected 资源 | `data-selected` 与 `aria-current="page"`，原生选中色与底色 |
+
+原生 `railIcons.default/selected` 根据 `isCurrentDestination` 选择资源。不能给 outline SVG 简单设置 fill 代替 selected 资源，也不能仅移除 DOM 选中属性就认为图标已还原。注入页面打开时取消原生视觉选中，关闭、导航或卸载时恢复；不更改原生路由，不破坏 Home hover sidebar。
+
+通用入口为 `ui.navigationRail(button, { defaultIcon, selectedIcon })`，返回 `select(boolean)` 与 `restore()`。组件负责展示状态与清理，`packages/ui/src/native/navigation-rail.mjs` 负责原生资源读取。原生图标优先调用资源显式提供的 `createElement(document, className)` DOM API（包含 optical 与主题处理）；单色 IconAsset 读取 default 的真实 SVG；其他组件形式使用已记录的未选中 SVG。default/selected 本就相同的自定义资源保持原图。不要调用带 Hooks 的函数或替换 React 所有的 SVG 子节点；未知资源契约需核对原生来源，不能伪造轮廓。原生重渲染更换 SVG 后重新应用展示状态。
+
 ## 层级、Portal 与生命周期
 
 层级数字是本版本实现值，不是原生CSS设计token；共同约束应集中维护语义角色与挂载点。
@@ -92,7 +106,9 @@ sidebar规则分状态：
 
 共享Tooltip处理MineCodex标记，不接管原生Tooltip。当前声明入口为 `data-minecodex-tooltip`，删除克隆节点上过时的 `title` / `aria-describedby`，避免双重气泡。
 
-Token：`--color-background-tooltip`、`--color-text-tooltip`、`--color-border-tooltip`、`--shadow-tooltip`、`--radius-2xl`、`--font-sans-default`、`--text-sm`、`--tooltip-compact-font-weight`、`--tracking-tooltip`。当前共享实现padding 5px 12px、行高18px；支持hover与键盘focus、aria关联、Escape和卸载清理。额度、上下文等特有内容通过 `tooltipSurface` 复用材质，功能维护自身内容与定位。
+Token：`--color-background-tooltip`、`--color-text-tooltip`、`--color-border-tooltip`、`--shadow-tooltip`、`--radius-2xl`、`--font-sans-default`、`--text-sm`、`--tooltip-compact-font-weight`、`--tracking-tooltip`。原生默认 Tooltip 使用 `rounded-2xl`，同时应用 `corner-shape: var(--codex-corner-shape)`；支持该属性的桌面版本通过 `--codex-corner-radius-scale` 放大半径并采用 superellipse，不能只复制半径而漏掉轮廓。共享实现保持此规则，padding 为 `--spacing × 1.25 / × 3`、行高18px，Portal 从触发器继承相关主题 token。
+
+Navbar 在入口右侧居中，使用 `data-minecodex-tooltip-side="right"`；普通控件读取原生 `--side-tooltip`（默认top），也可显式声明top/bottom/left/right。默认间距2px，碰撞时翻转并保留8px窗口边距，计算考虑window zoom。共享hover延迟200ms，已打开提示之间300ms内切换免等待；键盘focus立即显示，离开／点击／Escape／窗口失焦关闭。时序依据新版自定义 Tooltip provider，不套用包内另一套 Radix 的700ms默认值。共享提示之间维护自己的handoff，不接管原生provider。支持aria关联及卸载清理。额度、上下文等特有内容通过 `tooltipSurface` 复用材质，功能维护自身内容与定位。
 
 ## 主题、窗口材质与系统玻璃
 
@@ -116,7 +132,8 @@ Token：`--color-background-tooltip`、`--color-text-tooltip`、`--color-border-
 
 - `app-shared-eececb2d2eb0.js`：Dialog variant、遮罩配对、Dropdown surface、Popover opaque默认值。
 - `app-shared-342447930c78.css`：材质、glassSurface、遮罩、token及按钮规则。
-- `app-initial-e55cd978d577.css`：Page、sidebar peeking、Composer top tray规则。
+- `app-initial-e55cd978d577.css`：Page、sidebar peeking、Composer top tray及rounded类的corner-shape规则。
+- `app-initial-135a4ef2552c.js`：Navbar railIcons状态切换、Tooltip右侧位置；shared JS 自定义Tooltip默认200ms、skip 300ms、offset 2px。
 - `main-BbeJ4AAR.js`：窗口opaque/vibrancy及native glass创建条件。
 - `avatar-overlay-native-page-caa507f161db.js`：明确的glass菜单使用位置。
 

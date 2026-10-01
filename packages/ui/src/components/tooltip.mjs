@@ -9,7 +9,7 @@ export function installFeatureTooltips(signal) {
   style.setAttribute("data-minecodex-ui-styles", "tooltip");
   style.textContent = `
     [data-mcx-ui-tooltip] { position:fixed;z-index:2147483001;pointer-events:none;box-sizing:border-box;
-      padding:5px 12px;border:1px solid var(--color-border-tooltip);border-radius:var(--radius-2xl);
+      padding:calc(var(--spacing) * 1.25) calc(var(--spacing) * 3);border:1px solid var(--color-border-tooltip);border-radius:var(--radius-2xl);corner-shape:var(--codex-corner-shape);
       background:var(--color-background-tooltip);color:var(--color-text-tooltip);box-shadow:var(--shadow-tooltip);
       font-family:var(--font-sans-default);font-size:var(--text-sm);line-height:18px;
       font-weight:var(--tooltip-compact-font-weight);letter-spacing:var(--tracking-tooltip);user-select:none; }
@@ -22,6 +22,7 @@ export function installFeatureTooltips(signal) {
   let anchor = null;
   let timer;
   let frame;
+  let lastClosedAt = -Infinity;
   function hide() {
     clearTimeout(timer);
     cancelAnimationFrame(frame);
@@ -30,6 +31,7 @@ export function installFeatureTooltips(signal) {
       if (ids.length) anchor.setAttribute("aria-describedby", ids.join(" "));
       else anchor.removeAttribute("aria-describedby");
     }
+    if (!tip.hidden) lastClosedAt = Date.now();
     anchor = null;
     tip.hidden = true;
   }
@@ -38,9 +40,22 @@ export function installFeatureTooltips(signal) {
     const zoom = Number.parseFloat(getComputedStyle(tip).zoom) || 1;
     const r = anchor.getBoundingClientRect();
     const w = tip.offsetWidth, h = tip.offsetHeight;
-    const top = r.top / zoom - h - 8;
-    tip.style.left = `${Math.max(8, Math.min((r.left + r.width / 2) / zoom - w / 2, innerWidth / zoom - w - 8))}px`;
-    tip.style.top = `${top >= 8 ? top : r.bottom / zoom + 8}px`;
+    // navbar 固定向右；普通控件跟随宿主的上下侧偏好，统一 2px 间距。
+    const side = anchor.getAttribute("data-minecodex-tooltip-side")
+      || (anchor.closest("[data-app-navigation-rail]") ? "right"
+        : getComputedStyle(anchor).getPropertyValue("--side-tooltip").trim() || "top");
+    const gap = 2 / zoom;
+    let x = (r.left + r.width / 2) / zoom - w / 2;
+    let y = side === "bottom" ? r.bottom / zoom + gap : r.top / zoom - h - gap;
+    if (side === "right" || side === "left") {
+      x = side === "right" ? r.right / zoom + gap : r.left / zoom - w - gap;
+      y = (r.top + r.height / 2) / zoom - h / 2;
+      if (x + w > innerWidth / zoom - 8) x = r.left / zoom - w - gap;
+      else if (x < 8) x = r.right / zoom + gap;
+    } else if (y < 8) y = r.bottom / zoom + gap;
+    else if (y + h > innerHeight / zoom - 8) y = r.top / zoom - h - gap;
+    tip.style.left = `${Math.max(8, Math.min(x, innerWidth / zoom - w - 8))}px`;
+    tip.style.top = `${Math.max(8, Math.min(y, innerHeight / zoom - h - 8))}px`;
     frame = requestAnimationFrame(position);
   }
   function show(target, immediate = false) {
@@ -51,12 +66,20 @@ export function installFeatureTooltips(signal) {
     timer = setTimeout(() => {
       if (!anchor?.isConnected) return hide();
       if (!tip.isConnected) document.body.append(tip);
+      const theme = getComputedStyle(anchor);
+      for (const name of ["--radius-2xl", "--codex-corner-shape", "--color-background-tooltip", "--color-text-tooltip",
+        "--color-border-tooltip", "--shadow-tooltip", "--tooltip-compact-font-weight", "--tracking-tooltip",
+        "--spacing", "--text-sm", "--font-sans-default"]) {
+        const value = theme.getPropertyValue(name).trim();
+        if (value) tip.style.setProperty(name, value);
+        else tip.style.removeProperty(name);
+      }
       tip.textContent = anchor.getAttribute(attribute);
       tip.hidden = false;
       const ids = (anchor.getAttribute("aria-describedby") || "").split(/\s+/).filter(Boolean);
       anchor.setAttribute("aria-describedby", [...new Set([...ids, tip.id])].join(" "));
       position();
-    }, immediate ? 0 : 450);
+    }, immediate || Date.now() - lastClosedAt < 300 ? 0 : 200);
   }
   const targetOf = event => event.target instanceof Element ? event.target.closest(`[${attribute}]`) : null;
   document.addEventListener("pointerover", event => show(targetOf(event)), { signal });

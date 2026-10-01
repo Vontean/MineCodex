@@ -25,6 +25,7 @@
     "features/model-slider/vendor",
     "features/notes/src",
     "features/notes/assets",
+    "features/notes/vendor/phosphor-LICENSE",
     "features/notes/codex-feature.json",
     "features/notes/DESIGN.md",
     "features/notes/README.md",

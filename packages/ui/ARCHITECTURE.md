@@ -7,14 +7,16 @@
 ```mermaid
 flowchart TB
   Tokens["native/tokens.mjs<br/>主题 token 与必要别名"]
+  NativeRail["native/navigation-rail.mjs<br/>原生图标与状态读取"]
   Surfaces["foundation/surfaces.mjs<br/>原生材质、遮罩与分支"]
   Layers["foundation/layers.mjs<br/>页面、浮层、模态挂载角色"]
-  Components["components/<br/>Dialog、Button、Tooltip、Page、ComposerMenu"]
+  Components["components/<br/>Dialog、Button、Tooltip、Page、ComposerMenu、NavigationRail"]
   Install["install.mjs<br/>组装自包含 Renderer 安装源码"]
   Host["Runtime Host<br/>注入组装、CDP、主题与消息桥"]
   Plugin["features/*<br/>特殊内容、业务状态与回调"]
   Surfaces --> Install
   Layers --> Install
+  NativeRail --> Install
   Components --> Install
   Tokens --> Host
   Install --> Host
@@ -32,7 +34,9 @@ packages/ui/
   DESIGN.md
   ARCHITECTURE.md
   src/
-    native/tokens.mjs                  # token 与别名的权威名单
+    native/
+      tokens.mjs                      # token 与别名的权威名单
+      navigation-rail.mjs              # 原生导航资源的 DOM 适配
     foundation/
       surfaces.mjs                    # Dialog / Dropdown / Popover / Composer / Page 材质
       layers.mjs                      # 角色层级与挂载
@@ -40,6 +44,7 @@ packages/ui/
       dialog.mjs                      # 标题、Close、自定义模态焦点契约
       button.mjs                      # 表单操作角色与操作区
       tooltip.mjs                     # 声明式 Tooltip 与清理
+      navigation-rail.mjs             # 导航选中、恢复与图标展示
       page.mjs                        # 页面外壳
       composer-menu.mjs               # 输入框主体锚点与 zoom 定位
     install.mjs                       # 注入安装源码组装

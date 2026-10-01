@@ -48,7 +48,7 @@ Header 为 Prompts；右侧依次为排序图标、分类调节图标、常驻�
 ## 空状态与编辑细节
 空分类和搜索无结果沿用 Scheduled 的48px Emoji、18px medium标题、次级说明布局；空分类提供 New prompt。All 分组副标题采用 text-sm、500字重与 text-tertiary。Cancel 选择通用 ghost，保存选择 primary，Delete 选择 danger；非空分类删除前独立确认，明确提示词移到 Other，内容与调用次数保留。
 
-导航栏 book-open 单独采用 20px 容器、27×27 viewBox，实际轮廓约 16.15px，描边折算 1.33px，与原生导航一致。Lucide 两个描边子路径合为一个 path，一次绘制半透明 currentColor，避免书脊交叠变深。输入框入口尺寸不变。
+导航栏 book-open 单独采用 20px 容器、27×27 viewBox，实际轮廓约 16.15px，描边折算 1.33px，与原生导航一致。Lucide 两个描边子路径合为一个 path，一次绘制半透明 currentColor，避免书脊交叠变深。选中态使用 Phosphor 官方 book-open-fill 的20px资源；授权见 vendor/phosphor-LICENSE。输入框入口尺寸不变。
 
 拖拽排序使用等高 Drop Placeholder，原生拖影跟随指针；同组条目以 180ms ease-out 让位，落位淡入 140ms。放到范围外或取消恢复原位，不写入排序。遵循 prefers-reduced-motion。
 
@@ -56,7 +56,7 @@ Header 为 Prompts；右侧依次为排序图标、分类调节图标、常驻�
 
 提示词编辑沿用原生 Project 的复合标题输入：40px 图标段位于标题前，细分隔线，共用圆角边框与 focus-within 状态。图标选择入口不再单独占一行；Title 通过 aria-label 标识。
 
-Prompts 覆盖页打开时暂存并移除原生导航项的 data-selected / aria-current，使用 data-suppress-active-style 还原未选中表现。关闭页面或禁用插件时恢复原生属性；观察原生重渲染，确保同时只有一个当前导航项。
+Prompts 导航状态调用通用 `ui.navigationRail`：未选中／hover使用outline，选中使用filled，打开页面时取消原生视觉选中，关闭或卸载恢复。原生图标资源读取与选中属性恢复由通用层维护；Navbar Tooltip 使用通用右侧定位与原生延迟。
 
 Category 下拉面板与触发栏等宽、左右对齐，宽度包含内边距；每次打开按当前触发栏尺寸计算。
 
