@@ -141,14 +141,14 @@ function applyHostTheme(payload) {
     appliedHostTokens.add(name);
   }
   const editorTokens = [
-    "--color-surface-tertiary", "--color-surface-elevated-secondary",
-    "--color-border-subtle", "--color-background-primary-ghost-hover",
-    "--color-chart-blue", "--color-text-inverse",
-    "--color-token-main-surface-primary", "--color-token-input-foreground",
-    "--color-text-foreground", "--color-text-foreground-tertiary", "--color-text-on-accent",
-    "--color-border", "--color-border-focus", "--color-token-list-hover-background",
-    "--color-text-accent", "--font-sans-default", "--font-weight-normal", "--text-sm", "--text-sm--line-height",
-    "--radius-md", "--radius-xl", "--shadow-md", "--shadow-xl",
+    "--mcx-color-surface-tertiary", "--mcx-color-surface-elevated-secondary",
+    "--mcx-color-border-subtle", "--mcx-color-background-primary-ghost-hover",
+    "--mcx-color-chart-blue", "--mcx-color-text-inverse",
+    "--mcx-color-token-main-surface-primary", "--mcx-color-token-input-foreground",
+    "--mcx-color-text-foreground", "--mcx-color-text-foreground-tertiary", "--mcx-color-text-on-accent",
+    "--mcx-color-border", "--mcx-color-border-focus", "--mcx-color-token-list-hover-background",
+    "--mcx-color-text-accent", "--mcx-font-sans-default", "--mcx-font-weight-normal", "--mcx-text-sm", "--mcx-text-sm--line-height",
+    "--mcx-radius-md", "--mcx-radius-xl", "--mcx-shadow-md", "--mcx-shadow-xl",
   ];
   editorControls.hidden = !editorTokens.every((name) => appliedHostTokens.has(name));
   const missingTokens = editorTokens.filter((name) => !appliedHostTokens.has(name));
@@ -1531,7 +1531,7 @@ function repaintMask() {
   if (!context || !drawerImage.naturalWidth) return;
   editMask.width = drawerImage.naturalWidth; editMask.height = drawerImage.naturalHeight;
   context.clearRect(0, 0, editMask.width, editMask.height);
-  context.strokeStyle = context.fillStyle = getComputedStyle(root).getPropertyValue("--color-text-accent");
+  context.strokeStyle = context.fillStyle = getComputedStyle(root).getPropertyValue("--mcx-color-text-accent");
   context.lineCap = context.lineJoin = "round";
   for (const stroke of editStrokes) {
     context.lineWidth = Math.min(editMask.width, editMask.height) * stroke.size / 250;

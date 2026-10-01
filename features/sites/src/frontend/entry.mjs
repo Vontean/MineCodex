@@ -1,6 +1,7 @@
+const nativeSites=createSitesAdapter(signal,config.codex);
 // 复用 Prompts 已验证的原生图标与 Lucide 图标，保持交互一致。
 const ICONS = config.resources.icons;
-const MENU_CLASSES = {"menu": "no-drag z-50 m-px flex select-none flex-col overflow-y-auto bg-surface-elevated-secondary/90 text-default ring-border ring-[0.5px] shadow-xl-spread backdrop-blur-sm rounded-2xl p-[var(--app-menu-gutter,var(--spacing))] min-w-[var(--app-menu-min-width,220px)]", "item": "no-drag outline-hidden flex min-h-[var(--app-menu-item-height,0px)] shrink-0 items-center justify-center p-[var(--app-menu-item-padding,var(--padding-row-y)_var(--padding-row-x))] text-(length:--app-menu-item-font-size,var(--text-sm)) leading-(--app-menu-item-line-height,var(--text-sm--line-height)) rounded-xl text-default group hover:bg-primary-ghost-hover focus:bg-primary-ghost-hover cursor-interaction flex flex-col", "row": "flex w-full min-w-0 items-center gap-[var(--spacing-menu-item-content,calc(var(--spacing)*1.5))]", "leading": "_leadingIcon_ml6jk_2"};
+const MENU_CLASSES = {"menu": "no-drag z-50 m-px flex select-none flex-col overflow-y-auto bg-surface-elevated-secondary/90 text-default ring-border ring-[0.5px] shadow-xl-spread backdrop-blur-sm rounded-2xl p-[var(--app-menu-gutter,var(--mcx-spacing))] min-w-[var(--app-menu-min-width,220px)]", "item": "no-drag outline-hidden flex min-h-[var(--app-menu-item-height,0px)] shrink-0 items-center justify-center p-[var(--app-menu-item-padding,var(--padding-row-y)_var(--padding-row-x))] text-(length:--app-menu-item-font-size,var(--mcx-text-sm)) leading-(--app-menu-item-line-height,var(--mcx-text-sm--line-height)) rounded-xl text-default group hover:bg-primary-ghost-hover focus:bg-primary-ghost-hover cursor-interaction flex flex-col", "row": "flex w-full min-w-0 items-center gap-[var(--spacing-menu-item-content,calc(var(--mcx-spacing)*1.5))]", "leading": "_leadingIcon_ml6jk_2"};
 const text = (en, zh) => (document.documentElement.lang || navigator.language).startsWith("zh") ? zh : en;
 const host = payload => config.requestHostAction("sites", payload);
 const owned = "data-mcx-sites";
@@ -15,15 +16,8 @@ document.head.append(style);
 function element(tag, className, content) { const e = document.createElement(tag); if (className) e.className = className; if (content != null) e.textContent = content; return e; }
 function icon(name) { return new DOMParser().parseFromString(ICONS[name], "image/svg+xml").documentElement.cloneNode(true); }
 function iconButton(label, name, action) { const b = element("button", "mcx-site-icon"); b.type = "button"; b.setAttribute("aria-label", label); b.setAttribute("data-minecodex-tooltip", label); b.append(icon(name)); b.onclick = action; return b; }
-function nativeProps(node, predicate) {
-  let fiber = node?.[Object.keys(node).find(k => k.startsWith("__reactFiber"))];
-  for (let depth = 0; fiber && depth < 220; depth++, fiber = fiber.return) { const p = fiber.memoizedProps; if (p && predicate(p)) return p; }
-  return null;
-}
-function router() {
-  const p = nativeProps(document.querySelector("[data-sidebar-destination]"), p => p.router?.navigate || p.value?.router?.navigate);
-  return p?.router || p?.value?.router;
-}
+
+
 function visible(e) { return !!e?.isConnected && e.getBoundingClientRect().width > 0 && e.getBoundingClientRect().height > 0; }
 function button(label, action, primary = false) {
   const b = element("button", nativeButton || ""); b.type = "button";
@@ -46,33 +40,9 @@ async function refresh() {
   const data = await host({ operation: "list" });
   if (disposed) return; state = data; revision++; rowSignature = ""; refreshAt = Date.now(); schedule();
 }
-function pageInfo() {
-  if (router()?.state?.location?.pathname !== "/space/sites") return null;
-  const input = [...document.querySelectorAll("input")].find(e => /Search sites|搜索站点|搜尋網站/.test(e.placeholder));
-  if (!input) return null;
-  let page = input.parentElement;
-  while (page && !page.classList.contains("min-h-full")) page = page.parentElement;
-  if (!page || page.children.length < 2) return null;
-  const content = page.children[1], list = page.querySelector('[data-testid="sites-table"], [data-testid="sites-grid"]');
-  const native = nativeProps(list || content.querySelector("button") || content.querySelector("p") || content.lastElementChild?.lastElementChild, p => "viewMode" in p && "shared" in p);
-  const grid = native ? native.viewMode === "grid" : !!page.querySelector('button[aria-label="Grid view"][aria-pressed="true"],button[aria-label="网格视图"][aria-pressed="true"]');
-  const shared = native ? !!native.shared : [...page.querySelectorAll("button[aria-pressed=true]")].some(b => /Shared with you|与你共享|與你共用/.test(b.textContent));
-  const create = [...page.firstElementChild.querySelectorAll("button")].find(b => /^(New|新建|新增)$/.test(b.textContent.trim()) && !b.hasAttribute(owned));
-  return { page, input, content, list, grid, shared, create };
-}
+
 function cacheNative(page) {
-  const create = page.create;
-  if (create) {
-    const template = page.page.querySelector('button[data-size="lg"][data-color="secondary"]');
-    nativeButton = template.className; nativeInner = template.firstElementChild.className;
-    nativePlus = create.querySelector("svg")?.cloneNode(true);
-  }
-  nativeSiteIcon ||= document.querySelector('[data-sidebar-destination="builtin:sites"] svg')?.cloneNode(true);
-  const row = page.list?.querySelector("[data-appgen-row], article");
-  nativeExternal ||= row?.querySelector('button[aria-label*="new tab"]')?.cloneNode(true);
-  nativeActionsClass ||= row?.lastElementChild?.className;
-  nativeGlobe ||= [...(page.list?.querySelectorAll("[data-appgen-row]") || [])].find(r => r.children[2]?.textContent.includes("Everyone"))?.children[2]?.querySelector("svg")?.cloneNode(true);
-  nativeMore ||= row?.querySelector('button[aria-haspopup="menu"] svg')?.cloneNode(true);
+  ({nativeButton,nativeInner,nativePlus,nativeSiteIcon,nativeMore,nativeExternal,nativeGlobe,nativeActionsClass}=nativeSites.templates(page));
 }
 function closeMenu() { const previous = menu?.trigger; previous?.setAttribute("aria-expanded", "false"); previous?.setAttribute("data-state", "closed"); menu?.node.remove(); menu = null; previous?.focus({ preventScroll: true }); }
 function showMenu(trigger, site) {
@@ -199,7 +169,7 @@ function updateAddedTab(page) {
 }
 function reconcile() {
   if (disposed) return;
-  const page = pageInfo();
+  const page = nativeSites.pageInfo();
   if (!page) { addedOnly = false; addedTab?.remove(); addedTab = null; addButton?.remove(); addButton = null; rowsRoot?.remove(); rowsRoot = null; fallback?.remove(); fallback = null; rowSignature = ""; currentPage = null; closeMenu(); return; }
   cacheNative(page); updateAddedTab(page);
   if (currentPage !== page.page) { currentPage = page.page; rowSignature = ""; if (Date.now() - refreshAt > 1500) refresh().catch(e => notice(e.message)); }
@@ -360,18 +330,15 @@ async function until(check, milliseconds = 7000) {
   while (!disposed && Date.now() < end) { const value = check(); if (value) return value; await new Promise(r => setTimeout(r, 80)); }
   throw new Error(text("The native view did not become ready. Please try again.", "原生视图未就绪，请重试。"));
 }
-function composerId() { return [...document.querySelectorAll('[data-codex-composer="true"]')].filter(visible).map(e => e.closest("[data-codex-composer-root]")?.querySelector("[data-above-composer-conversation-id]")?.getAttribute("data-above-composer-conversation-id")).find(Boolean); }
-function fullViewControl(enter) {
-  const pattern = enter ? /^(Enter full view|进入完整视图|进入全屏视图|進入完整檢視|進入全螢幕檢視)$/ : /^(Exit full view|退出完整视图|退出全屏视图|退出完整檢視|退出全螢幕檢視)$/;
-  return [...document.querySelectorAll("button")].find(e => visible(e) && [e.getAttribute("aria-label"), e.getAttribute("title"), e.getAttribute("data-tooltip-content")].some(value => pattern.test(value || "")));
-}
+
+
 async function applyWebLayout(token) {
   try {
-    await until(() => pendingLayout !== token || (router()?.state?.location?.pathname !== "/space/sites" && (fullViewControl(true) || fullViewControl(false))));
+    await until(() => pendingLayout !== token || (nativeSites.path() !== "/space/sites" && (nativeSites.fullViewControl(true) || nativeSites.fullViewControl(false))));
     if (pendingLayout !== token) return;
     const hide = [...document.querySelectorAll("button")].find(e => visible(e) && /^(Hide sidebar|隐藏侧栏|隐藏侧边栏|隱藏側邊欄|收起侧栏)$/.test(e.getAttribute("aria-label") || "")); hide?.click();
     // 使用原生完整视图入口，保留原生网页标签和底部聊天输入框。
-    fullViewControl(true)?.click();
+    nativeSites.fullViewControl(true)?.click();
   } catch (e) { if (pendingLayout === token && !disposed) notice(e.message); }
   finally { if (pendingLayout === token) pendingLayout = null; }
 }
@@ -383,30 +350,7 @@ async function openSite(site) {
       resolved.site.url = await startProjectSite(site.id); resolved.site.status = "running"; await refresh();
     }
     if (resolved.missing) { await refresh(); notice(text("The original project or chat is unavailable. Remove this entry and add it again from an available project.", "原项目或聊天已不可用，请移除此条目后从可用项目重新添加。")); return; }
-    const r = router(); if (!r) throw new Error(text("Native navigation is unavailable.", "原生导航暂不可用。"));
-    const origin = resolved.site.origin;
-    if (origin.kind === "thread") {
-      await r.navigate(`/local/${origin.threadId}`);
-      await until(() => composerId() === origin.threadId);
-    } else {
-      const nonce = Date.now();
-      // 项目网页必须进入本地执行草稿，普通聊天模式会丢弃项目上下文。
-      await r.navigate("/", { state: {
-        project: origin.kind === "project" ? { type: "local", projectId: origin.projectId } : null,
-        ...(origin.kind === "project" ? { prefillLocalExecution: true, prefillComposerMode: "local" } : {}),
-        focusComposerNonce: nonce
-      } });
-      await until(() => r.state.location.pathname === "/" && [...document.querySelectorAll('[data-codex-composer="true"]')].some(e => visible(e) && nativeProps(e, p => p.value?.kind === "new" && p.value.focusComposerNonce === nonce)));
-      // 等原生草稿的 layout/effect 完成，浏览器再绑定到当前草稿。
-      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-    }
-    // 只在同一原聊天中复用网址相同的原生 tab，项目新草稿仍走新建路径。
-    const existing = origin.kind === "thread" && [...document.querySelectorAll('[role="tab"]')].find(e => {
-      const p = nativeProps(e, p => p.tab?.kind === "browser");
-      return p?.tab.props?.browserConversationId === origin.threadId && p.tab.durableRoute?.params?.restoreUrl === resolved.site.url;
-    });
-    if (existing) existing.click();
-    else window.postMessage({ type: "open-browser-tab", ...(origin.kind === "thread" ? { conversationId: origin.threadId } : {}), initialUrl: resolved.site.url, ...(origin.kind === "project" ? { cwd: resolved.cwd } : {}), source: "manual", initiator: "sites_library" }, location.origin);
+    await nativeSites.open(resolved.site.origin, resolved.site.url, resolved.cwd);
     const token = {}; pendingLayout = token; await applyWebLayout(token);
   } catch (e) { notice(e.message); }
   finally { opening = false; }
@@ -416,7 +360,7 @@ function onClick(e) {
   if (menu && !menu.node.contains(e.target) && !menu.trigger.contains(e.target)) closeMenu();
   if (e.target.closest(`[${owned}]`)) return;
   const row = e.target.closest("[data-appgen-row], [data-testid=sites-grid] > article");
-  if (!row || !pageInfo()) return;
+  if (!row || !nativeSites.pageInfo()) return;
   const b = e.target.closest("button");
   // 只跟随官方打开动作；分享、菜单和 Create 不触发布局变化。
   if (b && !b.hasAttribute("aria-haspopup") && /^(Edit |Open |编辑|打开)/.test(b.getAttribute("aria-label") || "")) {
@@ -432,7 +376,7 @@ refresh().catch(e => notice(e.message)); schedule();
 return () => {
   disposed = true; pendingLayout = null; clearTimeout(timer); observer.disconnect();
   document.removeEventListener("input", schedule); document.removeEventListener("click", onClick, true); document.removeEventListener("keydown", onKey, true); document.removeEventListener("pointerdown", onPointer, true);
-  addedOnly = false; const page = pageInfo(); if (page) updateAddedTab(page);
+  addedOnly = false; const page = nativeSites.pageInfo(); if (page) updateAddedTab(page);
   document.querySelectorAll("[data-mcx-sites-native-hidden]").forEach(e => e.removeAttribute("data-mcx-sites-native-hidden"));
   closeMenu(); dialog?.close(); document.querySelectorAll(`[${owned}]`).forEach(e => e.remove());
   document.querySelectorAll("[data-mcx-sites-empty-suppressed]").forEach(e => e.removeAttribute("data-mcx-sites-empty-suppressed"));

@@ -9,10 +9,10 @@ export function installFeatureTooltips(signal) {
   style.setAttribute("data-minecodex-ui-styles", "tooltip");
   style.textContent = `
     [data-mcx-ui-tooltip] { position:fixed;z-index:2147483001;pointer-events:none;box-sizing:border-box;
-      padding:calc(var(--spacing) * 1.25) calc(var(--spacing) * 3);border:1px solid var(--color-border-tooltip);border-radius:var(--radius-2xl);corner-shape:var(--codex-corner-shape);
-      background:var(--color-background-tooltip);color:var(--color-text-tooltip);box-shadow:var(--shadow-tooltip);
-      font-family:var(--font-sans-default);font-size:var(--text-sm);line-height:18px;
-      font-weight:var(--tooltip-compact-font-weight);letter-spacing:var(--tracking-tooltip);user-select:none; }
+      padding:calc(var(--mcx-spacing) * 1.25) calc(var(--mcx-spacing) * 3);border:1px solid var(--mcx-color-border-tooltip);border-radius:var(--mcx-radius-2xl);corner-shape:var(--mcx-codex-corner-shape);
+      background:var(--mcx-color-background-tooltip);color:var(--mcx-color-text-tooltip);box-shadow:var(--mcx-shadow-tooltip);
+      font-family:var(--mcx-font-sans-default);font-size:var(--mcx-text-sm);line-height:18px;
+      font-weight:var(--mcx-tooltip-compact-font-weight);letter-spacing:var(--mcx-tracking-tooltip);user-select:none; }
   `;
   document.head.append(style);
   function tooltipSurface(node) { node.setAttribute("data-mcx-ui-tooltip", ""); return node; }

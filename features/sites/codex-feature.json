@@ -13,6 +13,7 @@
   "entry": {
     "kind": "page-script",
     "script": "src/frontend/entry.mjs",
+    "sourceFactory": "src/injection-source.mjs",
     "resources": {
       "icons": "src/frontend/icons.json",
       "styles": "src/frontend/styles.css"

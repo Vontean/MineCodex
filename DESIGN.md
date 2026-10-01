@@ -138,3 +138,12 @@ Navbar 在入口右侧居中，使用 `data-minecodex-tooltip-side="right"`；�
 - `avatar-overlay-native-page-caa507f161db.js`：明确的glass菜单使用位置。
 
 这些文件名仅标识本次原生证据，含构建哈希，不能成为运行时选择器。更新Codex后，优先重查语义组件和实际状态；将新的事实回写本规范及相应实现，不凭截图推断所有组件已换代。
+
+
+## 项目 token 与原生名称的边界
+
+上文表格记录 Codex 原生 token 名称与取证规则。实现由 `packages/ui/src/native/tokens.mjs` 的规范名称、已知别名和 `MINECODEX_THEME_BINDINGS` 映射至项目 `--mcx-*` 命名空间，插件样式消费项目变量。例如原生 `--color-text-primary` → 项目 `--mcx-color-text-primary`，`--shadow-lg` → `--mcx-shadow-lg`，`--radius-3xl` → `--mcx-radius-3xl`。
+
+这里的规范名称是稳定的项目映射键。Codex 更新名称时补充原生别名，不能跟着重命名插件消费的项目 token。新增实际使用的语义才增加映射；不预建完整的第三方 token 系统。`native/theme.mjs` 为直接注入容器写入同一快照，Runtime Host 将它传给 iframe；卸载恢复原值。主题变化丢失某个 token 时清除旧项目值，继续使用该组件既有的明确默认值或不可用状态，不复用上一主题颜色。
+
+这些映射不改变原生组件分类、材质分支和 hover sidebar 层级，也不重写原生 Tailwind utility class。插件复用 native Adapter 返回的原生模板；特殊样式使用项目 token，Dialog、Button、Tooltip 等通用表现继续由组件库维护。

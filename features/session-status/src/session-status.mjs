@@ -33,7 +33,7 @@ document.getElementById(STYLE_ID)?.remove();
 const style = document.createElement("style");
 style.id = STYLE_ID;
 style.textContent = `
-  [${MARKER}] { box-sizing:border-box; display:flex; flex-wrap:wrap; justify-content:center; align-items:center; gap:0 4px; margin:0 auto; padding-top:2px; max-width:100%; min-height:24px; min-width:0; font-family:var(--font-sans-default,inherit); font-size:var(--text-xs,12px); line-height:16px; font-variant-numeric:tabular-nums; color:var(--color-text-tertiary); }
+  [${MARKER}] { box-sizing:border-box; display:flex; flex-wrap:wrap; justify-content:center; align-items:center; gap:0 4px; margin:0 auto; padding-top:2px; max-width:100%; min-height:24px; min-width:0; font-family:var(--mcx-font-sans-default,inherit); font-size:var(--mcx-text-xs,12px); line-height:16px; font-variant-numeric:tabular-nums; color:var(--mcx-color-text-tertiary); }
   [${MARKER}][hidden] { display:none; }
   [data-minecodex-session-reveal] { display:grid; grid-template-rows:0fr; opacity:0; transition:grid-template-rows 200ms ease,opacity 160ms ease; }
   [data-minecodex-session-reveal][data-expanded] { grid-template-rows:1fr; opacity:1; }
@@ -44,43 +44,43 @@ style.textContent = `
   [data-minecodex-session-reveal][hidden] { display:none; }
   /* 仅展开状态行时缩减原生底部留白；收起或卸载后自动恢复。 */
   .bottom-0.pb-4:has([data-minecodex-session-reveal][data-expanded]:not([hidden])) { padding-bottom:4px; }
-  [data-minecodex-context-trigger] { display:inline-flex; align-items:center; justify-content:center; flex:none; width:24px; height:var(--height-token-button-composer,28px); padding:0; border:0; border-radius:var(--radius-full); background:transparent; color:var(--color-text-tertiary); cursor:pointer; }
+  [data-minecodex-context-trigger] { display:inline-flex; align-items:center; justify-content:center; flex:none; width:24px; height:var(--height-token-button-composer,28px); padding:0; border:0; border-radius:var(--mcx-radius-full); background:transparent; color:var(--mcx-color-text-tertiary); cursor:pointer; }
   [data-minecodex-context-trigger][hidden] { display:none; }
   [data-context-progress] { transition:stroke-dashoffset 120ms ease-out; }
-  [data-minecodex-context-trigger]:hover { background:var(--color-background-primary-ghost-hover); }
-  [data-minecodex-context-trigger]:focus-visible { outline:2px solid var(--color-ring); }
+  [data-minecodex-context-trigger]:hover { background:var(--mcx-color-background-primary-ghost-hover); }
+  [data-minecodex-context-trigger]:focus-visible { outline:2px solid var(--mcx-color-ring); }
   [data-minecodex-context-trigger] svg { width:12px; height:12px; }
   [data-minecodex-native-context] { display:none !important; }
   [data-minecodex-context-tooltip] { width:max-content; text-align:center; white-space:pre-line; }
   @media (prefers-reduced-motion:reduce) { [data-minecodex-session-reveal], [data-context-progress] { transition:none; } }
-  [${MARKER}] button { box-sizing:border-box; display:inline-flex; align-items:center; gap:6px; height:22px; color:inherit; font:inherit; border:0; border-radius:var(--radius-xl,12px); background:transparent; padding:3px 6px; cursor:pointer; white-space:nowrap; }
+  [${MARKER}] button { box-sizing:border-box; display:inline-flex; align-items:center; gap:6px; height:22px; color:inherit; font:inherit; border:0; border-radius:var(--mcx-radius-xl,12px); background:transparent; padding:3px 6px; cursor:pointer; white-space:nowrap; }
   [${MARKER}] svg, [data-minecodex-session-status-panel] h3 svg { width:14px; height:14px; flex:none; stroke-width:1.75; }
   [${MARKER}] [data-kind="context"] svg, [data-minecodex-session-status-panel] h3 .context-ring { width:12px; height:12px; stroke-width:2; }
-  [${MARKER}] button:hover, [${MARKER}] button[aria-expanded="true"] { background:var(--color-token-list-hover-background); }
+  [${MARKER}] button:hover, [${MARKER}] button[aria-expanded="true"] { background:var(--mcx-color-token-list-hover-background); }
   [${MARKER}] button:focus-visible { outline:2px solid var(--input-outline-border-color-focus); outline-offset:1px; }
-  [data-minecodex-session-status-panel] { --mcx-purple:var(--app-block-accent-purple,light-dark(#8952ee,#7849d1)); --mcx-blue:var(--app-block-accent-blue,light-dark(#3a83f7,#2c67c5)); --mcx-green:var(--app-block-accent-green,light-dark(#53b559,#48a04c)); box-sizing:border-box; position:fixed;  min-width:260px; max-width:min(360px,calc(100vw - 24px)); padding:16px;  border-radius:var(--radius-xl,14px);  color:var(--color-text-primary); font-family:var(--font-sans-default,inherit); font-size:13px;  }
-  [data-minecodex-session-status-panel] h3 { display:flex; align-items:center; gap:8px; margin:0 0 12px; padding:0 0 10px; border-bottom:1px solid var(--color-border-subtle); font-size:14px; font-weight:600; }
+  [data-minecodex-session-status-panel] { --mcx-purple:var(--app-block-accent-purple,light-dark(#8952ee,#7849d1)); --mcx-blue:var(--app-block-accent-blue,light-dark(#3a83f7,#2c67c5)); --mcx-green:var(--app-block-accent-green,light-dark(#53b559,#48a04c)); box-sizing:border-box; position:fixed;  min-width:260px; max-width:min(360px,calc(100vw - 24px)); padding:16px;  border-radius:var(--mcx-radius-xl,14px);  color:var(--mcx-color-text-primary); font-family:var(--mcx-font-sans-default,inherit); font-size:13px;  }
+  [data-minecodex-session-status-panel] h3 { display:flex; align-items:center; gap:8px; margin:0 0 12px; padding:0 0 10px; border-bottom:1px solid var(--mcx-color-border-subtle); font-size:14px; font-weight:600; }
   [data-minecodex-session-status-panel] dl { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px 20px; margin:0; }
-  [data-minecodex-session-status-panel] dt { color:var(--color-text-tertiary); }
+  [data-minecodex-session-status-panel] dt { color:var(--mcx-color-text-tertiary); }
   [data-minecodex-session-status-panel] .tps-label { display:flex; align-items:center; gap:6px; }
   [data-minecodex-session-status-panel] .tps-info { display:inline-flex; align-items:center; padding:0; border:0; background:transparent; color:inherit; cursor:help; }
   [data-minecodex-session-status-panel] .tps-info svg { width:12px; height:12px; }
-  [data-minecodex-session-status-panel] .tps-info:focus-visible { outline:2px solid var(--color-ring); outline-offset:2px; border-radius:var(--radius-full); }
+  [data-minecodex-session-status-panel] .tps-info:focus-visible { outline:2px solid var(--mcx-color-ring); outline-offset:2px; border-radius:var(--mcx-radius-full); }
   [data-minecodex-session-status-panel] dd { margin:0; text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
   [data-minecodex-session-status-panel] .context-head { display:flex; justify-content:space-between; gap:12px; margin-bottom:8px; }
-  [data-minecodex-session-status-panel] .context-head span:first-child { color:var(--color-text-tertiary); }
-  [data-minecodex-session-status-panel] .context-bar, [data-minecodex-session-status-panel] .mix-bar { display:flex; height:6px; overflow:hidden; border-radius:var(--radius-xl); background:var(--color-token-border-default); }
+  [data-minecodex-session-status-panel] .context-head span:first-child { color:var(--mcx-color-text-tertiary); }
+  [data-minecodex-session-status-panel] .context-bar, [data-minecodex-session-status-panel] .mix-bar { display:flex; height:6px; overflow:hidden; border-radius:var(--mcx-radius-xl); background:var(--color-token-border-default); }
   [data-minecodex-session-status-panel] .context-bar { margin-bottom:14px; }
   [data-minecodex-session-status-panel] .mix-bar { grid-column:1 / -1; margin:0 0 3px; }
   [data-minecodex-session-status-panel] .context-bar span, [data-minecodex-session-status-panel] .mix-bar span { display:block; flex:none; height:100%; }
   [data-minecodex-session-status-panel] .context-bar [data-segment="instructions"] { background:var(--mcx-purple); }
   [data-minecodex-session-status-panel] .context-bar [data-segment="messages"], [data-minecodex-session-status-panel] .context-bar [data-segment="overall"] { background:var(--mcx-blue); }
   [data-minecodex-session-status-panel] .context-bar [data-segment="tools"] { background:var(--mcx-green); }
-  [data-minecodex-session-status-panel] .context-bar [data-segment="other"] { background:var(--color-text-tertiary); opacity:.4; }
+  [data-minecodex-session-status-panel] .context-bar [data-segment="other"] { background:var(--mcx-color-text-tertiary); opacity:.4; }
   [data-minecodex-session-status-panel] .mix-bar [data-tone="purple"], [data-minecodex-session-status-panel] dt[data-tone="purple"]::before { background:var(--mcx-purple); }
   [data-minecodex-session-status-panel] .mix-bar [data-tone="blue"], [data-minecodex-session-status-panel] dt[data-tone="blue"]::before { background:var(--mcx-blue); }
   [data-minecodex-session-status-panel] .mix-bar [data-tone="green"], [data-minecodex-session-status-panel] dt[data-tone="green"]::before { background:var(--mcx-green); }
-  [data-minecodex-session-status-panel] .detail-divider { grid-column:1 / -1; margin-top:4px; border-top:1px solid var(--color-border-subtle); }
+  [data-minecodex-session-status-panel] .detail-divider { grid-column:1 / -1; margin-top:4px; border-top:1px solid var(--mcx-color-border-subtle); }
   [data-minecodex-session-status-panel] dt[data-tone] { display:flex; align-items:center; gap:7px; }
   [data-minecodex-session-status-panel] dt[data-tone]::before { content:""; flex:none; width:7px; height:7px; border-radius:2px; }
 `;
@@ -102,11 +102,7 @@ window.addEventListener("storage", (event) => {
 }, { signal });
 // Codex 会把离屏输入框搬到 Quick Chat 浮层；节点仍连接不代表当前页面是聊天。
 function isActiveComposer(composer) {
-  const card = composer.closest('[data-codex-composer-root]');
-  return Boolean(composer.isConnected
-    && card?.getAttribute('data-composer-placement') === 'thread'
-    && !composer.closest('[hidden], [inert], [aria-hidden="true"], [data-floating-chat-surface], [data-right-panel-composer-overlay-content]')
-    && composer.checkVisibility({ visibilityProperty: true }));
+  return Boolean(config.codex.composer(composer));
 }
 function createInstance(composerElement) {
 let copy = selectedCopy();
@@ -405,88 +401,13 @@ function findComposer() {
   return isActiveComposer(composerElement) ? composerElement : null;
 }
 function currentThreadId(composer) {
-  if (!composer) return null;
-  const card = composer.closest('[data-codex-composer-root]');
-  const portal = card?.querySelector('[data-above-composer-portal]');
-  // 只认 Codex 输入框绑定的会话；侧栏和 URL 在切换模式时可能仍指向旧会话。
-  if (card?.getAttribute('data-composer-placement') !== 'thread') return null;
-  const value = portal?.getAttribute('data-above-composer-conversation-id');
-  return value?.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i)?.[0] ?? null;
+  return config.codex.currentThreadId(composer);
 }
 // 与原生 Context 指示器订阅同一会话状态；不以日志百分比覆盖它。
-const emptyNativeContext = () => ({ contextUsedTokens: null, contextWindow: null, contextPercent: null });
+const emptyNativeContext = () => ({ contextUsedTokens:null,contextWindow:null,contextPercent:null });
 let nativeContext = emptyNativeContext();
-let nativeContextFamily = null;
-let nativeContextSubscription = null;
-let nativeContextThread = null;
-function findNativeScope(element) {
-  let fiber;
-  for (let node = element; node && !fiber; node = node.parentElement) {
-    fiber = node[Object.keys(node).find((key) => key.startsWith("__reactFiber"))];
-  }
-  for (let depth = 0; fiber && depth < 200; depth++, fiber = fiber.return) {
-    const chain = fiber.memoizedProps?.value;
-    if (!(chain instanceof Map)) continue;
-    for (const node of chain.values()) {
-      if (node?.token?.__scopeBrand === "AppScope" && typeof node.store?.sub === "function") {
-        return { node, chain };
-      }
-    }
-  }
-  return null;
-}
-function contextFromNativeUsage(usage) {
-  const windowSize = usage?.modelContextWindow;
-  const total = usage?.last?.totalTokens;
-  if (!Number.isFinite(windowSize) || windowSize <= 0 || !Number.isFinite(total) || total < 0) {
-    return emptyNativeContext();
-  }
-  const used = Math.min(total, windowSize);
-  return { contextUsedTokens: used, contextWindow: windowSize, contextPercent: Math.round(used / windowSize * 100) };
-}
-function syncNativeContext(composer) {
-  if (nativeContextThread === activeThreadId && nativeContextSubscription) return;
-  nativeContextSubscription?.();
-  nativeContextSubscription = null;
-  nativeContextThread = null;
-  nativeContext = emptyNativeContext();
-  if (!activeThreadId || !nativeContextFamily) return;
-  const scope = findNativeScope(composer);
-  if (!scope) return;
-  try {
-    const threadId = activeThreadId;
-    const descriptor = nativeContextFamily.resolve(scope.node, scope.chain, threadId);
-    const atom = descriptor.resolve(scope.node, scope.chain);
-    const update = () => {
-      if (disposed || activeThreadId !== threadId) return;
-      nativeContext = contextFromNativeUsage(scope.node.store.get(atom));
-      render();
-    };
-    nativeContextThread = threadId;
-    nativeContextSubscription = scope.node.store.sub(atom, update);
-    update();
-  } catch {
-    nativeContextThread = null;
-  }
-}
-async function loadNativeContextFamily() {
-  try {
-    const url = [...document.querySelectorAll("link[rel=modulepreload]")].map((link) => link.href)
-      .find((name) => /\/app-shared-[^/]+\.js(?:$|\?)/.test(name));
-    if (!url) return;
-    const source = await (await fetch(url, { signal })).text();
-    // 从当前构建解析导出，避免依赖每次更新都会变化的压缩符号或资源哈希。
-    const local = source.match(/([\w$]+)=[\w$]+\(\(\{latestTokenUsageInfo:/)?.[1];
-    if (!local) return;
-    const exported = [...source.matchAll(/([\w$]+) as ([\w$]+)/g)]
-      .find((match) => match[1] === local)?.[2];
-    if (!exported) return;
-    const module = await import(url);
-    if (signal.aborted || disposed) return;
-    nativeContextFamily = module[exported];
-    syncNativeContext(findComposer());
-  } catch { /* 原生接口不可用时保留占位，不显示过期的日志百分比。 */ }
-}
+const nativeUsage = createContextUsageAdapter(signal, config.codex, value => { nativeContext=value; render(); });
+function syncNativeContext(composer) { nativeUsage.connect(activeThreadId, composer); }
 function requestRefresh() {
   if (!activeThreadId || signal.aborted) return;
   if (typeof window[config.bindingName] === "function") {
@@ -605,7 +526,7 @@ const localeObserver = new MutationObserver(() => {
 localeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["lang"] });
 setExpanded(globalExpanded);
 ensurePosition();
-void loadNativeContextFamily();
+
 const receiver = {
   update(value, revision) {
     ensurePosition();
@@ -623,7 +544,7 @@ const receiver = {
 return { update: receiver.update, setExpanded, dispose() {
   controller.abort();
   disposed = true;
-  nativeContextSubscription?.();
+  nativeUsage.dispose();
   clearTimeout(refreshTimer);
   clearTimeout(collapseTimer);
   observer.disconnect();

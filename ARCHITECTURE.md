@@ -6,23 +6,34 @@
 
 ```mermaid
 flowchart TB
-  CLI["CLI / Dashboard<br/>配置、启动、用户操作"]
-  Host["Runtime Host · 组合与接入<br/>插件发现、CDP、可信消息、生命周期"]
-  UI["UI 组件库<br/>原生 token、材质、层级、通用控件"]
-  subgraph Feature["功能领域 · features/*"]
-    Frontend["frontend / web<br/>特殊组件、内容、状态与交互"]
-    Application["backend<br/>业务流程、存储与外部读取适配"]
-    Domain["domain · 有实际规则时拆出<br/>实体含义、校验、事件归约、指标口径"]
+  Host["Runtime Host<br/>发现、注入、CDP、可信消息、生命周期"]
+  Env["packages/codex-adapter<br/>Composer、thread identity、rail、React读取机制"]
+  UI["packages/ui<br/>native主题映射与图标适配<br/>通用组件、材质与层级"]
+  subgraph Plugin["features/* · 按领域组织"]
+    Native["adapters/codex<br/>专有日志、数据库、API、bundle、原生动作"]
+    Domain["domain<br/>内部事实、规则、指标口径"]
+    Backend["backend<br/>业务编排、存储与服务接口"]
+    Frontend["frontend / page-script / web<br/>特殊内容、状态、交互"]
+    Factory["injection-source<br/>显式序列化 Adapter 和纯规则"]
   end
-  Native["外部环境<br/>Codex、日志、文件、网页与操作系统"]
-  CLI --> Host
-  Host -->|"安装与通信"| Frontend
-  Host -->|"组合业务能力"| Application
-  Frontend -->|"使用组件，提供内容"| UI
-  Frontend -->|"业务请求"| Host
-  Application --> Domain
-  Host -->|"接入"| Native
-  Application -->|"读取与存储适配"| Native
+  Codex["外部 Codex<br/>DOM、React、token、JSONL、SQLite、Library API"]
+  Host --> Env
+  Host --> UI
+  Host --> Backend
+  Host --> Factory
+  Factory --> Native
+  Factory --> Domain
+  Factory --> Frontend
+  Native --> Env
+  Native --> Domain
+  Backend --> Native
+  Backend --> Domain
+  Frontend -->|"config.codex：公共锚点与身份"| Env
+  Frontend -->|"config.ui：组件与内容组合"| UI
+  Frontend -->|"内部快照、锚点、命名动作"| Native
+  Codex -.-> Env
+  Codex -.-> Native
+  Codex -.-> UI
 ```
 
 图描述能力流向，实际导入必须遵守下面的接口约束。Runtime Host 是组合入口，可以导入插件后端来接线；UI 与领域规则不反向导入宿主。前端通过已声明的 host action 请求业务，不直接使用 CDP 或本地数据库。
@@ -30,8 +41,8 @@ flowchart TB
 | 领域 | 拥有的概念与规则 | 当前代码 |
 | --- | --- | --- |
 | Prompts（功能 ID 保留 notes） | 提示词、分类、顺序、插入成功后的调用计数；不替用户发送消息 | `features/notes/src/backend/`、`src/frontend/` |
-| Session Status | 回合、步骤、token 用量、缓存比例、体感 TPS 与上下文口径 | `features/session-status/src/domain/session-stats.mjs`、`src/backend/session-status-reader.mjs` |
-| Images | 图片身份、Library 来源、提示词溯源、导入与查看 | `features/images/src/`，云 Library 适配在 `src/backend/cloud-library.mjs` |
+| Session Status | 回合、步骤、token 用量、缓存比例、体感 TPS 与上下文口径 | `features/session-status/src/domain/session-stats.mjs`、`src/adapters/codex/session-reader.mjs` |
+| Images | 图片身份、Library 来源、提示词溯源、导入与查看 | `features/images/src/`，外部协议在 `src/adapters/codex/`，历史命令编排在 `src/backend/cloud-library.mjs` |
 | Sites | 站点来源、地址分类、项目归属、收录、发现与启动 | `features/sites/src/domain/site.mjs`、`src/backend/`、`src/frontend/` |
 | Model Slider | 模型身份、品牌、目录别名、真实档位、收藏与原生选择器增强 | `features/model-slider/src/domain/`、`src/frontend/`、`src/injection-source.mjs` |
 | 其他紧凑增强 | 各自的原生插入点与交互 | 保持本功能简单结构，不为统一外观创建空目录 |
@@ -54,7 +65,7 @@ flowchart TB
 
 较大的前端入口可在 manifest 的 `entry.resources` 中声明 CSS、图标 JSON 等资源文件：键映射到本功能内相对路径；JSON 解析为数据，其他文件读取为文本，经 `config.resources` 一次传入。资源不可越出功能目录，不新增 HTTP 请求或前端打包步骤。Prompts 与 Sites 使用这一接口把样式、图标和交互源码分开。
 
-需要将纯规则组装进注入源码时，插件可声明 `entry.sourceFactory`，指向本功能内导出 `createPageScriptSource()` 的 Node 模块。宿主只调用工厂取得函数体源码；工厂负责把纯规则序列化进去，Renderer 不依赖 Node imports。Images 的 Library 面板与历史云导入共用 `src/domain/library-prompt.mjs`。
+需要将纯规则组装进注入源码时，插件可声明 `entry.sourceFactory`，指向本功能内导出 `createPageScriptSource()` 的 Node 模块。宿主只调用工厂取得函数体源码；工厂负责把专有 Adapter 和纯规则序列化进去，Renderer 不依赖 Node imports。Images 的 Library 面板与历史云导入共用 `src/domain/library-prompt.mjs`。
 
 Images 的 iframe 仍使用主题/消息桥；原生 Library 增强仍使用 Renderer 入口。两种接入不强行合并。
 
@@ -67,3 +78,16 @@ Images 的 iframe 仍使用主题/消息桥；原生 Library 增强仍使用 Ren
 Model Slider 的领域规则与原生控制器适配归插件，`src/injection-source.mjs` 显式组装两者；宿主只提供 feature 配置、共享 UI、图标工厂、locale 与刷新调度，调用 `ensure` / `dispose`。原生 React 操作仍由插件适配层维护，领域规则不读取 DOM 或 localStorage。旧 Summary 布局属于宿主 surface 接入，仍保留在 `codex-injection.mjs`。
 
 架构验证自动发现所有插件的 domain 目录，检查静态导入、再导出、动态模块依赖和外部环境引用；同时检查已注册 Renderer 入口及 frontend 的反向依赖，以及启用插件的 Tooltip 材质归属。纯规则的模块导入和自包含序列化行为由所属插件测试覆盖，不以测试数量替代领域归属审查。
+
+
+## Codex 防腐层职责（2026-10-01）
+
+- `packages/codex-adapter/src/renderer/environment.mjs` 只拥有真实共享的原生读取机制与锚点。`composer()` 默认返回可见 thread 输入框的 root/body/add 与身份；Prompts 使用 `threadOnly:false` 保留首页插入能力，非thread不提供身份。缺失身份立即返回 null。`railSlot()` 返回扩展挂载句柄。`currentFiber()` / `props()` 仅供 native Adapter 使用，不向业务层传递 React props。
+- `packages/ui/src/native/` 拥有视觉协议。`tokens.mjs` 的规范名称和别名解析到 `--mcx-*`；`theme.mjs` 处理主题读取、直接注入变量、桥接快照和卸载恢复。原生 token 改名时加别名，保留项目规范名称和输出 token；插件不复制原生兼容映射。
+- `features/<id>/src/adapters/codex/` 拥有专有语义转换。Session Status 的日志转为 `kind/at` 事实和 `input/cached/output/total` 用量；Images 将原始树转换为生成事实，再由领域选择提示词。SitesCatalog 返回内部 projects/threads；Usage 返回额度快照，不暴露 queryClient/auth/router。
+- Model Slider 暴露明确字段的控制器视图和选择/菜单动作，不返回整个 React props；档位对象作为原生选择动作的句柄保留在该接口内，不进入模型领域规则。Task Switcher 输出线程展示记录及 activate 回调，排序和流式消息更新时间仍归交互策略。
+- 能力诊断由 Adapter 维护。Renderer 可通过运行时 `nativeCapabilities()` 查看 name/available/reason；目录 Adapter 提供 `diagnostics()`。未知状态不伪装成已读或闲置；用户界面不展示技术诊断。
+
+不要把原生相关代码一律移到共享层：Library、模型控制器、账号额度、Sites 路由和数据库属于专有 Adapter。简单 Banner 本身是一个呈现 Adapter，无业务领域，不新增空 domain/backend 目录。宿主的原生标签、surface 接入仍属于注入与生命周期边界；通用视觉与插件业务不回流到宿主。
+
+契约验证覆盖内部事实、当前 React alternate、隐藏输入框、账号切换、订阅清理、bundle 失效重试、主题消失/恢复和九插件源码组装。架构检查同时阻止 domain 重新解析已隔离的外部 schema，以及交互入口重新发现 React/query cache/bundle API。

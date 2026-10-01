@@ -4,7 +4,8 @@ import test from "node:test";
 
 import { createPageScriptSource } from "../src/library-prompt-source.mjs";
 const source = await createPageScriptSource();
-const { libraryImage, promptFromConversation } = new Function(`${source.slice(0, source.indexOf("const localeObserver ="))}\nreturn {libraryImage, promptFromConversation};`)();
+import { createCodexEnvironment } from "../../../packages/codex-adapter/src/renderer/environment.mjs";
+const { libraryImage, promptFromConversation } = new Function("config", `${source.slice(0, source.indexOf("const localeObserver ="))}\nreturn {libraryImage, promptFromConversation};`)({codex:createCodexEnvironment()});
 const file = { id: "libfile_a", file_id: "file_a", mime_type: "image/png", origination_message_id: "image", origination_thread_id: "thread" };
 function conversation({ prompt = "exact prompt", role = "tool", asset = "sediment://file_a", generation = true } = {}) {
   return { mapping: {

@@ -1,3 +1,4 @@
+import { createCodexEnvironment } from "../../codex-adapter/src/renderer/environment.mjs";
 // 注入源生成：createInjectionSource 产出注入到 Codex Renderer 的自包含脚本字符串。
 // 该字符串经 CDP 注入后独立执行，因此 install 函数体必须自包含；
 // CodexRuntime 与 CDP 客户端在 codex-runtime.mjs / codex-cdp.mjs。
@@ -5,9 +6,9 @@
 import { createModelSliderInstallerSource } from "../../../features/model-slider/src/injection-source.mjs";
 import { createUIInstallerSource } from "../../ui/src/install.mjs";
 import { randomBytes } from "node:crypto";
-import { CODEX_THEME_TOKENS, CODEX_THEME_TOKEN_ALIASES } from "../../ui/src/native/tokens.mjs";
+import { CODEX_THEME_TOKENS, CODEX_THEME_TOKEN_ALIASES, MINECODEX_THEME_BINDINGS } from "../../ui/src/native/tokens.mjs";
 
-export const RUNTIME_VERSION = 106;
+export const RUNTIME_VERSION = 107;
 export const HOST_BINDING_NAME = "__codexPersonalHostAction";
 export const CSP_BOOTSTRAP_VERSION = 1;
 export const CSP_BOOTSTRAP_KEY = "__mineCodexCspBootstrapVersion";
@@ -121,14 +122,14 @@ export function createInjectionSource(features, {
   bindingToken = "test-binding-token",
   runtimeSessionId = randomBytes(16).toString("hex"),
 } = {}) {
-  function install(config, installUI, installModelSliderFeature) {
+  function install(config, installUI, installModelSliderFeature, createCodexEnvironment) {
     if (window.top !== window) return;
     if (!document.documentElement) {
       // The document bootstrap runs before the root element exists. Defer the
       // whole install until the DOM is ready instead of crashing on a null
       // documentElement (which previously left the runtime permanently absent
       // after a renderer reload).
-      document.addEventListener("DOMContentLoaded", () => install(config, installUI, installModelSliderFeature), { once: true });
+      document.addEventListener("DOMContentLoaded", () => install(config, installUI, installModelSliderFeature, createCodexEnvironment), { once: true });
       return;
     }
     const currentRuntime = window.__codexPersonalRuntime;
@@ -140,7 +141,8 @@ export function createInjectionSource(features, {
     currentRuntime?.dispose?.();
 
     const lifetime = new AbortController();
-    const featureUI = installUI(lifetime.signal);
+    const codex = createCodexEnvironment();
+    const featureUI = installUI(lifetime.signal, {codex,themeTokens:config.themeTokens,themeTokenAliases:config.themeTokenAliases,themeBindings:config.themeBindings});
     const rightPanelRouteKinds = new Set(config.rightPanelRouteKinds);
 
     const entryMarker = "data-codex-personal-feature";
@@ -160,8 +162,6 @@ export function createInjectionSource(features, {
       sidePanel: ["Toggle side panel", "切换侧边面板"],
       temporaryChat: ["temporary chat", "临时聊天", "临时对话"],
     };
-    const themeTokenNames = config.themeTokens;
-    const themeTokenAliases = config.themeTokenAliases;
 
     function normalizedLocale(value) {
       return String(value ?? "").toLowerCase().startsWith("zh") ? "zh-CN" : "en";
@@ -242,7 +242,7 @@ export function createInjectionSource(features, {
     let nativeTabCapability = null;
     let nativeTabCapabilityError = null;
     const modelSlider = installModelSliderFeature(lifetime.signal, {
-      feature: modelSelectorFeature, ui: featureUI, createIcon: createMarkupIcon, requestRefresh: queueEnsure, locale,
+      feature: modelSelectorFeature, codex, ui: featureUI, createIcon: createMarkupIcon, requestRefresh: queueEnsure, locale,
     });
 
     // ========================================================================
@@ -263,6 +263,7 @@ export function createInjectionSource(features, {
         );
         const pageConfig = feature.pageScript.config ??= {};
         pageConfig.ui = featureUI;
+        pageConfig.codex = codex;
         pageConfig.requestHostAction = (action, payload) => requestPageHostAction(feature.id, action, payload);
         const cleanup = installer(
           lifetime.signal,
@@ -688,29 +689,8 @@ export function createInjectionSource(features, {
       });
     }
 
-    function resolvedTheme() {
-      const root = document.documentElement;
-      const style = getComputedStyle(root);
-      const tokens = Object.fromEntries(
-        themeTokenNames
-          .map((name) => [name, style.getPropertyValue(name).trim()])
-          .filter(([, value]) => value),
-      );
-      // 按语义和命名空间解析，不依赖构建哈希或猜测近似名称。
-      for (const name of themeTokenNames) {
-        if (tokens[name]) continue;
-        const semanticNames = [name, ...(themeTokenAliases[name] ?? [])];
-        const candidates = semanticNames.flatMap((candidate) => candidate.startsWith("--color-")
-          ? [candidate, candidate.replace("--color-", "--app-color-")]
-          : [candidate]);
-        const value = candidates.map((candidate) => style.getPropertyValue(candidate).trim()).find(Boolean);
-        if (value) tokens[name] = value;
-      }
-      const mode = root.dataset.theme === "dark" || root.classList.contains("electron-dark") || style.colorScheme === "dark"
-        ? "dark"
-        : "light";
-      return { root, style, tokens, mode };
-    }
+    const resolvedTheme=featureUI.theme.read;
+    resolvedTheme();
 
     function sendTheme() {
       themeQueued = false;
@@ -2384,6 +2364,7 @@ export function createInjectionSource(features, {
       version: config.version,
       sessionId: config.sessionId,
       updateHostBinding,
+      nativeCapabilities: () => codex.diagnostics(),
       ensure: queueEnsure,
       show: showPageSurface,
       hide: () => {
@@ -2426,6 +2407,7 @@ export function createInjectionSource(features, {
         closeNativeDetailTabs();
         modelSlider.dispose();
         surfaceRecords.clear();
+        featureUI.theme.dispose();
         if (window.__codexPersonalRuntime === runtimeApi) delete window.__codexPersonalRuntime;
       },
     };
@@ -2467,8 +2449,9 @@ export function createInjectionSource(features, {
     rightPanelRouteKinds: RIGHT_PANEL_ROUTE_KINDS,
     themeTokens: CODEX_THEME_TOKENS,
     themeTokenAliases: CODEX_THEME_TOKEN_ALIASES,
+    themeBindings: MINECODEX_THEME_BINDINGS,
     features: runtimeFeatures,
-  })}, ${createUIInstallerSource()}, ${createModelSliderInstallerSource()})`;
+  })}, ${createUIInstallerSource()}, ${createModelSliderInstallerSource()}, ${createCodexEnvironment.toString()})`;
 }
 
 export function createRuntimeReadyContract({

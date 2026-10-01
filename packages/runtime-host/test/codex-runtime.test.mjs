@@ -175,6 +175,7 @@ async function executeModelSliderInjection({
         toggle() {},
         contains() { return false; },
       };
+      this.dataset = {};
       this.isConnected = true;
       this.hidden = false;
       this.outerHTML = `<${tagName}></${tagName}>`;
@@ -1471,7 +1472,7 @@ test("emits an isolated conversation-toolbar Adapter with strict Surface and Hos
   assert.match(source, /"corner-shape:var\(--codex-corner-shape,superellipse\(1\.5\)\)"/);
   assert.match(source, /featureUI.surface\(dialog, "dialog"\)/);
   assert.match(source, /corner-shape:round/);
-  assert.match(source, /var\(--shadow-lg\)/);
+  assert.match(source, /var\(--mcx-shadow-lg\)/);
   assert.match(source, /"left:50%"/);
   assert.match(source, /"top:50%"/);
   assert.match(source, /"width:min\(420px,92vw\)"/);

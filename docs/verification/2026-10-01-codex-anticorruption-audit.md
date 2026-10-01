@@ -2,7 +2,9 @@
 
 日期：2026-10-01。源码基线：4e8a443。范围：九个注册插件、UI 组件库、Runtime Host、被维护的 Images 历史云导入。仅检查源码、接口归属与现有验证范围；未访问运行中的 Codex 或执行窗口操作。
 
-## 结论与成功标准
+当前状态：本轮代码迁移及源码契约验收已完成，见末尾“迁移后的源码验收”；以下保留修复前的原始审查证据。
+
+## 初次审查结论与成功标准
 
 **部分建立，未达到完整防腐层的验收标准。** 共享 UI 与业务归属改善了，但“代码放进 domain / frontend / backend”不代表已隔离外部协议。
 
@@ -21,7 +23,7 @@
 - `packages/ui/src/native/navigation-rail.mjs:2` 将原生 React 导航项、IconAsset 和 DOM 图标工厂的读取与 NavigationRail 展示分开，是当前较清晰的 Adapter 实例。
 - Host action 的权限与传输集中于 Runtime Host；Images 云路径接受 evaluator；SessionStatusReader 接受目录与时钟；Sites 外部探测接受 listeners/probe。它们提供了接入 seam，但有些仍没有完成原始数据转换。
 
-## 发现
+## 初次审查发现（4e8a443 基线，路径和行号为历史证据）
 
 ### ACL-01：领域直接依赖外部 schema（P1）
 
@@ -65,7 +67,7 @@ Session Status `src/session-status.mjs:472` 的原生上下文 atom 发现也依
 
 部分原生解析失败只返回 null、false或保持占位，例如 Session Status 上下文发现 catch；这样 UI 不显示旧数据是正确的，但内部缺少统一的能力状态与失效原因。应在 Adapter 层返回或记录契约名、可用状态、失效原因与必要的构建信息，并在开发诊断中查看；不要把这些技术详情塞进正常产品 UI。
 
-## 九插件结果
+## 初次审查九插件结果
 
 | 插件 | 防腐层结果 | 实际缺口 |
 | --- | --- | --- |
@@ -79,7 +81,7 @@ Session Status `src/session-status.mjs:472` 的原生上下文 atom 发现也依
 | Sidebar Focus | 部分 | 聚焦逻辑与原生 props/当前 thread 探测混合 |
 | Hide Upsell Banner | 小型原生 Adapter 可保留 | 文案/aside识别是实际外部契约；明确归属与契约验证即可，不强拆层 |
 
-## 建议结构与顺序
+## 初次审查建议结构与顺序
 
 ```mermaid
 flowchart LR
@@ -105,4 +107,24 @@ flowchart LR
 
 执行顺序：先迁移共享身份／Composer／rail，减少跨插件错误；再拆 Session Status 和 Images 的协议转换；随后提取 Sites目录与各专有 Adapter；最后统一主题消费并补协议契约验证与开发诊断。每个能力迁移都包含所属调用方与测试，不以先搬文件、保留旧入口转发作为完成。
 
-本次不进行功能代码迁移；该报告用于补齐此前架构验收的维度，不能将“审查完成”记为“上述缺口已修复”。
+初次审查没有进行功能迁移。下文为之后按用户授权执行的实际修复；本节的发现、路径和行号作为原始审查证据保留，不再表示当前源码。
+
+
+## 迁移后的源码验收（2026-10-01）
+
+本轮按职责完成上述六项问题的迁移。当前架构以根 ARCHITECTURE.md、AGENTS.md 与实际源码为准。此前“部分建立”的结论属于修复前基线；本轮源码和契约验证通过，不代表原生窗口视觉验收。
+
+| 问题 | 实际修复 | 验证 |
+| --- | --- | --- |
+| ACL-01 | SessionStatus 日志转为内部事件/用量，domain 只归约内部事实；Images 原始树在 image-prompt Adapter 转换，domain 仅决定生成提示词/原始请求优先级 | 原始日志回归、事实契约、未知记录、生成来源与真实序列化路径 |
+| ACL-02 | 新增共享 Codex Renderer environment；Composer、thread identity、rail/扩展槽、React current/alternate 机制复用 | 隐藏/非thread输入框、身份清空、ancestor scope、alternate、全插件工厂组装 |
+| ACL-03 | 模型控制器/资源、Usage auth/cache、Task线程记录、Focus分支、Sites页面/路由/模板移到专有 Adapter；交互入口不再解析原生 props/query cache | 原生选择行为、账号切换、线程卸载后的 activate、订阅清理、静态边界 |
+| ACL-04 | UI theme Adapter 统一原生规范名称/别名与 `--mcx-*`；直接注入和 iframe 使用同一快照；插件自有 CSS 消费项目变量 | 别名优先级、缺失token清除、卸载恢复、原生材质分支与组件回归 |
+| ACL-05 | Sites CodexCatalog 封装 JSON/SQLite；Images Library API 发现只有一份，viewer/历史导入消费命名操作；日志Reader归专有 Adapter | 目录业务回归、API复用/失效重试、无client泄露、真实工厂组装 |
+| ACL-06 | 架构检查增加 domain schema 与 Renderer私有协议限制；共享机制、日志转换、Library与主题补契约样例；运行时提供内部能力诊断 | 全量测试、语法、发布包审查；内部诊断不进入产品界面 |
+
+九插件归属已核对：Prompts 消费共享环境与 UI；Session Status、Images、Sites、Model Slider、Usage Meter、Task Switcher、Sidebar Focus 使用领域专有 Adapter；Hide Upsell Banner 保留紧凑呈现 Adapter，不增加空业务层。Model Slider 的控制器视图是有限字段与动作接口，power selection 为其专有动作句柄；不向领域规则传递整个原生 props。
+
+当前公开文档不承担内部文件路由；根 AGENTS 维护入口，根 DESIGN 维护通用规范，本级 DESIGN 只描述特殊表现。发布包已包含新 Adapter 和序列化工厂。没有执行 Codex 窗口操作、发布、推送或日常安装更新。
+
+交付验证：`npm test` 332 项通过；`npm run check` 检查144个JavaScript文件；`npm run pack:audit` 审查168个发布文件。九插件工厂由真实 registry 发现与组装，注入源码不携带 Node import。验证范围为源码、契约执行及发布包，不包括原生GUI。

@@ -117,3 +117,19 @@ test("active plugins do not copy common Tooltip material", async () => {
     }
   }
 });
+
+test("domain rules do not interpret native Codex event or conversation schemas",async()=>{
+  for (const {directory} of registered) {
+    let files;try {files=await modules(new URL('src/domain/',directory));}catch(error){if(error.code==='ENOENT')continue;throw error;}
+    for(const file of files) assert.doesNotMatch(await readFile(file,'utf8'),/\b(event_msg|response_item|token_usage_record|origination_message_id|image_asset_pointer|replacement_history)\b|\.mapping\b/,file.pathname);
+  }
+});
+test("registered interaction entries do not discover React, query clients or native bundle APIs",async()=>{
+  for (const {directory,manifest} of registered) {
+    if(manifest.entry.kind!=='page-script')continue;
+    const source=await readFile(new URL(manifest.entry.script,directory),'utf8');
+    assert.doesNotMatch(source,/__reactFiber|__reactProps|\.safeGet\(|\.safePost\(|getQueryData\(|getQueryCache\(|state_5\.sqlite/,manifest.id);
+  }
+  const model=await readFile(new URL('../../../features/model-slider/src/frontend/install.mjs',import.meta.url),'utf8');
+  assert.doesNotMatch(model,/__reactFiber|__reactProps|fetch\(/);
+});

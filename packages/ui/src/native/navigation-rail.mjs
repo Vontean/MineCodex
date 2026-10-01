@@ -1,9 +1,8 @@
 // 读取原生导航资源；不修改 React props，也不调用带 Hooks 的图标组件。
-export function createNativeRailAdapter() {
+export function createNativeRailAdapter(codex) {
   const defaultIcons = new WeakMap();
   function nativeItem(node) {
-    const key = Object.keys(node).find(name => name.startsWith("__reactFiber$"));
-    for (let fiber = node[key]; fiber; fiber = fiber.return) {
+    for (let fiber = codex.currentFiber(node); fiber; fiber = fiber.return) {
       const item = fiber.memoizedProps?.item;
       if (item?.id === node.getAttribute("data-sidebar-destination")) return item;
     }

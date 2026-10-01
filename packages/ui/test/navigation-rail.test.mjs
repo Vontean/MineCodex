@@ -1,3 +1,4 @@
+import { createCodexEnvironment } from "../../codex-adapter/src/renderer/environment.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
 import vm from "node:vm";
@@ -20,7 +21,7 @@ class Node {
 }
 test("injected navigation owns selection and restores native attributes and React-owned icon", () => {
   const document={head:new Node(),createElement:()=>new Node(),createElementNS:()=>new Node()};
-  const adapter=vm.runInNewContext(`(${createNativeRailAdapter.toString()})`,{document})();
+  const adapter=vm.runInNewContext(`(${createNativeRailAdapter.toString()})`,{document})(createCodexEnvironment());
   const controller=new AbortController();
   const ui=vm.runInNewContext(`(${installNavigationRail.toString()})`,{document})(controller.signal,{},adapter);
   const rail=new Node(),home=new Node(),button=new Node(),outline=new Node(),filled=new Node(),nativeIcon=new Node();
@@ -46,14 +47,14 @@ test("injected navigation owns selection and restores native attributes and Reac
   entry.select(true);controller.abort();assert.equal(home.children.length,1);assert.equal(home.getAttribute("aria-current"),"page");
 });
 test("native component icons reuse captured default SVG without invoking React components", () => {
-  const adapter=createNativeRailAdapter(),node=new Node(),icon=new Node();
+  const adapter=createNativeRailAdapter(createCodexEnvironment()),node=new Node(),icon=new Node();
   icon.innerHTML="outline";adapter.remember(node,icon);icon.innerHTML="selected";
   assert.equal(adapter.icon(node,icon).innerHTML,"outline");
 });
 
 test("native icon factory creates default glyph through its explicit DOM API", () => {
   const document={};
-  const adapter=vm.runInNewContext(`(${createNativeRailAdapter.toString()})`,{document})();
+  const adapter=vm.runInNewContext(`(${createNativeRailAdapter.toString()})`,{document})(createCodexEnvironment());
   const node=new Node(),current=new Node(),outline=new Node();
   node.setAttribute("data-sidebar-destination","builtin:scheduled");current.setAttribute("class","icon");
   const resource=()=>{throw new Error("must not invoke React component");};

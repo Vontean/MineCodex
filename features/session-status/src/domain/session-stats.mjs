@@ -1,47 +1,4 @@
-// 会话事件归约与指标口径；不读取文件或连接原生 UI。
-const MODEL_OUTPUT_ITEMS = new Set(["Reasoning", "AgentMessage"]);
-const TOOL_ITEMS = new Set(["CommandExecution", "McpToolCall", "DynamicToolCall"]);
-const IMAGE_TOKENS_ESTIMATE = 1844;
-
-function estimatedTextTokens(value) {
-  return typeof value === "string" ? Math.ceil(Buffer.byteLength(value, "utf8") / 4) : 0;
-}
-
-function estimatedContentTokens(content) {
-  if (!Array.isArray(content)) return 0;
-  return content.reduce((total, item) => {
-    if (item?.type === "input_image" || item?.type === "output_image") return total + IMAGE_TOKENS_ESTIMATE;
-    return total + estimatedTextTokens(item?.text);
-  }, 0);
-}
-
-function estimatedEncryptedTokens(value) {
-  if (typeof value !== "string") return 0;
-  // 参考 Codex 的历史粗估：先去掉加密封装，再按约 4 字节/token 换算。
-  return Math.ceil(Math.max(0, Math.floor(value.length * 3 / 4) - 650) / 4);
-}
-
-function estimatedSections(item) {
-  const type = item?.type;
-  if (type === "message") {
-    const tokens = estimatedContentTokens(item.content);
-    return item.role === "developer" || item.role === "system"
-      ? { instructions: tokens, messages: 0, tools: 0 }
-      : { instructions: 0, messages: tokens, tools: 0 };
-  }
-  if (type === "function_call" || type === "custom_tool_call") {
-    return { instructions: 0, messages: 0, tools: estimatedTextTokens(item.arguments ?? item.input) };
-  }
-  if (type === "function_call_output" || type === "custom_tool_call_output") {
-    return { instructions: 0, messages: 0, tools: estimatedContentTokens(item.output) };
-  }
-  if (type === "reasoning" || type === "compaction") {
-    return { instructions: 0, messages: estimatedContentTokens(item.summary)
-      + estimatedEncryptedTokens(item.encrypted_content), tools: 0 };
-  }
-  return null;
-}
-
+// 归约 MineCodex 会话事实；不依赖 Codex 日志字段或外部环境。
 function addSections(target, sections) {
   if (!sections) return;
   for (const key of ["instructions", "messages", "tools"]) target[key] += sections[key];
@@ -73,11 +30,6 @@ export function createSessionState() {
   };
 }
 
-function validUsage(value) {
-  return value && ["input_tokens", "cached_input_tokens", "output_tokens", "total_tokens"]
-    .every((key) => Number.isFinite(value[key]) && value[key] >= 0);
-}
-
 function overlappingToolMs(intervals, start, end) {
   const clipped = intervals
     .map(([toolStart, toolEnd]) => [Math.max(start, toolStart), Math.min(end, toolEnd)])
@@ -93,112 +45,50 @@ function overlappingToolMs(intervals, start, end) {
 }
 
 export function applySessionStatusEvent(state, event) {
-  const payload = event?.payload ?? {};
-  if (event?.type === "compacted") {
-    state.compactionRecords += 1;
-    state.last = null;
-    state.firstOutputAt = null;
-    state.pendingToolIntervals = [];
-    if (Number.isSafeInteger(payload.window_number) && payload.window_number >= 0) {
-      state.compactionWindow = Math.max(state.compactionWindow, payload.window_number);
-    }
-    // 压缩会替换活跃历史；不能继续累计压缩前的消息与工具记录。
-    state.visibleSections = { instructions: 0, messages: 0, tools: 0 };
-    state.hasVisibleHistory = false;
-    if (Array.isArray(payload.replacement_history)) {
-      for (const item of payload.replacement_history) addSections(state.visibleSections, estimatedSections(item));
-      state.hasVisibleHistory = true;
-    }
+  const reset = () => { state.firstOutputAt=null; state.pendingToolIntervals=[]; };
+  switch (event.kind) {
+    case "history-replaced":
+      state.compactionRecords++; state.last=null; reset();
+      if (Number.isSafeInteger(event.window) && event.window >= 0) state.compactionWindow=Math.max(state.compactionWindow,event.window);
+      state.visibleSections=event.sections ?? {instructions:0,messages:0,tools:0};
+      state.hasVisibleHistory=event.sections !== null;
+      break;
+    case "history-added": addSections(state.visibleSections,event.sections); state.hasVisibleHistory=true; break;
+    case "turn-observed": state.turns.add(event.id); break;
+    case "session-configured":
+      if (Number.isFinite(event.contextWindow)) state.contextWindow=event.contextWindow;
+      state.baseInstructionTokens=event.instructionTokens; break;
+    case "context-reset": state.compactionEvents++; state.last=null; reset(); break;
+    case "turn-started": reset(); state.turns.add(event.id); state.runningTurns.add(event.id); break;
+    case "turn-ended": reset(); if (event.id) state.runningTurns.delete(event.id); else state.runningTurns.clear(); break;
+    case "first-token-measured": state.ttftTotalMs+=event.elapsed; state.ttftSamples++; break;
+    case "compaction-finished": state.compactionCompleted++; break;
+    case "output-observed": state.firstOutputAt=Math.min(state.firstOutputAt ?? event.start,event.start); break;
+    case "tool-measured":
+      state.toolMs+=Math.max(0,event.end-event.start);
+      state.pendingToolIntervals.push([event.start,event.end]);
+      // 工具记录可能晚到，补扣与既有响应样本重叠的时间。
+      for (const sample of state.speedMeasurements) if (event.start < sample.end && event.end > sample.start) sample.tools.push([event.start,event.end]);
+      break;
+    case "usage-observed":
+      if (!state.hasResponseUsage && event.total) state.total=event.total;
+      if (event.last) state.last=event.last;
+      if (Number.isFinite(event.contextWindow)) state.contextWindow=event.contextWindow;
+      break;
+    case "response-measured":
+      if (event.id && state.responses.has(event.id)) return;
+      if (event.id) {
+        state.responses.add(event.id);
+        const output=event.last?.output;
+        if (Number.isFinite(output) && output > 0 && state.firstOutputAt != null && Number.isFinite(event.end) && event.end > state.firstOutputAt)
+          state.speedMeasurements.push({ start:state.firstOutputAt,end:event.end,output,tools:state.pendingToolIntervals.slice() });
+      }
+      reset();
+      if (event.total) { state.total=event.total; state.hasResponseUsage=true; }
+      if (event.last) state.last=event.last;
+      break;
   }
-  if (event?.type === "response_item") {
-    const sections = estimatedSections(payload);
-    if (sections) {
-      addSections(state.visibleSections, sections);
-      state.hasVisibleHistory = true;
-    }
-  }
-  if (event?.type === "turn_context" && payload.turn_id) state.turns.add(payload.turn_id);
-  if (event?.type === "session_meta") {
-    if (Number.isFinite(payload.context_window)) state.contextWindow = payload.context_window;
-    state.baseInstructionTokens = estimatedTextTokens(payload.base_instructions?.text);
-  }
-  if (event?.type === "event_msg") {
-    if (payload.type === "context_compacted") {
-      state.compactionEvents += 1;
-      state.last = null;
-      state.firstOutputAt = null;
-      state.pendingToolIntervals = [];
-    }
-    if (payload.type === "task_started" && payload.turn_id) {
-      state.firstOutputAt = null;
-      state.pendingToolIntervals = [];
-      state.turns.add(payload.turn_id);
-      state.runningTurns.add(payload.turn_id);
-    }
-    if (["task_complete", "task_interrupted", "turn_aborted"].includes(payload.type)) {
-      state.firstOutputAt = null;
-      state.pendingToolIntervals = [];
-      if (payload.turn_id) state.runningTurns.delete(payload.turn_id);
-      else state.runningTurns.clear();
-    }
-    if (payload.type === "task_complete" && Number.isFinite(payload.time_to_first_token_ms)) {
-      state.ttftTotalMs += payload.time_to_first_token_ms;
-      state.ttftSamples += 1;
-    }
-    if (payload.type === "item_completed") {
-      const itemType = payload.item?.type;
-      if (itemType === "ContextCompaction") state.compactionCompleted += 1;
-      const start = payload.started_at_ms;
-      const end = payload.completed_at_ms;
-      if (MODEL_OUTPUT_ITEMS.has(itemType) && Number.isFinite(start)) {
-        state.firstOutputAt = Math.min(state.firstOutputAt ?? start, start);
-      }
-      if (TOOL_ITEMS.has(itemType) && Number.isFinite(start) && Number.isFinite(end)) {
-        state.toolMs += Math.max(0, end - start);
-        state.pendingToolIntervals.push([start, end]);
-        // 工具完成事件可能晚于用量记录落盘，补扣已记录样本中的重叠区间。
-        for (const sample of state.speedMeasurements) {
-          if (start < sample.end && end > sample.start) sample.tools.push([start, end]);
-        }
-      }
-    }
-    if (payload.type === "token_count") {
-      if (!state.hasResponseUsage && validUsage(payload.info?.total_token_usage)) {
-        state.total = payload.info.total_token_usage;
-      }
-      if (validUsage(payload.info?.last_token_usage)) {
-        state.last = payload.info.last_token_usage;
-      }
-      if (Number.isFinite(payload.info?.model_context_window)) {
-        state.contextWindow = payload.info.model_context_window;
-      }
-    }
-  }
-  if (event?.type === "token_usage_record") {
-    const responseId = payload.response_id;
-    if (responseId && state.responses.has(responseId)) return;
-    if (responseId) {
-      state.responses.add(responseId);
-      const responseEnd = Date.parse(event.timestamp);
-      const output = payload.usage?.output_tokens;
-      // 起止点来自会话事件，并非模型首末 token 时间；只能提供观测约值。
-      if (Number.isFinite(output) && output > 0 && state.firstOutputAt != null
-        && Number.isFinite(responseEnd) && responseEnd > state.firstOutputAt) {
-        state.speedMeasurements.push({
-          start: state.firstOutputAt, end: responseEnd, output,
-          tools: state.pendingToolIntervals.slice(),
-        });
-      }
-    }
-    state.firstOutputAt = null;
-    state.pendingToolIntervals = [];
-    if (validUsage(payload.thread_token_usage)) {
-      state.total = payload.thread_token_usage;
-      state.hasResponseUsage = true;
-    }
-    if (validUsage(payload.usage)) state.last = payload.usage;
-  }
-  if (state.total || state.turns.size) state.updatedAt = event.timestamp ?? state.updatedAt;
+  if (state.total || state.turns.size) state.updatedAt=event.at ?? state.updatedAt;
 }
 
 export function sessionStatusSnapshot(state, threadId) {
@@ -213,22 +103,22 @@ export function sessionStatusSnapshot(state, threadId) {
     speedSamples += 1;
   }
   const total = state.total;
-  const input = total?.input_tokens ?? 0;
-  const cached = total?.cached_input_tokens ?? 0;
-  const cacheWrite = total?.cache_write_input_tokens ?? 0;
-  const contextUsed = state.last?.total_tokens ?? null;
+  const input = total?.input ?? 0;
+  const cached = total?.cached ?? 0;
+  const cacheWrite = total?.cacheWrite ?? 0;
+  const contextUsed = state.last?.total ?? null;
   const contextWindow = state.contextWindow > 0 ? state.contextWindow : null;
   return {
     threadId,
     isRunning: state.runningTurns.size > 0,
     turns: state.turns.size,
     steps: state.responses.size,
-    totalTokens: total?.total_tokens ?? null,
-    inputTokens: total?.input_tokens ?? null,
-    cachedInputTokens: total?.cached_input_tokens ?? null,
-    cacheWriteInputTokens: total?.cache_write_input_tokens ?? null,
+    totalTokens: total?.total ?? null,
+    inputTokens: total?.input ?? null,
+    cachedInputTokens: total?.cached ?? null,
+    cacheWriteInputTokens: total?.cacheWrite ?? null,
     uncachedInputTokens: total ? Math.max(0, input - cached - cacheWrite) : null,
-    outputTokens: total?.output_tokens ?? null,
+    outputTokens: total?.output ?? null,
     cacheHitPercent: input > 0 ? Math.round(cached / input * 100) : null,
     observedTps: decodeMs > 0 ? Math.round(decodeTokens / (decodeMs / 1000)) : null,
     speedSamples,

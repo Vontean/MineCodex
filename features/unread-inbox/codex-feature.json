@@ -12,7 +12,8 @@
   },
   "entry": {
     "kind": "page-script",
-    "script": "src/unread-inbox.mjs"
+    "script": "src/unread-inbox.mjs",
+    "sourceFactory": "src/injection-source.mjs"
   },
   "placement": {
     "order": 70

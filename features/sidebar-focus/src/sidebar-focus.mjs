@@ -1,42 +1,16 @@
+const nativeFocus = createFocusAdapter(config.codex);
 const FOCUS_GLYPH = "<svg aria-hidden=\"true\"\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"16\"\n  height=\"16\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"1.575\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n>\n  <path d=\"M3 5h8\" />\n  <path d=\"M3 12h8\" />\n  <path d=\"M3 19h8\" />\n  <path d=\"m15 5 3 3 3-3\" />\n  <path d=\"m15 19 3-3 3 3\" />\n</svg>\n";
-const sectionSelector = "[data-app-action-sidebar-section]";
-const projectSelector = "[data-app-action-sidebar-project-row]";
+
+
 const states = new Map();
 let active = false, restoring = false, button, timer, disposed = false;
 const text = (en, cn) => (document.documentElement.lang || navigator.language).startsWith("zh") ? cn : en;
-function props(element, predicate) {
-  let fiber = element?.[Object.keys(element).find(key => key.startsWith("__reactFiber"))];
-  for (let i = 0; fiber && i < 30; i++, fiber = fiber.return) {
-    if (predicate(fiber.memoizedProps || {})) return fiber.memoizedProps;
-  }
-  return {};
-}
-function branches() {
-  return [...document.querySelectorAll("#app-shell-sidebar " + sectionSelector)].map(element => {
-    const native = props(element, p => !!p.sectionKey);
-    const data = props(element, p => Array.isArray(p.section?.threadKeys)).section;
-    return { element, key:"section:" + native.sectionKey, data, expanded:element.dataset.appActionSidebarSectionCollapsed === "false",
-      toggle:() => native.onCollapsedChange?.(element.dataset.appActionSidebarSectionCollapsed === "false") };
-  }).concat([...document.querySelectorAll("#app-shell-sidebar " + projectSelector)].map(element => ({
-    element, key:"project:" + element.dataset.appActionSidebarProjectId,
-    data:props(element, p => !!p.group?.projectId).group,
-    expanded:element.getAttribute("aria-expanded") === "true",
-    toggle:() => element.click(),
-  })));
-}
+
+
 function remember(items) {
   for (const item of items) if (!states.has(item.key)) states.set(item.key, item.expanded);
 }
-function target(items) {
-  const selected = document.querySelector('#app-shell-sidebar [data-app-action-sidebar-thread-selected="true"]');
-  const id = document.querySelector("[data-above-composer-conversation-id]")?.dataset.aboveComposerConversationId;
-  const key = selected?.dataset.appActionSidebarThreadId || (id ? "local:" + id : null);
-  const activeProject = items.map(b => props(b.element, p => p.activeProjectId != null).activeProjectId).find(Boolean);
-  const project = items.find(b => b.key.startsWith("project:") && (b.data?.threadKeys?.includes(key) || b.data?.projectId === activeProject));
-  const section = items.find(b => b.key.startsWith("section:") && (b.data?.threadKeys?.includes(key) || (activeProject && b.data?.itemKeys?.includes("codex:project:" + activeProject))))
-    || items.find(b => b.key.startsWith("section:") && (selected && b.element.contains(selected) || project && b.element.contains(project.element)));
-  return section ? { section, project } : null;
-}
+
 function reconcile() {
   if (disposed) return;
   const sidebar = document.querySelector("#app-shell-sidebar");
@@ -54,7 +28,7 @@ function reconcile() {
     button.removeAttribute("aria-describedby");
     button.addEventListener("click", () => {
       if (active) { active = false; restoring = true; }
-      else { states.clear(); remember(branches()); active = true; }
+      else { states.clear(); remember(nativeFocus.branches()); active = true; }
       schedule();
     }, { signal });
     // 作为原生按钮组的独立子项，继承组内 gap，不放进铃铛的 Tooltip 包装层。
@@ -74,7 +48,7 @@ function reconcile() {
   // 与原生 View activity 共用 info / soft 激活态及明暗主题 token。
   button.setAttribute("data-color", active ? "info" : "secondary");
   button.setAttribute("data-variant", active ? "soft" : "ghost");
-  const items = branches(), path = target(items);
+  const items = nativeFocus.branches(), path = nativeFocus.target(items);
   const activityActive = bell.getAttribute("aria-pressed") === "true";
   button.disabled = activityActive || (!active && !restoring && !path);
   if (activityActive) return;

@@ -1,3 +1,11 @@
+const nativeThreads = createThreadAdapter(config.codex);
+function threadRecord(row) {
+  const item=nativeThreads.read(row), previous=messageUpdates.get(item.key);
+  if (item.working && (!previous || previous.message !== item.summary || !previous.working))
+    messageUpdates.set(item.key,{message:item.summary,working:true,time:Math.max(item.timestamp || 0,Date.now())});
+  else if (previous) previous.working=item.working;
+  return {...item,timestamp:Math.max(item.timestamp || 0,messageUpdates.get(item.key)?.time || 0) || null};
+}
 // 原生完整侧栏图标，取自当前 Codex 16px/20px 资源。
 const sidebarGlyphs = {"16": "<svg aria-hidden=\"true\" class=\"_Icon_uttcz_1\" focusable=\"false\" height=\"16\" viewBox=\"0 0 16 16\" width=\"16\"><path d=\"M4.66699 4.80859C4.95683 4.80873 5.19238 5.04412 5.19238 5.33398V10.667C5.19238 10.9569 4.95683 11.1923 4.66699 11.1924C4.37704 11.1924 4.1416 10.9569 4.1416 10.667V5.33398C4.1416 5.04403 4.37704 4.80859 4.66699 4.80859Z\" fill=\"currentColor\"></path> <path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M11.5 2.30762C13.1707 2.30762 14.5254 3.66235 14.5254 5.33301V10.666C14.5254 12.3367 13.1707 13.6914 11.5 13.6914H4.5C2.82934 13.6914 1.47461 12.3367 1.47461 10.666V5.33301C1.47461 3.66235 2.82934 2.30762 4.5 2.30762H11.5ZM4.5 3.3584C3.40924 3.3584 2.52539 4.24225 2.52539 5.33301V10.666C2.52539 11.7568 3.40924 12.6416 4.5 12.6416H11.5C12.5908 12.6416 13.4746 11.7568 13.4746 10.666V5.33301C13.4746 4.24225 12.5908 3.3584 11.5 3.3584H4.5Z\" fill=\"currentColor\"></path></svg>", "20": "<svg aria-hidden=\"true\" class=\"_Icon_uttcz_1\" focusable=\"false\" height=\"20\" viewBox=\"0 0 20 20\" width=\"20\"><path d=\"M5.83301 6.00098C6.20028 6.00098 6.49805 6.29875 6.49805 6.66602V13.333C6.49787 13.7001 6.20017 13.998 5.83301 13.998C5.46596 13.9979 5.16814 13.7 5.16797 13.333V6.66602C5.16797 6.29883 5.46585 6.00111 5.83301 6.00098Z\" fill=\"currentColor\"></path> <path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M14.5 2.87695C16.5241 2.87695 18.165 4.51787 18.165 6.54199V13.459C18.1649 15.483 16.524 17.124 14.5 17.124H5.5C3.47598 17.124 1.83514 15.483 1.83496 13.459V6.54199C1.83496 4.51787 3.47588 2.87695 5.5 2.87695H14.5ZM5.5 4.20703C4.21042 4.20703 3.16504 5.25241 3.16504 6.54199V13.459C3.16521 14.7484 4.21052 15.7939 5.5 15.7939H14.5C15.7895 15.7939 16.8348 14.7484 16.835 13.459V6.54199C16.835 5.25241 15.7896 4.20703 14.5 4.20703H5.5Z\" fill=\"currentColor\"></path></svg>"};
 const taskGlyph = "<svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\" aria-hidden=\"true\"><path d=\"M13.3336 11.4749C13.6234 11.475 13.858 11.7104 13.858 12.0002C13.8579 12.2899 13.6233 12.5255 13.3336 12.5256H6.66663C6.37678 12.5256 6.1414 12.2901 6.14124 12.0002C6.14124 11.7103 6.37668 11.4749 6.66663 11.4749H13.3336Z\" fill=\"currentColor\"/> <path d=\"M3.07874 10.9827C3.50002 10.9827 3.84226 11.3241 3.84241 11.7454C3.84241 12.1667 3.50011 12.509 3.07874 12.509C2.65748 12.5089 2.31604 12.1666 2.31604 11.7454C2.31619 11.3242 2.65758 10.9828 3.07874 10.9827Z\" fill=\"currentColor\"/> <path d=\"M13.3336 7.47485C13.6234 7.47503 13.858 7.7104 13.858 8.00024C13.8579 8.28995 13.6233 8.52546 13.3336 8.52563H6.66663C6.37678 8.52563 6.1414 8.29005 6.14124 8.00024C6.14124 7.71029 6.37668 7.47485 6.66663 7.47485H13.3336Z\" fill=\"currentColor\"/> <path d=\"M3.07874 6.98267C3.50002 6.98267 3.84226 7.32411 3.84241 7.74536C3.84241 8.16674 3.50011 8.50903 3.07874 8.50903C2.65748 8.50888 2.31604 8.16665 2.31604 7.74536C2.31619 7.3242 2.65758 6.98281 3.07874 6.98267Z\" fill=\"currentColor\"/> <path d=\"M13.3336 3.47485C13.6234 3.47503 13.858 3.7104 13.858 4.00024C13.8579 4.28995 13.6233 4.52546 13.3336 4.52563H6.66663C6.37678 4.52563 6.1414 4.29005 6.14124 4.00024C6.14124 3.71029 6.37668 3.47485 6.66663 3.47485H13.3336Z\" fill=\"currentColor\"/> <path d=\"M3.07874 2.98267C3.50002 2.98267 3.84226 3.32411 3.84241 3.74536C3.84241 4.16674 3.50011 4.50903 3.07874 4.50903C2.65748 4.50888 2.31604 4.16665 2.31604 3.74536C2.31619 3.3242 2.65758 2.98281 3.07874 2.98267Z\" fill=\"currentColor\"/></svg>";
@@ -8,36 +16,36 @@ const folderGlyph = "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 20 
 const marker = "data-minecodex-unread";
 const style = document.createElement("style");
 style.textContent = `
-[data-minecodex-task-title] { pointer-events:auto; -webkit-app-region:no-drag; cursor:pointer; border-radius:var(--radius-lg); min-height:32px; padding-inline:6px; }
-[data-minecodex-task-title]:hover { background:var(--color-background-primary-ghost-hover); }
-[data-minecodex-task-title]:focus-visible { outline:2px solid var(--color-ring); outline-offset:-2px; }
-[data-minecodex-task-badge] { display:inline-flex; flex-shrink:0; align-items:center; gap:4px; color:var(--color-text-secondary); font-family:var(--font-sans-default); font-size:var(--text-xs); font-variant-numeric:tabular-nums; position:relative; }
-[data-minecodex-task-badge][data-notification]::after { content:""; position:absolute; width:6px; height:6px; right:-2px; top:-1px; border-radius:50%; background:var(--blue-400,#3A83F7); box-shadow:0 0 0 1.5px var(--color-token-dropdown-background); }
+[data-minecodex-task-title] { pointer-events:auto; -webkit-app-region:no-drag; cursor:pointer; border-radius:var(--mcx-radius-lg); min-height:32px; padding-inline:6px; }
+[data-minecodex-task-title]:hover { background:var(--mcx-color-background-primary-ghost-hover); }
+[data-minecodex-task-title]:focus-visible { outline:2px solid var(--mcx-color-ring); outline-offset:-2px; }
+[data-minecodex-task-badge] { display:inline-flex; flex-shrink:0; align-items:center; gap:4px; color:var(--mcx-color-text-secondary); font-family:var(--mcx-font-sans-default); font-size:var(--mcx-text-xs); font-variant-numeric:tabular-nums; position:relative; }
+[data-minecodex-task-badge][data-notification]::after { content:""; position:absolute; width:6px; height:6px; right:-2px; top:-1px; border-radius:50%; background:var(--blue-400,#3A83F7); box-shadow:0 0 0 1.5px var(--mcx-color-token-dropdown-background); }
 [data-minecodex-task-badge][data-notification=red]::after { background:#FF3B30; }
 [data-minecodex-sidebar-original] { display:none !important; }
 [data-minecodex-unread=trigger] { -webkit-app-region:no-drag; }
-[${marker}=panel] { position:fixed;  box-sizing:border-box; width:min(320px,calc(100vw - 16px)); max-height:min(440px,calc(100vh - 64px)); display:flex; flex-direction:column; overflow:hidden; padding:6px 0;  border-radius:16px;  color:var(--color-text-primary);  font-family:var(--font-sans-default); font-size:var(--text-sm); }
+[${marker}=panel] { position:fixed;  box-sizing:border-box; width:min(320px,calc(100vw - 16px)); max-height:min(440px,calc(100vh - 64px)); display:flex; flex-direction:column; overflow:hidden; padding:6px 0;  border-radius:16px;  color:var(--mcx-color-text-primary);  font-family:var(--mcx-font-sans-default); font-size:var(--mcx-text-sm); }
 [${marker}=panel][hidden] { display:none; }
-[${marker}=panel] .mcx-thread-list { min-height:0; overflow-y:auto; overscroll-behavior:contain; padding:0 6px; scrollbar-width:thin; scrollbar-color:var(--color-border) transparent; }
+[${marker}=panel] .mcx-thread-list { min-height:0; overflow-y:auto; overscroll-behavior:contain; padding:0 6px; scrollbar-width:thin; scrollbar-color:var(--mcx-color-border) transparent; }
 [${marker}=panel] .mcx-thread-list:hover, [${marker}=panel] .mcx-thread-list:active { scrollbar-color:var(--color-border-strong) transparent; }
-[${marker}=panel] h2 { flex-shrink:0; margin:8px 16px; font-size:var(--text-sm); font-weight:500; color:var(--color-text-tertiary); }
-[${marker}=panel] [data-unread-row] { display:flex; flex-direction:column; gap:4px; width:100%; padding:10px 12px; box-sizing:border-box; border:0; border-radius:10px; background:transparent; text-align:start; color:var(--color-text-primary); font:inherit; cursor:pointer; }
+[${marker}=panel] h2 { flex-shrink:0; margin:8px 16px; font-size:var(--mcx-text-sm); font-weight:500; color:var(--mcx-color-text-tertiary); }
+[${marker}=panel] [data-unread-row] { display:flex; flex-direction:column; gap:4px; width:100%; padding:10px 12px; box-sizing:border-box; border:0; border-radius:10px; background:transparent; text-align:start; color:var(--mcx-color-text-primary); font:inherit; cursor:pointer; }
 [${marker}=panel] [data-unread-row][aria-current=page] .mcx-thread-title::before { content:""; display:inline-block; width:5px; height:5px; margin-inline-end:6px; border-radius:50%; background:currentColor; vertical-align:middle; }
-[${marker}=panel] [data-unread-row]:hover { background:var(--color-background-primary-ghost-hover); }
-[${marker}=panel] [data-unread-row]:focus-visible { outline:2px solid var(--color-ring); outline-offset:-2px; }
+[${marker}=panel] [data-unread-row]:hover { background:var(--mcx-color-background-primary-ghost-hover); }
+[${marker}=panel] [data-unread-row]:focus-visible { outline:2px solid var(--mcx-color-ring); outline-offset:-2px; }
 [${marker}=panel] .mcx-thread-header { display:flex; align-items:center; gap:8px; width:100%; min-width:0; }
 [${marker}=panel] .mcx-thread-title { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; font-size:13px; line-height:18px; font-weight:500; }
-[${marker}=panel] .mcx-device { display:flex; flex-shrink:0; color:var(--color-text-tertiary); }
-[${marker}=panel] .mcx-loading { margin-inline-start:auto; flex-shrink:0; display:flex; align-items:center; color:var(--color-text-tertiary); }
-[${marker}=panel] time { margin-inline-start:auto; flex-shrink:0; font-size:var(--text-xs); color:var(--color-text-tertiary); }
-[${marker}=panel] .mcx-summary { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12px; line-height:16px; color:var(--color-text-tertiary); }
-[${marker}=panel] .mcx-project { display:flex; align-items:center; gap:6px; padding:0; min-width:0; font-size:11px; line-height:16px; color:var(--color-text-tertiary); font-weight:400; }
+[${marker}=panel] .mcx-device { display:flex; flex-shrink:0; color:var(--mcx-color-text-tertiary); }
+[${marker}=panel] .mcx-loading { margin-inline-start:auto; flex-shrink:0; display:flex; align-items:center; color:var(--mcx-color-text-tertiary); }
+[${marker}=panel] time { margin-inline-start:auto; flex-shrink:0; font-size:var(--mcx-text-xs); color:var(--mcx-color-text-tertiary); }
+[${marker}=panel] .mcx-summary { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12px; line-height:16px; color:var(--mcx-color-text-tertiary); }
+[${marker}=panel] .mcx-project { display:flex; align-items:center; gap:6px; padding:0; min-width:0; font-size:11px; line-height:16px; color:var(--mcx-color-text-tertiary); font-weight:400; }
 [${marker}=panel] .mcx-project > span:last-child { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 [${marker}=panel] .mcx-project svg, [${marker}=panel] .mcx-project-icon { width:12px; height:12px; flex:none; }
 [${marker}=panel] .mcx-project-icon > * { width:12px; height:12px; }
-[${marker}=panel] .mcx-attention { margin-inline-start:auto; flex:none; max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; border-radius:999px; padding:2px 10px 2px 8px; font-size:12px; line-height:16px; color:var(--color-chart-blue); background:color-mix(in srgb,var(--color-chart-blue) 15%,transparent); }
+[${marker}=panel] .mcx-attention { margin-inline-start:auto; flex:none; max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; border-radius:999px; padding:2px 10px 2px 8px; font-size:12px; line-height:16px; color:var(--mcx-color-chart-blue); background:color-mix(in srgb,var(--mcx-color-chart-blue) 15%,transparent); }
 [${marker}=panel] .mcx-attention[data-attention="approval"] { color:var(--color-chart-green); background:color-mix(in srgb,var(--color-chart-green) 20%,transparent); }
-[${marker}=panel] .mcx-empty { margin:20px 12px; color:var(--color-text-tertiary); }
+[${marker}=panel] .mcx-empty { margin:20px 12px; color:var(--mcx-color-text-tertiary); }
 `;
 document.head.append(style);
 const panel = document.createElement("div");
@@ -72,31 +80,10 @@ let restoreActivity = false, signature = "", queued = false, disposed = false;
 function activityButton() {
   return [...document.querySelectorAll('#app-shell-sidebar button[aria-pressed]')].find(e => /activity|活动|动态/.test(e.getAttribute("aria-label") || ""));
 }
-function isUnread(row) {
-  let fiber = row[Object.keys(row).find(key => key.startsWith("__reactFiber"))];
-  for (let depth = 0; fiber && depth < 35; depth++, fiber = fiber.return) {
-    if (typeof fiber.memoizedProps?.isUnread === "boolean") return fiber.memoizedProps.isUnread;
-  }
-  return false;
-}
-function isWorking(row) {
-  let fiber = row[Object.keys(row).find(key => key.startsWith("__reactFiber"))];
-  for (let depth = 0; fiber && depth < 35; depth++, fiber = fiber.return) {
-    const status = fiber.memoizedProps?.statusState;
-    if (status?.type) return status.type === "loading";
-  }
-  return false;
-}
+
+
 // 缓存数据与原生导航动作，不保留会被 React 卸载的会话 DOM。
-function threadRecord(row) {
-  let fiber = row[Object.keys(row).find(key => key.startsWith("__reactFiber"))];
-  let activate = null;
-  for (let depth = 0; fiber && depth < 35; depth++, fiber = fiber.return) {
-    const props = fiber.memoizedProps;
-    if (props?.statusState && typeof props.onClick === "function") { activate = props.onClick; break; }
-  }
-  return { ...threadDetails(row), key:row.dataset.appActionSidebarThreadId, unread:isUnread(row), activate, spinner:row.querySelector?.('[class~="motion-safe:animate-spin"]')?.outerHTML ?? "" };
-}
+
 function notificationColor(records) {
   return records.some(item => item.attention) ? "red" : records.some(item => item.unread) ? "blue" : null;
 }
@@ -108,7 +95,7 @@ function selectThreads(records, recent, now = Date.now(), currentKey = null) {
 }
 function captureCurrentRow() {
   const selected = document.querySelector('#app-shell-sidebar [data-app-action-sidebar-thread-selected="true"]');
-  const id = document.querySelector('[data-above-composer-conversation-id]')?.getAttribute('data-above-composer-conversation-id');
+  const id = config.codex.currentThreadId();
   selectedKey = selected?.dataset.appActionSidebarThreadId
     ?? [...recentRows.keys()].find(key => id && key.endsWith(":" + id)) ?? null;
   if (selected) recentRows.set(selectedKey, threadRecord(selected));
@@ -117,52 +104,9 @@ function captureCurrentRow() {
     openedAt.delete(key); recentRows.delete(key); messageUpdates.delete(key);
   }
 }
-function projectForRow(row) {
-  let fiber = row[Object.keys(row).find(key => key.startsWith("__reactFiber"))];
-  for (let depth = 0; fiber && depth < 35; depth++, fiber = fiber.return) {
-    const group = fiber.memoizedProps?.secondaryContent?.props?.projectGroup;
-    if (group?.projectId) return { id:group.projectId, name:group.label };
-  }
-  return null;
-}
-function attentionState(row) {
-  let fiber = row[Object.keys(row).find(key => key.startsWith("__reactFiber"))];
-  for (let depth = 0; fiber && depth < 35; depth++, fiber = fiber.return) {
-    const props = fiber.memoizedProps;
-    // 复用原生状态契约，不从摘要文案推断待确认状态。
-    if (props?.chips?.some(chip => chip.id === "awaiting-approval")) return "approval";
-    if (props?.statusPill?.label?.props?.id === "codex.localTaskRow.needsInput") return "input";
-  }
-  return null;
-}
-function threadDetails(row) {
-  let fiber = row[Object.keys(row).find(key => key.startsWith("__reactFiber"))];
-  let summary, hostConfig;
-  for (let depth = 0; fiber && depth < 35; depth++, fiber = fiber.return) {
-    summary ||= fiber.memoizedProps?.threadSummary;
-    hostConfig ||= fiber.memoizedProps?.hoverCardHostConfig;
-  }
-  const hostId = summary?.hostId || row.dataset.appActionSidebarThreadHostId || "local";
-  const key = row.dataset.appActionSidebarThreadId;
-  const working = isWorking(row);
-  const message = row.querySelector("[data-thread-secondary-title]")?.textContent || "";
-  const nativeTime = summary?.recencyAt ?? summary?.updatedAt ?? null;
-  const previous = messageUpdates.get(key);
-  // 原生流式摘要发生变化时推进时间，不因重绘或打开菜单重置消息时间。
-  if (working && (!previous || previous.message !== message || !previous.working)) {
-    messageUpdates.set(key, {message, working, time:Math.max(nativeTime || 0, Date.now())});
-  } else if (previous) previous.working = working;
-  return {
-    title:row.dataset.appActionSidebarThreadTitle || row.querySelector("[data-thread-title]")?.textContent || "",
-    summary:row.querySelector("[data-thread-secondary-title]")?.textContent || "",
-    // 与原生 Thread hover card 相同，优先使用任务 recency 时间。
-    timestamp:Math.max(nativeTime || 0, messageUpdates.get(key)?.time || 0) || null,
-    hostId, hostName:hostConfig?.display_name || hostId,
-    project:projectForRow(row),
-    working:isWorking(row),
-    attention:attentionState(row),
-  };
-}
+
+
+
 function relativeTime(timestamp, now = Date.now()) {
   if (!Number.isFinite(timestamp)) return "";
   const seconds = Math.max(0, Math.floor((now - timestamp) / 1000));

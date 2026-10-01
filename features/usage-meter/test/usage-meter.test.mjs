@@ -3,8 +3,15 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const source = await readFile(new URL("../src/usage-meter.mjs", import.meta.url), "utf8");
-const { remainingWindows, currentWindows, nativeContext } = new Function(`${source.slice(0, source.indexOf("const style ="))}\nreturn { remainingWindows, currentWindows, nativeContext };`)();
-const findAvatar = new Function(`${source.slice(source.indexOf("function findAvatar("), source.indexOf("function mount("))}\nreturn findAvatar;`)();
+import { createUsageAdapter } from "../src/adapters/codex/renderer.mjs";
+import { createCodexEnvironment } from "../../../packages/codex-adapter/src/renderer/environment.mjs";
+const avatar={getAttribute:()=>"Open account menu"};
+const readContext=context=>createUsageAdapter(new AbortController().signal,{rail:()=>({querySelectorAll:()=>[avatar]}),props:(_node,predicate)=>predicate(context),report(){}},()=>{}).read();
+const auth={authMethod:"chatgpt",userId:"user-a",accountId:"account-a"};
+const quotaClient=getQueryData=>({getQueryData,getQueryCache:()=>({subscribe:()=>()=>{}})});
+const remainingWindows=data=>readContext({auth,client:quotaClient(()=>data),router:{navigate(){}}}).windows;
+const currentWindows=context=>readContext({...context,client:context.client && {...quotaClient(()=>null),...context.client}}).windows;
+const findAvatar=rail=>createUsageAdapter(new AbortController().signal,{rail:()=>rail,props:()=>null,report(){}},()=>{}).read().avatar;
 const bucket = (used_percent, limit_window_seconds) => ({ used_percent, limit_window_seconds });
 const data = (primary, secondary = null) => ({ user_id: "user-a", account_id: "account-a", rate_limit: { primary_window: primary, secondary_window: secondary } });
 
@@ -51,14 +58,12 @@ test("cache reads require exact current account and user, including after accoun
   assert.equal(currentWindows({ auth, client: { getQueryData: () => undefined } }), null);
 });
 
-test("native context uses provider capabilities rather than minified component names", () => {
-  const auth = { authMethod: "chatgpt", userId: "user-a", accountId: "account-a" };
-  const client = { getQueryCache() {}, getQueryData() {} }, router = { navigate() {} };
-  const rail = { __reactFiber$fixture: { memoizedProps: { value: "unrelated" }, return: {
-    memoizedProps: { auth }, return: { memoizedProps: { value: { router } }, return: { memoizedProps: { client } } },
-  } } };
-  assert.deepEqual(nativeContext(rail), { auth, client, router });
-  assert.deepEqual(nativeContext({}), { auth: null, client: null, router: null });
+test("native context discovers capabilities and exposes only normalized quota",()=>{
+  const stored=data(bucket(25,604800)), rail={querySelectorAll:()=>[avatar],__reactFiber$fixture:{memoizedProps:{auth},return:{memoizedProps:{client:quotaClient(()=>stored)},return:{memoizedProps:{router:{navigate(){}}}}}}};
+  const codex={...createCodexEnvironment(),rail:()=>rail};
+  const result=createUsageAdapter(new AbortController().signal,codex,()=>{}).read();
+  assert.equal(result.windows.primary,75); assert.equal(result.available,true);
+  assert.equal("client" in result,false); assert.equal("auth" in result,false);
 });
 
 test("Avatar anchor remains discoverable when Help moves out of the navigation rail", () => {
@@ -91,7 +96,7 @@ test("usage button mounts immediately above the Avatar without inheriting accoun
   row.append(inner); inner.parentElement = row;
   inner.append(avatar); avatar.parentElement = inner;
   const document = { createElement: () => new Node(), body: new Node() };
-  const mount = new Function("document", "MARKER", "TIP_ID", "config", `let record, hoverTimer; const hideTooltip = () => {}, showTooltip = () => {}; ${source.slice(source.indexOf("function avatarAnchor("), source.indexOf("function sync()"))}\nreturn (avatar, rail) => { mount(avatar, rail); return record; };`)(document, "data-minecodex-usage-meter", "minecodex-usage-tooltip", {ui:{tooltipSurface:node=>node}});
+  const mount = new Function("document", "MARKER", "TIP_ID", "config", "nativeUsage", `let record, hoverTimer; const hideTooltip = () => {}, showTooltip = () => {}; ${source.slice(source.indexOf("function mount("), source.indexOf("function sync()"))}\nreturn (avatar, rail) => { mount(avatar, rail); return record; };`)(document, "data-minecodex-usage-meter", "minecodex-usage-tooltip", {ui:{tooltipSurface:node=>node}},{anchor:createUsageAdapter(new AbortController().signal,{},()=>{}).anchor});
   const record = mount(avatar, rail);
   assert.deepEqual(footer.children, [record.button, row]);
   assert.deepEqual(inner.children, [avatar]);

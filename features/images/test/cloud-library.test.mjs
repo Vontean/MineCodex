@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { cloudImagesInRenderer, cloudImagesAction } from "../src/backend/cloud-library.mjs";
+import { cloudImagesAction } from "../src/backend/cloud-library.mjs";
+import { cloudImagesInRenderer } from "../src/adapters/codex/cloud-import.mjs";
 
 const key = Symbol.for("minecodex.cloud-images.v1");
 function fixture(context, {role = "assistant", prompt = "", size = 3, request = "Draw a cat"} = {}) {
@@ -13,7 +14,7 @@ function fixture(context, {role = "assistant", prompt = "", size = 3, request = 
       return {title:"Chat title",create_time:1,mapping:{image:{id:"image",parent:"user",message:{author:{role},create_time:2,content:{parts:[{content_type:"image_asset_pointer",asset_pointer:"sediment://file_test",metadata:{generation:{gen_id:"gen"},dalle:{prompt}}}]}}},user:{id:"user",parent:null,message:{author:{role:"user"},content:{parts:[request]}}}}};
     },
   };
-  globalThis.window = {[key]:{files:new Map(),conversations:new Map(),capability:Promise.resolve({api,response:async()=>{downloads++;return new Blob([new Uint8Array([1,2,3])],{type:"image/png"});}})}};
+  globalThis.window = {[key]:{files:new Map(),conversations:new Map(),library:{list:()=>api.safePost(),conversation:()=>api.safeGet(),download:async()=>{downloads++;return new Blob([new Uint8Array([1,2,3])],{type:"image/png"});}}}};
   context.after(()=>delete globalThis.window);
   return {stats:()=>({downloads,conversations})};
 }

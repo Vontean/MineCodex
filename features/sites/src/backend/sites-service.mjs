@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile, realpath } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { DatabaseSync } from "node:sqlite";
+import { CodexCatalog } from "../adapters/codex/catalog.mjs";
 
 import { findProjectSites, entryKey } from "./project-sites.mjs";
 import { SiteLauncher } from "./site-launcher.mjs";
@@ -12,30 +12,14 @@ import { SitePreviews } from "./sites-preview.mjs";
 
 const loops = new Set(["localhost", "127.0.0.1", "[::1]"]);
 export class SitesService {
-  constructor({ dataDir, codexHome = process.env.CODEX_HOME || path.join(os.homedir(), ".codex"), listeners = localListeners, probe = probePage } = {}) {
+  constructor({ dataDir, codexHome = process.env.CODEX_HOME || path.join(os.homedir(), ".codex"), listeners = localListeners, probe = probePage, catalog = new CodexCatalog(codexHome) } = {}) {
     const support = process.platform === "win32" ? path.join(process.env.APPDATA || os.homedir(), "MineCodex") : path.join(os.homedir(), "Library", "Application Support", "MineCodex");
     this.file = path.join(dataDir || process.env.MINECODEX_SITES_DATA_DIR || path.join(support, "sites"), "sites.json");
     this.previews = new SitePreviews(path.join(path.dirname(this.file), "previews")); this.discoveredUrls = new Set(); this.entries = new Map(); this.discoveryQueue = Promise.resolve();
     this.launcher = new SiteLauncher(probe); this.launchJobs = new Map();
-    this.codexHome = codexHome; this.listeners = listeners; this.probe = probe; this.queue = Promise.resolve();
+    this.catalogReader = catalog; this.listeners = listeners; this.probe = probe; this.queue = Promise.resolve();
   }
-  async catalog() {
-    let state;
-    try { state = JSON.parse(await readFile(path.join(this.codexHome, ".codex-global-state.json"), "utf8")); }
-    catch (error) { if (error.code === "ENOENT") return { projects: [], threads: [] }; throw error; }
-    const projects = Object.entries(state["local-projects"] ?? {}).map(([id, p]) => ({ id, name: p.name || id, rootPaths: (p.rootPaths ?? []).filter(r => typeof r === "string") }));
-    const ids = new Set(state["projectless-thread-ids"] ?? []);
-    let threads = [];
-    if (ids.size) {
-      let db;
-      try {
-        db = new DatabaseSync(path.join(this.codexHome, "state_5.sqlite"), { readOnly: true });
-        threads = db.prepare("SELECT id, title, name FROM threads WHERE archived = 0 ORDER BY updated_at DESC").all().filter(t => ids.has(t.id)).map(t => ({ id: t.id, title: t.name || t.title || t.id }));
-      } catch (error) { if (!/unable to open database/i.test(error.message)) throw error; }
-      finally { db?.close(); }
-    }
-    return { projects, threads };
-  }
+  catalog() { return this.catalogReader.snapshot(); }
   async read() {
     try { const data = JSON.parse(await readFile(this.file, "utf8")); if (data.schemaVersion !== 1 || !Array.isArray(data.sites)) throw new Error("Unsupported sites data."); return data.sites.map(site => site.url ? { ...site, hosting: isLocalAddress(new URL(site.url).hostname) ? "local" : "self-hosted" } : site); }
     catch (error) { if (error.code === "ENOENT") return []; throw error; }

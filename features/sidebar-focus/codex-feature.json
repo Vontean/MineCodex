@@ -12,7 +12,8 @@
   },
   "entry": {
     "kind": "page-script",
-    "script": "src/sidebar-focus.mjs"
+    "script": "src/sidebar-focus.mjs",
+    "sourceFactory": "src/injection-source.mjs"
   },
   "placement": {
     "order": 80

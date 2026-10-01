@@ -12,7 +12,7 @@ test("native Image Details editor fails closed without its complete host-token c
     "--color-chart-blue", "--color-text-inverse",
     "--font-sans-default", "--font-weight-normal", "--text-sm--line-height",
     "--shadow-md", "--shadow-xl",
-  ]) assert.match(app, new RegExp(JSON.stringify(token)));
+  ]) assert.match(app, new RegExp(JSON.stringify("--mcx-"+token.slice(2))));
   assert.match(app, /editorControls\.hidden = !editorTokens\.every/);
   const html = await readFile(new URL("index.html", webRoot), "utf8");
   assert.match(html, /class="image-editor-controls" hidden/);
@@ -26,7 +26,7 @@ test("native Image Details editor derives its visual hierarchy from runtime sema
     "--color-border-subtle", "--color-background-primary-ghost-hover", "--color-border-focus",
     "--font-sans-default", "--font-weight-normal", "--text-sm--line-height",
     "--shadow-md", "--shadow-xl",
-  ]) assert.match(css, new RegExp(`var\\(${token.replace(/[-]/g, "\\-")}`));
+  ]) assert.match(css, new RegExp(`var\\(${("--mcx-"+token.slice(2)).replace(/[-]/g, "\\-")}`));
   assert.doesNotMatch(css.match(/\.image-edit-actions[\s\S]*?\.image-zoom-trigger \{/s)?.[0] ?? "", /#[0-9a-f]{3,8}|rgb\(/i);
 });
 
@@ -38,7 +38,7 @@ test("native Image Details editor matches the measured Codex image toolbar and m
   for (const token of [
     "--color-surface-tertiary", "--color-surface-elevated-secondary",
     "--color-border-subtle", "--color-background-primary-ghost-hover",
-  ]) assert.match(css, new RegExp(`var\\(${token.replace(/[-]/g, "\\-")}`));
+  ]) assert.match(css, new RegExp(`var\\(${("--mcx-"+token.slice(2)).replace(/[-]/g, "\\-")}`));
 
   assert.match(html, /viewBox="0 0 20 20"[^>]*data-native-image-icon="comment"/);
   assert.match(html, /viewBox="0 0 20 20"[^>]*data-native-image-icon="remove"/);
@@ -78,7 +78,7 @@ test("native Image Details editor matches the measured Codex image toolbar and m
   assert.match(css, /\.image-zoom-menu button \{[^}]*line-height: 20px/s);
   assert.match(css, /\.image-edit-action > svg \{[^}]*width: 16px[^}]*height: 16px/s);
   assert.match(css, /data-native-image-icon="resize"[^}]*width: 18px[^}]*height: 18px/s);
-  assert.match(css, /\[data-edit-send\][^}]*var\(--color-chart-blue\)[^}]*var\(--color-text-inverse\)/s);
+  assert.match(css, /\[data-edit-send\][^}]*var\(--mcx-color-chart-blue\)[^}]*var\(--mcx-color-text-inverse\)/s);
   assert.match(css, /\.image-editor \{[^}]*background: transparent/s);
   assert.match(css, /\.image-editor-controls \{[^}]*position: sticky[^}]*top: 0[^}]*background: transparent/s);
   assert.match(css, /\.image-editor-toolbar \{[^}]*min-height: 48px[^}]*padding: 8px 16px[^}]*\}/s);

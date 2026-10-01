@@ -19,12 +19,14 @@
 | 共享Dialog、Button、Scrim、Surface | `packages/ui/src/components/dialog.mjs`、`button.mjs`、`foundation/surfaces.mjs` | UI组件库 |
 | 共享Navbar状态与原生图标 | `packages/ui/src/components/navigation-rail.mjs`、`native/navigation-rail.mjs` | UI组件库 |
 | 共享Tooltip | `packages/ui/src/components/tooltip.mjs` | UI组件库 |
-| token名单与必要别名 | `packages/ui/src/native/tokens.mjs` | UI组件库 |
+| token映射、别名、主题变量与恢复 | `packages/ui/src/native/tokens.mjs`、`theme.mjs` | UI组件库 |
+| 共享原生Composer、thread、rail与React读取机制 | `packages/codex-adapter/src/renderer/environment.mjs`、`packages/codex-adapter/README.md` | Codex环境Adapter；不放插件业务 |
+| 插件专有日志、目录、API与原生动作 | `features/<plugin>/src/adapters/codex/` | 对应功能防腐层 |
 | CDP与运行生命周期 | `packages/runtime-host/src/codex-cdp.mjs`、`codex-runtime.mjs` | Runtime Host |
 | 注入组装、主题传递、host bridge | `packages/runtime-host/src/codex-injection.mjs`、`host-actions.mjs` | Runtime Host；不在这里继续堆积视觉组件 |
 | 注入UI源码组装 | `packages/ui/src/install.mjs` | UI组件库；宿主调用并注入 |
-| 模型规则与专有原生控制器适配 | `features/model-slider/src/domain/`、`src/frontend/`、`src/injection-source.mjs` | Model Slider；宿主只负责组装和调度 |
-| 会话指标与日志 | `features/session-status/src/domain/`、`src/backend/` | Session Status |
+| 模型规则与专有原生控制器适配 | `features/model-slider/src/domain/`、`src/adapters/codex/`、`src/frontend/`、`src/injection-source.mjs` | Model Slider；宿主只负责组装和调度 |
+| 会话指标与日志 | `features/session-status/src/domain/`、`src/adapters/codex/` | Session Status |
 | 站点规则、发现和启动 | `features/sites/src/domain/`、`src/backend/` | Sites |
 | 插件业务、特有组件与内容 | `features/<plugin>/src`；Images另有`web`界面 | 对应插件 |
 | CLI、安装与服务管理 | `packages/cli` | CLI |
@@ -44,3 +46,5 @@
 - 默认简体中文，代码和路径保留英文；说明用户影响和关键约束。保留无关本地改动，按逻辑边界提交。
 
 领域归属与柔性设计遵循根 ARCHITECTURE.md：先确定规则所有者，再按实际变化选择接口；不要仅为目录对称增加抽象、空模块或转发文件。
+
+外部协议变化时先修改所属 Adapter 和契约样例，再核对调用方；不让领域代码读取原始 Codex 对象，不在交互入口遍历 React Fiber。Renderer 诊断经 `nativeCapabilities()` 读取；不要把技术诊断插入产品页面。

@@ -105,7 +105,7 @@ async function loadList() {
   }
 }
 const COLORS = {
-  black: ["var(--color-text-secondary)", "var(--color-text-secondary)"],
+  black: ["var(--mcx-color-text-secondary)", "var(--mcx-color-text-secondary)"],
   blue: ["#0285ff", "#339cff"],
   green: ["#04b84c", "#40c977"],
   orange: ["#fb6a22", "#ff8549"],
@@ -224,18 +224,10 @@ function isOpenComposerMenu(node) {
 function sync() {
   if (disposed || signal.aborted) return;
   syncNavigation();
-  const add = [
-    ...document.querySelectorAll("[data-codex-composer-root] button"),
-  ].find(
-    (node) =>
-      node.getAttribute("data-composer-navigation-target") === "add-context"
-      && node.checkVisibility({ visibilityProperty: true }),
-  );
-  const card = add?.closest("[data-codex-composer-root]");
-  const thread =
-    card
-      ?.querySelector("[data-above-composer-conversation-id]")
-      ?.getAttribute("data-above-composer-conversation-id") ?? null;
+  const nativeComposer = config.codex.composer(null,{threadOnly:false});
+  const add = nativeComposer?.add;
+  const card = nativeComposer?.root;
+  const thread = nativeComposer?.threadId ?? null;
   if (thread !== composerThread) {
     close();
     composerThread = thread;
@@ -316,7 +308,7 @@ function pageError(error) {
 }
 function positionPage() {
   if (!page) return;
-  const rail = document.querySelector("[data-app-navigation-rail]");
+  const rail = config.codex.rail();
   if (!rail) {
     closePage();
     return;
@@ -1243,26 +1235,17 @@ function editCategory(category = null) {
 }
 // 原生导航挂载与卸载
 function syncNavigation() {
-  const rail = document.querySelector("[data-app-navigation-rail]");
+  const rail = config.codex.rail();
   if (!rail) {
     navButton?.remove();
     navButton = null;
     if (page) closePage();
     return;
   }
-  const source =
-    rail.querySelector('[data-sidebar-destination="builtin:projects"]') ??
-    rail.querySelector('[data-sidebar-destination="builtin:library"]');
-  if (!source) return;
-  // 固定扩展区是独立容器；不依赖 Projects 的固定状态或文字。
-  const scroll = rail.querySelector(".overflow-y-auto");
-  if (!scroll) return;
-  let group = [...scroll.children].find(
-    (node) =>
-      node !== ownNavGroup &&
-      node.classList.contains("flex-col") &&
-      node.classList.contains("shrink-0"),
-  );
+  const slot = config.codex.railSlot(ownNavGroup);
+  if (!slot) return;
+  const { template:source, scroll } = slot;
+  let group = slot.group;
   if (!group) {
     if (!ownNavGroup) {
       ownNavGroup = element("div", "flex shrink-0 flex-col items-center gap-2");

@@ -3,54 +3,11 @@ const PANEL_ID = "minecodex-library-prompt";
 const zh = () => (document.documentElement.lang || navigator.language || "en").toLowerCase().startsWith("zh");
 const label = (en, cn) => zh() ? cn : en;
 let mounted = null;
-let apiPromise = null;
+const libraryApi=createLibraryApi();
 let scheduled = false;
 let candidate = null;
 
-function libraryImage(header) {
-  const key = Object.keys(header).find(key => key.startsWith("__reactFiber$"));
-  let fiber = key ? header[key] : null;
-  let selected = null;
-  for (let depth = 0; fiber && depth < 80; depth++, fiber = fiber.return) {
-    const file = fiber.memoizedProps?.file;
-    if (!file || !/^libfile_[\w-]+$/.test(file.id ?? "") || !file.mime_type?.startsWith("image/")) continue;
-    if (selected && selected.id !== file.id) break;
-    selected = file;
-    if (file.origination_thread_id && file.origination_message_id) break;
-  }
-  if (!selected) return null;
-  // 只保留关联字段，签名下载地址和图片数据不进入插件。
-  return Object.fromEntries(["id", "file_id", "current_version_number", "origination_thread_id", "origination_message_id"].map(key => [key, selected[key]]));
-}
-
-async function nativeApi() {
-  if (!apiPromise) apiPromise = (async () => {
-    const initialUrl = [...document.querySelectorAll('link[rel="modulepreload"],script[src]')]
-      .map(element => element.href || element.src).find(url => /\/app-initial-[^/]+\.js/.test(url));
-    if (!initialUrl) throw new Error("Library API unavailable");
-    const initialSource = await (await fetch(initialUrl, { signal })).text();
-    const metadataAsset = initialSource.match(/library-file-metadata-[\w-]+\.js/)?.[0];
-    if (!metadataAsset) throw new Error("Library metadata unavailable");
-    const metadataUrl = new URL(metadataAsset, initialUrl).href;
-    const source = await (await fetch(metadataUrl, { signal })).text();
-    const apiLocal = source.match(/([\w$]+)\.safePost\(`\/files\/library`/)?.[1];
-    const imports = [...source.matchAll(/import\{([^}]+)\}from["']([^"']+)["']/g)]
-      .find(match => match[1].split(",").some(binding => binding.trim().split(/\s+as\s+/).at(-1) === apiLocal));
-    const apiExport = imports?.[1].split(",").map(s => s.trim().split(/\s+as\s+/)).find(parts => parts.at(-1) === apiLocal)?.[0];
-    const initLocal = source.match(/function ([\w$]+)\(\)\{return\(\1=/)?.[1];
-    const exports = source.match(/export\{([^}]+)\}/)?.[1].split(",").map(s => s.trim().split(/\s+as\s+/)) ?? [];
-    const initExport = exports.find(parts => parts[0] === initLocal)?.at(-1);
-    const metadata = await import(metadataUrl);
-    if (typeof metadata[initExport] !== "function" || !apiExport) throw new Error("Library API contract changed");
-    metadata[initExport]();
-    const api = (await import(new URL(imports[2], metadataUrl).href))[apiExport];
-    if (typeof api?.safeGet !== "function") throw new Error("Library API unavailable");
-    return api;
-  })().catch(error => { apiPromise = null; throw error; });
-  return apiPromise;
-}
-
-
+const libraryImage=createLibraryViewerAdapter(config.codex).read;
 function element(tag, className, text) {
   const node = document.createElement(tag);
   node.className = className;
@@ -84,12 +41,8 @@ function showPrompt(record) {
 
 async function resolvePrompt(file, request) {
   if (!file.origination_thread_id || !file.origination_message_id) return null;
-  const api = await nativeApi();
   request.signal.throwIfAborted();
-  const conversation = await api.safeGet("/conversation/{conversation_id}", {
-    parameters: { path: { conversation_id: file.origination_thread_id } },
-    signal: AbortSignal.any([signal, request.signal, AbortSignal.timeout(25_000)]),
-  });
+  const conversation = await libraryApi.conversation(file.origination_thread_id,AbortSignal.any([signal,request.signal,AbortSignal.timeout(25_000)]));
   return promptFromConversation(file, conversation);
 }
 
@@ -135,7 +88,7 @@ async function scan() {
   button.style.width = "max-content";
   button.style.minWidth = "0";
   button.style.flex = "0 0 auto";
-  button.style.paddingInline = "calc(var(--spacing) * 3)";
+  button.style.paddingInline = "calc(var(--mcx-spacing) * 3)";
   group.prepend(button);
   // 对齐原生 Library Version history 的面板、标题和内容区 token。
   const panel = element("aside", "absolute inset-x-2 top-toolbar bottom-2 z-30 ms-auto mt-2 flex max-w-75 flex-col overflow-hidden rounded-2xl border border-default bg-surface shadow-lg select-none");
@@ -143,7 +96,7 @@ async function scan() {
   panel.setAttribute("aria-label", label("Image prompt", "图片提示词"));
   panel.hidden = true;
   panel.style.setProperty("-webkit-app-region", "no-drag");
-  panel.style.paddingBottom = "calc(var(--spacing) * 3)";
+  panel.style.paddingBottom = "calc(var(--mcx-spacing) * 3)";
   const heading = element("div", "flex items-center justify-between py-2 ps-4 pe-2");
   const close = element("button", "flex size-8 shrink-0 items-center justify-center rounded-full text-default hover:bg-primary-ghost-hover focus-visible:outline-ring");
   close.type = "button";
@@ -165,7 +118,7 @@ async function scan() {
   actions.append(copy, close);
   heading.append(element("span", "text-base font-semibold text-default", label("Prompt", "提示词")), actions);
   const body = element("div", "min-h-0 flex-1 overflow-y-auto px-3");
-  body.style.paddingTop = "var(--spacing)";
+  body.style.paddingTop = "var(--mcx-spacing)";
   body.append(
     element("p", "px-1 text-sm leading-5 text-default whitespace-pre-wrap break-words select-text", prompt.text),
   );

@@ -1,20 +1,22 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
+import { createThreadAdapter } from "../src/adapters/codex/renderer.mjs";
+import { createCodexEnvironment } from "../../../packages/codex-adapter/src/renderer/environment.mjs";
+const adapter=createThreadAdapter(createCodexEnvironment());
+const readRow=row=>adapter.read({dataset:{},querySelector:()=>null,...row});
 const source = await readFile(new URL('../src/unread-inbox.mjs', import.meta.url), 'utf8');
 test('unread inbox renderer compiles', () => {
   assert.doesNotThrow(() => new Function('signal', 'config', source));
 });
 test('unread rows use native state, not title or summary text', () => {
-  const read = new Function(`${source.slice(source.indexOf('function isUnread('), source.indexOf('function close('))};return isUnread;`)();
   const row = value => ({__reactFiberFixture:{memoizedProps:{},return:{memoizedProps:{isUnread:value}}}});
-  assert.equal(read(row(true)), true);
-  assert.equal(read(row(false)), false);
-  assert.equal(read({}), false);
+  assert.equal(readRow(row(true)).unread, true);
+  assert.equal(readRow(row(false)).unread, false);
+  assert.equal(readRow({}).unread, null);
 });
 
 test('each thread keeps its own project, device and native recency time', () => {
-  const read = new Function(`${source.slice(source.indexOf('function isWorking('), source.indexOf('function cacheProjectIcons('))};const messageUpdates = new Map();return threadDetails;`)();
   const row = (id, hostId='local') => ({
     dataset:{appActionSidebarThreadTitle:'Title',appActionSidebarThreadHostId:hostId},
     querySelector:()=>({textContent:'AI summary'}),
@@ -23,7 +25,7 @@ test('each thread keeps its own project, device and native recency time', () => 
       secondaryContent:{props:{projectGroup:id ? {projectId:id,label:'Project'} : null}}
     }}
   });
-  const a=read(row('a')), b=read(row('a','remote:test')), c=read(row(null));
+  const a=readRow(row('a')), b=readRow(row('a','remote:test')), c=readRow(row(null));
   assert.deepEqual(a.project,b.project);
   assert.equal(a.timestamp,1000);
   assert.equal(b.hostId,'remote:test');
@@ -40,12 +42,11 @@ test('relative time handles unknown and future times without fabricating a date'
 });
 
 test('priority includes working read threads and loading wins over unread time', () => {
-  const read = new Function(`${source.slice(source.indexOf('function isUnread('), source.indexOf('function projectForRow('))};return {isUnread,isWorking};`)();
   const row=(type,unread)=>({__reactFiberFixture:{memoizedProps:{statusState:{type},isUnread:unread}}});
-  assert.equal(read.isUnread(row('idle',true)),true);
-  assert.equal(read.isWorking(row('loading',false)),true);
-  assert.equal(read.isWorking(row('loading',true)),true);
-  assert.equal(read.isUnread(row('idle',false)),false);
+  assert.equal(readRow(row('idle',true)).unread,true);
+  assert.equal(readRow(row('loading',false)).working,true);
+  assert.equal(readRow(row('loading',true)).working,true);
+  assert.equal(readRow(row('idle',false)).unread,false);
 });
 
 
@@ -59,10 +60,8 @@ test('activity ranks unread before working and recent idle threads', () => {
 
 test('recent records keep native navigation after React unmounts the source row', () => {
   let calls = 0;
-  const record = new Function('threadDetails','isUnread',source.slice(source.indexOf('function threadRecord('),source.indexOf('function selectThreads('))+';return threadRecord;')(
-    () => ({title:'Recent task',timestamp:100}), () => false);
-  const row = {dataset:{appActionSidebarThreadId:'local:one'},__reactFiberFixture:{memoizedProps:{statusState:{type:'idle'},onClick:()=>calls++}}};
-  const item = record(row);
+  const row = {dataset:{appActionSidebarThreadId:'local:one',appActionSidebarThreadTitle:'Recent task'},__reactFiberFixture:{memoizedProps:{statusState:{type:'idle'},onClick:()=>calls++}}};
+  const item = readRow(row);
   delete row.__reactFiberFixture;
   item.activate();
   assert.equal(calls,1);
@@ -73,9 +72,9 @@ test('recent records keep native navigation after React unmounts the source row'
 test('missing current identity clears selection and lets recent entries expire', () => {
   let selected = {dataset:{appActionSidebarThreadId:'local:one'}}, id = 'one', now = 100;
   const doc = {querySelector:s=>s.includes('thread-selected') ? selected : id ? {getAttribute:()=>id} : null};
-  const run = new Function('document','Date','threadRecord',`let selectedKey=null;const recentRows=new Map(),openedAt=new Map(),messageUpdates=new Map();
-    ${source.slice(source.indexOf('function captureCurrentRow('),source.indexOf('function projectForRow('))}
-    return {captureCurrentRow,openedAt,recentRows,key:()=>selectedKey};`)(doc,{now:()=>now},row=>({key:row.dataset.appActionSidebarThreadId}));
+  const run = new Function('document','Date','threadRecord','config',`let selectedKey=null;const recentRows=new Map(),openedAt=new Map(),messageUpdates=new Map();
+    ${source.slice(source.indexOf('function captureCurrentRow('),source.indexOf('function relativeTime('))}
+    return {captureCurrentRow,openedAt,recentRows,key:()=>selectedKey};`)(doc,{now:()=>now},row=>({key:row.dataset.appActionSidebarThreadId}),{codex:{currentThreadId:()=>id}});
   run.captureCurrentRow(); selected = null;
   run.captureCurrentRow(); assert.equal(run.key(),'local:one'); // Activity 隐藏当前已读行，composer 仍提供身份。
   id = null; now += 7200000; run.captureCurrentRow();
@@ -114,11 +113,10 @@ test('streaming updates retain scroll and keyboard focus while rendering loading
 });
 
 test('attention labels use native input and approval contracts, not summary words', () => {
-  const read = new Function(source.slice(source.indexOf('function attentionState('), source.indexOf('function threadDetails(')) + ';return attentionState;')();
   const row = props => ({__reactFiberFixture:{memoizedProps:props}});
-  assert.equal(read(row({statusPill:{label:{props:{id:'codex.localTaskRow.needsInput'}}}})), 'input');
-  assert.equal(read(row({chips:[{id:'awaiting-approval'}]})), 'approval');
-  assert.equal(read(row({statusPill:{label:'Needs input'},summary:'Awaiting approval'})), null);
+  assert.equal(readRow(row({statusPill:{label:{props:{id:'codex.localTaskRow.needsInput'}}}})).attention, 'input');
+  assert.equal(readRow(row({chips:[{id:'awaiting-approval'}]})).attention, 'approval');
+  assert.equal(readRow(row({statusPill:{label:'Needs input'},summary:'Awaiting approval'})).attention, null);
   const select = new Function(source.slice(source.indexOf('function selectThreads('), source.indexOf('function captureCurrentRow(')) + ';return selectThreads;')();
   assert.equal(select([{key:'waiting',attention:'input',timestamp:1}],new Map()).length,1);
 });

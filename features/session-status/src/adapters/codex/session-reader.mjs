@@ -3,7 +3,8 @@ import { readdir, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { createSessionState, applySessionStatusEvent, sessionStatusSnapshot } from "../domain/session-stats.mjs";
+import { sessionFacts } from "./session-log.mjs";
+import { createSessionState, applySessionStatusEvent, sessionStatusSnapshot } from "../../domain/session-stats.mjs";
 
 const THREAD_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export function threadIdFromLocation(value) {
@@ -98,7 +99,7 @@ export class SessionStatusReader {
       file.offset = size;
     }
     events.sort((left, right) => (Date.parse(left.timestamp) || 0) - (Date.parse(right.timestamp) || 0));
-    for (const event of events) applySessionStatusEvent(state, event);
+    for (const event of events) for (const fact of sessionFacts(event)) applySessionStatusEvent(state, fact);
     this.states.set(threadId, state);
     return sessionStatusSnapshot(state, threadId);
   }

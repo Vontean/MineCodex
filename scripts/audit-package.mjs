@@ -76,7 +76,7 @@ const requiredFiles = [
   "features/notes/src/frontend/icons.json",
   "features/sites/src/frontend/styles.css",
   "features/sites/src/frontend/icons.json",
-  "features/session-status/src/backend/session-status-reader.mjs",
+  "features/session-status/src/adapters/codex/session-reader.mjs",
   "features/session-status/src/domain/session-stats.mjs",
   "features/images/src/backend/cloud-library.mjs",
   "features/images/src/domain/library-prompt.mjs",

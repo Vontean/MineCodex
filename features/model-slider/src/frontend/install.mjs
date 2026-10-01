@@ -1,5 +1,5 @@
 // 专有原生控制器适配与呈现由插件维护；宿主只提供刷新和共用 UI。
-export function installModelSlider(signal, { feature, ui, createIcon, requestRefresh, locale }, rules) {
+export function installModelSlider(signal, { feature, ui, createIcon, requestRefresh, locale, codex }, rules, createModelControllerAdapter) {
   const modelSelectorFeature = feature;
   const featureUI = ui, createMarkupIcon = createIcon, queueEnsure = requestRefresh;
   const { modelIdentity, formatIdentifier, providerLabel, compactModelLabel, brandForModel, comparableModelLabel, catalogModelFor, resolveModelAlias, modelWithOpenCodexEfforts, nativeGptSortRank, visibleControllerModels } = rules;
@@ -75,26 +75,26 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
     [data-codex-model-slider-brand] { display: grid; width: 18px; height: 18px; flex: 0 0 18px; place-items: center; }
     [data-codex-model-slider-brand] svg { width: 16px; height: 16px; display: block; }
     [data-codex-model-slider-copy] { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 1px; }
-    [data-codex-model-slider-name] { overflow: hidden; color: var(--color-text-foreground); text-overflow: ellipsis; white-space: nowrap; }
-    [data-codex-model-slider-provider] { overflow: hidden; color: var(--color-text-foreground-tertiary); font-size: 11px; line-height: 14px; text-overflow: ellipsis; white-space: nowrap; }
+    [data-codex-model-slider-name] { overflow: hidden; color: var(--mcx-color-text-foreground); text-overflow: ellipsis; white-space: nowrap; }
+    [data-codex-model-slider-provider] { overflow: hidden; color: var(--mcx-color-text-foreground-tertiary); font-size: 11px; line-height: 14px; text-overflow: ellipsis; white-space: nowrap; }
     [data-codex-model-slider-item] { position: relative; }
-    [data-codex-model-slider-item][data-codex-model-slider-selected] { background: var(--color-token-list-hover-background); }
+    [data-codex-model-slider-item][data-codex-model-slider-selected] { background: var(--mcx-color-token-list-hover-background); }
     [data-codex-model-slider-star] {
       display: grid; width: 24px; height: 24px; flex: 0 0 24px; place-items: center;
-      border: 0; border-radius: var(--radius-md, 6px); padding: 0; background: transparent;
-      color: var(--color-text-foreground-tertiary); cursor: pointer; opacity: 0; pointer-events: none;
+      border: 0; border-radius: var(--mcx-radius-md, 6px); padding: 0; background: transparent;
+      color: var(--mcx-color-text-foreground-tertiary); cursor: pointer; opacity: 0; pointer-events: none;
     }
     [data-codex-model-slider-item]:hover [data-codex-model-slider-star],
     [data-codex-model-slider-item]:focus-within [data-codex-model-slider-star] { opacity: 1; pointer-events: auto; }
     [data-codex-model-slider-star]:hover, [data-codex-model-slider-star]:focus-visible {
-      background: var(--color-token-list-hover-background); color: var(--color-text-foreground); outline: none;
+      background: var(--mcx-color-token-list-hover-background); color: var(--mcx-color-text-foreground); outline: none;
     }
     [data-codex-model-slider-star]::after {
       content: ""; position: absolute; top: 0; right: 0; bottom: 0; width: 40px; z-index: 1;
     }
     [data-codex-model-slider-star] svg { position: relative; z-index: 2; width: 16px; height: 16px; pointer-events: none; }
     [data-codex-model-slider-divider] {
-      height: 0; border-top: 1px solid var(--color-token-border, var(--color-border));
+      height: 0; border-top: 1px solid var(--mcx-color-token-border, var(--mcx-color-border));
       margin: 6px 8px;
     }
     [data-codex-model-slider-generic-menu] {
@@ -104,27 +104,30 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
     [data-codex-model-slider-generic] { box-sizing: border-box; width: 100%; }
     [data-codex-model-slider-fast] { border: 0; background: transparent; cursor: pointer; }
     [data-codex-model-slider-fast]:not(:hover) [data-codex-model-slider-fast-content] { background: transparent; }
-    [data-codex-model-slider-fast]:focus-visible { outline: 2px solid var(--color-border-focus); outline-offset: 1px; }
+    [data-codex-model-slider-fast]:focus-visible { outline: 2px solid var(--mcx-color-border-focus); outline-offset: 1px; }
     [data-codex-model-slider-rail][data-codex-model-slider-fallback] { position: relative; height: 38px; margin: 1px 8px 0; outline: none; cursor: pointer; }
-    [data-codex-model-slider-track] { position: absolute; top: 12px; right: 0; left: 0; height: 16px; border-radius: 999px; background: var(--color-background-control); }
-    [data-codex-model-slider-range] { position: absolute; top: 0; bottom: 0; left: 0; width: var(--codex-model-slider-progress); border-radius: inherit; background: var(--color-text-accent); }
-    [data-codex-model-slider-rail][data-max="true"] [data-codex-model-slider-range] { background: var(--color-chart-purple); }
+    [data-codex-model-slider-track] { position: absolute; top: 12px; right: 0; left: 0; height: 16px; border-radius: 999px; background: var(--mcx-color-background-control); }
+    [data-codex-model-slider-range] { position: absolute; top: 0; bottom: 0; left: 0; width: var(--codex-model-slider-progress); border-radius: inherit; background: var(--mcx-color-text-accent); }
+    [data-codex-model-slider-rail][data-max="true"] [data-codex-model-slider-range] { background: var(--mcx-color-chart-purple); }
     [data-codex-model-slider-fallback] [data-codex-model-slider-tick] {
       position: absolute; top: 16px; width: 6px; height: 6px; transform: translate(-50%, -50%); border: 0; border-radius: 50%;
-      padding: 0; background: var(--color-text-foreground-tertiary); pointer-events: none;
+      padding: 0; background: var(--mcx-color-text-foreground-tertiary); pointer-events: none;
     }
-    [data-codex-model-slider-fallback] [data-codex-model-slider-tick][data-selected="true"] { background: var(--color-text-on-accent); }
+    [data-codex-model-slider-fallback] [data-codex-model-slider-tick][data-selected="true"] { background: var(--mcx-color-text-on-accent); }
     [data-codex-model-slider-thumb] {
       position: absolute; top: 7px; left: var(--codex-model-slider-progress); width: 26px; height: 26px;
-      transform: translateX(-50%); border: 0.5px solid var(--color-token-border, var(--color-border)); border-radius: 50%;
-      background: var(--color-background-elevated-primary-opaque, var(--color-background-panel)); box-shadow: var(--shadow-md);
+      transform: translateX(-50%); border: 0.5px solid var(--mcx-color-token-border, var(--mcx-color-border)); border-radius: 50%;
+      background: var(--mcx-color-background-elevated-primary-opaque, var(--mcx-color-background-panel)); box-shadow: var(--mcx-shadow-md);
       pointer-events: none;
     }
-    [data-codex-model-slider-fallback]:focus-visible [data-codex-model-slider-thumb] { box-shadow: 0 0 0 2px var(--color-border-focus); }
+    [data-codex-model-slider-fallback]:focus-visible [data-codex-model-slider-thumb] { box-shadow: 0 0 0 2px var(--mcx-color-border-focus); }
     @media (prefers-reduced-motion: reduce) {
       [data-codex-model-slider-star] { transition: none; }
     }
   `;
+
+  const nativeModel=createModelControllerAdapter(codex,comparableModelLabel);
+  const nativeComposerTrigger=nativeModel.trigger, nativeComposerModelController=nativeModel.read, nativeModelDescriptorForItem=nativeModel.descriptor, setReactControlledMenuOpen=nativeModel.setOpen, invokeNativeMenuItemSelect=nativeModel.selectItem;
 
   function createModelSelectorIcon(definition, { brand = false } = {}) {
     const icon = createMarkupIcon(definition, "", 16);
@@ -209,28 +212,20 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
     return Object.keys(icons).length ? icons : null;
   }
 
-  function extractFastIconPath(source, prefix) {
-    const match = String(source).match(new RegExp(`d:\`(${prefix}[^\`]*)\``));
-    return match?.[1] ?? null;
-  }
-
   async function loadNativeFastIconFromBundle() {
     // 两个图标均已就绪（持久化或 DOM 克隆）时不再拉取整包 app-initial 资源。
     if (modelSelectorNativeFastIcons?.active && modelSelectorNativeFastIcons?.inactive) return;
-    // Fast bolt 图标定义在新版随 app-primary 入口包加载（app-initial 里没有），
-    // 按 app-primary -> app-initial 顺序取第一个已加载的入口包。
-    const sourceLink = document.querySelector('link[href*="/assets/app-primary-"][href$=".js"]')
-      ?? document.querySelector('link[href*="/assets/app-initial-"][href$=".js"]');
-    if (!sourceLink?.href) return;
     try {
-      const source = await fetch(sourceLink.href).then((response) => response.text());
+      const definitions=await nativeModel.fastIcons(signal);
+      if (!definitions) return;
       if (!modelSelectorNativeFastIcons) {
         modelSelectorNativeFastIcons = {};
       }
       let gained = false;
-      const define = (state, prefix, definition) => {
+      const define = (state) => {
+        const definition=definitions[state];
         if (modelSelectorNativeFastIcons[state]) return;
-        const path = extractFastIconPath(source, prefix);
+        const path = definition?.path;
         if (!path) return;
         const svg = createModelSelectorIcon({
           viewBox: definition.viewBox,
@@ -244,8 +239,8 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
         modelSelectorNativeFastIcons[state] = svg;
         gained = true;
       };
-      define("active", "M11\\.9125 21\\.4125", { viewBox: "0 0 24 24" });
-      define("inactive", "M9\\.80999 17\\.8302", { viewBox: "0 0 20 20" });
+      define("active");
+      define("inactive");
       if (gained) {
         modelSelectorNativeFastIconsDirty = true;
         persistNativeFastIcons();
@@ -333,53 +328,6 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
     return formatIdentifier(source.slice(source.lastIndexOf("/") + 1));
   }
 
-  function currentReactFiber(element) {
-    const fiberKey = Object.getOwnPropertyNames(element ?? {}).find((key) => key.startsWith("__reactFiber$"));
-    const propsKey = Object.getOwnPropertyNames(element ?? {}).find((key) => key.startsWith("__reactProps$"));
-    let fiber = fiberKey ? element[fiberKey] : null;
-    if (
-      propsKey
-      && fiber?.alternate?.memoizedProps === element[propsKey]
-      && fiber.memoizedProps !== element[propsKey]
-    ) return fiber.alternate;
-    return fiber;
-  }
-
-  function nativeComposerTrigger() {
-    const triggers = Array.from(document.querySelectorAll("[data-codex-intelligence-trigger]"))
-      .filter((trigger) => trigger.checkVisibility({ checkVisibilityCSS: true, checkOpacity: true }));
-    return triggers.find((trigger) => trigger.getAttribute("data-state") === "open")
-      ?? triggers[0] ?? null;
-  }
-
-  function nativeComposerModelController() {
-    const trigger = nativeComposerTrigger();
-    let fiber = currentReactFiber(trigger);
-    let powerController = null;
-    for (let depth = 0; fiber && depth < 40; depth += 1, fiber = fiber.return) {
-      const props = fiber.memoizedProps;
-      if (
-        Array.isArray(props?.powerSelections)
-        && typeof props.onCommitPower === "function"
-      ) powerController ??= props;
-      if (Array.isArray(props?.models) && typeof props.onSelectReasoningEffort === "function") return props;
-      if (Array.isArray(props?.models) && typeof props.onCommitPower === "function") {
-        const power = powerController ?? props;
-        return {
-          ...props,
-          powerSelections: power.powerSelections ?? props.powerSelections,
-          selectedPowerSelection: power.selectedPowerSelection ?? props.selectedPowerSelection,
-          fallbackPowerSelection: power.fallbackPowerSelection ?? props.fallbackPowerSelection,
-          onSelectPower: power.onSelectPower ?? props.onSelectPower,
-          onCommitPower: power.onCommitPower,
-        };
-      }
-      // Chat／Temporary Chat 使用原生模型选择器，不进入任务模型适配。
-      if (props?.selectedModel && typeof props.onModelChange === "function") return null;
-    }
-    return null;
-  }
-
   function nativeCatalogModelFor(identity, selector = modelSelectorFeature?.modelSelector) {
     const controller = nativeComposerModelController();
     const models = controller?.models ?? [];
@@ -417,26 +365,6 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
   // mock 顶档而额外广告的 max/ultra。键匹配顺序：模型自带的
   // opencodex_capability_provenance → catalog 模型 → 菜单原始 identity；
   // 只做过滤不扩展，配置未声明的模型保持 catalog 原样。
-
-  function nativeModelDescriptorForItem(item, observedRaw) {
-    const target = comparableModelLabel(observedRaw);
-    if (!target) return null;
-    const fiberKey = Object.getOwnPropertyNames(item).find((key) => key.startsWith("__reactFiber$"));
-    let fiber = fiberKey ? item[fiberKey] : null;
-    for (let depth = 0; fiber && depth < 35; depth += 1, fiber = fiber.return) {
-      if (!Array.isArray(fiber.memoizedProps)) continue;
-      const matches = fiber.memoizedProps.map((element) => {
-        const props = element?.props?.children?.props;
-        const slug = String(props?.model ?? element?.key ?? "").trim();
-        const displayName = String(props?.displayName ?? "").trim();
-        return slug && (
-          comparableModelLabel(slug) === target || comparableModelLabel(displayName) === target
-        ) ? { slug, displayName } : null;
-      }).filter(Boolean);
-      if (matches.length === 1) return matches[0];
-    }
-    return null;
-  }
 
   function loadModelFavorites(selector) {
     try {
@@ -545,35 +473,8 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
     });
   }
 
-  function setReactControlledMenuOpen(element, open) {
-    if (!element) return false;
-    const fiberKey = Object.getOwnPropertyNames(element).find((key) => key.startsWith("__reactFiber$"));
-    let fiber = fiberKey ? element[fiberKey] : null;
-    for (let depth = 0; fiber && depth < 40; depth += 1, fiber = fiber.return) {
-      const props = fiber.memoizedProps;
-      if (typeof props?.open === "boolean" && props.open !== open && typeof props.onOpenChange === "function") {
-        props.onOpenChange(open);
-        return true;
-      }
-    }
-    return false;
-  }
-
   function closeReactControlledMenu(element) {
     return setReactControlledMenuOpen(element, false);
-  }
-
-  function invokeNativeMenuItemSelect(item) {
-    if (!item) return false;
-    const fiberKey = Object.getOwnPropertyNames(item).find((key) => key.startsWith("__reactFiber$"));
-    let fiber = fiberKey ? item[fiberKey] : null;
-    for (let depth = 0; fiber && depth < 24; depth += 1, fiber = fiber.return) {
-      const onSelect = fiber.memoizedProps?.onSelect;
-      if (typeof onSelect !== "function") continue;
-      onSelect({ preventDefault() {}, defaultPrevented: false });
-      return true;
-    }
-    return false;
   }
 
   function closeNativeModelPickerSubmenus() {
@@ -1614,7 +1515,7 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
     const effortRow = document.createElement("span");
     effortRow.setAttribute("data-codex-model-slider-effort-row", "");
     effortRow.style.display = "grid";
-    effortRow.style.gridTemplateColumns = "calc(var(--spacing) * 4) auto calc(var(--spacing) * 4)";
+    effortRow.style.gridTemplateColumns = "calc(var(--mcx-spacing) * 4) auto calc(var(--mcx-spacing) * 4)";
     effortRow.style.alignItems = "center";
     const buttonLabel = document.createElement("span");
     buttonLabel.className = classes.ViewToggleModelLabel;
@@ -1625,7 +1526,7 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
     modelRow.style.display = "inline-flex";
     modelRow.style.alignItems = "center";
     modelRow.style.justifyContent = "center";
-    modelRow.style.gap = "calc(var(--spacing) / 2)";
+    modelRow.style.gap = "calc(var(--mcx-spacing) / 2)";
     modelRow.style.minWidth = "0";
     modelRow.style.maxWidth = "100%";
     modelRow.append(buttonLabel);

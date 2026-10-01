@@ -18,7 +18,7 @@ test("serialized shared shell preserves content and callbacks and releases its s
   const controller = new AbortController();
   // 验证实际注入形式，不依赖模块闭包。
   const install = vm.runInNewContext(`(${createUIInstallerSource()})`, { document, window, AbortController, clearTimeout, cancelAnimationFrame:()=>{} });
-  const ui = install(controller.signal);
+  const ui = install(controller.signal,{codex:{},themeTokens:[],themeTokenAliases:{},themeBindings:{}});
   const dialog = new Node(), back = new Node(), content = new Node();
   const unsafeTitle = '<img src=x onerror="alert(1)">';
   let closed = 0;

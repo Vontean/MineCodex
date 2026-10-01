@@ -36,6 +36,7 @@ packages/ui/
   src/
     native/
       tokens.mjs                      # token 与别名的权威名单
+      theme.mjs                       # 原生别名到项目变量、主题更新与卸载恢复
       navigation-rail.mjs              # 原生导航资源的 DOM 适配
     foundation/
       surfaces.mjs                    # Dialog / Dropdown / Popover / Composer / Page 材质
@@ -66,3 +67,5 @@ Dropdown 与 Popover 当前只需要材质接口，直接由 `surfaces.mjs` 提�
 只为实际使用的原生分支实现组件；根设计文档可以记录尚未使用的原生事实，不代表组件库已经提供相应 Interface。原生 form/catalog/系统 glass 等未被本项目需要的分支不预建空壳。
 
 宿主继续维护 CDP、binding、安全边界、插件发现及 iframe 主题消息。Model Slider 的纯规则与专有原生控制器适配归插件，宿主只组装安装源码并调度刷新/卸载；Summary 的宿主 surface 接入仍留在宿主。
+
+UI 安装源码接收宿主提供的 Codex 环境句柄和主题规范；图标读取复用共享 React 机制。主题解析属于 UI native Adapter，宿主只传递快照。独立组件测试可以提供明确的空主题上下文，不需要模拟真实 Codex。

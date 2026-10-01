@@ -1,3 +1,4 @@
+import { createNativeThemeAdapter } from "./native/theme.mjs";
 import { createNativeRailAdapter } from "./native/navigation-rail.mjs";
 import { installSurfaces } from "./foundation/surfaces.mjs";
 import { installLayers } from "./foundation/layers.mjs";
@@ -11,10 +12,10 @@ import { installFeatureTooltips } from "./components/tooltip.mjs";
 // 所有依赖在组装时显式写入源码，Renderer 不依赖 Node 模块闭包。
 export function createUIInstallerSource() {
   const installers = [installSurfaces, installLayers, installDialog, installButton, installPage, installComposerMenu];
-  return `function installFeatureUI(signal) {
-    const ui = {};
+  return `function installFeatureUI(signal, context) {
+    const ui = {theme:(${createNativeThemeAdapter.toString()})(context.themeTokens,context.themeTokenAliases,context.themeBindings)};
     ${installers.map(install => `Object.assign(ui, (${install.toString()})(signal, ui));`).join("\n")}
-    Object.assign(ui, (${installNavigationRail.toString()})(signal, ui, (${createNativeRailAdapter.toString()})()));
+    Object.assign(ui, (${installNavigationRail.toString()})(signal, ui, (${createNativeRailAdapter.toString()})(context.codex)));
     Object.assign(ui, (${installFeatureTooltips.toString()})(signal));
     return ui;
   }`;

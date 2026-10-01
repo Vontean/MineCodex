@@ -3,12 +3,12 @@ export function installDialog(signal, ui) {
   const style = document.createElement("style");
   style.setAttribute("data-minecodex-ui-styles", "installDialog");
   style.textContent = `    [data-mcx-ui-surface=dialog]:not(dialog) { position:relative; }
-    [data-mcx-ui-surface=dialog] { box-sizing:border-box; padding:var(--modal-container-inner-padding); border:0; border-radius:var(--radius-3xl); corner-shape:round; color:var(--color-text-primary); font-family:var(--font-sans-default); font-size:var(--text-base); line-height:1.5; outline:none; }
+    [data-mcx-ui-surface=dialog] { box-sizing:border-box; padding:var(--mcx-modal-container-inner-padding); border:0; border-radius:var(--mcx-radius-3xl); corner-shape:round; color:var(--mcx-color-text-primary); font-family:var(--mcx-font-sans-default); font-size:var(--mcx-text-base); line-height:1.5; outline:none; }
     [data-mcx-ui-surface=dialog] [data-mcx-ui-heading] { display:flex; align-items:center; gap:8px; padding-right:28px; margin:0 0 12px; }
-    [data-mcx-ui-surface=dialog] [data-mcx-ui-heading] h2 { flex:1; min-width:0; margin:0; font-size:var(--text-heading-md); line-height:1.4; font-weight:var(--font-weight-semibold); letter-spacing:normal; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    [data-mcx-ui-surface=dialog] [data-mcx-ui-close] { position:absolute; top:16px; right:16px; display:flex; align-items:center; justify-content:center; width:24px; height:24px; padding:4px; border:0; border-radius:4px; background:transparent; color:color-mix(in srgb,var(--color-text-primary) 80%,transparent); cursor:var(--cursor-interaction); }
+    [data-mcx-ui-surface=dialog] [data-mcx-ui-heading] h2 { flex:1; min-width:0; margin:0; font-size:var(--mcx-text-heading-md); line-height:1.4; font-weight:var(--mcx-font-weight-semibold); letter-spacing:normal; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    [data-mcx-ui-surface=dialog] [data-mcx-ui-close] { position:absolute; top:16px; right:16px; display:flex; align-items:center; justify-content:center; width:24px; height:24px; padding:4px; border:0; border-radius:4px; background:transparent; color:color-mix(in srgb,var(--mcx-color-text-primary) 80%,transparent); cursor:var(--cursor-interaction); }
     [data-mcx-ui-surface=dialog] [data-mcx-ui-close] svg { display:block; width:16px; height:16px; }
-    [data-mcx-ui-surface=dialog] [data-mcx-ui-close]:hover { background:var(--color-background-primary-ghost-hover); }
+    [data-mcx-ui-surface=dialog] [data-mcx-ui-close]:hover { background:var(--mcx-color-background-primary-ghost-hover); }
   `;
   document.head.append(style);
   signal.addEventListener("abort", () => style.remove(), { once:true });

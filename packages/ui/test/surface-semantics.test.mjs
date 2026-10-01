@@ -17,7 +17,7 @@ function fixture(t) {
     document, window, AbortController, clearTimeout, cancelAnimationFrame:()=>{},
     getComputedStyle:()=>({zoom:"2"}),
   });
-  const ui = install(controller.signal);
+  const ui = install(controller.signal,{codex:{},themeTokens:[],themeTokenAliases:{},themeBindings:{}});
   t.after(()=>controller.abort());
   return {ui,document};
 }

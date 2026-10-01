@@ -3,13 +3,11 @@ import test from "node:test";
 import vm from "node:vm";
 import { createInjectionSource } from "../src/codex-injection.mjs";
 
-const source = createInjectionSource([]);
-const start = source.indexOf("function currentReactFiber(element) {");
-const end = source.indexOf("function nativeCatalogModelFor", start);
+import { createModelControllerAdapter } from "../../../features/model-slider/src/adapters/codex/controller.mjs";
+import { createCodexEnvironment } from "../../codex-adapter/src/renderer/environment.mjs";
 function inspect(triggers) {
-  return vm.runInNewContext(`(() => { ${source.slice(start, end)}
-    return { trigger: nativeComposerTrigger(), controller: nativeComposerModelController() };
-  })()`, { document: { querySelectorAll: () => triggers } });
+  const adapter=vm.runInNewContext(`(${createModelControllerAdapter.toString()})(({...(${createCodexEnvironment.toString()})()}),x=>x)`,{document:{querySelectorAll:()=>triggers}});
+  return {trigger:adapter.trigger(),controller:adapter.read()};
 }
 function trigger(props, { visible = true, open = false, parent = null } = {}) {
   return {
@@ -22,7 +20,7 @@ const taskController = () => ({ models: [], onSelectReasoningEffort() {}, onSele
 
 test("Codex and Work preserve their native task controller contract", () => {
   const props = taskController();
-  assert.equal(inspect([trigger(props)]).controller, props);
+  assert.equal(inspect([trigger(props)]).controller.onSelectModel, props.onSelectModel);
 });
 
 test("Codex and Work accept the power-selection controller contract", () => {
@@ -61,7 +59,7 @@ test("ignores a hidden preloaded Chat composer and follows the open task picker"
   const hidden = trigger({ selectedModel: {}, onModelChange() {} }, { visible: false, open: true });
   const props = taskController();
   const visible = trigger(props);
-  assert.equal(inspect([hidden, visible]).controller, props);
+  assert.equal(inspect([hidden, visible]).controller.onSelectModel, props.onSelectModel);
   const active = trigger(taskController(), { open: true });
   assert.equal(inspect([visible, active]).trigger, active);
 });

@@ -33,7 +33,7 @@ import {
   createImageEditThread,
 } from "./host-actions.mjs";
 import { SitesService } from "../../../features/sites/src/backend/sites-service.mjs";
-import { SessionStatusReader, threadIdFromLocation } from "../../../features/session-status/src/backend/session-status-reader.mjs";
+import { SessionStatusReader, threadIdFromLocation } from "../../../features/session-status/src/adapters/codex/session-reader.mjs";
 
 
 // 保持公共入口兼容：历史 import 从本文件继续可用。

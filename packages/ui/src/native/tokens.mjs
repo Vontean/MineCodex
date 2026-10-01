@@ -137,30 +137,33 @@ export const CODEX_THEME_TOKENS = Object.freeze([
   "--color-text-danger",
 ]);
 
-// images 图片编辑器可用性依赖的宿主 token 子集。
+// images 图片编辑器可用性依赖的项目 token 子集。
 // 与 features/images/web/app.js 的 editorTokens 保持同一来源（一致性由测试锁定）。
 export const EDITOR_TOKEN_NAMES = Object.freeze([
-  "--color-surface-tertiary",
-  "--color-surface-elevated-secondary",
-  "--color-border-subtle",
-  "--color-background-primary-ghost-hover",
-  "--color-chart-blue",
-  "--color-text-inverse",
-  "--color-token-main-surface-primary",
-  "--color-token-input-foreground",
-  "--color-text-foreground",
-  "--color-text-foreground-tertiary",
-  "--color-text-on-accent",
-  "--color-border",
-  "--color-border-focus",
-  "--color-token-list-hover-background",
-  "--color-text-accent",
-  "--font-sans-default",
-  "--font-weight-normal",
-  "--text-sm",
-  "--text-sm--line-height",
-  "--radius-md",
-  "--radius-xl",
-  "--shadow-md",
-  "--shadow-xl",
+  "--mcx-color-surface-tertiary",
+  "--mcx-color-surface-elevated-secondary",
+  "--mcx-color-border-subtle",
+  "--mcx-color-background-primary-ghost-hover",
+  "--mcx-color-chart-blue",
+  "--mcx-color-text-inverse",
+  "--mcx-color-token-main-surface-primary",
+  "--mcx-color-token-input-foreground",
+  "--mcx-color-text-foreground",
+  "--mcx-color-text-foreground-tertiary",
+  "--mcx-color-text-on-accent",
+  "--mcx-color-border",
+  "--mcx-color-border-focus",
+  "--mcx-color-token-list-hover-background",
+  "--mcx-color-text-accent",
+  "--mcx-font-sans-default",
+  "--mcx-font-weight-normal",
+  "--mcx-text-sm",
+  "--mcx-text-sm--line-height",
+  "--mcx-radius-md",
+  "--mcx-radius-xl",
+  "--mcx-shadow-md",
+  "--mcx-shadow-xl",
 ]);
+
+// 插件只消费 MineCodex 命名空间，原生名称变化集中在此映射。
+export const MINECODEX_THEME_BINDINGS = Object.freeze(Object.fromEntries(CODEX_THEME_TOKENS.map(name => [name, "--mcx-" + name.slice(2)])));
