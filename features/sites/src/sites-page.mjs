@@ -114,8 +114,8 @@ function button(label, action, primary = false) {
   b.dataset.color = primary ? "primary" : "secondary"; b.dataset.variant = primary ? "solid" : "outline"; b.dataset.size = "lg"; b.dataset.pill = "";
   b.append(element("span", nativeInner || "", label)); b.addEventListener("click", action); return b;
 }
-function dialogButton(label, action, primary = false) {
-  const b = config.ui.action(element("button", "", label), primary ? "primary" : "secondary");
+function dialogButton(label, action, primary = false, tone = "secondary") {
+  const b = config.ui.action(element("button", "", label), primary ? "primary" : tone);
   b.type = "button"; b.addEventListener("click", action); return b;
 }
 function setButtonDisabled(button, disabled) {
@@ -359,7 +359,7 @@ async function mountDiscovery(d, panel) {
   let candidates = [], loaded = false, saving = false;
   const selected = new Set(), completed = new Set();
   const footer = config.ui.footer(element("div", "mcx-site-footer"));
-  const cancel = dialogButton(text("Cancel", "取消"), () => d.close());
+  const cancel = dialogButton(text("Cancel", "取消"), () => d.close(), false, "ghost");
   const add = dialogButton(text("Add", "添加"), async () => {
     if (saving || !selected.size) return;
     saving = true; error.textContent = ""; render();
@@ -421,7 +421,7 @@ function mountEditor(d, container, site, problem) {
   const title = field(text("Name", "名称"), "title", site?.title); title.maxLength = 160; title.required = true;
   let origin = site?.origin || { kind: "external" };
   const error = element("div", "", problem); error.setAttribute("role", "alert"); content.append(error);
-  const footer = config.ui.footer(element("div", "mcx-site-footer")); const cancel = dialogButton(text("Cancel", "取消"), () => d.close()); const save = dialogButton(site ? text("Save", "保存") : text("Add", "添加"), () => {}, true); save.type = "submit"; footer.append(cancel, save); form.append(footer);
+  const footer = config.ui.footer(element("div", "mcx-site-footer")); const cancel = dialogButton(text("Cancel", "取消"), () => d.close(), false, "ghost"); const save = dialogButton(site ? text("Save", "保存") : text("Add", "添加"), () => {}, true); save.type = "submit"; footer.append(cancel, save); form.append(footer);
   let submitting = false;
   function validFields() {
     if (!title.value.trim() || title.value.trim().length > 160 || !url.value.trim() || !url.validity.valid) return false;

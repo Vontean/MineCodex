@@ -22,12 +22,12 @@ const zh = () => (document.documentElement.lang || navigator.language || "en").t
 const text = (en, cn) => (zh() ? cn : en);
 const style = document.createElement("style");
 style.textContent = `
-  [${MARKER}=page] .pm-title-control { display:flex; align-items:stretch; min-height:40px; border:1px solid var(--color-border-primary-outline); border-radius:var(--radius-lg); background:var(--color-background-primary-soft); overflow:hidden; }
-  [${MARKER}=page] .pm-title-control:focus-within { border-color:var(--color-ring); }
-  [${MARKER}=page] .pm-title-control>.pm-emoji-trigger { display:flex; flex:none; align-items:center; justify-content:center; width:40px; padding:0; border-inline-end:1px solid var(--color-border); }
-  [${MARKER}=page] .pm-title-control>.pm-emoji-trigger:hover { background:var(--color-background-primary-ghost-hover); }
-  [${MARKER}=page] .pm-title-control>.pm-emoji-trigger:focus-visible { outline-offset:-3px; }
-  [${MARKER}=page] .pm-editor .pm-title-control>input { flex:1; min-width:0; border:0; border-radius:0; background:transparent; padding:8px 10px; outline:none; box-shadow:none; }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-title-control { display:flex; align-items:stretch; min-height:40px; border:1px solid var(--color-border-primary-outline); border-radius:var(--radius-lg); background:var(--color-background-primary-soft); overflow:hidden; }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-title-control:focus-within { border-color:var(--color-ring); }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-title-control>.pm-emoji-trigger { display:flex; flex:none; align-items:center; justify-content:center; width:40px; padding:0; border-inline-end:1px solid var(--color-border); }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-title-control>.pm-emoji-trigger:hover { background:var(--color-background-primary-ghost-hover); }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-title-control>.pm-emoji-trigger:focus-visible { outline-offset:-3px; }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-editor .pm-title-control>input { flex:1; min-width:0; border:0; border-radius:0; background:transparent; padding:8px 10px; outline:none; box-shadow:none; }
 
   [${MARKER}=panel] { position:fixed; z-index:50; zoom:var(--codex-window-zoom,1); transform:translateY(-100%); box-sizing:border-box; display:flex; flex-direction:column; overflow:hidden; padding:var(--spacing); border:0; border-radius:var(--radius-suggestion-menu,var(--radius-2xl)); color:var(--color-text-primary); font-family:var(--font-sans-default); font-size:var(--text-sm); line-height:1.43; }
   [${MARKER}=panel] *, [${MARKER}=button] { box-sizing:border-box; }
@@ -49,89 +49,89 @@ style.textContent = `
   .qp-symbol { display:inline-flex; width:20px; height:20px; flex:none; align-items:center; justify-content:center; font-size:18px; line-height:1; color:var(--prompt-icon-light,var(--color-text-secondary)); }
   .qp-symbol svg { width:20px; height:20px; }
   .dark .qp-symbol, [data-theme=dark] .qp-symbol { color:var(--prompt-icon-dark,var(--color-text-secondary)); }
-  [${MARKER}=page] { position:fixed; z-index:41; overflow:auto; border-radius:var(--radius-xl-base); background:var(--color-surface); color:var(--color-text-primary); font-family:var(--font-sans-default); font-size:var(--text-sm); line-height:var(--text-sm--line-height); }
-  [${MARKER}=page] * { box-sizing:border-box; }
-  [${MARKER}=page] button { cursor:var(--cursor-interaction,pointer); }
-  [${MARKER}=page] button:disabled { opacity:.35; cursor:default; }
-  [${MARKER}=page] button:focus-visible, [${MARKER}=page] input:focus-visible, [${MARKER}=page] textarea:focus-visible { outline:2px solid var(--color-text-secondary); outline-offset:2px; }
-  [${MARKER}=page] .pm-wrap { max-width:1440px; margin:auto; padding:28px 48px 48px; }
-  [${MARKER}=page] .pm-heading { display:flex; align-items:center; justify-content:space-between; gap:16px; min-height:36px; margin-bottom:24px; }
-  [${MARKER}=page] h1 { font-size:var(--text-heading-lg); font-weight:var(--font-weight-medium); line-height:1.2; margin:0; }
-  [${MARKER}=page] h2 { font-size:var(--text-base,14px); font-weight:600; margin:24px 0 12px; }
-  [${MARKER}=page] .pm-header-actions { display:flex; align-items:center; gap:8px; }
-  [${MARKER}=page] .pm-tab-row { display:flex; align-items:center; gap:8px; margin-bottom:24px; }
-  [${MARKER}=page] .pm-tab-row .pm-tabs { margin-bottom:0; min-width:0; }
-  [${MARKER}=page] .pm-icon { display:flex; align-items:center; justify-content:center; width:32px; height:32px; flex:none; padding:0; border-radius:var(--radius-full); color:var(--color-text-secondary); }
-  [${MARKER}=page] .pm-icon[hidden] { display:none; }
-  [${MARKER}=page] .pm-icon svg { width:16px; height:16px; }
-  [${MARKER}=page] .pm-icon:hover, [${MARKER}=page] .pm-icon[aria-expanded=true], [${MARKER}=page] .pm-icon[aria-pressed=true] { background:var(--color-background-primary-ghost-hover); color:var(--color-text-primary); }
-  [${MARKER}=page] .pm-popup { position:fixed; z-index:30; width:200px; padding:var(--app-menu-gutter,var(--spacing)); border-radius:var(--radius-2xl); }
-  [${MARKER}=page] .pm-popup button { width:100%; min-height:var(--app-menu-item-height,30px); display:flex; align-items:center; justify-content:space-between; gap:16px; padding:var(--app-menu-item-padding,5px 8px); border-radius:var(--radius-xl); text-align:left; }
-  [${MARKER}=page] .pm-popup button:hover, [${MARKER}=page] .pm-popup button:focus-visible { background:var(--color-background-primary-ghost-hover); }
-  [${MARKER}=page] .pm-popup svg { width:16px; height:16px; }
-  [${MARKER}=page] .pm-command { display:inline-flex; align-items:center; justify-content:center; gap:6px; min-height:32px; padding:6px 12px; border-radius:var(--radius-full,999px); color:inherit; white-space:nowrap; }
-  [${MARKER}=page] .pm-command:hover { background:var(--color-background-primary-ghost-hover); }
-  [${MARKER}=page] .pm-primary { background:var(--color-background-primary-solid); color:var(--color-text-primary-solid); }
-  [${MARKER}=page] .pm-primary:hover { background:var(--color-background-primary-solid-hover); }
-  [${MARKER}=page] .pm-tabs { display:flex; gap:4px; overflow:auto; padding-bottom:4px; margin-bottom:24px; }
-  [${MARKER}=page] .pm-tab { display:flex; align-items:center; gap:6px; flex:none; height:36px; border-radius:999px; padding:0 16px; font-weight:500; color:var(--color-text-secondary); }
-  [${MARKER}=page] .pm-tab:hover, [${MARKER}=page] .pm-tab[aria-selected=true] { background:var(--color-background-primary-ghost-hover); color:var(--color-text-primary); }
-  [${MARKER}=page] input, [${MARKER}=page] textarea { font:inherit; color:inherit; background:transparent; border:1px solid var(--color-border); border-radius:var(--radius-lg,12px); padding:8px 12px; }
-  [${MARKER}=page] .pm-list { display:flex; flex-direction:column; gap:4px; }
-  [${MARKER}=page] .pm-row { display:flex; align-items:center; gap:12px; padding:16px 12px; border-radius:var(--radius-xl,16px); }
-  [${MARKER}=page] .pm-row:hover { background:var(--color-background-primary-ghost-hover); }
-  [${MARKER}=page] .pm-info { flex:1; min-width:0; text-align:left; }
-  [${MARKER}=page] .pm-title { font-weight:500; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
-  [${MARKER}=page] .pm-preview { max-width:65%; color:var(--color-text-secondary); overflow:hidden; white-space:nowrap; text-overflow:ellipsis; margin-top:3px; }
-  [${MARKER}=page] .pm-stats { color:var(--color-text-tertiary); min-width:130px; text-align:right; font-variant-numeric:tabular-nums; font-size:var(--text-xs,12px); }
-  [${MARKER}=page] .pm-count { color:var(--color-text-secondary); }
-  [${MARKER}=page] .pm-empty { color:var(--color-text-tertiary); padding:48px 0; text-align:center; }
-  [${MARKER}=page] .pm-form { display:flex; flex-direction:column; gap:16px; }
-  [${MARKER}=page] .pm-field { display:flex; flex-direction:column; gap:6px; color:var(--color-text-secondary); }
-  [${MARKER}=page] .pm-field textarea { min-height:220px; resize:vertical; color:var(--color-text-primary); }
-  [${MARKER}=page] .pm-grid { display:flex; flex-wrap:wrap; gap:4px; }
-  [${MARKER}=page] .pm-choice { width:36px; height:36px; border-radius:10px; display:flex; justify-content:center; align-items:center; }
-  [${MARKER}=page] .pm-choice[aria-pressed=true] { background:var(--color-background-primary-ghost-hover); outline:1px solid var(--color-text-secondary); }
-  [${MARKER}=page] .pm-swatch { width:18px; height:18px; border-radius:50%; background:currentColor; }
-  [${MARKER}=page] .pm-error { color:var(--color-text-danger,var(--color-text-primary)); margin:12px 0; }
-  @media(max-width:800px) { [${MARKER}=page] .pm-wrap { padding:24px 30px; } [${MARKER}=page] .pm-stats { min-width:90px; } }
-  [${MARKER}=page] .pm-modal-layer { position:fixed; inset:0; z-index:60; display:grid; place-items:center; padding:24px; }
-  [${MARKER}=page] .pm-editor { top:auto; width:440px; max-width:calc(100vw - 48px); max-height:calc(100vh - 64px); margin:0; overflow:auto; }
-  [${MARKER}=page] .pm-prompt-editor { width:520px; }
-  [${MARKER}=page] .pm-modal-heading .pm-icon { width:24px; height:24px; }
-  [${MARKER}=page] .pm-editor .pm-row { min-height:44px; padding:8px; gap:10px; border-radius:var(--radius-lg); }
-  [${MARKER}=page] .pm-editor .pm-form { gap:12px; }
-  [${MARKER}=page] .pm-editor .pm-field { gap:8px; color:var(--color-text-primary); }
-  [${MARKER}=page] .pm-editor input, [${MARKER}=page] .pm-editor textarea { border-radius:var(--radius-md); padding:8px 10px; background:var(--color-background-primary-soft,rgba(0,0,0,.025)); }
-  [${MARKER}=page] .pm-grid { gap:4px; }
-  [${MARKER}=page] .pm-choice { width:36px; height:36px; border-radius:var(--radius-lg); }
-  [${MARKER}=page] .pm-choice svg { width:20px; height:20px; }
-  [${MARKER}=page] .pm-choice[aria-pressed=true] { outline:none; box-shadow:inset 0 0 0 1px var(--color-border); }
-  [${MARKER}=page] .pm-search-inline { display:flex; align-items:center; width:clamp(150px,22vw,300px); height:32px; padding:0 12px; gap:8px; border:1px solid var(--color-border-primary-outline,var(--color-border)); border-radius:var(--radius-full); background:transparent; }
-  [${MARKER}=page] .pm-search-inline input { min-width:0; width:100%; padding:0; border:0; background:transparent; outline:none; }
-  [${MARKER}=page] .pm-search-inline>svg { width:16px; height:16px; flex:none; color:var(--color-text-tertiary); }
-  [${MARKER}=page] .pm-list>h2 { color:var(--color-text-tertiary); font-size:var(--text-sm,13px); font-weight:500; }
-  [${MARKER}=page] .pm-stats { min-width:64px; }
-  [${MARKER}=page] .pm-editor input:focus, [${MARKER}=page] .pm-editor textarea:focus, [${MARKER}=page] .pm-popup input:focus { outline:none; box-shadow:none; border-color:var(--color-ring,var(--color-border-primary-outline)); }
-  [${MARKER}=page] .pm-confirm-description { color:var(--color-text-secondary); line-height:1.6; }
-  [${MARKER}=page] .pm-select { display:flex; align-items:center; gap:8px; min-height:36px; padding:8px 10px; background:var(--color-background-primary-soft); border:1px solid var(--color-border); border-radius:var(--radius-md); text-align:left; }
-  [${MARKER}=page] .pm-select>svg { width:16px; height:16px; }
-  [${MARKER}=page] .pm-option-label { flex:1; }
-  [${MARKER}=page] .pm-empty-state { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:340px; gap:8px; text-align:center; }
-  [${MARKER}=page] .pm-empty-art { font-size:var(--text-5xl,48px); line-height:1; margin-bottom:8px; }
-  [${MARKER}=page] .pm-empty-title { font-size:var(--text-lg,18px); line-height:24px; font-weight:500; }
-  [${MARKER}=page] .pm-empty-description { color:var(--color-text-secondary); }
-  [${MARKER}=page] .pm-empty-state>.pm-command { margin-top:24px; }
-  [${MARKER}=page] .pm-drag { cursor:grab; color:var(--color-text-tertiary); }
-  [${MARKER}=page] .pm-drag:active { cursor:grabbing; }
-  [${MARKER}=page] .pm-drop-placeholder { flex:none; border:1px dashed var(--color-border-primary-outline,var(--color-border)); border-radius:var(--radius-xl); background:var(--color-background-primary-ghost-hover); box-sizing:border-box; }
-  [${MARKER}=page] .pm-dragging { position:absolute; opacity:0; pointer-events:none; }
-  [${MARKER}=page] .pm-popup { z-index:70; max-height:calc(100vh - 32px); overflow:auto; }
-  [${MARKER}=page] .pm-symbol-picker { width:320px; padding:12px; display:flex; flex-direction:column; gap:12px; }
-  [${MARKER}=page] .pm-symbol-picker>input { width:100%; flex:none; border-radius:var(--radius-full); }
-  [${MARKER}=page] .pm-emoji-grid { display:grid; grid-template-columns:repeat(8,minmax(0,1fr)); gap:4px; max-height:264px; overflow:auto; }
-  [${MARKER}=page] .pm-emoji-grid .pm-emoji-choice { width:32px; height:32px; min-height:32px; padding:0; display:flex; justify-content:center; font-size:22px; border-radius:var(--radius-lg); }
-  [${MARKER}=page] .pm-emoji-choice[aria-pressed=true] { background:var(--color-background-primary-ghost-hover); }
+  [${MARKER}=page] { position:fixed; z-index:20; overflow:auto; border-radius:var(--radius-xl-base); background:var(--color-surface); color:var(--color-text-primary); font-family:var(--font-sans-default); font-size:var(--text-sm); line-height:var(--text-sm--line-height); }
+  :is([${MARKER}=page],[${MARKER}=modal]) * { box-sizing:border-box; }
+  :is([${MARKER}=page],[${MARKER}=modal]) button { cursor:var(--cursor-interaction,pointer); }
+  :is([${MARKER}=page],[${MARKER}=modal]) button:disabled { opacity:.4; cursor:default; }
+  :is([${MARKER}=page],[${MARKER}=modal]) button:focus-visible, :is([${MARKER}=page],[${MARKER}=modal]) input:focus-visible, :is([${MARKER}=page],[${MARKER}=modal]) textarea:focus-visible { outline:2px solid var(--color-text-secondary); outline-offset:2px; }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-wrap { max-width:1440px; margin:auto; padding:28px 48px 48px; }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-heading { display:flex; align-items:center; justify-content:space-between; gap:16px; min-height:36px; margin-bottom:24px; }
+  :is([${MARKER}=page],[${MARKER}=modal]) h1 { font-size:var(--text-heading-lg); font-weight:var(--font-weight-medium); line-height:1.2; margin:0; }
+  :is([${MARKER}=page],[${MARKER}=modal]) h2 { font-size:var(--text-base,14px); font-weight:600; margin:24px 0 12px; }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-header-actions { display:flex; align-items:center; gap:8px; }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-tab-row { display:flex; align-items:center; gap:8px; margin-bottom:24px; }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-tab-row .pm-tabs { margin-bottom:0; min-width:0; }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-icon { display:flex; align-items:center; justify-content:center; width:32px; height:32px; flex:none; padding:0; border-radius:var(--radius-full); color:var(--color-text-secondary); }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-icon[hidden] { display:none; }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-icon svg { width:16px; height:16px; }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-icon:hover, :is([${MARKER}=page],[${MARKER}=modal]) .pm-icon[aria-expanded=true], :is([${MARKER}=page],[${MARKER}=modal]) .pm-icon[aria-pressed=true] { background:var(--color-background-primary-ghost-hover); color:var(--color-text-primary); }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-popup { position:fixed; z-index:30; width:200px; padding:var(--app-menu-gutter,var(--spacing)); border-radius:var(--radius-2xl); }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-popup button { width:100%; min-height:var(--app-menu-item-height,30px); display:flex; align-items:center; justify-content:space-between; gap:16px; padding:var(--app-menu-item-padding,5px 8px); border-radius:var(--radius-xl); text-align:left; }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-popup button:hover, :is([${MARKER}=page],[${MARKER}=modal]) .pm-popup button:focus-visible { background:var(--color-background-primary-ghost-hover); }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-popup svg { width:16px; height:16px; }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-command { display:inline-flex; align-items:center; justify-content:center; gap:6px; min-height:32px; padding:6px 12px; border-radius:var(--radius-full,999px); color:inherit; white-space:nowrap; }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-command:hover { background:var(--color-background-primary-ghost-hover); }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-primary { background:var(--color-background-primary-solid); color:var(--color-text-primary-solid); }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-primary:hover { background:var(--color-background-primary-solid-hover); }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-tabs { display:flex; gap:4px; overflow:auto; padding-bottom:4px; margin-bottom:24px; }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-tab { display:flex; align-items:center; gap:6px; flex:none; height:36px; border-radius:999px; padding:0 16px; font-weight:500; color:var(--color-text-secondary); }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-tab:hover, :is([${MARKER}=page],[${MARKER}=modal]) .pm-tab[aria-selected=true] { background:var(--color-background-primary-ghost-hover); color:var(--color-text-primary); }
+  :is([${MARKER}=page],[${MARKER}=modal]) input, :is([${MARKER}=page],[${MARKER}=modal]) textarea { font:inherit; color:inherit; background:transparent; border:1px solid var(--color-border); border-radius:var(--radius-lg,12px); padding:8px 12px; }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-list { display:flex; flex-direction:column; gap:4px; }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-row { display:flex; align-items:center; gap:12px; padding:16px 12px; border-radius:var(--radius-xl,16px); }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-row:hover { background:var(--color-background-primary-ghost-hover); }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-info { flex:1; min-width:0; text-align:left; }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-title { font-weight:500; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-preview { max-width:65%; color:var(--color-text-secondary); overflow:hidden; white-space:nowrap; text-overflow:ellipsis; margin-top:3px; }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-stats { color:var(--color-text-tertiary); min-width:130px; text-align:right; font-variant-numeric:tabular-nums; font-size:var(--text-xs,12px); }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-count { color:var(--color-text-secondary); }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-empty { color:var(--color-text-tertiary); padding:48px 0; text-align:center; }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-form { display:flex; flex-direction:column; gap:16px; }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-field { display:flex; flex-direction:column; gap:6px; color:var(--color-text-secondary); }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-field textarea { min-height:220px; resize:vertical; color:var(--color-text-primary); }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-grid { display:flex; flex-wrap:wrap; gap:4px; }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-choice { width:36px; height:36px; border-radius:10px; display:flex; justify-content:center; align-items:center; }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-choice[aria-pressed=true] { background:var(--color-background-primary-ghost-hover); outline:1px solid var(--color-text-secondary); }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-swatch { width:18px; height:18px; border-radius:50%; background:currentColor; }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-error { color:var(--color-text-danger,var(--color-text-primary)); margin:12px 0; }
+  @media(max-width:800px) { :is([${MARKER}=page],[${MARKER}=modal]) .pm-wrap { padding:24px 30px; } :is([${MARKER}=page],[${MARKER}=modal]) .pm-stats { min-width:90px; } }
+  [${MARKER}=modal].pm-modal-layer { position:fixed; inset:0; z-index:50; display:grid; place-items:center; padding:24px; }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-editor { top:auto; width:440px; max-width:calc(100vw - 48px); max-height:calc(100vh - 64px); margin:0; overflow:auto; }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-prompt-editor { width:520px; }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-modal-heading .pm-icon { width:24px; height:24px; }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-editor .pm-row { min-height:44px; padding:8px; gap:10px; border-radius:var(--radius-lg); }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-editor .pm-form { gap:12px; }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-editor .pm-field { gap:8px; color:var(--color-text-primary); }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-editor input, :is([${MARKER}=page],[${MARKER}=modal]) .pm-editor textarea { border-radius:var(--radius-md); padding:8px 10px; background:var(--color-background-primary-soft,rgba(0,0,0,.025)); }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-grid { gap:4px; }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-choice { width:36px; height:36px; border-radius:var(--radius-lg); }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-choice svg { width:20px; height:20px; }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-choice[aria-pressed=true] { outline:none; box-shadow:inset 0 0 0 1px var(--color-border); }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-search-inline { display:flex; align-items:center; width:clamp(150px,22vw,300px); height:32px; padding:0 12px; gap:8px; border:1px solid var(--color-border-primary-outline,var(--color-border)); border-radius:var(--radius-full); background:transparent; }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-search-inline input { min-width:0; width:100%; padding:0; border:0; background:transparent; outline:none; }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-search-inline>svg { width:16px; height:16px; flex:none; color:var(--color-text-tertiary); }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-list>h2 { color:var(--color-text-tertiary); font-size:var(--text-sm,13px); font-weight:500; }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-stats { min-width:64px; }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-editor input:focus, :is([${MARKER}=page],[${MARKER}=modal]) .pm-editor textarea:focus, :is([${MARKER}=page],[${MARKER}=modal]) .pm-popup input:focus { outline:none; box-shadow:none; border-color:var(--color-ring,var(--color-border-primary-outline)); }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-confirm-description { color:var(--color-text-secondary); line-height:1.6; }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-select { display:flex; align-items:center; gap:8px; min-height:36px; padding:8px 10px; background:var(--color-background-primary-soft); border:1px solid var(--color-border); border-radius:var(--radius-md); text-align:left; }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-select>svg { width:16px; height:16px; }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-option-label { flex:1; }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-empty-state { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:340px; gap:8px; text-align:center; }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-empty-art { font-size:var(--text-5xl,48px); line-height:1; margin-bottom:8px; }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-empty-title { font-size:var(--text-lg,18px); line-height:24px; font-weight:500; }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-empty-description { color:var(--color-text-secondary); }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-empty-state>.pm-command { margin-top:24px; }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-drag { cursor:grab; color:var(--color-text-tertiary); }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-drag:active { cursor:grabbing; }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-drop-placeholder { flex:none; border:1px dashed var(--color-border-primary-outline,var(--color-border)); border-radius:var(--radius-xl); background:var(--color-background-primary-ghost-hover); box-sizing:border-box; }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-dragging { position:absolute; opacity:0; pointer-events:none; }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-popup { z-index:70; max-height:calc(100vh - 32px); overflow:auto; }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-symbol-picker { width:320px; padding:12px; display:flex; flex-direction:column; gap:12px; }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-symbol-picker>input { width:100%; flex:none; border-radius:var(--radius-full); }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-emoji-grid { display:grid; grid-template-columns:repeat(8,minmax(0,1fr)); gap:4px; max-height:264px; overflow:auto; }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-emoji-grid .pm-emoji-choice { width:32px; height:32px; min-height:32px; padding:0; display:flex; justify-content:center; font-size:22px; border-radius:var(--radius-lg); }
+  :is([${MARKER}=page],[${MARKER}=modal]) .pm-emoji-choice[aria-pressed=true] { background:var(--color-background-primary-ghost-hover); }
 `;
 document.head.append(style);
 let button = null;
@@ -439,8 +439,8 @@ let pageFocus = null;
 const hiddenSurfaces = new Map();
 const nativeNavigationSelection = new Map();
 
-function pageControl(label, handler, primary = false) {
-  return config.ui.action(control(label, handler, `pm-command${primary ? " pm-primary" : ""}`), primary ? "primary" : "secondary");
+function pageControl(label, handler, primary = false, tone = "secondary") {
+  return config.ui.action(control(label, handler, `pm-command${primary ? " pm-primary" : ""}`), primary ? "primary" : tone);
 }
 function pageError(error) {
   if (!page) return;
@@ -995,8 +995,10 @@ function editorShell(title, back = null) {
   if (!editorLayer) {
     editorReturnFocus = document.activeElement;
     editorLayer = element("div", "pm-modal-layer");
+    editorLayer.setAttribute(MARKER, "modal");
     config.ui.overlay(editorLayer);
-    page.append(editorLayer);
+    // 弹窗遮罩覆盖整个窗口，避免受页面与侧栏的层级约束。
+    document.body.append(editorLayer);
     page.querySelector(".pm-wrap").inert = true;
   }
   editorLayer.replaceChildren();
@@ -1152,7 +1154,7 @@ function editPrompt(item = null) {
   }
   const save = pageControl(text("Save", "保存"), () => {}, true);
   save.type = "submit";
-  footer.append(pageControl(text("Cancel", "取消"), renderPage), save);
+  footer.append(pageControl(text("Cancel", "取消"), renderPage, false, "ghost"), save);
   form.append(footer);
   target.append(form);
   form.addEventListener("submit", async (event) => {
@@ -1381,7 +1383,7 @@ function editCategory(category = null) {
       );
       config.ui.action(confirm, "danger");
       actions.append(
-        pageControl(text("Cancel", "取消"), () => editCategory(category)),
+        pageControl(text("Cancel", "取消"), () => editCategory(category), false, "ghost"),
         confirm,
       );
       confirmation.append(actions);
@@ -1392,7 +1394,7 @@ function editCategory(category = null) {
   }
   const save = pageControl(text("Save", "保存"), () => {}, true);
   save.type = "submit";
-  footer.append(pageControl(text("Cancel", "取消"), manageCategories), save);
+  footer.append(pageControl(text("Cancel", "取消"), manageCategories, false, "ghost"), save);
   form.append(footer);
   target.append(form);
   form.addEventListener("submit", async (event) => {
