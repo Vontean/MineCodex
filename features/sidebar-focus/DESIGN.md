@@ -13,3 +13,5 @@
 - 状态仅作用于当前窗口；卸载不额外改变用户布局。
 
 根据聚焦状态显式设置 data-color 与 data-variant，直接复用原生语义 token 适配明暗模式，不写死蓝色或背景色。Activity 开启时按钮原生 disabled，暂停聚焦操作，关闭后恢复可用性。
+
+Tooltip 由共享组件库通过 `data-minecodex-tooltip` 管理；插件只提供随聚焦状态变化的文案，不维护独立材质、定位或显示事件。克隆入口时移除原控件的 `title` 与 `aria-describedby`。

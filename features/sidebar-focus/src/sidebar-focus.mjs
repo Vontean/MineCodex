@@ -2,22 +2,6 @@ const FOCUS_GLYPH = "<svg aria-hidden=\"true\"\n  xmlns=\"http://www.w3.org/2000
 const sectionSelector = "[data-app-action-sidebar-section]";
 const projectSelector = "[data-app-action-sidebar-project-row]";
 const states = new Map();
-const tip = document.createElement("div");
-tip.id = "minecodex-focus-tooltip";
-tip.setAttribute("role", "tooltip");
-tip.hidden = true;
-const style = document.createElement("style");
-style.textContent = `#minecodex-focus-tooltip {position:fixed;z-index:2147483000;pointer-events:none;padding:5px 12px;border:1px solid var(--color-border-tooltip);border-radius:var(--radius-2xl);background:var(--color-background-tooltip);color:var(--color-text-tooltip);box-shadow:var(--shadow-tooltip);font-family:var(--font-sans-default);font-size:var(--text-sm);line-height:18px;font-weight:var(--tooltip-compact-font-weight);letter-spacing:var(--tracking-tooltip);}`;
-document.head.append(style);
-document.body.append(tip);
-function showTip() {
-  if (!button) return;
-  tip.hidden = false;
-  const rect = button.getBoundingClientRect();
-  tip.style.left = Math.max(8, rect.x + rect.width / 2 - tip.offsetWidth / 2) + "px";
-  tip.style.top = rect.bottom + 8 + "px";
-}
-function hideTip() { tip.hidden = true; }
 let active = false, restoring = false, button, timer, disposed = false;
 const text = (en, cn) => (document.documentElement.lang || navigator.language).startsWith("zh") ? cn : en;
 function props(element, predicate) {
@@ -57,7 +41,7 @@ function reconcile() {
   if (disposed) return;
   const sidebar = document.querySelector("#app-shell-sidebar");
   const bell = [...(sidebar?.querySelectorAll("button[aria-pressed]") || [])].find(e => /activity|活动|动态/.test(e.getAttribute("aria-label") || ""));
-  if (!bell) { button?.remove(); button = null; hideTip(); return; }
+  if (!bell) { button?.remove(); button = null; return; }
   if (!button?.isConnected) {
     button = bell.cloneNode(false);
     button.removeAttribute("id");
@@ -66,13 +50,9 @@ function reconcile() {
     const inner = bell.firstElementChild.cloneNode(false);
     inner.innerHTML = FOCUS_GLYPH;
     button.replaceChildren(inner);
-    button.setAttribute("aria-describedby", tip.id);
-    button.addEventListener("pointerenter", showTip, { signal });
-    button.addEventListener("pointerleave", hideTip, { signal });
-    button.addEventListener("focus", showTip, { signal });
-    button.addEventListener("blur", hideTip, { signal });
+    button.removeAttribute("title");
+    button.removeAttribute("aria-describedby");
     button.addEventListener("click", () => {
-      hideTip();
       if (active) { active = false; restoring = true; }
       else { states.clear(); remember(branches()); active = true; }
       schedule();
@@ -86,7 +66,7 @@ function reconcile() {
   }
   const label = active ? text("Exit focus", "退出聚焦") : text("Focus current task", "聚焦当前任务");
   if (button.getAttribute("aria-label") !== label) button.setAttribute("aria-label", label);
-  if (tip.textContent !== label) tip.textContent = label;
+  button.setAttribute("data-minecodex-tooltip", label);
   const pressed = String(active);
   if (button.getAttribute("aria-pressed") !== pressed) {
     button.setAttribute("aria-pressed", pressed);
@@ -97,7 +77,7 @@ function reconcile() {
   const items = branches(), path = target(items);
   const activityActive = bell.getAttribute("aria-pressed") === "true";
   button.disabled = activityActive || (!active && !restoring && !path);
-  if (activityActive) { hideTip(); return; }
+  if (activityActive) return;
   if (restoring) {
     // 先恢复已挂载的子分支，再恢复分类，避免父节点收起后子节点消失。
     const change = items.filter(b => b.key.startsWith("project:")).concat(items.filter(b => b.key.startsWith("section:")))
@@ -130,4 +110,4 @@ observer.observe(document.documentElement, { subtree:true, childList:true, attri
   "data-app-action-sidebar-section-collapsed", "data-above-composer-conversation-id", "lang"
 ] });
 reconcile();
-return () => { disposed = true; clearTimeout(timer); observer.disconnect(); button?.remove(); tip.remove(); style.remove(); };
+return () => { disposed = true; clearTimeout(timer); observer.disconnect(); button?.remove(); };
