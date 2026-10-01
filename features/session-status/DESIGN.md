@@ -1,5 +1,7 @@
 # Session Status 设计约定
 
+通用视觉、材质、按钮、Tooltip 与原生 sidebar 层级遵循根 [DESIGN.md](../../DESIGN.md)。本文件只记录功能特有组件、布局、数据语义与通用组件选型。
+
 ## 意图
 
 状态行紧随 Codex 原生输入框，帮助用户在长任务中快速判断回合、模型步骤、输出速度和 token 用量。视觉上作为输入框的附属信息，不争夺发送按钮与模型选择器的层级。
@@ -10,13 +12,7 @@
 | --- | --- | --- |
 | 次要文字 | `--color-text-tertiary` | 状态行文字与分隔符 |
 | 主要文字 | `--color-text-primary` | 弹层标题和数值 |
-| 弹层表面 | `--color-token-dropdown-background` | 点击后的明细 |
-| 边框 | `--color-border-subtle` | 弹层与分割线 |
-| 悬停 | `--color-token-list-hover-background` | 状态按钮反馈 |
-| 焦点描边 | `--input-outline-border-color-focus` | 键盘焦点反馈 |
 | 分类进度 | Codex `--app-block-accent-purple`、`--app-block-accent-blue`、`--app-block-accent-green`，以及 `--color-token-border-default` | 各弹层的分类比例与未分类段 |
-| 字体 | `--font-sans-default`、`--text-xs` | 与原生辅助信息一致 |
-| 圆角与阴影 | `--radius-xl`、`--shadow-lg` | 明细弹层 |
 
 状态行和输入框共用内容宽度，单行高度为 24px，顶部留 2px 内边距；每个状态按钮高 22px，内边距为上下 3px、左右 6px。按钮之间 gap 为 4px，两组可见内容间距为 16px（6 + 4 + 6）；按钮内图标与文字 gap 为 6px。状态行展开且可见时，将包含它的原生 `.bottom-0.pb-4` 容器底部 padding 从 16px 覆盖为 4px；收起、隐藏或卸载后自动恢复原生留白，展开的状态行使用 -4px 顶部外边距，将输入框下方原生 8px gap 的实际距离收为4px，收起时恢复。宽度不足时自然换行，不覆盖输入框或悬浮控件。统计图标采用 Lucide Gauge，用量图标采用 Phosphor Database 单路径版本，两者以 14px 绘制；上下文使用与 Codex 原生相同参数的 12px 百分环。弹层由按钮锚定，键盘可聚焦，Escape 和点击外部关闭。遵守系统减少动态效果设置，不添加持续动画。
 
@@ -36,10 +32,10 @@ TPS 标签后放置 12px Lucide info 图标，继承标签颜色，间距 6px。
 
 ### 折叠入口
 - 首次安装默认展开；用户收起后在模型选择左侧显示 12px context 环，24px 热区；原生 context 环开启时隐藏原生重复入口，卸载时恢复。
-- Tooltip 沿用原生 context 内容：上下文窗口、使用/剩余比例、已用/容量（k tokens）；背景、边框、文字、圆角与阴影使用原生 tooltip tokens。
+- Tooltip 沿用原生 context 内容：上下文窗口、使用/剩余比例、已用/容量（k tokens）；样式遵循通用 Tooltip。
 - 点击环展开输入框下方详情，右侧 chevron-up 收起；200ms grid 高度与160ms透明度过渡，尊重 reduced-motion。展开状态跨会话、主聊天和 side chat 共享并持久保存。展开时隐藏输入框内的 context 环；收起动效完成后容器 display:none，不保留父级 gap，收起内容不参与键盘焦点。每个输入框订阅自己的会话上下文和统计。
 - Cache 按原始 cachedInputTokens / inputTokens 计算：大于99%显示一位小数，其余取整数，状态栏和详情共用格式。
 
 输入框实例仅绑定可见的 thread composer。全屏标签页中的隐藏聊天、浮动 Quick Chat（含 right-panel composer overlay）、inert 区域不注入；原生移动输入框或切换可见性时销毁实例并取消订阅，返回聊天后重建。
 
-浮层填充、背景模糊与阴影由 Runtime Host 共享 `config.ui.surface` 提供；沿用本功能的定位、尺寸、圆角及内容层级。
+明细采用通用 Popover，保持本功能的定位、尺寸及内容层级。当前通过共享 `config.ui.surface` 接入；该接口尚未区分原生组件分支，迁移时应显式选择 Popover 材质，不能推断它与 Dropdown 或 Dialog 相同。

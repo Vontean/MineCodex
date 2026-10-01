@@ -1,5 +1,7 @@
 # Design System: Codex Model Slider
 
+通用视觉、材质、按钮、Tooltip 与原生 sidebar 层级遵循根 [DESIGN.md](../../DESIGN.md)。本文件只记录功能特有组件、布局、数据语义与通用组件选型。
+
 ## 1. Visual Theme & Atmosphere
 
 Model Slider 延续 Codex 原生的克制、紧凑和功能优先。增强层只改善模型识别与选择效率，不创建独立视觉语言。
@@ -8,15 +10,12 @@ Model Slider 延续 Codex 原生的克制、紧凑和功能优先。增强层只
 
 - **Reasoning Accent Blue** (`var(--color-chart-blue)`): Slider 打开时的普通推理强度，沿用 Codex 原生 active effort 语义。
 - **Maximum Effort Purple** (`var(--color-chart-purple)`): 仅用于 Ultra 推理强度及其相关状态。
-- **Primary Text** (`var(--color-text-foreground)`): 模型名称。
-- **Tertiary Text** (`var(--color-text-foreground-tertiary)`): Provider 与次要信息。
-- **Hover Surface** (`var(--color-token-list-hover-background)`): 选中、悬停与键盘焦点反馈。
 
-颜色必须通过 Codex design token 或运行时解析到的原生语义类获得，不依赖 React 构建生成的随机类名后缀。
+模型名为主要内容，Provider 为辅助信息；通用文字与交互角色遵循根规范。
 
 ## 3. Typography Rules
 
-沿用 Codex 原生字体与字号。Composer 触发器区分两种状态：占位态（"Select model" / "Select effort"）沿用原生 160px Content 宽度；真实模型态让芯片 HUG 完整模型名，长名称不被截断，reasoning effort 始终完整可见。Slider 顶部的模型名最多显示两行。
+Composer 触发器区分两种状态：占位态（"Select model" / "Select effort"）沿用原生 160px Content 宽度；真实模型态让芯片 HUG 完整模型名，长名称不被截断，reasoning effort 始终完整可见。Slider 顶部的模型名最多显示两行。
 
 ## 4. Component Stylings
 

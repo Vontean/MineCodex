@@ -1,5 +1,7 @@
 # Sites 扩展设计约定
 
+通用视觉、材质、按钮、Tooltip 与原生 sidebar 层级遵循根 [DESIGN.md](../../DESIGN.md)。本文件只记录功能特有组件、布局、数据语义与通用组件选型。
+
 状态：原生 Sites 增强，沿用宿主当前主题。开发来源与托管位置分开。
 
 ## 用户路径
@@ -10,16 +12,12 @@ Sites 标题工具区增加次要操作 Add site，保留官方 Create。添加�
 
 ## 原生 token 与组件
 
-- 字体：`--font-sans-default`；正文 `--text-base`，次要信息 `--text-sm`；标题沿用原生标题类。
-- 颜色：`--color-text-primary` / `--color-text-secondary` / `--color-text-tertiary`；背景 `--color-surface` / `--color-surface-elevated` / `--color-surface-elevated-secondary`；边框 `--color-border`。不写死浅色或深色色值。
 - 列表：复用原生 row 的 grid/subgrid、82px 最小高度、16px 内边距、rounded-xl 与 primary-ghost-hover。
 - 网格：原生 210px 卡片，148px 预览与62px信息区；rounded-2xl、border-subtle、surface-card、shadow-sm。
 - 按钮：复用原生 `_Button` 与 `_ButtonInner` 类以及 data-color / data-variant / data-size 状态接口。Add site 为 secondary outline；确认沿用 primary solid。
-- 弹窗：调用 Runtime Host 共享 `config.ui` 外壳，最大宽560px、20px 内边距。与新版 Images 表单弹窗统一：25px 圆角、90% elevated secondary 填充、24px 背景模糊、0.5px 描边及 shadow-lg。标题20px / 28px、600，Close 为原生 Sites SVG，24px 热区、top/right 16px。操作区使用32px高、14px正文、action圆角与12px间距，不加独立分隔线。原生 dialog 继续负责 Escape、焦点圈定与关闭后焦点恢复。
+- 弹窗：选择通用 Dialog 的 opaque 分支（Sites Share），最大宽560px，不加独立操作区分隔线；当前通过 `config.ui` 接入。通用容器、遮罩、标题、Close及焦点契约遵循根规范。
 - 分段按钮：使用原生 segmented-control 的统一底板、等宽选项及选中块，复用 gap/gutter/background/font-weight/thumb-background/thumb-shadow/option-highlight token；控件尺寸为 control-size-md，支持方向键切换与选中状态语义。
-- 输入：原生正文、边框和 `--color-ring` token（仅改变边框色）；标签在上，不用 placeholder 代替标签。
 - 图标：从原生 Sites、Create、行菜单节点克隆 SVG；不重画。扫描结果和添加后的条目异步获取真实网页截图，本地缓存；完成后替换占位。没有截图时保留原生 Sites 图标，不阻塞选择和添加。
-- 动效：沿用原生按钮反馈，不加装饰动效；尊重 reduced-motion。
 
 ## 打开与布局
 
@@ -44,7 +42,7 @@ More 菜单复用原生 Sites menu/menuitem/leadingIcon 类与 token：220px 最
 
 ### 添加弹窗按钮（共享表单外壳）
 
-Add / Save 为共享 primary action，Cancel 为 secondary action；32px高度、14px / 18px正文、`--radius-button-action` 圆角、6px × 16px内边距，与 Prompts 一致。禁用态使用40%透明度，保留 disabled、aria-disabled、data-disabled 的语义；页面工具区按钮仍复用原生 `_Button`。
+Add / Save 选择通用 primary（solid），Cancel 选择 ghost；有实质功能的次级操作选择 secondary（outline）。项目模式未选择候选、自定义模式表单无效时禁用确认。页面工具区按钮继续复用原生 `_Button`。
 
 模式选择使用真正的 segmented button：两项等宽，统一底板，选中块使用原生 thumb 背景及阴影；不再使用 Sites ownership tabs 的独立胶囊外观。尺寸与颜色引用原生 control / segmented-control token，随明暗主题变化。
 

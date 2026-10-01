@@ -179,6 +179,8 @@ Host 会再次发送当前状态。功能页面可据此暂停隐藏状态下的
 
 ## 共享弹窗与浮层
 
+通用视觉、原生材质分支、遮罩及层级的权威来源为根 [DESIGN.md](../../DESIGN.md)，内部文件导航见 [AGENTS.md](../../AGENTS.md)。组件库目标与现有实现归属见 [UI 架构](../ui/ARCHITECTURE.md)。本节只说明当前接入契约。
+
 `src/feature-dialogs.mjs` 在 Renderer 中只安装一次，由 page-script 的 `config.ui` 调用：
 
 ```js
@@ -189,10 +191,8 @@ config.ui.overlay(backdrop);
 config.ui.surface(popover); // 只统一材质，保留功能的定位与内容
 ```
 
-`heading` 标记 dialog 并创建标题及 Close；`back` 是可选的已有按钮节点。容器宽高、内容、原生 dialog 或自定义焦点管理、关闭后的焦点恢复继续由功能负责。`footer` 只装饰直接子按钮，`action` 的 tone 为 secondary / primary / danger。不要再在插件中复制背景、阴影、标题和底部按钮规则。
+`heading` 标记 dialog 并创建标题及 Close；`back` 是可选的已有按钮节点。容器宽高、内容、原生 dialog 或自定义焦点管理、关闭后的焦点恢复继续由功能负责。`footer` 只装饰直接子按钮，`action` 的 tone 为 ghost / secondary / primary / danger。不要再在插件中复制背景、阴影、标题和底部按钮规则。
 
-2026-10-01、Codex 26.928.21956 隔离实测：Images Rename 表单为90% elevated-secondary（oklab 混合）、`--blur-xl` 24px、`--radius-3xl` 25px、20px内边距、0.5px描边及 shadow-lg；标题为 heading-md（20px / 28px、600）；表单操作32px高、14px / 18px正文、action圆角12.5px、12px间距。Close 取新版 Sites 的真实SVG，24px热区、top/right 16px。轻量浮层采用相同填充与 `--blur-xs` 4px、shadow-xl-spread，各自保留尺寸与圆角。
+当前实现仍在 Runtime Host，尚未迁入 `packages/ui`。Prompts 与 Sites 的管理弹窗已使用用户选定的 opaque / Sites Share 风格；Quick Prompts、Session Status、任务切换和模型列表仍通过同一 `surface` 接口装饰，尚未按原生 ComposerSuggestionMenu、Popover、Dropdown 分支拆分。后续迁移必须按根规范选择分支，不能将现有统一浮层材质当作原生通用规则。
 
-原生菜单另有 `-owl-native-material:glass`、adaptive-appearance off、variant regular；仅在 `html[data-owl-native-glass=active]` 时切换系统绘制，移除CSS模糊与阴影，原生source-underlay出现时使用16% surface填充。共享模块沿用这一启用条件。当前隔离窗口该属性未开启，因此此次验证证明CSS材质与交互，尚未证明系统玻璃绘制。
-
-当前接入：Prompts的新增/编辑、分类及确认弹窗，Sites添加/编辑弹窗；Quick Prompts及其管理菜单、Session Status、任务切换列表、MineCodex模型列表复用浮层材质。Images使用原生弹窗，功能只注入提示词信息。额度环、侧栏聚焦与共享tooltip保留原生tooltip材质；Hide Upsell无弹窗。通用iframe编辑器外壳也使用共享dialog材质。
+Images 的提示词面板沿用原生 Version history 的特殊组件结构；iframe 页面仍由宿主传递主题。组件库迁移应保持 `config.ui` 接入与自包含的注入脚本契约，视觉代码归组件库，序列化、通信和生命周期归宿主。

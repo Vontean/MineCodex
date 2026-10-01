@@ -1,5 +1,7 @@
 # Usage Meter
 
+通用视觉、材质、按钮、Tooltip 与原生 sidebar 层级遵循根 [DESIGN.md](../../DESIGN.md)。本文件只记录功能特有组件、布局、数据语义与通用组件选型。
+
 ## 用户任务与范围
 
 在原生导航栏 Avatar 上方查看当前账号剩余额度，点击直达 Settings → Usage。
@@ -30,11 +32,8 @@ primary/secondary 顺序或套餐字符串。剩余百分比为 clamp(100-used_p
 | 五小时环 | `--color-text-secondary`（中性灰） | 双圈内圈 |
 | 轨道 | 对应环色 18% alpha | 剩余额度的底轨 |
 | 中央数字 | 继承环的中性灰；`--font-sans-default`；`--text-xs` × 2/3（8px），单双圈与三位数均一致；500、tabular-nums、line-height:1 | 优先五小时 |
-| Tooltip | `--color-background-tooltip` / `--color-text-tooltip` / `--color-border-tooltip` / `--shadow-tooltip` | 与原生紧凑 Tooltip 一致 |
-| Tooltip 几何 | `--radius-2xl`；5px 12px padding；`--text-sm` / 18px；两列 gap 16px | label 左、数字右对齐 |
-| Tooltip 字体 | `--tooltip-compact-font-weight` / `--tracking-tooltip` | 与原生紧凑提示一致 |
 
-环从顶部顺时针填充。Tooltip 在按钮右侧 2px，纵向居中并约束在窗口内；
+环从顶部顺时针填充。额度 Tooltip 的特殊内容是两列对齐，列间距16px；其通用材质和文字样式遵循根规范。Tooltip 在按钮右侧 2px，纵向居中并约束在窗口内；
 鼠标悬停延迟 350ms，键盘聚焦立即显示，Escape 隐藏。单圈一行 Weekly Limit；
 双圈依次为 5h Limit、Weekly Limit，数值带 %。没有额外标题或说明。
 
