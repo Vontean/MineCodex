@@ -3,14 +3,14 @@ import assert from "node:assert/strict";
 import { cloudImagesInRenderer, cloudImagesAction } from "../src/backend/cloud-library.mjs";
 
 const key = Symbol.for("minecodex.cloud-images.v1");
-function fixture(context, {role = "assistant", prompt = "", size = 3} = {}) {
+function fixture(context, {role = "assistant", prompt = "", size = 3, request = "Draw a cat"} = {}) {
   const file = {id:"libfile_test",file_id:"file_test",mime_type:"image/png",file_size_bytes:size,origination_thread_id:"chat-test",origination_message_id:"image",current_version_number:1,updated_at:"date",file_name:"Generated.png"};
   let downloads=0, conversations=0;
   const api = {
     safePost: async () => ({items:[file,{...file,id:"trashed",trashed_at:"date"},{...file,id:"document",mime_type:"text/plain"}],cursor:null}),
     safeGet: async () => {
       conversations++;
-      return {title:"Chat title",create_time:1,mapping:{image:{id:"image",parent:"user",message:{author:{role},create_time:2,content:{parts:[{content_type:"image_asset_pointer",asset_pointer:"sediment://file_test",metadata:{generation:{gen_id:"gen"},dalle:{prompt}}}]}}},user:{id:"user",parent:null,message:{author:{role:"user"},content:{parts:["Draw a cat"]}}}}};
+      return {title:"Chat title",create_time:1,mapping:{image:{id:"image",parent:"user",message:{author:{role},create_time:2,content:{parts:[{content_type:"image_asset_pointer",asset_pointer:"sediment://file_test",metadata:{generation:{gen_id:"gen"},dalle:{prompt}}}]}}},user:{id:"user",parent:null,message:{author:{role:"user"},content:{parts:[request]}}}}};
     },
   };
   globalThis.window = {[key]:{files:new Map(),conversations:new Map(),capability:Promise.resolve({api,response:async()=>{downloads++;return new Blob([new Uint8Array([1,2,3])],{type:"image/png"});}})}};
@@ -67,4 +67,13 @@ test("serialized cloud import uses the same whitespace fallback as the viewer", 
   const result = await cloudImagesAction(evaluate, "import", {libraryId:"libfile_test"});
   assert.equal(result.prompt, "Draw a cat");
   assert.equal(result.promptKind, "request");
+});
+
+test("a generated image without prompt remains importable by the historical utility", async context => {
+  fixture(context, {prompt:" ", request:" "});
+  await cloudImagesInRenderer("list", {});
+  const result = await cloudImagesInRenderer("import", {libraryId:"libfile_test"});
+  assert.equal(result.prompt, null);
+  assert.equal(result.promptKind, null);
+  assert.equal(result.bytesBase64, "AQID");
 });

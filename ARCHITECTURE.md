@@ -65,3 +65,5 @@ Images 的 iframe 仍使用主题/消息桥；原生 Library 增强仍使用 Ren
 文件迁移同时更新 imports、manifest、命令、验证及 npm files。删除原位置文件，不保留转发兼容壳。公开 README 维护产品与使用说明；内部路由回写 AGENTS，通用视觉回写根 DESIGN，本级规则回写本级文档。
 
 Model Slider 的领域规则与原生控制器适配归插件，`src/injection-source.mjs` 显式组装两者；宿主只提供 feature 配置、共享 UI、图标工厂、locale 与刷新调度，调用 `ensure` / `dispose`。原生 React 操作仍由插件适配层维护，领域规则不读取 DOM 或 localStorage。旧 Summary 布局属于宿主 surface 接入，仍保留在 `codex-injection.mjs`。
+
+架构验证自动发现所有插件的 domain 目录，检查静态导入、再导出、动态模块依赖和外部环境引用；同时检查已注册 Renderer 入口及 frontend 的反向依赖，以及启用插件的 Tooltip 材质归属。纯规则的模块导入和自包含序列化行为由所属插件测试覆盖，不以测试数量替代领域归属审查。
