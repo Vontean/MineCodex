@@ -50,27 +50,6 @@ async function nativeApi() {
   return apiPromise;
 }
 
-function promptFromConversation(file, conversation) {
-  const node = conversation.mapping?.[file.origination_message_id];
-  const part = node?.message?.content?.parts?.find(part => part && typeof part === "object"
-    && part.content_type === "image_asset_pointer"
-    && [file.file_id, `sediment://${file.file_id}`].includes(part.asset_pointer));
-  if (!part || !["assistant", "tool"].includes(node.message.author?.role)
-    || !(part.metadata?.generation?.gen_id || part.metadata?.dalle?.gen_id)) return null;
-  const prompt = part.metadata?.dalle?.prompt;
-  if (typeof prompt === "string" && prompt.trim()) return { text: prompt, kind: "generation" };
-  let ancestor = conversation.mapping[node.parent];
-  const visited = new Set();
-  while (ancestor && !visited.has(ancestor.id)) {
-    visited.add(ancestor.id);
-    if (ancestor.message?.author?.role === "user") {
-      const text = ancestor.message.content?.parts?.filter(part => typeof part === "string").join("\n");
-      return text?.trim() ? { text, kind: "request" } : null;
-    }
-    ancestor = conversation.mapping[ancestor.parent];
-  }
-  return null;
-}
 
 function element(tag, className, text) {
   const node = document.createElement(tag);
@@ -141,7 +120,7 @@ async function scan() {
   try { prompt = await resolvePrompt(file, next.request); }
   catch { return; }
   // 异步结果只能写回当前图片；没有提示词时不展示入口。
-  if (!prompt || signal.aborted || candidate !== next || !header.isConnected) return;
+  if (!prompt?.text || signal.aborted || candidate !== next || !header.isConnected) return;
   // 缩放项在图片详情中是百分比菜单；沿用它的胶囊类，不固定构建 hash。
   const zoom = [...header.querySelectorAll('button[aria-haspopup="menu"]')].find(button => /^\d+(?:\.\d+)?%$/.test(button.textContent.trim()));
   const group = zoom?.parentElement?.parentElement;

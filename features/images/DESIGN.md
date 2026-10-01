@@ -67,3 +67,5 @@ Changing images or leaving the viewer aborts the pending lookup and removes the
 old UI. Late results cannot mount against a different image. Disabling the feature
 removes the observer, keyboard handler, button and panel. Prompt data is retained
 only for the current viewer; there is no persistent conversation cache.
+
+The viewer and retained cloud import utility share `src/domain/library-prompt.mjs`. The source factory serializes that pure rule into the viewer script; the cloud adapter serializes the same function into its evaluator call. Whitespace prompts follow the same fallback policy. A valid generated image without prompt text can still be imported by the historical utility, while the viewer shows no prompt control.

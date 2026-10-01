@@ -58,3 +58,13 @@ test("cloud image adapter accepts an evaluator without owning CDP transport", as
   assert.match(calls[0].expression,/"cursor":"next"/);
   assert.equal(calls[0].options.timeoutMs,110000);
 });
+
+// 验证真实序列化执行路径，不能只在 Node 导入环境下测试共享规则。
+test("serialized cloud import uses the same whitespace fallback as the viewer", async context => {
+  fixture(context, {prompt:"  "});
+  const evaluate = async expression => new Function(`return ${expression}`)();
+  await cloudImagesAction(evaluate, "list");
+  const result = await cloudImagesAction(evaluate, "import", {libraryId:"libfile_test"});
+  assert.equal(result.prompt, "Draw a cat");
+  assert.equal(result.promptKind, "request");
+});

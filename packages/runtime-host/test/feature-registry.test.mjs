@@ -775,3 +775,20 @@ test("page-script resources are loaded once as data and cannot escape the featur
   await writeFile(manifestPath,JSON.stringify(manifest));
   await assert.rejects(discoverFeatures(root),/resources must stay inside/);
 });
+
+test("page-script source factories compose renderer rules and stay inside the feature", async t => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "mcx-source-factory-"));
+  t.after(() => rm(root, {recursive:true, force:true}));
+  const project = path.join(root, "factory-feature");
+  await mkdir(project);
+  const manifest = {schemaVersion:1, id:"factory", label:"Factory", entry:{kind:"page-script", script:"entry.mjs", sourceFactory:"source.mjs"}};
+  const manifestPath = path.join(project, "codex-feature.json");
+  await writeFile(path.join(project, "entry.mjs"), "return rule(3);");
+  await writeFile(path.join(project, "source.mjs"), 'export function createPageScriptSource() { return "const rule = value => value * 2; return rule(3);"; }');
+  await writeFile(manifestPath, JSON.stringify(manifest));
+  const [feature] = await discoverFeatures(root);
+  assert.equal(new Function(feature.pageScript.source)(), 6);
+  manifest.entry.sourceFactory = "../outside.mjs";
+  await writeFile(manifestPath, JSON.stringify(manifest));
+  await assert.rejects(discoverFeatures(root), /source factory must stay inside/);
+});

@@ -53,6 +53,8 @@ flowchart TB
 
 较大的前端入口可在 manifest 的 `entry.resources` 中声明 CSS、图标 JSON 等资源文件：键映射到本功能内相对路径；JSON 解析为数据，其他文件读取为文本，经 `config.resources` 一次传入。资源不可越出功能目录，不新增 HTTP 请求或前端打包步骤。Prompts 与 Sites 使用这一接口把样式、图标和交互源码分开。
 
+需要将纯规则组装进注入源码时，插件可声明 `entry.sourceFactory`，指向本功能内导出 `createPageScriptSource()` 的 Node 模块。宿主只调用工厂取得函数体源码；工厂负责把纯规则序列化进去，Renderer 不依赖 Node imports。Images 的 Library 面板与历史云导入共用 `src/domain/library-prompt.mjs`。
+
 Images 的 iframe 仍使用主题/消息桥；原生 Library 增强仍使用 Renderer 入口。两种接入不强行合并。
 
 ## 修改与验证

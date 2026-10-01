@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-const source = await readFile(new URL("../src/library-prompt-page.mjs", import.meta.url), "utf8");
+import { createPageScriptSource } from "../src/library-prompt-source.mjs";
+const source = await createPageScriptSource();
 const { libraryImage, promptFromConversation } = new Function(`${source.slice(0, source.indexOf("const localeObserver ="))}\nreturn {libraryImage, promptFromConversation};`)();
 const file = { id: "libfile_a", file_id: "file_a", mime_type: "image/png", origination_message_id: "image", origination_thread_id: "thread" };
 function conversation({ prompt = "exact prompt", role = "tool", asset = "sediment://file_a", generation = true } = {}) {
@@ -26,10 +27,10 @@ test("fallback is labelled as the original request and follows actual ancestry",
   const data = conversation({ prompt: " " });
   data.mapping.image.parent = "loop";
   data.mapping.loop = { id: "loop", parent: "loop" };
-  assert.equal(promptFromConversation(file, data), null);
+  assert.deepEqual(promptFromConversation(file, data), { text: null, kind: null });
   data.mapping.image.parent = "user";
   data.mapping.user.message.content.parts = [" "];
-  assert.equal(promptFromConversation(file, data), null);
+  assert.deepEqual(promptFromConversation(file, data), { text: null, kind: null });
 });
 
 test("viewer identity uses the full native Library record without leaking download URLs", () => {

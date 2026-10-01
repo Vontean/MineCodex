@@ -3,6 +3,7 @@ import { spawn } from "node:child_process";
 import { readdir, readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 
 const MANIFEST_NAME = "codex-feature.json";
 const HOST_ACTIONS = new Set([
@@ -178,8 +179,19 @@ async function normalizePageScript(manifest, projectDir) {
   if (relative.startsWith("..") || path.isAbsolute(relative)) {
     throw new Error("page-script resource must stay inside the feature project");
   }
-  const source = await readFile(scriptPath, "utf8");
-  if (!source.trim()) {
+  let source = await readFile(scriptPath, "utf8");
+  const factory = manifest.entry?.sourceFactory;
+  if (factory) {
+    const factoryPath = path.resolve(projectDir, factory);
+    const relativeFactory = path.relative(projectDir, factoryPath);
+    if (relativeFactory.startsWith("..") || path.isAbsolute(relativeFactory)) {
+      throw new Error("page-script source factory must stay inside the feature project");
+    }
+    const { createPageScriptSource } = await import(pathToFileURL(factoryPath).href);
+    if (typeof createPageScriptSource !== "function") throw new Error("page-script source factory must export createPageScriptSource");
+    source = await createPageScriptSource();
+  }
+  if (typeof source !== "string" || !source.trim()) {
     throw new Error("page-script resource must be a non-empty script file");
   }
   // 资源随脚本一次传入 Renderer，不增加 HTTP 加载或模块闭包依赖。

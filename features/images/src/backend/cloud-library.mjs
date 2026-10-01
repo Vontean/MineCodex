@@ -1,5 +1,7 @@
+import promptFromConversation from "../domain/library-prompt.mjs";
+
 // 在原生 Renderer 内使用现有登录态；凭据和临时下载地址不跨出 Renderer。
-export async function cloudImagesInRenderer(operation, payload) {
+export async function cloudImagesInRenderer(operation, payload, resolvePrompt = promptFromConversation) {
   const key = Symbol.for("minecodex.cloud-images.v1");
   const state = window[key] ??= { files: new Map(), conversations: new Map() };
   if (!state.capability) {
@@ -64,27 +66,9 @@ export async function cloudImagesInRenderer(operation, payload) {
   }
   const conversation = await state.conversations.get(threadId);
   const node = conversation.mapping?.[file.origination_message_id];
-  const parts = node?.message?.content?.parts ?? [];
-  const part = parts.find(part => typeof part === "object" && part.content_type === "image_asset_pointer"
-    && (part.asset_pointer === `sediment://${file.file_id}` || part.asset_pointer === file.file_id));
-  // 明确验证生成结果，避免把用户上传的参考图混入生成图库。
-  if (!part || !["assistant", "tool"].includes(node.message.author?.role)
-    || !(part.metadata?.generation?.gen_id || part.metadata?.dalle?.gen_id)) return { skipped: true };
-  let prompt = part.metadata?.dalle?.prompt || null;
-  let promptKind = prompt ? "generation" : null;
-  if (!prompt) {
-    let ancestor = conversation.mapping[node.parent];
-    const visited = new Set();
-    while (ancestor && !visited.has(ancestor.id)) {
-      visited.add(ancestor.id);
-      if (ancestor.message?.author?.role === "user") {
-        prompt = ancestor.message.content?.parts?.filter(p => typeof p === "string").join("\n") || null;
-        promptKind = prompt ? "request" : null;
-        break;
-      }
-      ancestor = conversation.mapping[ancestor.parent];
-    }
-  }
+  const resolved = resolvePrompt(file, conversation);
+  if (!resolved) return { skipped: true };
+  const prompt = resolved.text, promptKind = resolved.kind;
   const max = 32 * 1024 * 1024;
   if (file.file_size_bytes > max) throw new Error("Cloud image exceeds 32 MB");
   const imageBlob = await response(file, AbortSignal.timeout(60_000));
@@ -114,5 +98,5 @@ export async function cloudImagesAction(evaluate, operation, payload = {}) {
   if (!["list", "import"].includes(operation)) throw new Error("Unknown cloud image operation");
   if (payload.cursor != null && (typeof payload.cursor !== "string" || payload.cursor.length > 4096)) throw new Error("Invalid Library cursor");
   if (operation === "import" && (typeof payload.libraryId !== "string" || !/^libfile_[\w-]+$/.test(payload.libraryId))) throw new Error("Invalid Library file ID");
-  return evaluate(`(${cloudImagesInRenderer.toString()})(${JSON.stringify(operation)},${JSON.stringify(payload)})`, { timeoutMs: 110_000 });
+  return evaluate(`(${cloudImagesInRenderer.toString()})(${JSON.stringify(operation)},${JSON.stringify(payload)},${promptFromConversation.toString()})`, { timeoutMs: 110_000 });
 }
