@@ -140,8 +140,13 @@ function findAvatar(rail) {
     ?? null;
 }
 
-function avatarAnchor(avatar) {
-  return avatar.parentElement?.classList.contains("contents") ? avatar.parentElement : avatar;
+function avatarAnchor(avatar, rail) {
+  // 头像内部是横向行；在最近的原生纵向容器中插入独立一项。
+  let anchor = avatar;
+  while (anchor.parentElement !== rail && !anchor.parentElement.classList.contains("flex-col")) {
+    anchor = anchor.parentElement;
+  }
+  return anchor;
 }
 
 function mount(avatar, rail) {
@@ -155,7 +160,7 @@ function mount(avatar, rail) {
   tooltip.id = TIP_ID;
   tooltip.setAttribute("role", "tooltip");
   tooltip.hidden = true;
-  avatarAnchor(avatar).before(button);
+  avatarAnchor(avatar, rail).before(button);
   document.body.append(tooltip);
   record = { button, tooltip, rail, avatar, signature: null };
   button.addEventListener("pointerenter", () => { hoverTimer = setTimeout(showTooltip, 350); });
@@ -186,7 +191,7 @@ function sync() {
   const windows = currentWindows(context);
   if (!avatar || !context.router || !windows) { removeControl(); return; }
   if (record?.avatar !== avatar || !record?.button.isConnected) { removeControl(); mount(avatar, rail); }
-  else if (record.button.nextElementSibling !== avatarAnchor(avatar)) avatarAnchor(avatar).before(record.button);
+  else if (record.button.nextElementSibling !== avatarAnchor(avatar, rail)) avatarAnchor(avatar, rail).before(record.button);
   const signature = JSON.stringify(windows);
   if (record.signature !== signature) { record.signature = signature; draw(windows); }
 }

@@ -5,7 +5,7 @@ export function installFeatureTooltips(signal) {
   tip.id = "minecodex-feature-tooltip";
   tip.setAttribute("role", "tooltip");
   tip.hidden = true;
-  tip.style.cssText = `position:fixed;z-index:100;pointer-events:none;box-sizing:border-box;
+  tip.style.cssText = `position:fixed;z-index:2147483001;pointer-events:none;box-sizing:border-box;
     zoom:var(--codex-window-zoom,1);max-width:min(320px,calc(100vw - 16px));
     padding:5px 12px;border:1px solid var(--color-border-tooltip);border-radius:var(--radius-2xl);
     background:var(--color-background-tooltip);color:var(--color-text-tooltip);box-shadow:var(--shadow-tooltip);

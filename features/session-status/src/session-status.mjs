@@ -7,12 +7,14 @@ const copyByLocale = { "zh-CN": {
   firstToken: "平均首字延迟", input: "输入", cached: "缓存输入", output: "输出",
   sum: "合计", capacity: "窗口容量", contextShare: "上下文占用", compactions: "压缩次数",
   instructions: "指令", messages: "消息", toolHistory: "工具交互", other: "未分类",
+  speedHelp: "关于 TPS", speedInfo: "GPT 等模型不公开完整思考过程及逐 Token 生成时间。这里的 TPS 是基于可观测事件估算的体感响应速度，仅供参考，不代表模型真实的 Token 生成速度。",
 }, en: {
   turns: "turns", steps: "steps", speed: "TPS", cache: "Cache", cacheDetail: "Cache hit",
   statistics: "Session stats", usage: "Token usage", context: "Context", total: "Total",
   firstToken: "Avg first token", input: "Input", cached: "Cached input", output: "Output",
   sum: "Sum", capacity: "Window size", contextShare: "Context used", compactions: "Compactions",
   instructions: "Instructions", messages: "Messages", toolHistory: "Tool activity", other: "Unclassified",
+  speedHelp: "About TPS", speedInfo: "Models such as GPT do not expose their full reasoning process or per-token generation timing. This TPS estimate reflects perceived response speed based on observable events, rather than the model’s actual token generation speed.",
 } };
 function selectedCopy() {
   const language = document.documentElement.lang || navigator.languages?.[0] || navigator.language || "en";
@@ -21,6 +23,8 @@ function selectedCopy() {
 
 // 图标来自 Lucide Static 与 Phosphor Icons；许可见 vendor/。
 const icons = {
+  // Lucide info，使用官方 SVG 路径。
+  info: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>',
   statistics: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/></svg>',
   usage: '<svg aria-hidden="true" viewBox="0 0 256 256" fill="currentColor"><path d="M128,24C74.17,24,32,48.6,32,80v96c0,31.4,42.17,56,96,56s96-24.6,96-56V80C224,48.6,181.83,24,128,24Zm80,104c0,9.62-7.88,19.43-21.61,26.92C170.93,163.35,150.19,168,128,168s-42.93-4.65-58.39-13.08C55.88,147.43,48,137.62,48,128V111.36c17.06,15,46.23,24.64,80,24.64s62.94-9.68,80-24.64ZM69.61,53.08C85.07,44.65,105.81,40,128,40s42.93,4.65,58.39,13.08C200.12,60.57,208,70.38,208,80s-7.88,19.43-21.61,26.92C170.93,115.35,150.19,120,128,120s-42.93-4.65-58.39-13.08C55.88,99.43,48,89.62,48,80S55.88,60.57,69.61,53.08ZM186.39,202.92C170.93,211.35,150.19,216,128,216s-42.93-4.65-58.39-13.08C55.88,195.43,48,185.62,48,176V159.36c17.06,15,46.23,24.64,80,24.64s62.94-9.68,80-24.64V176C208,185.62,200.12,195.43,186.39,202.92Z"/></svg>',
 };
@@ -54,10 +58,14 @@ style.textContent = `
   [${MARKER}] [data-kind="context"] svg, [data-minecodex-session-status-panel] h3 .context-ring { width:12px; height:12px; stroke-width:2; }
   [${MARKER}] button:hover, [${MARKER}] button[aria-expanded="true"] { background:var(--color-token-list-hover-background); }
   [${MARKER}] button:focus-visible { outline:2px solid var(--input-outline-border-color-focus); outline-offset:1px; }
-  [data-minecodex-session-status-panel] { --mcx-purple:var(--app-block-accent-purple,light-dark(#8952ee,#7849d1)); --mcx-blue:var(--app-block-accent-blue,light-dark(#3a83f7,#2c67c5)); --mcx-green:var(--app-block-accent-green,light-dark(#53b559,#48a04c)); box-sizing:border-box; position:fixed; z-index:2147483000; min-width:260px; max-width:min(360px,calc(100vw - 24px)); padding:16px; border:1px solid var(--color-border-subtle); border-radius:var(--radius-xl,14px); background:var(--color-token-dropdown-background); color:var(--color-text-primary); font-family:var(--font-sans-default,inherit); font-size:13px; box-shadow:var(--shadow-lg,0 8px 28px rgba(0,0,0,.12)); }
+  [data-minecodex-session-status-panel] { --mcx-purple:var(--app-block-accent-purple,light-dark(#8952ee,#7849d1)); --mcx-blue:var(--app-block-accent-blue,light-dark(#3a83f7,#2c67c5)); --mcx-green:var(--app-block-accent-green,light-dark(#53b559,#48a04c)); box-sizing:border-box; position:fixed; z-index:2147483000; min-width:260px; max-width:min(360px,calc(100vw - 24px)); padding:16px;  border-radius:var(--radius-xl,14px);  color:var(--color-text-primary); font-family:var(--font-sans-default,inherit); font-size:13px;  }
   [data-minecodex-session-status-panel] h3 { display:flex; align-items:center; gap:8px; margin:0 0 12px; padding:0 0 10px; border-bottom:1px solid var(--color-border-subtle); font-size:14px; font-weight:600; }
   [data-minecodex-session-status-panel] dl { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px 20px; margin:0; }
   [data-minecodex-session-status-panel] dt { color:var(--color-text-tertiary); }
+  [data-minecodex-session-status-panel] .tps-label { display:flex; align-items:center; gap:6px; }
+  [data-minecodex-session-status-panel] .tps-info { display:inline-flex; align-items:center; padding:0; border:0; background:transparent; color:inherit; cursor:help; }
+  [data-minecodex-session-status-panel] .tps-info svg { width:12px; height:12px; }
+  [data-minecodex-session-status-panel] .tps-info:focus-visible { outline:2px solid var(--color-ring); outline-offset:2px; border-radius:var(--radius-full); }
   [data-minecodex-session-status-panel] dd { margin:0; text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
   [data-minecodex-session-status-panel] .context-head { display:flex; justify-content:space-between; gap:12px; margin-bottom:8px; }
   [data-minecodex-session-status-panel] .context-head span:first-child { color:var(--color-text-tertiary); }
@@ -217,6 +225,11 @@ collapse.innerHTML = '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" st
 collapse.addEventListener("click", () => { setGlobalExpanded(false); trigger.focus(); hideTooltip(); }, { signal });
 root.append(collapse);
 let snapshot = null;
+// 统计刷新会重建浮窗，复用图标节点以保留 tooltip 的悬浮锚点。
+const tpsInfo = document.createElement("button");
+tpsInfo.type = "button";
+tpsInfo.className = "tps-info";
+tpsInfo.innerHTML = icons.info;
 let panel = null;
 let openKind = null;
 let rescanQueued = false;
@@ -308,6 +321,7 @@ function showPanel(kind) {
   anchor.setAttribute("aria-expanded", "true");
   panel = document.createElement("div");
   panel.dataset.minecodexSessionStatusPanel = kind;
+  config.ui.surface(panel);
   panel.setAttribute("role", "dialog");
   panel.setAttribute("aria-label", copy[kind]);
   const heading = document.createElement("h3");
@@ -319,7 +333,11 @@ function showPanel(kind) {
     row(dl, copy.turns, number(snapshot.turns));
     row(dl, copy.steps, number(snapshot.steps));
     row(dl, copy.firstToken, duration(snapshot.averageFirstTokenMs));
-    row(dl, copy.speed, snapshot.observedTps == null ? "—" : `${number(snapshot.observedTps)} tok/s`);
+    const speedLabel = row(dl, copy.speed, snapshot.observedTps == null ? "—" : `${number(snapshot.observedTps)} tok/s`);
+    speedLabel.className = "tps-label";
+    tpsInfo.setAttribute("aria-label", copy.speedHelp);
+    tpsInfo.setAttribute("data-minecodex-tooltip", copy.speedInfo);
+    speedLabel.append(tpsInfo);
   } else if (kind === "usage") {
     row(dl, copy.total, tokenValue(snapshot.totalTokens));
     const otherInput = snapshot.inputTokens == null || snapshot.cachedInputTokens == null

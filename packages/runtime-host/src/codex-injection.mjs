@@ -2,11 +2,12 @@
 // 该字符串经 CDP 注入后独立执行，因此 install 函数体必须自包含；
 // CodexRuntime 与 CDP 客户端在 codex-runtime.mjs / codex-cdp.mjs。
 
+import { installFeatureDialogs } from "./feature-dialogs.mjs";
 import { installFeatureTooltips } from "./feature-tooltips.mjs";
 import { randomBytes } from "node:crypto";
 import { CODEX_THEME_TOKENS, CODEX_THEME_TOKEN_ALIASES } from "./codex-design-contract.mjs";
 
-export const RUNTIME_VERSION = 102;
+export const RUNTIME_VERSION = 103;
 export const HOST_BINDING_NAME = "__codexPersonalHostAction";
 export const CSP_BOOTSTRAP_VERSION = 1;
 export const CSP_BOOTSTRAP_KEY = "__mineCodexCspBootstrapVersion";
@@ -120,14 +121,14 @@ export function createInjectionSource(features, {
   bindingToken = "test-binding-token",
   runtimeSessionId = randomBytes(16).toString("hex"),
 } = {}) {
-  function install(config, installTooltips) {
+  function install(config, installTooltips, installDialogs) {
     if (window.top !== window) return;
     if (!document.documentElement) {
       // The document bootstrap runs before the root element exists. Defer the
       // whole install until the DOM is ready instead of crashing on a null
       // documentElement (which previously left the runtime permanently absent
       // after a renderer reload).
-      document.addEventListener("DOMContentLoaded", () => install(config, installTooltips), { once: true });
+      document.addEventListener("DOMContentLoaded", () => install(config, installTooltips, installDialogs), { once: true });
       return;
     }
     const currentRuntime = window.__codexPersonalRuntime;
@@ -140,6 +141,7 @@ export function createInjectionSource(features, {
 
     const lifetime = new AbortController();
     installTooltips(lifetime.signal);
+    const featureUI = installDialogs(lifetime.signal);
     const rightPanelRouteKinds = new Set(config.rightPanelRouteKinds);
 
     const entryMarker = "data-codex-personal-feature";
@@ -268,9 +270,6 @@ export function createInjectionSource(features, {
         transform: translateX(-50%) !important;
         z-index: 10;
         padding: 6px;
-        background-color: var(--color-surface-elevated-secondary);
-        -webkit-backdrop-filter: none;
-        backdrop-filter: none;
       }
       [data-codex-model-slider-menu][data-codex-model-slider-overflow] {
         max-height: var(--codex-model-slider-menu-max-height) !important;
@@ -393,6 +392,7 @@ export function createInjectionSource(features, {
           `"use strict";\n${source}`,
         );
         const pageConfig = feature.pageScript.config ??= {};
+        pageConfig.ui = featureUI;
         pageConfig.requestHostAction = (action, payload) => requestPageHostAction(feature.id, action, payload);
         const cleanup = installer(
           lifetime.signal,
@@ -1802,6 +1802,7 @@ export function createInjectionSource(features, {
       menu.setAttribute("data-state", "open");
       menu.setAttribute("data-codex-model-slider-menu", "");
       menu.setAttribute("data-codex-model-slider-controller-menu", "");
+      featureUI.surface(menu);
       models.forEach((model, index) => {
         const item = document.createElement("div");
         item.className = "no-drag outline-hidden rounded-lg px-[var(--padding-row-x)] py-[var(--padding-row-y)] text-sm text-default group hover:bg-primary-ghost-hover focus:bg-primary-ghost-hover cursor-interaction flex flex-col";
@@ -3051,8 +3052,8 @@ export function createInjectionSource(features, {
       const radiusScale = Number.parseFloat(tokens["--codex-corner-radius-scale"] ?? "1.25") || 1.25;
       const panelRadius = `${radiusBase * radiusScale}${radiusUnit}`;
       const panelCornerShape = tokens["--codex-corner-shape"] ?? "superellipse(1.5)";
-      const dialogRadius = tokens["--radius-2xl"] ?? "20px";
-      const dialogShadow = "0 16px 32px -8px rgba(0,0,0,.19)";
+      const dialogRadius = tokens["--radius-3xl"];
+      const dialogShadow = `0 0 0 .5px ${tokens["--color-border"]},${tokens["--shadow-lg"]}`;
       const surfaceTokens = {
         ...tokens,
         // 部分 Codex 版本仅提供等价的正文前景 token。
@@ -3087,12 +3088,7 @@ export function createInjectionSource(features, {
           record.element.style.boxShadow = tokens["--elevation-prominent"]
             ?? "0 0 0 .5px rgba(13,13,13,.11),0 3px 7.5px rgba(0,0,0,.04),0 0 20px rgba(0,0,0,.05)";
         }
-        if (record.kind === "modal") {
-          record.element.style.borderRadius = dialogRadius;
-          record.element.style.setProperty("corner-shape", "round");
-          record.element.style.boxShadow = dialogShadow;
-        }
-        record.element.style.background = new Set(["pinned", "modal"]).has(record.kind)
+        if (record.kind !== "modal") record.element.style.background = record.kind === "pinned"
           ? tokens["--color-token-dropdown-background"]
             ?? tokens["--color-token-main-surface-primary"]
             ?? style.backgroundColor
@@ -3721,16 +3717,17 @@ export function createInjectionSource(features, {
 
       const overlay = document.createElement("div");
       overlay.setAttribute("data-codex-personal-modal-overlay", feature.id);
+      featureUI.overlay(overlay);
       overlay.setAttribute("aria-hidden", "true");
       overlay.style.cssText = [
         "position:fixed",
         "inset:0",
         "z-index:50",
-        "background:rgba(0,0,0,.133)",
       ].join(";");
 
       const dialog = document.createElement("section");
       dialog.setAttribute(modalSurfaceMarker, feature.id);
+      featureUI.surface(dialog, "dialog");
       dialog.setAttribute("role", "dialog");
       dialog.setAttribute("aria-modal", "true");
       dialog.setAttribute("aria-label", `${payload.id ? "Edit" : "Add"} ${kind}`);
@@ -3745,11 +3742,7 @@ export function createInjectionSource(features, {
         "max-height:88vh",
         "transform:translate(-50%,-50%)",
         "overflow:hidden",
-        "border:1px solid transparent",
-        "border-radius:20px",
-        "corner-shape:round",
-        "background:var(--color-token-dropdown-background,var(--color-token-main-surface-primary))",
-        "box-shadow:0 16px 32px -8px rgba(0,0,0,.19)",
+        "padding:0",
         "outline:none",
       ].join(";");
 
@@ -4812,7 +4805,7 @@ export function createInjectionSource(features, {
     themeTokens: CODEX_THEME_TOKENS,
     themeTokenAliases: CODEX_THEME_TOKEN_ALIASES,
     features: runtimeFeatures,
-  })}, ${installFeatureTooltips.toString()})`;
+  })}, ${installFeatureTooltips.toString()}, ${installFeatureDialogs.toString()})`;
 }
 
 export function createRuntimeReadyContract({

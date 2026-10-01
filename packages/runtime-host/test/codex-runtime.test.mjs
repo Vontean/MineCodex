@@ -808,8 +808,8 @@ test("emits a fail-closed native Composer model selector Adapter", () => {
   assert.match(source, /data-model-picker-view-toggle/);
   assert.match(source, /function modelIdentity\(rawValue\)/);
   assert.match(source, /function modelDisplayLabel\(identity, selector\)/);
-  assert.match(source, /background-color: var\(--color-surface-elevated-secondary\);/);
-  assert.match(source, /-webkit-backdrop-filter: none;\s+backdrop-filter: none;/);
+  assert.match(source, /featureUI.surface\(menu\)/);
+  assert.match(source, /data-mcx-ui-surface=popover/);
   assert.match(source, /catalogModelFor\(identity, selector\) \?\? nativeCatalogModelFor\(identity\)/);
   assert.match(source, /const label = modelDisplayLabel\(modelIdentity\(raw\), selector\)/);
   assert.match(source, /function enhanceNativeModelSubmenu\(menu, selector\)/);
@@ -1469,13 +1469,13 @@ test("emits an isolated conversation-toolbar Adapter with strict Surface and Hos
   assert.match(source, /Editor kind must be prompt or todo/);
   assert.match(source, /"border-radius:25px"/);
   assert.match(source, /"corner-shape:var\(--codex-corner-shape,superellipse\(1\.5\)\)"/);
-  assert.match(source, /"border-radius:20px"/);
-  assert.match(source, /"corner-shape:round"/);
-  assert.match(source, /"box-shadow:0 16px 32px -8px rgba\(0,0,0,\.19\)"/);
+  assert.match(source, /featureUI.surface\(dialog, "dialog"\)/);
+  assert.match(source, /corner-shape:round/);
+  assert.match(source, /var\(--shadow-lg\)/);
   assert.match(source, /"left:50%"/);
   assert.match(source, /"top:50%"/);
   assert.match(source, /"width:min\(420px,92vw\)"/);
-  assert.match(source, /"background:rgba\(0,0,0,\.133\)"/);
+  assert.match(source, /featureUI.overlay\(overlay\)/);
   assert.match(source, /data-codex-personal-prompt-preview/);
   assert.match(source, /function showPromptPreview\(record, payload = \{\}\)/);
   assert.match(source, /preview\.setAttribute\("role", "tooltip"\)/);

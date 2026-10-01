@@ -56,11 +56,10 @@ export function threadIdFromLocation(value) {
   return String(value ?? "").match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i)?.[0] ?? null;
 }
 
-function emptyState(filePath) {
+function emptyState(filePaths) {
   return {
-    filePath,
-    offset: 0,
-    pending: "",
+    files: new Map(filePaths.map(filePath => [filePath, { offset: 0, pending: "" }])),
+    nextDiscoveryAt: 0,
     turns: new Set(),
     runningTurns: new Set(),
     responses: new Set(),
@@ -262,22 +261,23 @@ export function sessionStatusSnapshot(state, threadId) {
   };
 }
 
-async function findLog(directory, threadId) {
+async function findLogs(directory, threadId) {
   let entries;
   try { entries = await readdir(directory, { withFileTypes: true }); }
   catch (error) {
-    if (error.code === "ENOENT") return null;
+    if (error.code === "ENOENT") return [];
     throw error;
   }
+  const files = [];
+  const filename = new RegExp(`-${threadId}(?:_[0-9a-f-]{36})?\\.jsonl$`, "i");
   for (const entry of entries) {
     const filePath = path.join(directory, entry.name);
-    if (entry.isFile() && entry.name.endsWith(`-${threadId}.jsonl`)) return filePath;
+    if (entry.isFile() && filename.test(entry.name)) files.push(filePath);
     if (entry.isDirectory()) {
-      const found = await findLog(filePath, threadId);
-      if (found) return found;
+      files.push(...await findLogs(filePath, threadId));
     }
   }
-  return null;
+  return files.sort();
 }
 
 export class SessionStatusReader {
@@ -295,46 +295,58 @@ export class SessionStatusReader {
   async read(threadId) {
     if (!THREAD_ID.test(threadId ?? "")) return null;
     let state = this.states.get(threadId);
-    if (!state) {
+    if (!state || this.now() >= state.nextDiscoveryAt) {
       if (this.retryAfterMs(threadId) > 0) return null;
-      const filePath = await findLog(this.sessionsDir, threadId);
-      if (!filePath) {
+      const filePaths = await findLogs(this.sessionsDir, threadId);
+      if (!filePaths.length) {
+        this.states.delete(threadId);
         const attempts = this.missingChecks.get(threadId)?.attempts ?? 0;
         const delay = [500, 1000, 2000][attempts] ?? 10_000;
         this.missingChecks.set(threadId, { attempts: attempts + 1, nextCheckAt: this.now() + delay });
         return null;
       }
-      state = emptyState(filePath);
+      // 新分段出现时重新按时间合并，避免只停留在最初的 rollout。
+      if (!state || filePaths.join("\n") !== [...state.files.keys()].join("\n")) state = emptyState(filePaths);
+      state.nextDiscoveryAt = this.now() + 2_000;
       this.states.set(threadId, state);
       this.missingChecks.delete(threadId);
     }
-    let info;
-    try { info = await stat(state.filePath); }
+    let sizes;
+    try { sizes = await Promise.all([...state.files.keys()].map(async filePath => [filePath, (await stat(filePath)).size])); }
     catch (error) {
       if (error.code !== "ENOENT") throw error;
       this.states.delete(threadId);
       return null;
     }
-    if (info.size < state.offset) state = emptyState(state.filePath);
-    if (info.size > state.offset) {
-      const stream = createReadStream(state.filePath, {
-        start: state.offset,
-        end: info.size - 1,
+    if (sizes.some(([filePath, size]) => size < state.files.get(filePath).offset)) {
+      const nextDiscoveryAt = state.nextDiscoveryAt;
+      state = emptyState([...state.files.keys()]);
+      state.nextDiscoveryAt = nextDiscoveryAt;
+    }
+    const events = [];
+    for (const [filePath, size] of sizes) {
+      const file = state.files.get(filePath);
+      if (size <= file.offset) continue;
+      const stream = createReadStream(filePath, {
+        start: file.offset,
+        end: size - 1,
         encoding: "utf8",
       });
       for await (const chunk of stream) {
-        const lines = `${state.pending}${chunk}`.split("\n");
-        state.pending = lines.pop() ?? "";
+        const lines = `${file.pending}${chunk}`.split("\n");
+        file.pending = lines.pop() ?? "";
         for (const line of lines) {
           if (!line.includes('"token_usage_record"') && !line.includes('"event_msg"')
             && !line.includes('"turn_context"') && !line.includes('"session_meta"')
             && !line.includes('"response_item"') && !line.includes('"compacted"')) continue;
-          try { applySessionStatusEvent(state, JSON.parse(line)); } catch { /* 忽略损坏的单行 */ }
+          try { events.push(JSON.parse(line)); } catch { /* 忽略损坏的单行 */ }
         }
       }
-      state.offset = info.size;
-      this.states.set(threadId, state);
+      file.offset = size;
     }
+    events.sort((left, right) => (Date.parse(left.timestamp) || 0) - (Date.parse(right.timestamp) || 0));
+    for (const event of events) applySessionStatusEvent(state, event);
+    this.states.set(threadId, state);
     return sessionStatusSnapshot(state, threadId);
   }
 }

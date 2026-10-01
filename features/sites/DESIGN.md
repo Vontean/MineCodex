@@ -15,7 +15,7 @@ Sites 标题工具区增加次要操作 Add site，保留官方 Create。添加�
 - 列表：复用原生 row 的 grid/subgrid、82px 最小高度、16px 内边距、rounded-xl 与 primary-ghost-hover。
 - 网格：原生 210px 卡片，148px 预览与62px信息区；rounded-2xl、border-subtle、surface-card、shadow-sm。
 - 按钮：复用原生 `_Button` 与 `_ButtonInner` 类以及 data-color / data-variant / data-size 状态接口。Add site 为 secondary outline；确认沿用 primary solid。
-- 弹窗：对齐原生 Sites Share 的 modal-shell，最大宽度560px，正文16px × 20px内边距；`--radius-3xl`、浅色 `--color-surface` / 深色 `--color-surface-tertiary`，`--modal-backdrop-dim-shadow`，不加半透明磨砂。标题使用 `--text-heading-md` / semibold / 1.4 行高，与内容间距16px；关闭为原生 secondary ghost sm uniform。底部独立 `--color-border-subtle` 分隔线，16px × 20px内边距、8px按钮间距。原生 dialog 的 Escape、焦点圈定与关闭后焦点恢复。
+- 弹窗：调用 Runtime Host 共享 `config.ui` 外壳，最大宽560px、20px 内边距。与新版 Images 表单弹窗统一：25px 圆角、90% elevated secondary 填充、24px 背景模糊、0.5px 描边及 shadow-lg。标题20px / 28px、600，Close 为原生 Sites SVG，24px 热区、top/right 16px。操作区使用32px高、14px正文、action圆角与12px间距，不加独立分隔线。原生 dialog 继续负责 Escape、焦点圈定与关闭后焦点恢复。
 - 分段按钮：使用原生 segmented-control 的统一底板、等宽选项及选中块，复用 gap/gutter/background/font-weight/thumb-background/thumb-shadow/option-highlight token；控件尺寸为 control-size-md，支持方向键切换与选中状态语义。
 - 输入：原生正文、边框和 `--color-ring` token（仅改变边框色）；标签在上，不用 placeholder 代替标签。
 - 图标：从原生 Sites、Create、行菜单节点克隆 SVG；不重画。扫描结果和添加后的条目异步获取真实网页截图，本地缓存；完成后替换占位。没有截图时保留原生 Sites 图标，不阻塞选择和添加。
@@ -31,7 +31,7 @@ Sites 标题工具区增加次要操作 Add site，保留官方 Create。添加�
 
 隔离 profile 验证发现、添加、路由、列表/网格、搜索、明暗主题、移除、服务停止后的保留；日常安装不注入开发实现。原生内部选择器变化时显示明确错误，不写死聊天宽度。
 
-自定义网址的添加与编辑使用相同的两项表单，不提供来源选择浮层。关闭复用原生图标与 sm uniform 按钮；项目网页直接展示扫描结果，不重复显示项目分组标题。添加网址仅在分段面板中填写，不再提供底部重复入口或二级返回跳转。
+自定义网址的添加与编辑使用相同的两项表单，不提供来源选择浮层。关闭调用共享外壳的原生 Close；项目网页直接展示扫描结果，不重复显示项目分组标题。添加网址仅在分段面板中填写，不再提供底部重复入口或二级返回跳转。
 
 More 菜单复用原生 Sites menu/menuitem/leadingIcon 类与 token：220px 最小宽度、4px gutter、菜单项 5px × 8px 内边距、16px 图标、6px 内容间距；文案为 Edit / Remove。Edit 复用原生 SVG，Remove 使用 Lucide trash-2，随主题继承文字色，悬停/聚焦时图标由75%到100%不透明度。
 
@@ -42,18 +42,21 @@ More 菜单复用原生 Sites menu/menuitem/leadingIcon 类与 token：220px 最
 预览区域描边复用原生 Sites 的 inset 0 0 0 1px var(--color-border)，覆盖于图片/骨架/占位之上，不增加布局尺寸。项目站点副文本显示项目名；确认运行时附加全角括号中的端口号，例如 VonDoc（49706），未运行仅显示 VonDoc。不在界面展示历史时间。无项目归属的 Custom URL 继续显示地址。
 
 
-### 添加弹窗按钮（原生对齐修订）
+### 添加弹窗按钮（共享表单外壳）
 
-底部与原生 Share 一致，采用 `_Button` 的 xl / pill / solid：36px高度（`--control-size-lg`），字号 `--control-font-size-md`，横向间距由原生 gutter 与 pill scaling 决定。Add / Save 为 primary，Cancel 为 secondary。同步 disabled、aria-disabled 与 data-disabled，复用 `--color-background-disabled`、`--color-border-disabled`、`--color-text-disabled`，禁用态不保留可用态的黑色强调。
+Add / Save 为共享 primary action，Cancel 为 secondary action；32px高度、14px / 18px正文、`--radius-button-action` 圆角、6px × 16px内边距，与 Prompts 一致。禁用态使用40%透明度，保留 disabled、aria-disabled、data-disabled 的语义；页面工具区按钮仍复用原生 `_Button`。
 
 模式选择使用真正的 segmented button：两项等宽，统一底板，选中块使用原生 thumb 背景及阴影；不再使用 Sites ownership tabs 的独立胶囊外观。尺寸与颜色引用原生 control / segmented-control token，随明暗主题变化。
 
 扫描等待使用三行结果骨架：96×60横幅、标题及项目名短条，复用预览图的原生 shimmer token，逐行错开动画相位。仅辅助技术读出查找状态，结果区标记 aria-busy；无虚构进度，扫描完成直接替换，沿用 reduced-motion 静态降级。
 
-未选中分段选项与 Cancel 共用 secondary-solid 配色：底板 background-secondary-solid，文字 text-secondary-solid，悬浮和按下分别使用 secondary-solid-hover / active；不再单独混合透明色。选中块保持原生 thumb 样式。
+未选中分段选项使用 secondary-solid 配色：底板 background-secondary-solid，文字 text-secondary-solid，悬浮和按下分别使用 secondary-solid-hover / active；不再单独混合透明色。选中块保持原生 thumb 样式。
 
 预览加载骨架绝对铺满图片区域，以窄斜向扫光带呈现明确运动，避免宽缓渐变看起来像静态灰块；图片解码完成才替换，失败才显示图标占位。
 
 Custom 地址分类：localhost/回环、IPv4私有网段及链路本地、IPv6私有及链路本地、.local 使用 Local address；公网IP及普通域名使用 External site，不推断访问权限。普通域名不做DNS推断，故内网自定义域名可能归为外部。已有条目读取时同步重新分类。
 
 打开 Project 网页前等待新草稿的 ComposerScope focusComposerNonce 与本次导航一致，避免仅检查输入框存在而误用旧聊天。浏览器打开消息同时携带站点目录（无目录时取项目根目录）作为 cwd。
+
+新版 Sites 位于 `/space/sites`；注入与离开页面的布局判断使用该路由，移除旧 `/sites` 判断。
+标题区通过 New 的语义定位创建入口；按钮容器复用原生 lg secondary Button，不再假设 New 提供 data-variant。

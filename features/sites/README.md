@@ -23,3 +23,5 @@ Discovery never starts services. Opening a saved stopped site can start a suppor
 ## Native UI boundary
 
 The renderer owns `data-mcx-sites` elements; the Local address filter temporarily hides native rows and updates tab selection styling, restoring them on exit. It uses native Sites layout classes, current semantic theme tokens, and the existing Prompts dialog/menu patterns. The route-state and resize adapters depend on native renderer internals and must be verified against app updates. Icon sources: native Sites controls, existing Prompts resources, and the Lucide monitor icon; Lucide license is included in `vendor/`.
+
+弹窗与浮层统一调用 Runtime Host 的 `config.ui`（`packages/runtime-host/src/feature-dialogs.mjs`），共享主题材质、标题、Close 和表单操作区；插件只维护内容及交互。

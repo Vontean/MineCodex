@@ -32,6 +32,8 @@ TPS 根据 Codex 会话事件计算有效样本的会话平均约值，以 `N to
 
 会话统计浮窗只显示回合、步骤、首字延迟和 TPS。Token 用量浮窗以 Total 为主项，紧接比例条和输出（紫）、其他输入（蓝）、缓存输入（绿）三项，顺序与上下文弹层一致；分隔线后才显示缓存命中率。其他输入为总输入减缓存输入，包含缓存写入。三项使用同一分母。
 
+TPS 标签后放置 12px Lucide info 图标，继承标签颜色，间距 6px。悬浮或键盘聚焦时使用共享 MineCodex tooltip，说明 GPT 等模型未公开完整思考过程及逐 Token 生成时间，此处为体感响应速度参考值，不代表真实 Token 生成速度；中英文随界面语言切换。Tooltip 层级高于详情浮窗。
+
 ### 折叠入口
 - 首次安装默认展开；用户收起后在模型选择左侧显示 12px context 环，24px 热区；原生 context 环开启时隐藏原生重复入口，卸载时恢复。
 - Tooltip 沿用原生 context 内容：上下文窗口、使用/剩余比例、已用/容量（k tokens）；背景、边框、文字、圆角与阴影使用原生 tooltip tokens。
@@ -39,3 +41,5 @@ TPS 根据 Codex 会话事件计算有效样本的会话平均约值，以 `N to
 - Cache 按原始 cachedInputTokens / inputTokens 计算：大于99%显示一位小数，其余取整数，状态栏和详情共用格式。
 
 输入框实例仅绑定可见的 thread composer。全屏标签页中的隐藏聊天、浮动 Quick Chat（含 right-panel composer overlay）、inert 区域不注入；原生移动输入框或切换可见性时销毁实例并取消订阅，返回聊天后重建。
+
+浮层填充、背景模糊与阴影由 Runtime Host 共享 `config.ui.surface` 提供；沿用本功能的定位、尺寸、圆角及内容层级。

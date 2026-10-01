@@ -92,6 +92,7 @@ export const CODEX_THEME_TOKENS = Object.freeze([
   "--radius-lg",
   "--radius-xl",
   "--radius-2xl",
+  "--radius-3xl",
   "--shadow-md",
   "--shadow-lg",
   "--shadow-xl",

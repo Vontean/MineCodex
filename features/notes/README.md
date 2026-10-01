@@ -2,6 +2,8 @@
 
 导航栏扩展区最后的 **Prompts** 页面管理提示词；输入框 Add 与权限按钮之间的 **Quick Prompts** 只浏览和调用。
 
+Quick Prompts 以当前可见 Codex 输入框定位；打开原生 Add、权限或模型菜单时关闭，Session Status 的展开状态不会关闭提示词列表。离开聊天后移除输入框入口与 Popover。
+
 ## 管理页面
 - All 与分类 Tabs，搜索、新增、编辑、删除。
 - 默认分类：生图、编程、文案、研究、翻译、效率、思考、学习；支持新增、改名、删除与排序。
@@ -25,3 +27,7 @@
 服务仅监听 loopback，默认端口 47832。沿用 CODEX_NOTES_PORT、CODEX_NOTES_DATA_DIR、CODEX_NOTES_DATABASE。设计依据见 [DESIGN.md](./DESIGN.md)。入口采用 Lucide book-open，拖拽手柄采用 Lucide menu。分类 SVG 来自当前 Codex 原生图标目录，未手绘替代路径。
 
 内置 24 条已分类、带 Emoji 的快捷提示词，来自 MIT 授权的 dsh-prompt 0.1.13。首次启动或升级仅导入一次，后续编辑与删除不会被覆盖。个人提示词不随包发布。来源和完整许可见 [dsh-prompt-LICENSE.txt](./assets/dsh-prompt-LICENSE.txt)。
+
+弹窗与浮层统一调用 Runtime Host 的 `config.ui`（`packages/runtime-host/src/feature-dialogs.mjs`），共享主题材质、标题、Close 和表单操作区；插件只维护内容及交互。
+
+Quick Prompts 与原生 Add 一样定位到 `data-composer-body` 上沿；`data-codex-composer-root` 仅用于会话识别和控件检测。diff、request stack 等上方组件不抬高浮窗，层级沿用原生 z-index 50。

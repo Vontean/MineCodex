@@ -4,6 +4,8 @@
 
 Context 直接订阅 Codex 原生会话状态。其他统计由 Runtime Host 只读解析本机 `~/.codex/sessions` 中的 Codex 会话事件，再通过已有 CDP 连接向注入脚本发送数值快照；页面只向 Host 请求刷新，不发送对话内容，也不修改 Codex 会话日志。远程任务或缺少本机日志时，无法取得的指标显示 `—`。
 
+同一会话可能有多个 rollout 文件，包括续聊产生的 `<thread-id>_<session-id>.jsonl` 分段。读取器每 2 秒检查分段列表；新增分段时按事件时间重建会话统计，随后按各文件独立的读取位置增量更新。回合及模型响应按 ID 去重，累计 Token 采用日志给出的会话总量，不将不同分段的累计值相加。
+
 新聊天没有会话 ID 时隐藏；发送首条消息、原生输入框出现会话 ID 后立即显示占位并请求数据，无需等待日志落盘、回答完成或 Token 用量返回。切换聊天时立即清除旧数值，拒绝 ID 不匹配的迟到快照；折叠侧栏不影响当前会话识别。输入框会话标记的属性变化也会触发更新。
 
 生成中依据日志的 `task_started` 与完成／中断事件，每 500ms 请求统计；空闲时由 Runtime 每 2 秒刷新兜底，页面不重复轮询。首次找不到日志按 500ms、1s、2s、随后 10s 重试；持续缺失时不会高频扫描目录。并发请求按页面合并，统计刷新不占用图片等用户操作的串行队列。页面卸载或功能关闭会取消定时器、观察器与原生状态订阅。
@@ -21,6 +23,8 @@ Context 直接订阅 Codex 原生会话状态。其他统计由 Runtime Host 只
 - 压缩次数：读取会话日志中的 `compacted` 记录及其 `window_number`，兼容旧版 `context_compacted` 和 `ContextCompaction` 完成事件；同一次压缩的多种记录只计一次。若 `compacted` 含 `replacement_history`，分段估算以它替换压缩前历史，再累计后续记录。
 
 统计图标使用 Lucide Static v1.31.0 的 Gauge；用量图标使用 Phosphor Icons 的 Database，单路径填充避免半透明色在路径交叠处加深。许可见 [`vendor/lucide-LICENSE`](vendor/lucide-LICENSE) 和 [`vendor/phosphor-LICENSE`](vendor/phosphor-LICENSE)。
+
+会话统计浮窗的 TPS 标签带有同色 Lucide info 图标（Lucide 0.577.0 官方资源）；悬浮或键盘聚焦可查看说明：GPT 等模型不公开完整思考过程及逐 Token 生成时间，TPS 仅为基于可观测事件估算的体感响应速度参考，不代表模型真实的 Token 生成速度。
 
 ## 上下文分类的可行性
 

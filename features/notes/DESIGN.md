@@ -24,14 +24,15 @@ Prompts 页面负责新增、编辑、分类、Emoji、排序和统计；Quick P
 | Popover 列表行 | --suggestion-menu-item-padding / --app-menu-item-padding / --padding-row-y、--padding-row-x | 5px 8px |
 | 行圆角 | --suggestion-menu-item-radius / --radius-xl | 15px |
 | Hover | --color-background-primary-ghost-hover | 原生中性色 |
-| Popover 位置 | 输入框上方 | 与输入框等宽，间隔 4px |
+| Popover 位置 | Add 所属的 `[data-composer-body]` 上方 | 与输入框主体等宽，间隔 4px；外层 Root 的 diff / request stack 不参与定位 |
+| 页面条目正文预览宽度 | `.pm-preview` 的 `max-width:65%` | 相对于条目文字区域 `.pm-info`，单行省略；标题与点击区域保持全宽 |
 
 分类颜色复用原生选择器的亮 / 暗模式色值：blue #0285ff / #339cff、green #04b84c / #40c977、orange #fb6a22 / #ff8549、pink #ff66ad / #ff8cc1、purple #924ff7 / #ad7bf9、red #fa423e / #ff6764、yellow #ffc300 / #ffd240；black 使用原生次级文字 token。
 
 ## 页面
 Header 为 Prompts；右侧依次为排序图标、分类调节图标、常驻搜索框、New prompt。搜索框直接采用原生 Library 的透明背景、1px outline、32px 高、胶囊圆角、12px 水平 padding 和 16px 搜索 SVG。分类管理使用原生 sliders 图标，不再放在 Tabs 行。排序菜单沿用原生 Library 的 4px gutter、20px radius、5px / 8px item padding、90% elevated surface 与 shadow-xl-spread。Tabs 仅包含 All、分类和 Other。默认分类生图、编程、文案、研究、翻译、效率、思考、学习，允许新增、改名、删除、换图标和颜色。删除分类仅解除归属，保留提示词和统计。
 
-分类管理在 440px 宽居中模态面板中完成，复用原生 New folder 弹窗的 20px padding、25px radius、弱描边与背景遮罩。分类编辑保留箭头返回和关闭按钮，不使用文字 Back 或整页替换。模态内限制 Tab 焦点，Escape 关闭后恢复入口焦点。提示词编辑使用同一结构，宽 520px。
+分类管理在 440px 宽居中模态面板中完成，调用 Runtime Host 的共享 `config.ui` 外壳：20px padding、25px radius、90% elevated 填充、24px 背景模糊、弱描边与原生背景遮罩。分类编辑保留箭头返回和关闭按钮，不使用文字 Back 或整页替换。模态内限制 Tab 焦点，Escape 关闭后恢复入口焦点。提示词编辑使用同一结构，宽 520px。
 
 单条提示词通过图标弹出框选择 Emoji，沿用原生 Thread SymbolBrowser 的搜索和八列网格，不使用文本输入框；可恢复继承分类图标。分类选择为图标加名称的自定义菜单，不使用浏览器 select。列表显示标题、正文摘要；Manual order 和 Most used 显示累计调用次数，Recently used 在相同位置显示上次调用时间，未调用显示 Never used；点击进入编辑。手动排序采用右侧三横手柄拖拽，提示词限制组内排序；分类管理同样拖拽排序。Alt + ↑ / ↓ 提供键盘操作。另支持按调用次数、最近调用排序。搜索及统计排序期间不显示手动重排控件，避免操作含义不明确。
 
@@ -40,13 +41,15 @@ Header 为 Prompts；右侧依次为排序图标、分类调节图标、常驻�
 
 点击提示词只插入当前输入框，保留原草稿且不发送。Escape 关闭并回到入口；点击外部关闭；方向键移动列表焦点。原生 Add 或权限面板打开时关闭。切换输入框时关闭，异步结果不得插入另一会话。沿用原生焦点与 hover，无额外进场动画。
 
+入口仅挂载到可见 Codex 输入框；原生可见的 Add 或菜单按钮展开时关闭 Popover。Session Status 的 Context 展开状态不是弹出菜单，不作为冲突条件；隐藏输入框和隐藏控件不参与锚点定位或菜单判断。
+
 ## 统计
 成功插入后原子增加 `use_count` 并更新 `called_at`，保存于现有 SQLite。创建、编辑、复制和排序不计数。历史次数未知，从 0 开始，不从旧 `last_used_at` 推断。删除分类、切换页面、重启不清零。
 
 本地数据只以 textContent 和表单值渲染，不执行提示词里的 HTML。页面关闭恢复底层原生视图的焦点能力；功能禁用移除所有本功能入口和视图。
 
 ## 空状态与编辑细节
-空分类和搜索无结果沿用 Scheduled 的 48px Emoji、18px medium 标题、次级说明布局；空分类提供 New prompt。All 分组副标题采用 text-sm、500 字重与 text-tertiary。输入框 focus 只用原生 border-ring 1px 边框，无外圈。模态 Back / Close 图形与内容边缘光学对齐，热区向外扩展。Delete 使用警戒样式；非空分类删除前独立确认，明确提示词移到 Other，内容与调用次数保留。
+空分类和搜索无结果沿用 Scheduled 的 48px Emoji、18px medium 标题、次级说明布局；空分类提供 New prompt。All 分组副标题采用 text-sm、500 字重与 text-tertiary。输入框 focus 只用原生 border-ring 1px 边框，无外圈。模态标题为 heading-md（20px / 28px、600），Close 复用新版 Sites 的真实 SVG，24px 热区位于 top/right 16px；Back 保留标题前 24px 热区。操作区统一为 Images 表单风格：32px 高、14px / 18px 正文、12.5px action 圆角、6px × 16px padding、12px 间距。Delete 使用警戒样式；非空分类删除前独立确认，明确提示词移到 Other，内容与调用次数保留。
 
 导航栏 book-open 单独采用 20px 容器、27×27 viewBox，实际轮廓约 16.15px，描边折算 1.33px，与原生导航一致。Lucide 两个描边子路径合为一个 path，一次绘制半透明 currentColor，避免书脊交叠变深。输入框入口尺寸不变。
 
@@ -54,7 +57,7 @@ Header 为 Prompts；右侧依次为排序图标、分类调节图标、常驻�
 
 页面外壳圆角直接使用原生 PageSurface 的 `--radius-xl-base`（当前 12px），不使用经过角半径缩放的 `--radius-2xl`，避免覆盖层和原生底层边缘错位。
 
-深浅主题层级：页面使用 `--color-surface`；弹窗/菜单使用 `--color-surface-elevated-secondary`。标题跟随原生 heading-lg（`--text-heading-lg`、`--font-weight-medium`、1.2 行高）。正文用 text-primary，摘要用 text-secondary，分组与辅助信息用 text-tertiary。主按钮使用 background-primary-solid / text-primary-solid 配对；警戒按钮使用 danger-soft-alpha，不使用浅色固定粉红底。边界统一使用 `--color-border` 或输入框的 `--color-border-primary-outline`。
+深浅主题层级：页面使用 `--color-surface`；弹窗/菜单使用 `--color-surface-elevated-secondary`。页面标题跟随原生 heading-lg（`--text-heading-lg`、`--font-weight-medium`、1.2 行高）。正文用 text-primary，摘要用 text-secondary，分组与辅助信息用 text-tertiary。主按钮使用 background-primary-solid / text-primary-solid 配对；警戒按钮使用 danger-soft-alpha，不使用浅色固定粉红底。边界统一使用 `--color-border` 或输入框的 `--color-border-primary-outline`。
 
 提示词编辑沿用原生 Project 的复合标题输入：40px 图标段位于标题前，细分隔线，共用圆角边框与 focus-within 状态。图标选择入口不再单独占一行；Title 通过 aria-label 标识。
 
@@ -70,3 +73,5 @@ Category 下拉面板与触发栏等宽、左右对齐，宽度包含内边距�
 内置 24 条来自 dsh-prompt 0.1.13 的 MIT 提示词，正文保持原样，按思考、学习、编程、效率分类并配 Emoji。来源与许可保存在 assets/dsh-prompt-LICENSE.txt。首次启动或旧库升级时单次导入；随后允许编辑和删除，重启不还原，也不重建被删除的分类。用户个人内容只保留在本机数据库，不纳入默认资源。
 
 所有简短悬浮提示使用运行时的 data-minecodex-tooltip 标记，取原生 background/text/border-tooltip、radius-2xl、shadow-tooltip、tooltip-compact-font-weight 和 tracking-tooltip；padding 5px 12px、行高 18px。支持悬浮与键盘聚焦、Escape 关闭及卸载清理，不再使用浏览器 title 气泡。
+
+Prompts 覆盖页使用 z-index 41，位于新版原生左侧栏（40）之上，避免其半透明填充和内容覆盖管理页。

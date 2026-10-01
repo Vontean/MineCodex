@@ -40,26 +40,18 @@ style.textContent = `
 [data-mcx-sites=entry] .mcx-site-meta {font-size:var(--text-sm);color:var(--color-text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 [data-mcx-sites=entry] .mcx-site-name {overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--text-base)}
 [data-mcx-sites=entry] .mcx-site-menu {position:relative;z-index:2}
-[data-mcx-sites=dialog] {margin:auto;box-sizing:border-box;width:min(560px,calc(100vw - 40px));max-height:calc(95vh - 40px);padding:0;border:0;border-radius:var(--radius-3xl);background:var(--color-surface);color:var(--color-text-primary);box-shadow:var(--modal-backdrop-dim-shadow,var(--shadow));font:var(--text-sm)/1.5 var(--font-sans-default);overflow:hidden}
+[data-mcx-sites=dialog] {margin:auto;width:min(560px,calc(100vw - 40px));max-height:calc(95vh - 40px);overflow:auto}
 [data-mcx-sites=dialog][open] {display:flex;flex-direction:column}
-.dark [data-mcx-sites=dialog],[data-theme=dark] [data-mcx-sites=dialog] {background:var(--color-surface-tertiary)}
-[data-mcx-sites=dialog]::backdrop {background:var(--modal-backdrop-background)}
-[data-mcx-sites=dialog] h2 {font-size:var(--text-heading-md);font-weight:var(--font-weight-semibold);line-height:1.4;letter-spacing:normal;margin:0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-[data-mcx-sites=dialog] .mcx-site-content {padding:0 20px 16px;min-height:0;overflow:auto}
+[data-mcx-sites=dialog] .mcx-site-content {padding:0;min-height:0;overflow:auto}
 [data-mcx-sites=dialog] [role=tabpanel],[data-mcx-sites=dialog] form {min-height:0;display:flex;flex-direction:column}
 [data-mcx-sites=dialog] h3 {font-size:var(--text-sm);font-weight:var(--font-weight-medium);color:var(--color-text-secondary);margin:20px 0 6px}
 [data-mcx-sites=dialog] p {color:var(--color-text-secondary);font-size:var(--text-sm);margin:6px 0 16px}
-[data-mcx-sites=dialog] .mcx-site-heading,[data-mcx-sites=dialog] .mcx-site-candidate {display:flex;align-items:center;justify-content:space-between;gap:12px}
 [data-mcx-sites=dialog] .mcx-site-candidate {padding:12px 0;border-bottom:1px solid var(--color-border)}
 [data-mcx-sites=dialog] .mcx-site-candidate>div {min-width:0}
 [data-mcx-sites=dialog] .mcx-site-url {color:var(--color-text-secondary);font-size:var(--text-sm);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 [data-mcx-sites=dialog] label {display:block;margin:14px 0 6px;font-size:var(--text-sm);font-weight:var(--font-weight-medium)}
 [data-mcx-sites=dialog] input {box-sizing:border-box;width:100%;min-height:36px;padding:8px 12px;border:1px solid var(--color-border-primary-outline);border-radius:var(--control-radius-md);background:transparent;color:var(--color-text-primary);outline:none;font:inherit}
 [data-mcx-sites=dialog] input:focus-visible {border-color:var(--color-ring);outline:none}
-[data-mcx-sites=dialog] .mcx-site-footer {display:flex;flex-shrink:0;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:8px;padding:16px 20px;border-top:1px solid var(--color-border-subtle)}
-[data-mcx-sites=dialog] .mcx-site-options {margin-top:8px;max-height:190px;overflow:auto;border:1px solid var(--color-border);border-radius:var(--radius-lg);padding:4px}
-[data-mcx-sites=dialog] .mcx-site-option {display:block;text-align:start;width:100%;padding:8px;border-radius:var(--radius-md);color:var(--color-text-primary);font:inherit;background:transparent;border:0}
-[data-mcx-sites=dialog] .mcx-site-option:hover,[data-mcx-sites=dialog] .mcx-site-option:focus-visible {background:var(--color-background-primary-ghost-hover)}
 [data-mcx-sites=dialog] [role=alert] {color:var(--color-text-danger);font-size:var(--text-sm);margin-top:12px}
 [data-mcx-sites=menu] {position:fixed;z-index:1000;max-width:calc(100vw - 16px);max-height:calc(100vh - 16px);outline:none}
 [data-mcx-sites=menu] button {width:100%;border:0;text-align:start;font-family:var(--font-sans-default)}
@@ -70,8 +62,6 @@ style.textContent = `
 [data-mcx-sites=entry] .mcx-site-sharing svg {width:16px;height:16px;flex:none}
 @container (max-width:520px) {[data-mcx-sites=table] {grid-template-columns:minmax(0,1fr) auto}}
 
-[data-mcx-sites=dialog] .mcx-site-heading {flex-shrink:0;padding:16px 20px 0;margin-bottom:16px;gap:8px}
-[data-mcx-sites=dialog] .mcx-site-heading h2 {flex:1}
 [data-mcx-sites=dialog] .mcx-site-icon {display:flex;align-items:center;justify-content:center;width:28px;height:28px;flex:none;border:0;border-radius:var(--radius-full);padding:0;background:transparent;color:var(--color-text-secondary)}
 [data-mcx-sites=dialog] .mcx-site-icon svg {width:16px;height:16px}
 [data-mcx-sites=dialog] .mcx-site-icon:hover {background:var(--color-background-primary-ghost-hover);color:var(--color-text-primary)}
@@ -88,7 +78,7 @@ style.textContent = `
 [data-mcx-sites=dialog] .mcx-site-candidate>svg {width:16px;height:16px;flex:none;color:var(--color-text-secondary)}
 [data-mcx-sites=dialog] .mcx-site-candidate-art {width:96px;height:60px;overflow:hidden;display:flex;align-items:center;justify-content:center;flex:none;background:var(--color-background-primary-soft);border-radius:var(--radius-md);color:var(--color-text-secondary)}
 [data-mcx-sites=dialog] .mcx-site-candidate-art svg {width:20px;height:20px}
-[data-mcx-sites=dialog] .mcx-site-modes {display:flex;align-items:center;gap:var(--segmented-control-gap);padding:var(--segmented-control-gutter);flex-shrink:0;margin:0 20px 16px;border-radius:var(--control-radius-md);background:var(--color-background-secondary-solid)}
+[data-mcx-sites=dialog] .mcx-site-modes {display:flex;align-items:center;gap:var(--segmented-control-gap);padding:var(--segmented-control-gutter);flex-shrink:0;margin:0 0 16px;border-radius:var(--control-radius-md);background:var(--color-background-secondary-solid)}
 [data-mcx-sites=dialog] .mcx-site-mode {flex:1;min-width:0;height:var(--control-size-md);padding:0 var(--control-gutter-md);border:0;border-radius:calc(var(--control-radius-md) - var(--segmented-control-gutter));background:transparent;color:var(--color-text-secondary);font-family:inherit;font-size:var(--control-font-size-md);font-weight:var(--segmented-control-font-weight);line-height:1.5;white-space:nowrap}
 [data-mcx-sites=dialog] .mcx-site-mode[aria-selected=false] {color:var(--color-text-secondary-solid)}
 [data-mcx-sites=dialog] .mcx-site-mode[aria-selected=false]:hover {background:var(--color-background-secondary-solid-hover)}
@@ -104,13 +94,6 @@ style.textContent = `
 [data-mcx-sites=dialog] .mcx-site-scan-row:nth-child(2) .mcx-site-skeleton {animation-delay:-.3s}
 [data-mcx-sites=dialog] .mcx-site-scan-row:nth-child(3) .mcx-site-skeleton {animation-delay:-.6s}
 [data-mcx-sites=dialog] .mcx-site-empty {padding:28px 16px;text-align:center;color:var(--color-text-secondary);font-size:var(--text-sm)}
-[data-mcx-sites=dialog] .mcx-site-select {position:relative}
-[data-mcx-sites=dialog] .mcx-site-select-trigger {display:flex;align-items:center;gap:8px;width:100%;min-height:36px;padding:8px 10px;background:var(--color-background-primary-soft);border:1px solid var(--color-border-primary-outline);border-radius:var(--radius-md);text-align:start}
-[data-mcx-sites=dialog] .mcx-site-select-trigger>span {flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-[data-mcx-sites=dialog] .mcx-site-select-trigger svg {width:16px;height:16px;flex:none}
-[data-mcx-sites=dialog] .mcx-site-options {box-sizing:border-box;position:absolute;z-index:2;top:100%;left:0;width:100%;max-height:240px;padding:4px;background:var(--color-surface-elevated-secondary);border:0;box-shadow:0 0 0 .5px var(--color-border),var(--shadow-xl-spread)}
-[data-mcx-sites=dialog] .mcx-site-options[hidden] {display:none}
-[data-mcx-sites=dialog] .mcx-site-source-note {margin:8px 0 0;color:var(--color-text-tertiary)}
 `;
 document.head.append(style);
 function element(tag, className, content) { const e = document.createElement(tag); if (className) e.className = className; if (content != null) e.textContent = content; return e; }
@@ -132,10 +115,8 @@ function button(label, action, primary = false) {
   b.append(element("span", nativeInner || "", label)); b.addEventListener("click", action); return b;
 }
 function dialogButton(label, action, primary = false) {
-  // 与原生 Share 弹窗一致，使用 xl Button 及其主题和禁用 token。
-  const b = button(label, action, primary);
-  b.dataset.size = "xl"; b.dataset.variant = "solid";
-  return b;
+  const b = config.ui.action(element("button", "", label), primary ? "primary" : "secondary");
+  b.type = "button"; b.addEventListener("click", action); return b;
 }
 function setButtonDisabled(button, disabled) {
   button.disabled = disabled; button.setAttribute("aria-disabled", String(disabled)); button.toggleAttribute("data-disabled", disabled);
@@ -150,7 +131,7 @@ async function refresh() {
   if (disposed) return; state = data; revision++; rowSignature = ""; refreshAt = Date.now(); schedule();
 }
 function pageInfo() {
-  if (router()?.state?.location?.pathname !== "/sites") return null;
+  if (router()?.state?.location?.pathname !== "/space/sites") return null;
   const input = [...document.querySelectorAll("input")].find(e => /Search sites|搜索站点|搜尋網站/.test(e.placeholder));
   if (!input) return null;
   let page = input.parentElement;
@@ -160,12 +141,16 @@ function pageInfo() {
   const native = nativeProps(list || content.querySelector("button") || content.querySelector("p") || content.lastElementChild?.lastElementChild, p => "viewMode" in p && "shared" in p);
   const grid = native ? native.viewMode === "grid" : !!page.querySelector('button[aria-label="Grid view"][aria-pressed="true"],button[aria-label="网格视图"][aria-pressed="true"]');
   const shared = native ? !!native.shared : [...page.querySelectorAll("button[aria-pressed=true]")].some(b => /Shared with you|与你共享|與你共用/.test(b.textContent));
-  const create = [...page.querySelectorAll('button[data-variant="solid"]')].find(b => !b.hasAttribute(owned));
+  const create = [...page.firstElementChild.querySelectorAll("button")].find(b => /^(New|新建|新增)$/.test(b.textContent.trim()) && !b.hasAttribute(owned));
   return { page, input, content, list, grid, shared, create };
 }
 function cacheNative(page) {
   const create = page.create;
-  if (create) { nativeButton = create.className; nativeInner = create.firstElementChild?.className; nativePlus = create.querySelector("svg")?.cloneNode(true); }
+  if (create) {
+    const template = page.page.querySelector('button[data-size="lg"][data-color="secondary"]');
+    nativeButton = template.className; nativeInner = template.firstElementChild.className;
+    nativePlus = create.querySelector("svg")?.cloneNode(true);
+  }
   nativeSiteIcon ||= document.querySelector('[data-sidebar-destination="builtin:sites"] svg')?.cloneNode(true);
   const row = page.list?.querySelector("[data-appgen-row], article");
   nativeExternal ||= row?.querySelector('button[aria-label*="new tab"]')?.cloneNode(true);
@@ -176,7 +161,7 @@ function cacheNative(page) {
 function closeMenu() { const previous = menu?.trigger; previous?.setAttribute("aria-expanded", "false"); previous?.setAttribute("data-state", "closed"); menu?.node.remove(); menu = null; previous?.focus({ preventScroll: true }); }
 function showMenu(trigger, site) {
   closeMenu();
-  const m = element("div", MENU_CLASSES.menu); m.setAttribute(owned, "menu"); m.setAttribute("role", "menu"); m.tabIndex = -1;
+  const m = element("div", MENU_CLASSES.menu); config.ui.surface(m); m.setAttribute(owned, "menu"); m.setAttribute("role", "menu"); m.tabIndex = -1;
   function menuItem(label, glyph) {
     const item = element("button", MENU_CLASSES.item); item.type = "button"; item.setAttribute("role", "menuitem"); item.tabIndex = -1;
     const row = element("div", MENU_CLASSES.row), leading = element("span", MENU_CLASSES.leading), svg = icon(glyph); svg.setAttribute("aria-hidden", "true");
@@ -330,12 +315,10 @@ function schedule() { clearTimeout(timer); timer = setTimeout(reconcile, 60); }
 function newDialog(title, back) {
   dialog?.close(); dialog?.remove(); closeMenu();
   const previous = document.activeElement; const d = element("dialog"); d.setAttribute(owned, "dialog"); d.setAttribute("aria-labelledby", "mcx-sites-dialog-title");
-  const heading = element("div", "mcx-site-heading"); const h = element("h2", "", title); h.id = "mcx-sites-dialog-title";
-  const close = button("", () => d.close());
-  close.dataset.color = "secondary"; close.dataset.variant = "ghost"; close.dataset.size = "sm"; close.dataset.uniform = "";
-  close.setAttribute("aria-label", text("Close", "关闭")); close.firstElementChild.append(icon("close"));
-  if (back) heading.append(iconButton(text("Back", "返回"), "back", back));
-  heading.append(h, close); d.append(heading); document.body.append(d); dialog = d;
+  const heading = config.ui.heading(d, { title, closeLabel:text("Close", "关闭"), onClose:()=>d.close(),
+    back:back ? iconButton(text("Back", "返回"), "back", back) : null });
+  heading.querySelector("h2").id = "mcx-sites-dialog-title";
+  document.body.append(d); dialog = d;
   d.addEventListener("close", () => { d.remove(); if (dialog === d) dialog = null; previous?.focus({ preventScroll: true }); });
   d.addEventListener("click", e => { if (e.target === d) { const r = d.getBoundingClientRect(); if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) d.close(); } });
   d.showModal(); return d;
@@ -375,7 +358,7 @@ async function mountDiscovery(d, panel) {
   const error = element("div"); error.setAttribute("role", "alert"); content.append(error);
   let candidates = [], loaded = false, saving = false;
   const selected = new Set(), completed = new Set();
-  const footer = element("div", "mcx-site-footer");
+  const footer = config.ui.footer(element("div", "mcx-site-footer"));
   const cancel = dialogButton(text("Cancel", "取消"), () => d.close());
   const add = dialogButton(text("Add", "添加"), async () => {
     if (saving || !selected.size) return;
@@ -438,7 +421,7 @@ function mountEditor(d, container, site, problem) {
   const title = field(text("Name", "名称"), "title", site?.title); title.maxLength = 160; title.required = true;
   let origin = site?.origin || { kind: "external" };
   const error = element("div", "", problem); error.setAttribute("role", "alert"); content.append(error);
-  const footer = element("div", "mcx-site-footer"); const cancel = dialogButton(text("Cancel", "取消"), () => d.close()); const save = dialogButton(site ? text("Save", "保存") : text("Add", "添加"), () => {}, true); save.type = "submit"; footer.append(cancel, save); form.append(footer);
+  const footer = config.ui.footer(element("div", "mcx-site-footer")); const cancel = dialogButton(text("Cancel", "取消"), () => d.close()); const save = dialogButton(site ? text("Save", "保存") : text("Add", "添加"), () => {}, true); save.type = "submit"; footer.append(cancel, save); form.append(footer);
   let submitting = false;
   function validFields() {
     if (!title.value.trim() || title.value.trim().length > 160 || !url.value.trim() || !url.validity.valid) return false;
@@ -468,7 +451,7 @@ function fullViewControl(enter) {
 }
 async function applyWebLayout(token) {
   try {
-    await until(() => pendingLayout !== token || (router()?.state?.location?.pathname !== "/sites" && (fullViewControl(true) || fullViewControl(false))));
+    await until(() => pendingLayout !== token || (router()?.state?.location?.pathname !== "/space/sites" && (fullViewControl(true) || fullViewControl(false))));
     if (pendingLayout !== token) return;
     const hide = [...document.querySelectorAll("button")].find(e => visible(e) && /^(Hide sidebar|隐藏侧栏|隐藏侧边栏|隱藏側邊欄|收起侧栏)$/.test(e.getAttribute("aria-label") || "")); hide?.click();
     // 使用原生完整视图入口，保留原生网页标签和底部聊天输入框。

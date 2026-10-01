@@ -175,3 +175,24 @@ Host 会再次发送当前状态。功能页面可据此暂停隐藏状态下的
 
 这是非官方 CDP / DOM Adapter，不是公开的 Codex Contribution API。Codex 更新后应只
 在这个宿主中修复；各功能的数据和 Web UI不需要跟随重写。
+
+
+## 共享弹窗与浮层
+
+`src/feature-dialogs.mjs` 在 Renderer 中只安装一次，由 page-script 的 `config.ui` 调用：
+
+```js
+config.ui.heading(dialog, { title, closeLabel, onClose, back });
+const actions = config.ui.footer(document.createElement("div"));
+actions.append(config.ui.action(saveButton, "primary"));
+config.ui.overlay(backdrop);
+config.ui.surface(popover); // 只统一材质，保留功能的定位与内容
+```
+
+`heading` 标记 dialog 并创建标题及 Close；`back` 是可选的已有按钮节点。容器宽高、内容、原生 dialog 或自定义焦点管理、关闭后的焦点恢复继续由功能负责。`footer` 只装饰直接子按钮，`action` 的 tone 为 secondary / primary / danger。不要再在插件中复制背景、阴影、标题和底部按钮规则。
+
+2026-10-01、Codex 26.928.21956 隔离实测：Images Rename 表单为90% elevated-secondary（oklab 混合）、`--blur-xl` 24px、`--radius-3xl` 25px、20px内边距、0.5px描边及 shadow-lg；标题为 heading-md（20px / 28px、600）；表单操作32px高、14px / 18px正文、action圆角12.5px、12px间距。Close 取新版 Sites 的真实SVG，24px热区、top/right 16px。轻量浮层采用相同填充与 `--blur-xs` 4px、shadow-xl-spread，各自保留尺寸与圆角。
+
+原生菜单另有 `-owl-native-material:glass`、adaptive-appearance off、variant regular；仅在 `html[data-owl-native-glass=active]` 时切换系统绘制，移除CSS模糊与阴影，原生source-underlay出现时使用16% surface填充。共享模块沿用这一启用条件。当前隔离窗口该属性未开启，因此此次验证证明CSS材质与交互，尚未证明系统玻璃绘制。
+
+当前接入：Prompts的新增/编辑、分类及确认弹窗，Sites添加/编辑弹窗；Quick Prompts及其管理菜单、Session Status、任务切换列表、MineCodex模型列表复用浮层材质。Images使用原生弹窗，功能只注入提示词信息。额度环、侧栏聚焦与共享tooltip保留原生tooltip材质；Hide Upsell无弹窗。通用iframe编辑器外壳也使用共享dialog材质。

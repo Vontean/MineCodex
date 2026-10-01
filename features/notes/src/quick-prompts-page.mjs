@@ -29,7 +29,7 @@ style.textContent = `
   [${MARKER}=page] .pm-title-control>.pm-emoji-trigger:focus-visible { outline-offset:-3px; }
   [${MARKER}=page] .pm-editor .pm-title-control>input { flex:1; min-width:0; border:0; border-radius:0; background:transparent; padding:8px 10px; outline:none; box-shadow:none; }
 
-  [${MARKER}=panel] { position:fixed; z-index:50; zoom:var(--codex-window-zoom,1); transform:translateY(-100%); box-sizing:border-box; display:flex; flex-direction:column; overflow:hidden; padding:var(--spacing); border:1px solid var(--color-border); border-radius:var(--radius-suggestion-menu,var(--radius-2xl)); background:var(--color-surface-elevated-secondary); color:var(--color-text-primary); font-family:var(--font-sans-default); font-size:var(--text-sm); line-height:1.43; }
+  [${MARKER}=panel] { position:fixed; z-index:50; zoom:var(--codex-window-zoom,1); transform:translateY(-100%); box-sizing:border-box; display:flex; flex-direction:column; overflow:hidden; padding:var(--spacing); border:0; border-radius:var(--radius-suggestion-menu,var(--radius-2xl)); color:var(--color-text-primary); font-family:var(--font-sans-default); font-size:var(--text-sm); line-height:1.43; }
   [${MARKER}=panel] *, [${MARKER}=button] { box-sizing:border-box; }
   [${MARKER}=panel] button { cursor:var(--cursor-interaction,pointer); }
   [${MARKER}=panel] button:disabled { opacity:.4; cursor:default; }
@@ -49,7 +49,7 @@ style.textContent = `
   .qp-symbol { display:inline-flex; width:20px; height:20px; flex:none; align-items:center; justify-content:center; font-size:18px; line-height:1; color:var(--prompt-icon-light,var(--color-text-secondary)); }
   .qp-symbol svg { width:20px; height:20px; }
   .dark .qp-symbol, [data-theme=dark] .qp-symbol { color:var(--prompt-icon-dark,var(--color-text-secondary)); }
-  [${MARKER}=page] { position:fixed; z-index:20; overflow:auto; border-radius:var(--radius-xl-base); background:var(--color-surface); color:var(--color-text-primary); font-family:var(--font-sans-default); font-size:var(--text-sm); line-height:var(--text-sm--line-height); }
+  [${MARKER}=page] { position:fixed; z-index:41; overflow:auto; border-radius:var(--radius-xl-base); background:var(--color-surface); color:var(--color-text-primary); font-family:var(--font-sans-default); font-size:var(--text-sm); line-height:var(--text-sm--line-height); }
   [${MARKER}=page] * { box-sizing:border-box; }
   [${MARKER}=page] button { cursor:var(--cursor-interaction,pointer); }
   [${MARKER}=page] button:disabled { opacity:.35; cursor:default; }
@@ -65,7 +65,7 @@ style.textContent = `
   [${MARKER}=page] .pm-icon[hidden] { display:none; }
   [${MARKER}=page] .pm-icon svg { width:16px; height:16px; }
   [${MARKER}=page] .pm-icon:hover, [${MARKER}=page] .pm-icon[aria-expanded=true], [${MARKER}=page] .pm-icon[aria-pressed=true] { background:var(--color-background-primary-ghost-hover); color:var(--color-text-primary); }
-  [${MARKER}=page] .pm-popup { position:fixed; z-index:30; width:200px; padding:var(--app-menu-gutter,var(--spacing)); border-radius:var(--radius-2xl); background:color-mix(in srgb,var(--color-surface-elevated-secondary) 90%,transparent); box-shadow:0 0 0 .5px var(--color-border),var(--shadow-xl-spread,0 8px 16px -4px rgba(0,0,0,.12)); backdrop-filter:blur(4px); }
+  [${MARKER}=page] .pm-popup { position:fixed; z-index:30; width:200px; padding:var(--app-menu-gutter,var(--spacing)); border-radius:var(--radius-2xl); }
   [${MARKER}=page] .pm-popup button { width:100%; min-height:var(--app-menu-item-height,30px); display:flex; align-items:center; justify-content:space-between; gap:16px; padding:var(--app-menu-item-padding,5px 8px); border-radius:var(--radius-xl); text-align:left; }
   [${MARKER}=page] .pm-popup button:hover, [${MARKER}=page] .pm-popup button:focus-visible { background:var(--color-background-primary-ghost-hover); }
   [${MARKER}=page] .pm-popup svg { width:16px; height:16px; }
@@ -82,35 +82,27 @@ style.textContent = `
   [${MARKER}=page] .pm-row:hover { background:var(--color-background-primary-ghost-hover); }
   [${MARKER}=page] .pm-info { flex:1; min-width:0; text-align:left; }
   [${MARKER}=page] .pm-title { font-weight:500; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
-  [${MARKER}=page] .pm-preview { color:var(--color-text-secondary); overflow:hidden; white-space:nowrap; text-overflow:ellipsis; margin-top:3px; }
+  [${MARKER}=page] .pm-preview { max-width:65%; color:var(--color-text-secondary); overflow:hidden; white-space:nowrap; text-overflow:ellipsis; margin-top:3px; }
   [${MARKER}=page] .pm-stats { color:var(--color-text-tertiary); min-width:130px; text-align:right; font-variant-numeric:tabular-nums; font-size:var(--text-xs,12px); }
   [${MARKER}=page] .pm-count { color:var(--color-text-secondary); }
   [${MARKER}=page] .pm-empty { color:var(--color-text-tertiary); padding:48px 0; text-align:center; }
   [${MARKER}=page] .pm-form { display:flex; flex-direction:column; gap:16px; }
   [${MARKER}=page] .pm-field { display:flex; flex-direction:column; gap:6px; color:var(--color-text-secondary); }
   [${MARKER}=page] .pm-field textarea { min-height:220px; resize:vertical; color:var(--color-text-primary); }
-  [${MARKER}=page] .pm-footer { display:flex; justify-content:flex-end; gap:8px; margin-top:8px; }
   [${MARKER}=page] .pm-grid { display:flex; flex-wrap:wrap; gap:4px; }
   [${MARKER}=page] .pm-choice { width:36px; height:36px; border-radius:10px; display:flex; justify-content:center; align-items:center; }
   [${MARKER}=page] .pm-choice[aria-pressed=true] { background:var(--color-background-primary-ghost-hover); outline:1px solid var(--color-text-secondary); }
   [${MARKER}=page] .pm-swatch { width:18px; height:18px; border-radius:50%; background:currentColor; }
   [${MARKER}=page] .pm-error { color:var(--color-text-danger,var(--color-text-primary)); margin:12px 0; }
-  [${MARKER}=page] .pm-editor h2 { margin-top:0; }
   @media(max-width:800px) { [${MARKER}=page] .pm-wrap { padding:24px 30px; } [${MARKER}=page] .pm-stats { min-width:90px; } }
-  [${MARKER}=page] .pm-modal-layer { position:fixed; inset:0; z-index:60; display:grid; place-items:center; padding:24px; background:var(--color-background-overlay,rgba(0,0,0,.16)); }
-  [${MARKER}=page] .pm-editor { position:relative; top:auto; width:440px; max-width:calc(100vw - 48px); max-height:calc(100vh - 64px); margin:0; padding:20px; overflow:auto; border:0; border-radius:var(--radius-3xl,25px); background:color-mix(in srgb,var(--color-surface-elevated-secondary) 90%,transparent); box-shadow:0 0 0 .5px var(--color-border),var(--shadow-lg); backdrop-filter:blur(24px); }
+  [${MARKER}=page] .pm-modal-layer { position:fixed; inset:0; z-index:60; display:grid; place-items:center; padding:24px; }
+  [${MARKER}=page] .pm-editor { top:auto; width:440px; max-width:calc(100vw - 48px); max-height:calc(100vh - 64px); margin:0; overflow:auto; }
   [${MARKER}=page] .pm-prompt-editor { width:520px; }
-  [${MARKER}=page] .pm-modal-heading { display:flex; align-items:center; gap:8px; margin:0 0 16px; }
-  [${MARKER}=page] .pm-modal-heading h2 { flex:1; font-size:var(--text-lg,18px); font-weight:600; line-height:28px; margin:0; }
-  [${MARKER}=page] .pm-modal-heading .pm-icon { width:28px; height:28px; }
+  [${MARKER}=page] .pm-modal-heading .pm-icon { width:24px; height:24px; }
   [${MARKER}=page] .pm-editor .pm-row { min-height:44px; padding:8px; gap:10px; border-radius:var(--radius-lg); }
   [${MARKER}=page] .pm-editor .pm-form { gap:12px; }
   [${MARKER}=page] .pm-editor .pm-field { gap:8px; color:var(--color-text-primary); }
   [${MARKER}=page] .pm-editor input, [${MARKER}=page] .pm-editor textarea { border-radius:var(--radius-md); padding:8px 10px; background:var(--color-background-primary-soft,rgba(0,0,0,.025)); }
-  [${MARKER}=page] .pm-editor .pm-footer { margin-top:20px; gap:12px; }
-  [${MARKER}=page] .pm-editor .pm-footer .pm-command { border-radius:var(--radius-button-action,999px); min-height:32px; padding:6px 16px; background:var(--color-background-primary-ghost-hover); }
-  [${MARKER}=page] .pm-editor .pm-footer .pm-primary { background:var(--color-background-primary-solid); color:var(--color-text-primary-solid); }
-  [${MARKER}=page] .pm-editor .pm-footer .pm-primary:hover { background:var(--color-background-primary-solid-hover); }
   [${MARKER}=page] .pm-grid { gap:4px; }
   [${MARKER}=page] .pm-choice { width:36px; height:36px; border-radius:var(--radius-lg); }
   [${MARKER}=page] .pm-choice svg { width:20px; height:20px; }
@@ -120,11 +112,7 @@ style.textContent = `
   [${MARKER}=page] .pm-search-inline>svg { width:16px; height:16px; flex:none; color:var(--color-text-tertiary); }
   [${MARKER}=page] .pm-list>h2 { color:var(--color-text-tertiary); font-size:var(--text-sm,13px); font-weight:500; }
   [${MARKER}=page] .pm-stats { min-width:64px; }
-  [${MARKER}=page] .pm-modal-heading>.pm-icon:first-child { margin-left:-11px; }
-  [${MARKER}=page] .pm-modal-heading>.pm-icon:last-child { margin-right:-10px; }
   [${MARKER}=page] .pm-editor input:focus, [${MARKER}=page] .pm-editor textarea:focus, [${MARKER}=page] .pm-popup input:focus { outline:none; box-shadow:none; border-color:var(--color-ring,var(--color-border-primary-outline)); }
-  [${MARKER}=page] .pm-editor .pm-footer .pm-danger { color:var(--color-text-danger); background:var(--color-background-danger-soft-alpha); }
-  [${MARKER}=page] .pm-editor .pm-footer .pm-danger:hover { background:var(--color-background-danger-soft-alpha-hover); }
   [${MARKER}=page] .pm-confirm-description { color:var(--color-text-secondary); line-height:1.6; }
   [${MARKER}=page] .pm-select { display:flex; align-items:center; gap:8px; min-height:36px; padding:8px 10px; background:var(--color-background-primary-soft); border:1px solid var(--color-border); border-radius:var(--radius-md); text-align:left; }
   [${MARKER}=page] .pm-select>svg { width:16px; height:16px; }
@@ -148,7 +136,7 @@ style.textContent = `
 document.head.append(style);
 let button = null;
 let addButton = null;
-let composerCard = null;
+let composerRoot = null;
 let composerThread = null;
 let panel = null;
 let items = [];
@@ -210,8 +198,9 @@ function showError(error) {
   panel.append(message);
 }
 function position() {
-  if (!panel || !composerCard?.isConnected) return;
-  const rect = composerCard.getBoundingClientRect();
+  if (!panel || !composerRoot?.isConnected) return;
+  // Root 包含 diff、请求队列；与原生 Add 一样只锚定输入框主体。
+  const rect = addButton.closest("[data-composer-body]").getBoundingClientRect();
   const zoom = Number.parseFloat(getComputedStyle(panel).zoom) || 1;
   panel.style.left = `${rect.left / zoom}px`;
   panel.style.top = `${(rect.top - 4) / zoom}px`;
@@ -352,6 +341,7 @@ function open() {
   if (addButton.getAttribute("aria-expanded") === "true") addButton.click();
   panel = element("div");
   panel.setAttribute(MARKER, "panel");
+  config.ui.surface(panel);
   panel.setAttribute("role", "dialog");
   panel.setAttribute("aria-label", text("Quick Prompts", "快捷提示词"));
   document.body.append(panel);
@@ -360,6 +350,12 @@ function open() {
   position();
   void loadList();
 }
+function isOpenComposerMenu(node) {
+  return node.getAttribute("aria-expanded") === "true"
+    && node.checkVisibility({ visibilityProperty: true })
+    && (node.getAttribute("data-composer-navigation-target") === "add-context"
+      || node.getAttribute("aria-haspopup") === "menu");
+}
 function sync() {
   if (disposed || signal.aborted) return;
   syncNavigation();
@@ -367,7 +363,8 @@ function sync() {
     ...document.querySelectorAll("[data-codex-composer-root] button"),
   ].find(
     (node) =>
-      node.getAttribute("data-composer-navigation-target") === "add-context",
+      node.getAttribute("data-composer-navigation-target") === "add-context"
+      && node.checkVisibility({ visibilityProperty: true }),
   );
   const card = add?.closest("[data-codex-composer-root]");
   const thread =
@@ -378,19 +375,17 @@ function sync() {
     close();
     composerThread = thread;
   }
-  if (add !== addButton || card !== composerCard) {
+  if (add !== addButton || card !== composerRoot) {
     close();
     button?.remove();
     button = null;
     addButton = add;
-    composerCard = card;
+    composerRoot = card;
   }
   if (!add) return;
   if (
     panel &&
-    [...card.querySelectorAll("button[aria-expanded=true]")].some(
-      (node) => node !== button,
-    )
+    [...card.querySelectorAll("button")].some(isOpenComposerMenu)
   )
     close();
   if (!button) {
@@ -445,7 +440,7 @@ const hiddenSurfaces = new Map();
 const nativeNavigationSelection = new Map();
 
 function pageControl(label, handler, primary = false) {
-  return control(label, handler, `pm-command${primary ? " pm-primary" : ""}`);
+  return config.ui.action(control(label, handler, `pm-command${primary ? " pm-primary" : ""}`), primary ? "primary" : "secondary");
 }
 function pageError(error) {
   if (!page) return;
@@ -571,6 +566,7 @@ function makePagePopup(trigger, className, role, matchTriggerWidth = false) {
   popupTrigger = trigger;
   trigger.setAttribute("aria-expanded", "true");
   pagePopup = element("div", `pm-popup ${className}`);
+  config.ui.surface(pagePopup);
   pagePopup.setAttribute("role", role);
   pagePopup.setAttribute("aria-label", trigger.getAttribute("aria-label"));
   (editorLayer ?? page).append(pagePopup);
@@ -999,6 +995,7 @@ function editorShell(title, back = null) {
   if (!editorLayer) {
     editorReturnFocus = document.activeElement;
     editorLayer = element("div", "pm-modal-layer");
+    config.ui.overlay(editorLayer);
     page.append(editorLayer);
     page.querySelector(".pm-wrap").inert = true;
   }
@@ -1008,13 +1005,11 @@ function editorShell(title, back = null) {
   editor.setAttribute("aria-modal", "true");
   editor.setAttribute("aria-label", title);
   editor.tabIndex = -1;
-  const heading = element("div", "pm-modal-heading");
-  if (back) heading.append(pageIcon(text("Back", "返回"), "back", back));
-  heading.append(
-    element("h2", "", title),
-    pageIcon(text("Close", "关闭"), "x", () => closeEditor()),
-  );
-  editor.append(heading);
+  const heading = config.ui.heading(editor, {
+    title, closeLabel:text("Close", "关闭"), onClose:()=>closeEditor(),
+    back:back ? pageIcon(text("Back", "返回"), "back", back) : null,
+  });
+  heading.classList.add("pm-modal-heading");
   editorLayer.append(editor);
   editor.focus();
   return editor;
@@ -1134,7 +1129,7 @@ function editPrompt(item = null) {
     field(text("Category", "分类"), categoryButton),
     field(text("Prompt", "提示词"), body),
   );
-  const footer = element("div", "pm-footer");
+  const footer = config.ui.footer(element("div", "pm-footer"));
   if (item) {
     const remove = pageControl(text("Delete", "删除"), async () => {
       if (remove.dataset.confirm !== "true") {
@@ -1151,7 +1146,7 @@ function editPrompt(item = null) {
         pageError(error);
       }
     });
-    remove.classList.add("pm-danger");
+    config.ui.action(remove, "danger");
     remove.style.marginRight = "auto";
     footer.append(remove);
   }
@@ -1265,7 +1260,7 @@ function openEmojiPicker(trigger, selected, refresh) {
 }
 function manageCategories() {
   const target = editorShell(text("Categories", "分类"));
-  const footer = element("div", "pm-footer");
+  const footer = config.ui.footer(element("div", "pm-footer"));
   footer.append(
     pageControl(text("New category", "新建分类"), () => editCategory(), true),
   );
@@ -1347,7 +1342,7 @@ function editCategory(category = null) {
     element("div", "", text("Color", "颜色")),
     colors,
   );
-  const footer = element("div", "pm-footer");
+  const footer = config.ui.footer(element("div", "pm-footer"));
   if (category) {
     const remove = pageControl(text("Delete", "删除"), () => {
       const count = items.filter(
@@ -1379,19 +1374,19 @@ function editCategory(category = null) {
           ),
         ),
       );
-      const actions = element("div", "pm-footer");
+      const actions = config.ui.footer(element("div", "pm-footer"));
       const confirm = pageControl(
         text("Delete", "删除"),
         () => void destroy(confirm),
       );
-      confirm.classList.add("pm-danger");
+      config.ui.action(confirm, "danger");
       actions.append(
         pageControl(text("Cancel", "取消"), () => editCategory(category)),
         confirm,
       );
       confirmation.append(actions);
     });
-    remove.classList.add("pm-danger");
+    config.ui.action(remove, "danger");
     remove.style.marginRight = "auto";
     footer.append(remove);
   }
@@ -1513,6 +1508,10 @@ observer.observe(document.documentElement, {
     "aria-expanded",
     "data-selected",
     "aria-current",
+    "class",
+    "hidden",
+    "inert",
+    "aria-hidden",
   ],
 });
 document.addEventListener(

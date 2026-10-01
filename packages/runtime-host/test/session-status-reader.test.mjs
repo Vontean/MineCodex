@@ -196,6 +196,78 @@ test("returns no snapshot for unavailable or malformed thread IDs", async () => 
   assert.equal(threadIdFromLocation(`/thread/${THREAD_ID}?view=chat`), THREAD_ID);
 });
 
+test("merges resumed rollout segments, discovers later sessions and keeps cumulative usage without double counting", async (t) => {
+  const sessionsDir = await mkdtemp(path.join(os.tmpdir(), "mcx-session-segments-"));
+  t.after(() => rm(sessionsDir, { recursive: true, force: true }));
+  const original = path.join(sessionsDir, `rollout-2026-09-30T01-00-00-${THREAD_ID}.jsonl`);
+  const resumed = path.join(sessionsDir, `rollout-2026-09-30T02-00-00-${THREAD_ID}_aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee.jsonl`);
+  await writeFile(original, [
+    line("1970-01-01T00:00:00Z", "event_msg", { type: "task_started", turn_id: "failed" }),
+    line("1970-01-01T00:00:01Z", "event_msg", { type: "task_complete", turn_id: "failed" }),
+  ].join(""));
+  // 无关后缀文件不能被当成当前会话分段。
+  await writeFile(`${original.slice(0, -6)}_backup.jsonl`, line("1970-01-01T00:00:02Z", "event_msg", { type: "task_started", turn_id: "unrelated" }));
+  let now = 0;
+  const reader = new SessionStatusReader({ sessionsDir, now: () => now });
+  assert.equal((await reader.read(THREAD_ID)).steps, 0);
+  const response = line("1970-01-01T00:00:04Z", "token_usage_record", {
+    response_id: "one", usage: usage(100, 80, 100), thread_token_usage: usage(100, 80, 100),
+  });
+  await writeFile(resumed, [
+    line("1970-01-01T00:00:02Z", "event_msg", { type: "task_started", turn_id: "resumed" }),
+    line("1970-01-01T00:00:03Z", "event_msg", { type: "item_completed", item: { type: "Reasoning" }, started_at_ms: 3000, completed_at_ms: 3100 }),
+    response, response,
+  ].join(""));
+  now = 2_000;
+  const resumedSnapshot = await reader.read(THREAD_ID);
+  assert.equal(resumedSnapshot.turns, 2);
+  assert.equal(resumedSnapshot.steps, 1);
+  assert.equal(resumedSnapshot.totalTokens, 200);
+  assert.equal(resumedSnapshot.cacheHitPercent, 80);
+  assert.equal(resumedSnapshot.observedTps, 100);
+  await appendFile(resumed, line("1970-01-01T00:00:05Z", "token_usage_record", {
+    response_id: "two", usage: usage(100, 80, 50), thread_token_usage: usage(200, 160, 150),
+  }));
+  assert.equal((await reader.read(THREAD_ID)).totalTokens, 350);
+  const nextDate = path.join(sessionsDir, "2026", "10", "01");
+  await mkdir(nextDate, { recursive: true });
+  await writeFile(path.join(nextDate, `rollout-2026-10-01T00-00-00-${THREAD_ID}_ffffffff-bbbb-4ccc-8ddd-eeeeeeeeeeee.jsonl`), [
+    line("1970-01-01T00:00:06Z", "event_msg", { type: "task_complete", turn_id: "resumed" }),
+    line("1970-01-01T00:00:07Z", "event_msg", { type: "task_started", turn_id: "later" }),
+    line("1970-01-01T00:00:08Z", "token_usage_record", {
+      response_id: "three", usage: usage(100, 80, 50), thread_token_usage: usage(300, 240, 200),
+    }),
+  ].join(""));
+  now = 4_000;
+  const latest = await reader.read(THREAD_ID);
+  assert.equal(latest.turns, 3);
+  assert.equal(latest.steps, 3);
+  assert.equal(latest.totalTokens, 500);
+  assert.equal(latest.cacheHitPercent, 80);
+  assert.deepEqual(await reader.read(THREAD_ID), latest);
+});
+
+test("orders initial segment events by timestamp rather than directory traversal", async (t) => {
+  const sessionsDir = await mkdtemp(path.join(os.tmpdir(), "mcx-session-order-"));
+  t.after(() => rm(sessionsDir, { recursive: true, force: true }));
+  const original = path.join(sessionsDir, `rollout-z-${THREAD_ID}.jsonl`);
+  const resumed = path.join(sessionsDir, `rollout-a-${THREAD_ID}_aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee.jsonl`);
+  await writeFile(original, [
+    line("1970-01-01T00:00:01Z", "event_msg", { type: "task_started", turn_id: "one" }),
+    line("1970-01-01T00:00:02Z", "token_usage_record", { response_id: "one", usage: usage(100, 50, 10), thread_token_usage: usage(100, 50, 10) }),
+    line("1970-01-01T00:00:03Z", "event_msg", { type: "task_complete", turn_id: "one" }),
+  ].join(""));
+  await writeFile(resumed, [
+    line("1970-01-01T00:00:04Z", "event_msg", { type: "task_started", turn_id: "two" }),
+    line("1970-01-01T00:00:05Z", "token_usage_record", { response_id: "two", usage: usage(200, 150, 20), thread_token_usage: usage(300, 200, 30) }),
+  ].join(""));
+  const snapshot = await new SessionStatusReader({ sessionsDir }).read(THREAD_ID);
+  assert.equal(snapshot.steps, 2);
+  assert.equal(snapshot.turns, 2);
+  assert.equal(snapshot.totalTokens, 330);
+  assert.equal(snapshot.isRunning, true);
+});
+
 test("uses post-compaction native context counts without replacing cumulative billing totals", async (t) => {
   const sessionsDir = await mkdtemp(path.join(os.tmpdir(), "mcx-context-reset-"));
   t.after(() => rm(sessionsDir, { recursive: true, force: true }));

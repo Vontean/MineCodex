@@ -217,3 +217,34 @@ test("Prompts localizes appearance labels and errors without modifying saved con
   assert.equal(read(true).errorMessage({message:"Prompt was not found"}), "未找到该提示词");
   assert.equal(read(false).errorMessage({message:"Prompt was not found"}), "Prompt was not found");
 });
+
+test("Quick Prompts only conflicts with visible native composer menus, not expanded Context", async () => {
+  const source = await readFile(new URL("../src/quick-prompts-page.mjs", import.meta.url), "utf8");
+  const isOpen = new Function(`${source.slice(source.indexOf("function isOpenComposerMenu("), source.indexOf("function sync()"))}; return isOpenComposerMenu;`)();
+  const control = (attributes, visible = true) => ({ getAttribute: name => attributes[name] ?? null, checkVisibility: () => visible });
+  assert.equal(isOpen(control({ "aria-expanded": "true", "data-minecodex-context-trigger": "" })), false);
+  assert.equal(isOpen(control({ "aria-expanded": "true", "aria-haspopup": "dialog" })), false);
+  assert.equal(isOpen(control({ "aria-expanded": "true", "data-composer-navigation-target": "add-context" })), true);
+  assert.equal(isOpen(control({ "aria-expanded": "true", "aria-haspopup": "menu" })), true);
+  assert.equal(isOpen(control({ "aria-expanded": "true", "aria-haspopup": "menu" }, false)), false);
+  assert.equal(isOpen(control({ "aria-expanded": "false", "aria-haspopup": "menu" })), false);
+});
+
+
+test("Quick Prompts anchors to the composer body when diff and request stacks extend its root", async () => {
+  const source = await readFile(new URL("../src/quick-prompts-page.mjs", import.meta.url), "utf8");
+  const positioning = source.slice(source.indexOf("function position()"), source.indexOf("function close("));
+  const panel = { style:{} };
+  let bodyRect = { left:100, top:600, width:720 };
+  const root = { isConnected:true, getBoundingClientRect:()=>{ throw new Error("Outer stack must not be used as the anchor"); } };
+  const add = { closest:selector=>{ assert.equal(selector, "[data-composer-body]"); return { getBoundingClientRect:()=>bodyRect }; } };
+  const position = new Function("panel", "composerRoot", "addButton", "getComputedStyle", `${positioning}; return position;`)(panel, root, add, ()=>({zoom:"1"}));
+  position();
+  assert.deepEqual(panel.style, { left:"100px", top:"596px", width:"720px", maxHeight:"400px" });
+  // 上方组件高度变化不影响主体坐标；主体移动后继续跟随。
+  position();
+  assert.equal(panel.style.top, "596px");
+  bodyRect = { left:120, top:330, width:500 };
+  position();
+  assert.deepEqual(panel.style, { left:"120px", top:"326px", width:"500px", maxHeight:"314px" });
+});
