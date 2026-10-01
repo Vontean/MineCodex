@@ -1,3 +1,5 @@
+> 历史资料，归档于 2026-10-01。以下内容只描述当时的产品与取证结果，不具有当前规范优先级。当前产品见 [Images README](../../../features/images/README.md)，特殊组件见 [Images DESIGN](../../../features/images/DESIGN.md)，通用设计以根 [DESIGN.md](../../../DESIGN.md) 为准。
+
 # Codex Design Language Integration
 
 取证环境：Codex macOS `26.803.41515`，2026-08-07。以下结论来自当前 Renderer 的 computed styles、CSS variables、原生 Plugins 控件和明暗主题规则，不是凭视觉猜测。

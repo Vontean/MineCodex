@@ -1,9 +1,11 @@
+> 历史资料，归档于 2026-10-01。以下内容只描述当时的产品与取证结果，不具有当前规范优先级。当前产品见 [Images README](../../../features/images/README.md)，特殊组件见 [Images DESIGN](../../../features/images/DESIGN.md)，通用设计以根 [DESIGN.md](../../../DESIGN.md) 为准。
+
 # CodexImageHost Handoff
 
 更新日期：2026-08-07
 当前阶段：Phase 0 已验证；精简版 Images 路径索引、图库和详情已实现；Codex 集成已迁移到上层同级的统一宿主 `CodexRuntimeHost`
 
-## 0. 2026-08-07 当前产品决定（优先级最高）
+## 0. 2026-08-07 当时的产品决定（历史记录）
 
 当前第一版已经从“通用 Collections 素材库”收敛成一个清楚的小产品：
 

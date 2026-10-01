@@ -23,3 +23,5 @@ node --test features/images/test/library-prompt-page.test.mjs
 
 旧 `src/image-library.mjs`、索引、独立 `web/` 与服务脚本暂保留为历史工具，
 不属于当前插件入口；已有本地图片和缓存不会被迁移或删除。
+
+历史图库的交接与视觉取证已归档到 [research/images](../../docs/research/images/2026-08-07-gallery-handoff.md)，不作为当前功能规范。历史服务仍可通过本插件的 `npm run service` 手动启动；它不由当前 manifest 加载。保留这些工具不意味着新增或恢复独立图库入口。
