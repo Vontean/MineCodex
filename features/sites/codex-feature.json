@@ -2,9 +2,26 @@
   "schemaVersion": 1,
   "id": "sites",
   "version": "0.1.0",
-  "label": { "en": "Local & Self-hosted Sites", "zh-CN": "本地与自托管站点" },
-  "description": { "en": "Discover project web services and open saved sites in their development context.", "zh-CN": "发现项目网页服务，快捷添加，并在对应开发聊天中打开站点。" },
-  "entry": { "kind": "page-script", "script": "src/sites-page.mjs" },
-  "hostActions": ["sites"],
-  "placement": { "order": 90 }
+  "label": {
+    "en": "Local & Self-hosted Sites",
+    "zh-CN": "本地与自托管站点"
+  },
+  "description": {
+    "en": "Discover project web services and open saved sites in their development context.",
+    "zh-CN": "发现项目网页服务，快捷添加，并在对应开发聊天中打开站点。"
+  },
+  "entry": {
+    "kind": "page-script",
+    "script": "src/frontend/entry.mjs",
+    "resources": {
+      "icons": "src/frontend/icons.json",
+      "styles": "src/frontend/styles.css"
+    }
+  },
+  "hostActions": [
+    "sites"
+  ],
+  "placement": {
+    "order": 90
+  }
 }

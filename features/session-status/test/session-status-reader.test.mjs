@@ -3,7 +3,7 @@ import { appendFile, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { SessionStatusReader, threadIdFromLocation } from "../src/session-status-reader.mjs";
+import { SessionStatusReader, threadIdFromLocation } from "../src/backend/session-status-reader.mjs";
 
 const THREAD_ID = "11111111-2222-4333-8444-555555555555";
 const usage = (input, cached, output) => ({

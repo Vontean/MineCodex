@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { EDITOR_TOKEN_NAMES } from "../../../packages/runtime-host/src/codex-design-contract.mjs";
+import { EDITOR_TOKEN_NAMES } from "../../../packages/ui/src/native/tokens.mjs";
 
 test("images editor token whitelist stays identical to the runtime-host design contract", async () => {
   const app = await readFile(new URL("../web/app.js", import.meta.url), "utf8");

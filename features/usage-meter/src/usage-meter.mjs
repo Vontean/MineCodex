@@ -56,7 +56,7 @@ style.textContent = `
 [${MARKER}] .mcx-usage-number { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:inherit; font-family:var(--font-sans-default); font-size:calc(var(--text-xs) * 2 / 3); line-height:1; font-weight:var(--font-weight-medium,500); letter-spacing:0; font-variant-numeric:tabular-nums; pointer-events:none; }
 [${MARKER}] [data-window="weekly"] { color:inherit; }
 [${MARKER}] [data-window="fiveHour"] { color:var(--color-text-secondary); }
-#${TIP_ID} { position:fixed; z-index:2147483000; width:max-content; max-width:calc(100vw - 16px); pointer-events:none; user-select:none; padding:5px 12px; border:1px solid var(--color-border-tooltip); border-radius:var(--radius-2xl); background:var(--color-background-tooltip); color:var(--color-text-tooltip); box-shadow:var(--shadow-tooltip); font-family:var(--font-sans-default); font-size:var(--text-sm); line-height:18px; font-weight:var(--tooltip-compact-font-weight); letter-spacing:var(--tracking-tooltip); }
+#${TIP_ID} { width:max-content; max-width:calc(100vw - 16px); }
 #${TIP_ID}[hidden] { display:none; }
 #${TIP_ID} dl { display:grid; grid-template-columns:auto auto; gap:2px 16px; margin:0; }
 #${TIP_ID} dt { text-align:left; }
@@ -158,6 +158,7 @@ function mount(avatar, rail) {
   button.setAttribute(MARKER, "");
   const tooltip = document.createElement("div");
   tooltip.id = TIP_ID;
+  config.ui.tooltipSurface(tooltip);
   tooltip.setAttribute("role", "tooltip");
   tooltip.hidden = true;
   avatarAnchor(avatar, rail).before(button);

@@ -33,7 +33,7 @@ Token 名称是实现依据；括号内数值是本版本观测值。读取实�
 
 共有文字与结构 token：`--font-sans-default`、`--text-heading-md`（20px）、`--font-weight-semibold`、`--text-base`、`--color-text-primary`、`--color-text-secondary`、`--color-text-tertiary`、`--modal-container-inner-padding`。当前共享外壳内容 padding 为20px，标题行高28px；Close 采用原生 Sites SVG及24px热区、top/right 16px。具体内容尺寸由功能决定。
 
-`--shadow-lg` 当前浅色为 `0 4px 8px -2px / 10%黑色`。边缘和投影是两部分；若引用的 shadow token 已含边缘，勿额外重复叠边。表单、确认等专用分支应按所选原生组件保留差异。
+`--shadow-lg` 当前浅色为 `0 4px 8px -2px / 10%黑色`。边缘和投影是两部分；按所选原生组件保留ring与shadow组合，不再额外加一层CSS border。表单、确认等专用分支应按所选原生组件保留差异。
 
 ## 操作按钮
 
@@ -92,7 +92,7 @@ sidebar规则分状态：
 
 共享Tooltip处理MineCodex标记，不接管原生Tooltip。当前声明入口为 `data-minecodex-tooltip`，删除克隆节点上过时的 `title` / `aria-describedby`，避免双重气泡。
 
-Token：`--color-background-tooltip`、`--color-text-tooltip`、`--color-border-tooltip`、`--shadow-tooltip`、`--radius-2xl`、`--font-sans-default`、`--text-sm`、`--tooltip-compact-font-weight`、`--tracking-tooltip`。当前共享实现padding 5px 12px、行高18px；支持hover与键盘focus、aria关联、Escape和卸载清理。
+Token：`--color-background-tooltip`、`--color-text-tooltip`、`--color-border-tooltip`、`--shadow-tooltip`、`--radius-2xl`、`--font-sans-default`、`--text-sm`、`--tooltip-compact-font-weight`、`--tracking-tooltip`。当前共享实现padding 5px 12px、行高18px；支持hover与键盘focus、aria关联、Escape和卸载清理。额度、上下文等特有内容通过 `tooltipSurface` 复用材质，功能维护自身内容与定位。
 
 ## 主题、窗口材质与系统玻璃
 
@@ -108,7 +108,7 @@ Token：`--color-background-tooltip`、`--color-text-tooltip`、`--color-border-
 
 ## 当前实现与规范的差异
 
-已有共享弹窗和按钮采用Sites Share参考；Tooltip已有单一实现。共享 `surface(node, kind)` 仍将多种轻量浮层归入同一90%/4px配方，尚未表达上述Dropdown、Popover及Composer分支；系统glass入口也需按明确组件类型收窄。这些是后续组件库迁移的已知工作，不能作为新的原生依据继续传播。
+共享组件已迁入 `packages/ui`：Dialog 支持 default/opaque，Dropdown 支持 menu/opaque，Popover 支持 opaque/translucent，ComposerMenu 使用原生浮动列表材质，Page 使用原生内容面。现有插件显式选择相应类型，不再统一套90%/4px浮层配方。未提供通用系统glass开关；没有明确原生分支与能力证据时，使用所选组件的CSS材质。form/catalog等尚无实际调用需求的分支仅记录原生事实。
 
 现有token注册表供宿主主题桥使用，不代表本文所有组件token已注册。新增iframe消费时核对并补齐所用token；直接注入组件读取原生CSS作用域。按实际需求维护必要别名，删除已失效的兼容代码。
 

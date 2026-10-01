@@ -182,7 +182,19 @@ async function normalizePageScript(manifest, projectDir) {
   if (!source.trim()) {
     throw new Error("page-script resource must be a non-empty script file");
   }
-  return { resource, source };
+  // 资源随脚本一次传入 Renderer，不增加 HTTP 加载或模块闭包依赖。
+  const resources = {};
+  for (const [name, file] of Object.entries(manifest.entry?.resources ?? {})) {
+    if (typeof file !== "string") throw new Error("page-script resources must be file paths");
+    const resourcePath = path.resolve(projectDir, file);
+    const relativeResource = path.relative(projectDir, resourcePath);
+    if (relativeResource.startsWith("..") || path.isAbsolute(relativeResource)) {
+      throw new Error("page-script resources must stay inside the feature project");
+    }
+    const content = await readFile(resourcePath, "utf8");
+    resources[name] = file.endsWith(".json") ? JSON.parse(content) : content;
+  }
+  return { resource, source, resources };
 }
 
 async function normalizeFeature(manifest, projectDir, env) {

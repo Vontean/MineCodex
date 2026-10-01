@@ -1,5 +1,3 @@
-import { evaluationValue } from "./codex-cdp.mjs";
-
 // 在原生 Renderer 内使用现有登录态；凭据和临时下载地址不跨出 Renderer。
 export async function cloudImagesInRenderer(operation, payload) {
   const key = Symbol.for("minecodex.cloud-images.v1");
@@ -112,12 +110,9 @@ export async function cloudImagesInRenderer(operation, payload) {
   };
 }
 
-export async function cloudImagesAction(client, operation, payload = {}) {
+export async function cloudImagesAction(evaluate, operation, payload = {}) {
   if (!["list", "import"].includes(operation)) throw new Error("Unknown cloud image operation");
   if (payload.cursor != null && (typeof payload.cursor !== "string" || payload.cursor.length > 4096)) throw new Error("Invalid Library cursor");
   if (operation === "import" && (typeof payload.libraryId !== "string" || !/^libfile_[\w-]+$/.test(payload.libraryId))) throw new Error("Invalid Library file ID");
-  return evaluationValue(await client.send("Runtime.evaluate", {
-    expression: `(${cloudImagesInRenderer.toString()})(${JSON.stringify(operation)},${JSON.stringify(payload)})`,
-    awaitPromise: true, returnByValue: true,
-  }, { timeoutMs: 110_000 }));
+  return evaluate(`(${cloudImagesInRenderer.toString()})(${JSON.stringify(operation)},${JSON.stringify(payload)})`, { timeoutMs: 110_000 });
 }

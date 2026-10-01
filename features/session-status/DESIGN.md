@@ -38,4 +38,4 @@ TPS 标签后放置 12px Lucide info 图标，继承标签颜色，间距 6px。
 
 输入框实例仅绑定可见的 thread composer。全屏标签页中的隐藏聊天、浮动 Quick Chat（含 right-panel composer overlay）、inert 区域不注入；原生移动输入框或切换可见性时销毁实例并取消订阅，返回聊天后重建。
 
-明细采用通用 Popover，保持本功能的定位、尺寸及内容层级。当前通过共享 `config.ui.surface` 接入；该接口尚未区分原生组件分支，迁移时应显式选择 Popover 材质，不能推断它与 Dropdown 或 Dialog 相同。
+明细采用通用 Popover，保持本功能的定位、尺寸及内容层级。当前通过 UI 组件库的 `config.ui.surface(panel, "popover")` 选择原生 Popover；功能继续拥有定位、尺寸与内容。

@@ -5,13 +5,20 @@ export function installFeatureTooltips(signal) {
   tip.id = "minecodex-feature-tooltip";
   tip.setAttribute("role", "tooltip");
   tip.hidden = true;
-  tip.style.cssText = `position:fixed;z-index:2147483001;pointer-events:none;box-sizing:border-box;
-    zoom:var(--codex-window-zoom,1);max-width:min(320px,calc(100vw - 16px));
-    padding:5px 12px;border:1px solid var(--color-border-tooltip);border-radius:var(--radius-2xl);
-    background:var(--color-background-tooltip);color:var(--color-text-tooltip);box-shadow:var(--shadow-tooltip);
-    font-family:var(--font-sans-default);font-size:var(--text-sm);line-height:18px;
-    font-weight:var(--tooltip-compact-font-weight);letter-spacing:var(--tracking-tooltip);
-    text-align:center;overflow-wrap:anywhere;user-select:none;`;
+  const style = document.createElement("style");
+  style.setAttribute("data-minecodex-ui-styles", "tooltip");
+  style.textContent = `
+    [data-mcx-ui-tooltip] { position:fixed;z-index:2147483001;pointer-events:none;box-sizing:border-box;
+      padding:5px 12px;border:1px solid var(--color-border-tooltip);border-radius:var(--radius-2xl);
+      background:var(--color-background-tooltip);color:var(--color-text-tooltip);box-shadow:var(--shadow-tooltip);
+      font-family:var(--font-sans-default);font-size:var(--text-sm);line-height:18px;
+      font-weight:var(--tooltip-compact-font-weight);letter-spacing:var(--tracking-tooltip);user-select:none; }
+  `;
+  document.head.append(style);
+  function tooltipSurface(node) { node.setAttribute("data-mcx-ui-tooltip", ""); return node; }
+  tooltipSurface(tip);
+  tip.style.cssText = `zoom:var(--codex-window-zoom,1);max-width:min(320px,calc(100vw - 16px));
+    text-align:center;overflow-wrap:anywhere;`;
   let anchor = null;
   let timer;
   let frame;
@@ -61,5 +68,6 @@ export function installFeatureTooltips(signal) {
   document.addEventListener("pointerdown", hide, { signal, capture: true });
   document.addEventListener("keydown", event => { if (event.key === "Escape") hide(); }, { signal });
   window.addEventListener("blur", hide, { signal });
-  signal.addEventListener("abort", () => { hide(); tip.remove(); }, { once: true });
+  signal.addEventListener("abort", () => { hide(); tip.remove(); style.remove(); }, { once: true });
+  return { tooltipSurface };
 }

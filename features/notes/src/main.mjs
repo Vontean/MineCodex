@@ -3,8 +3,8 @@
 import os from "node:os";
 import path from "node:path";
 
-import { createQuickPromptsServer } from "./quick-prompts-server.mjs";
-import { CodexNotesProduct } from "./product.mjs";
+import { createQuickPromptsServer } from "./backend/quick-prompts-server.mjs";
+import { CodexNotesProduct } from "./backend/product.mjs";
 
 const host = process.env.CODEX_NOTES_HOST ?? "127.0.0.1";
 const port = Number(process.env.CODEX_NOTES_PORT ?? "47832");

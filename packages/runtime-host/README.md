@@ -181,7 +181,7 @@ Host 会再次发送当前状态。功能页面可据此暂停隐藏状态下的
 
 通用视觉、原生材质分支、遮罩及层级的权威来源为根 [DESIGN.md](../../DESIGN.md)，内部文件导航见 [AGENTS.md](../../AGENTS.md)。组件库目标与现有实现归属见 [UI 架构](../ui/ARCHITECTURE.md)。本节只说明当前接入契约。
 
-`src/feature-dialogs.mjs` 在 Renderer 中只安装一次，由 page-script 的 `config.ui` 调用：
+`packages/ui/src/install.mjs` 组装共享组件源码，在 Renderer 中只安装一次，由 page-script 的 `config.ui` 调用：
 
 ```js
 config.ui.heading(dialog, { title, closeLabel, onClose, back });
@@ -193,6 +193,8 @@ config.ui.surface(popover); // 只统一材质，保留功能的定位与内容
 
 `heading` 标记 dialog 并创建标题及 Close；`back` 是可选的已有按钮节点。容器宽高、内容、原生 dialog 或自定义焦点管理、关闭后的焦点恢复继续由功能负责。`footer` 只装饰直接子按钮，`action` 的 tone 为 ghost / secondary / primary / danger。不要再在插件中复制背景、阴影、标题和底部按钮规则。
 
-当前实现仍在 Runtime Host，尚未迁入 `packages/ui`。Prompts 与 Sites 的管理弹窗已使用用户选定的 opaque / Sites Share 风格；Quick Prompts、Session Status、任务切换和模型列表仍通过同一 `surface` 接口装饰，尚未按原生 ComposerSuggestionMenu、Popover、Dropdown 分支拆分。后续迁移必须按根规范选择分支，不能将现有统一浮层材质当作原生通用规则。
+共享组件已迁入 UI workspace。Prompts 与 Sites 管理弹窗选用 opaque / Sites Share；Quick Prompts 使用 ComposerMenu；管理菜单和模型列表选择 Dropdown，Session Status 与任务切换选择 Popover。组件库负责各分支视觉，宿主不复制实现。
 
-Images 的提示词面板沿用原生 Version history 的特殊组件结构；iframe 页面仍由宿主传递主题。组件库迁移应保持 `config.ui` 接入与自包含的注入脚本契约，视觉代码归组件库，序列化、通信和生命周期归宿主。
+page-script 可以用 manifest 的 `entry.resources` 声明本功能内的 CSS/图标资源，宿主读取后通过 `config.resources` 一次传入。JSON 作为数据、其他文件作为文本；越出功能目录的路径会被拒绝。它不改变 host action、服务启动或消息协议。
+
+Images 提示词面板沿用原生 Version history 的特殊结构；iframe 页面继续通过宿主接收主题。会话统计与云 Library 业务归所属插件，Runtime Host 只组合业务能力和外部连接。领域规则与架构层参见根 [ARCHITECTURE.md](../../ARCHITECTURE.md)。

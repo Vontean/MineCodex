@@ -6,7 +6,7 @@
 
 ## 当前阶段
 
-`packages/ui` 目前只有规范与架构文档，尚未建立独立运行包。现有组件仍位于Runtime Host的 `feature-dialogs.mjs`、`feature-tooltips.mjs`，token契约仍为 `codex-design-contract.mjs`。目标结构详见架构文档；不要将待迁移目录当成现有能力。
+`packages/ui` 已建立独立私有 workspace，组件、token、安装源码与验证均在本级维护；实际目录见架构文档。未使用的原生组件分支不会仅因规范列出而预建空壳。
 
 ## 组件职责
 
@@ -19,7 +19,7 @@
 
 ## 接入约束
 
-当前page-script通过 `config.ui` 使用公共能力；现有API包括 `heading`、`footer`、`action`、`overlay`、`surface`。现有 `surface(node, kind)` 尚未完整表达根规范中的原生分类，后续按实际使用补齐，而不是继续扩大一种通用玻璃配方。
+当前page-script通过 `config.ui` 使用公共能力；现有API包括 `heading`、`footer`、`action`、`overlay`、`surface`。`surface(node, kind, options)` 显式区分原生材质；`page`、`mount`、`trapFocus`、`composerMenu`、`tooltipSurface` 维护实际复用的层级、焦点与定位。`entry.resources` 通过 `config.resources` 提供插件自身 CSS 与图标，通用视觉仍由组件库维护。
 
 Renderer安装函数经序列化注入，必须自包含。组件代码与Node/CDP隔离，宿主负责组装注入源码、生命周期和iframe主题桥；不为整理目录引入不必要的打包系统。
 

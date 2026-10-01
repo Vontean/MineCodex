@@ -1,10 +1,11 @@
+import { installComposerMenu } from "../../../packages/ui/src/components/composer-menu.mjs";
 import assert from "node:assert/strict";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { CodexNotesProduct } from "../src/product.mjs";
-import { createQuickPromptsServer } from "../src/quick-prompts-server.mjs";
+import { CodexNotesProduct } from "../src/backend/product.mjs";
+import { createQuickPromptsServer } from "../src/backend/quick-prompts-server.mjs";
 
 test("Quick Prompts reuses saved prompts and exposes no Todo, Files, or old pages", async (t) => {
   const dir = await mkdtemp(path.join(os.tmpdir(), "mcx-prompts-"));
@@ -107,7 +108,7 @@ test("Quick Prompts manifest retires toolbar surfaces and script compiles as an 
   assert.equal(manifest.detailTabs, undefined);
   assert.deepEqual(manifest.hostActions, ["quick-prompts"]);
   const source = await readFile(
-    new URL("../src/quick-prompts-page.mjs", import.meta.url),
+    new URL("../src/frontend/entry.mjs", import.meta.url),
     "utf8",
   );
   assert.doesNotThrow(() => new Function("signal", "config", source));
@@ -208,7 +209,7 @@ test("Prompt categories, ordering, emoji and successful insert counts persist in
 });
 
 test("Prompts localizes appearance labels and errors without modifying saved content", async () => {
-  const source = await readFile(new URL("../src/quick-prompts-page.mjs", import.meta.url), "utf8");
+  const source = await readFile(new URL("../src/frontend/entry.mjs", import.meta.url), "utf8");
   const helpers = source.slice(source.indexOf("const appearanceLabels ="), source.indexOf("// DOM 与图标工具"));
   const read = cn => new Function("text", `${helpers}; return {appearanceLabel, errorMessage};`)((en, zh) => cn ? zh : en);
   assert.equal(read(true).appearanceLabel("terminal"), "终端");
@@ -219,7 +220,7 @@ test("Prompts localizes appearance labels and errors without modifying saved con
 });
 
 test("Quick Prompts only conflicts with visible native composer menus, not expanded Context", async () => {
-  const source = await readFile(new URL("../src/quick-prompts-page.mjs", import.meta.url), "utf8");
+  const source = await readFile(new URL("../src/frontend/entry.mjs", import.meta.url), "utf8");
   const isOpen = new Function(`${source.slice(source.indexOf("function isOpenComposerMenu("), source.indexOf("function sync()"))}; return isOpenComposerMenu;`)();
   const control = (attributes, visible = true) => ({ getAttribute: name => attributes[name] ?? null, checkVisibility: () => visible });
   assert.equal(isOpen(control({ "aria-expanded": "true", "data-minecodex-context-trigger": "" })), false);
@@ -232,13 +233,14 @@ test("Quick Prompts only conflicts with visible native composer menus, not expan
 
 
 test("Quick Prompts anchors to the composer body when diff and request stacks extend its root", async () => {
-  const source = await readFile(new URL("../src/quick-prompts-page.mjs", import.meta.url), "utf8");
+  const source = await readFile(new URL("../src/frontend/entry.mjs", import.meta.url), "utf8");
   const positioning = source.slice(source.indexOf("function position()"), source.indexOf("function close("));
   const panel = { style:{} };
   let bodyRect = { left:100, top:600, width:720 };
   const root = { isConnected:true, getBoundingClientRect:()=>{ throw new Error("Outer stack must not be used as the anchor"); } };
   const add = { closest:selector=>{ assert.equal(selector, "[data-composer-body]"); return { getBoundingClientRect:()=>bodyRect }; } };
-  const position = new Function("panel", "composerRoot", "addButton", "getComputedStyle", `${positioning}; return position;`)(panel, root, add, ()=>({zoom:"1"}));
+  const menu = new Function("getComputedStyle", `return (${installComposerMenu.toString()})(null, {surface:()=>{},layer:()=>{}});`)(()=>({zoom:"1"}));
+  const position = new Function("panel", "composerRoot", "addButton", "config", `${positioning}; return position;`)(panel, root, add, {ui:menu});
   position();
   assert.deepEqual(panel.style, { left:"100px", top:"596px", width:"720px", maxHeight:"400px" });
   // 上方组件高度变化不影响主体坐标；主体移动后继续跟随。

@@ -51,14 +51,14 @@ style.textContent = `
   [data-minecodex-context-trigger]:focus-visible { outline:2px solid var(--color-ring); }
   [data-minecodex-context-trigger] svg { width:12px; height:12px; }
   [data-minecodex-native-context] { display:none !important; }
-  [data-minecodex-context-tooltip] { position:fixed; z-index:2147483000; pointer-events:none; width:max-content; padding:5px 12px; border:1px solid var(--color-border-tooltip); border-radius:var(--radius-2xl); background:var(--color-background-tooltip); color:var(--color-text-tooltip); box-shadow:var(--shadow-tooltip); font-family:var(--font-sans-default); font-size:var(--text-sm); line-height:18px; font-weight:var(--tooltip-compact-font-weight); letter-spacing:var(--tracking-tooltip); text-align:center; white-space:pre-line; }
+  [data-minecodex-context-tooltip] { width:max-content; text-align:center; white-space:pre-line; }
   @media (prefers-reduced-motion:reduce) { [data-minecodex-session-reveal], [data-context-progress] { transition:none; } }
   [${MARKER}] button { box-sizing:border-box; display:inline-flex; align-items:center; gap:6px; height:22px; color:inherit; font:inherit; border:0; border-radius:var(--radius-xl,12px); background:transparent; padding:3px 6px; cursor:pointer; white-space:nowrap; }
   [${MARKER}] svg, [data-minecodex-session-status-panel] h3 svg { width:14px; height:14px; flex:none; stroke-width:1.75; }
   [${MARKER}] [data-kind="context"] svg, [data-minecodex-session-status-panel] h3 .context-ring { width:12px; height:12px; stroke-width:2; }
   [${MARKER}] button:hover, [${MARKER}] button[aria-expanded="true"] { background:var(--color-token-list-hover-background); }
   [${MARKER}] button:focus-visible { outline:2px solid var(--input-outline-border-color-focus); outline-offset:1px; }
-  [data-minecodex-session-status-panel] { --mcx-purple:var(--app-block-accent-purple,light-dark(#8952ee,#7849d1)); --mcx-blue:var(--app-block-accent-blue,light-dark(#3a83f7,#2c67c5)); --mcx-green:var(--app-block-accent-green,light-dark(#53b559,#48a04c)); box-sizing:border-box; position:fixed; z-index:2147483000; min-width:260px; max-width:min(360px,calc(100vw - 24px)); padding:16px;  border-radius:var(--radius-xl,14px);  color:var(--color-text-primary); font-family:var(--font-sans-default,inherit); font-size:13px;  }
+  [data-minecodex-session-status-panel] { --mcx-purple:var(--app-block-accent-purple,light-dark(#8952ee,#7849d1)); --mcx-blue:var(--app-block-accent-blue,light-dark(#3a83f7,#2c67c5)); --mcx-green:var(--app-block-accent-green,light-dark(#53b559,#48a04c)); box-sizing:border-box; position:fixed;  min-width:260px; max-width:min(360px,calc(100vw - 24px)); padding:16px;  border-radius:var(--radius-xl,14px);  color:var(--color-text-primary); font-family:var(--font-sans-default,inherit); font-size:13px;  }
   [data-minecodex-session-status-panel] h3 { display:flex; align-items:center; gap:8px; margin:0 0 12px; padding:0 0 10px; border-bottom:1px solid var(--color-border-subtle); font-size:14px; font-weight:600; }
   [data-minecodex-session-status-panel] dl { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px 20px; margin:0; }
   [data-minecodex-session-status-panel] dt { color:var(--color-text-tertiary); }
@@ -152,6 +152,7 @@ trigger.setAttribute("aria-controls", root.id);
 trigger.append(createContextRing());
 const tooltip = document.createElement("div");
 tooltip.id = `minecodex-context-tooltip-${instanceId}`;
+config.ui.tooltipSurface(tooltip);
 tooltip.dataset.minecodexContextTooltip = "";
 tooltip.setAttribute("role", "tooltip");
 tooltip.hidden = true;
@@ -321,7 +322,7 @@ function showPanel(kind) {
   anchor.setAttribute("aria-expanded", "true");
   panel = document.createElement("div");
   panel.dataset.minecodexSessionStatusPanel = kind;
-  config.ui.surface(panel);
+  config.ui.surface(panel, "popover");
   panel.setAttribute("role", "dialog");
   panel.setAttribute("aria-label", copy[kind]);
   const heading = document.createElement("h3");

@@ -758,3 +758,20 @@ test("stops safely during deferred owned-child startup without reporting an inte
   assert.equal(supervisor.plugins[0].failure, null);
   assert.ok(statusChanges.length >= 1);
 });
+
+test("page-script resources are loaded once as data and cannot escape the feature", async t => {
+  const root=await mkdtemp(path.join(os.tmpdir(),"mcx-resource-contract-"));
+  t.after(()=>rm(root,{recursive:true,force:true}));
+  const project=path.join(root,"resource-feature"); await mkdir(project,{recursive:true});
+  const manifest={schemaVersion:1,id:"resources",label:"Resources",entry:{kind:"page-script",script:"entry.mjs",resources:{styles:"styles.css",icons:"icons.json"}}};
+  const manifestPath=path.join(project,"codex-feature.json");
+  await writeFile(path.join(project,"entry.mjs"),"return () => {};\n");
+  await writeFile(path.join(project,"styles.css"),".special { width:65%; }\n");
+  await writeFile(path.join(project,"icons.json"),JSON.stringify({book:"<svg></svg>"}));
+  await writeFile(manifestPath,JSON.stringify(manifest));
+  const [feature]=await discoverFeatures(root);
+  assert.deepEqual(feature.pageScript.resources,{styles:".special { width:65%; }\n",icons:{book:"<svg></svg>"}});
+  manifest.entry.resources.styles="../outside.css";
+  await writeFile(manifestPath,JSON.stringify(manifest));
+  await assert.rejects(discoverFeatures(root),/resources must stay inside/);
+});

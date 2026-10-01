@@ -4,7 +4,9 @@ import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises";
 import { createServer } from "node:http";
 import os from "node:os";
 import path from "node:path";
-import { SitesService, normalizeSite, projectForDirectory, parseListeners, probePage, localListeners } from "../src/sites-service.mjs";
+import { SitesService } from "../src/backend/sites-service.mjs";
+import { normalizeSite, projectForDirectory } from "../src/domain/site.mjs";
+import { parseListeners, probePage, localListeners } from "../src/backend/discovery.mjs";
 
 async function fixture(t) {
   const root = await mkdtemp(path.join(os.tmpdir(), "mcx-sites-"));
@@ -112,7 +114,7 @@ test("listener metadata reads full process arguments instead of the node executa
 
 
 test("preview jobs reuse captures and disk cache without blocking other actions", async t => {
-  const { SitePreviews } = await import("../src/sites-preview.mjs");
+  const { SitePreviews } = await import("../src/backend/sites-preview.mjs");
   const { root } = await fixture(t); let calls = 0, release;
   const bytes = Buffer.from("preview fixture");
   const previews = new SitePreviews(path.join(root, "previews"), async () => { calls++; await new Promise(resolve => { release = resolve; }); return bytes; });

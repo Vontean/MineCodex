@@ -1,4 +1,4 @@
-import prompts from "../assets/default-prompts.json" with { type: "json" };
+import prompts from "../../assets/default-prompts.json" with { type: "json" };
 
 // 单次导入后全部归用户管理，删除和编辑不会在下次启动时被还原。
 export function seedDefaultPrompts(db, now) {

@@ -2,12 +2,11 @@
 // 该字符串经 CDP 注入后独立执行，因此 install 函数体必须自包含；
 // CodexRuntime 与 CDP 客户端在 codex-runtime.mjs / codex-cdp.mjs。
 
-import { installFeatureDialogs } from "./feature-dialogs.mjs";
-import { installFeatureTooltips } from "./feature-tooltips.mjs";
+import { createUIInstallerSource } from "../../ui/src/install.mjs";
 import { randomBytes } from "node:crypto";
-import { CODEX_THEME_TOKENS, CODEX_THEME_TOKEN_ALIASES } from "./codex-design-contract.mjs";
+import { CODEX_THEME_TOKENS, CODEX_THEME_TOKEN_ALIASES } from "../../ui/src/native/tokens.mjs";
 
-export const RUNTIME_VERSION = 103;
+export const RUNTIME_VERSION = 104;
 export const HOST_BINDING_NAME = "__codexPersonalHostAction";
 export const CSP_BOOTSTRAP_VERSION = 1;
 export const CSP_BOOTSTRAP_KEY = "__mineCodexCspBootstrapVersion";
@@ -121,14 +120,14 @@ export function createInjectionSource(features, {
   bindingToken = "test-binding-token",
   runtimeSessionId = randomBytes(16).toString("hex"),
 } = {}) {
-  function install(config, installTooltips, installDialogs) {
+  function install(config, installUI) {
     if (window.top !== window) return;
     if (!document.documentElement) {
       // The document bootstrap runs before the root element exists. Defer the
       // whole install until the DOM is ready instead of crashing on a null
       // documentElement (which previously left the runtime permanently absent
       // after a renderer reload).
-      document.addEventListener("DOMContentLoaded", () => install(config, installTooltips, installDialogs), { once: true });
+      document.addEventListener("DOMContentLoaded", () => install(config, installUI), { once: true });
       return;
     }
     const currentRuntime = window.__codexPersonalRuntime;
@@ -140,8 +139,7 @@ export function createInjectionSource(features, {
     currentRuntime?.dispose?.();
 
     const lifetime = new AbortController();
-    installTooltips(lifetime.signal);
-    const featureUI = installDialogs(lifetime.signal);
+    const featureUI = installUI(lifetime.signal);
     const rightPanelRouteKinds = new Set(config.rightPanelRouteKinds);
 
     const entryMarker = "data-codex-personal-feature";
@@ -1802,7 +1800,7 @@ export function createInjectionSource(features, {
       menu.setAttribute("data-state", "open");
       menu.setAttribute("data-codex-model-slider-menu", "");
       menu.setAttribute("data-codex-model-slider-controller-menu", "");
-      featureUI.surface(menu);
+      featureUI.surface(menu, "dropdown");
       models.forEach((model, index) => {
         const item = document.createElement("div");
         item.className = "no-drag outline-hidden rounded-lg px-[var(--padding-row-x)] py-[var(--padding-row-y)] text-sm text-default group hover:bg-primary-ghost-hover focus:bg-primary-ghost-hover cursor-interaction flex flex-col";
@@ -3310,12 +3308,11 @@ export function createInjectionSource(features, {
     function createPageSurface(feature) {
       const surface = document.createElement("section");
       surface.setAttribute(pageSurfaceMarker, feature.id);
+      featureUI.page(surface, { transparent:true });
       surface.style.cssText = [
-        "position:fixed",
         "top:0",
         "right:0",
         "bottom:0",
-        "z-index:40",
         "background:transparent",
       ].join(";");
       const frame = createFrame(feature.id, feature.label);
@@ -3542,9 +3539,8 @@ export function createInjectionSource(features, {
       surface.setAttribute("role", "dialog");
       surface.setAttribute("aria-label", definition.label ?? feature.label);
       surface.hidden = true;
+      featureUI.page(surface, { transparent:true });
       surface.style.cssText = [
-        "position:fixed",
-        "z-index:40",
         "overflow:hidden",
         "border-radius:25px",
         "corner-shape:var(--codex-corner-shape,superellipse(1.5))",
@@ -4788,6 +4784,7 @@ export function createInjectionSource(features, {
     pageScript: feature.pageScript ? {
       ...feature.pageScript,
       config: {
+        resources: feature.pageScript.resources ?? {},
         serviceOrigin: pageScriptServiceOrigin(feature),
         bindingName,
         bindingToken,
@@ -4805,7 +4802,7 @@ export function createInjectionSource(features, {
     themeTokens: CODEX_THEME_TOKENS,
     themeTokenAliases: CODEX_THEME_TOKEN_ALIASES,
     features: runtimeFeatures,
-  })}, ${installFeatureTooltips.toString()}, ${installFeatureDialogs.toString()})`;
+  })}, ${createUIInstallerSource()})`;
 }
 
 export function createRuntimeReadyContract({

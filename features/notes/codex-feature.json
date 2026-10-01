@@ -14,7 +14,11 @@
   "healthUrl": "http://127.0.0.1:47832/api/health",
   "entry": {
     "kind": "page-script",
-    "script": "src/quick-prompts-page.mjs"
+    "script": "src/frontend/entry.mjs",
+    "resources": {
+      "icons": "src/frontend/icons.json",
+      "styles": "src/frontend/styles.css"
+    }
   },
   "placement": {
     "order": 20

@@ -1,4 +1,4 @@
-import { cloudImagesAction } from "./cloud-images.mjs";
+import { cloudImagesAction } from "../../../features/images/src/backend/cloud-library.mjs";
 // CodexRuntime：Codex Renderer 生命周期与 host action 执行。
 // 注入源（createInjectionSource）与 CDP 客户端分别在 codex-injection.mjs / codex-cdp.mjs。
 
@@ -32,8 +32,8 @@ import {
   attachFilesToComposer,
   createImageEditThread,
 } from "./host-actions.mjs";
-import { SitesService } from "../../../features/sites/src/sites-service.mjs";
-import { SessionStatusReader, threadIdFromLocation } from "./session-status-reader.mjs";
+import { SitesService } from "../../../features/sites/src/backend/sites-service.mjs";
+import { SessionStatusReader, threadIdFromLocation } from "../../../features/session-status/src/backend/session-status-reader.mjs";
 
 
 // 保持公共入口兼容：历史 import 从本文件继续可用。
@@ -587,7 +587,12 @@ export class CodexRuntime {
     }
     if (["list-cloud-images", "import-cloud-image"].includes(request.action)) {
       try {
-        let result = await cloudImagesAction(client, request.action === "list-cloud-images" ? "list" : "import", request.payload);
+        let result = await cloudImagesAction(
+          async (expression, options) => evaluationValue(await client.send("Runtime.evaluate", {
+            expression, awaitPromise:true, returnByValue:true,
+          }, options)),
+          request.action === "list-cloud-images" ? "list" : "import", request.payload,
+        );
         if (request.action === "import-cloud-image" && !result.skipped) {
           result = await this.importGeneratedImage(feature, result);
         }

@@ -67,4 +67,4 @@ Category 下拉面板与触发栏等宽、左右对齐，宽度包含内边距�
 
 内置 24 条来自 dsh-prompt 0.1.13 的 MIT 提示词，正文保持原样，按思考、学习、编程、效率分类并配 Emoji。来源与许可保存在 assets/dsh-prompt-LICENSE.txt。首次启动或旧库升级时单次导入；随后允许编辑和删除，重启不还原，也不重建被删除的分类。用户个人内容只保留在本机数据库，不纳入默认资源。
 
-简短悬浮提示调用共享 Tooltip；具体文案由本功能维护。Quick Prompts 选择 ComposerSuggestionMenu 的浮动分支；目前共享 `surface` 尚未按原生组件分类，后续迁移应采用该分支的独立材质与锚点规则，不沿用统一浮层配方。
+简短悬浮提示调用共享 Tooltip；具体文案由本功能维护。Quick Prompts 通过通用 ComposerMenu 使用原生浮动建议列表材质和输入框主体锚点。排序、分类与图标菜单显式选择 Dropdown。

@@ -28,6 +28,6 @@ Quick Prompts 以当前可见 Codex 输入框定位；打开原生 Add、权限�
 
 内置 24 条已分类、带 Emoji 的快捷提示词，来自 MIT 授权的 dsh-prompt 0.1.13。首次启动或升级仅导入一次，后续编辑与删除不会被覆盖。个人提示词不随包发布。来源和完整许可见 [dsh-prompt-LICENSE.txt](./assets/dsh-prompt-LICENSE.txt)。
 
-弹窗与浮层统一调用 Runtime Host 的 `config.ui`（`packages/runtime-host/src/feature-dialogs.mjs`），共享主题材质、标题、Close 和表单操作区；插件只维护内容及交互。
+弹窗与浮层统一调用 UI 组件库提供的 `config.ui`（由 Runtime Host 注入），共享主题材质、标题、Close 和表单操作区；插件只维护内容及交互。
 
 Quick Prompts 与原生 Add 一样定位到 `data-composer-body` 上沿；`data-codex-composer-root` 仅用于会话识别和控件检测。diff、request stack 等上方组件不抬高浮窗，层级沿用原生 z-index 50。

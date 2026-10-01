@@ -58,21 +58,25 @@
     "features/sites/codex-feature.json",
     "features/sites/DESIGN.md",
     "features/sites/README.md",
-    "features/sites/vendor/lucide-LICENSE"
+    "features/sites/vendor/lucide-LICENSE",
+    "packages/ui/src",
+    "packages/ui/package.json",
+    "DESIGN.md"
   ],
   "engines": {
     "node": ">=22.5.0"
   },
   "scripts": {
     "start": "node packages/cli/bin/mcx.mjs serve",
-    "test": "node --test packages/cli/test/*.test.mjs packages/runtime-host/test/*.test.mjs features/model-slider/test/*.test.mjs features/notes/test/*.test.mjs features/images/test/*.test.mjs features/hide-upsell-banner/test/*.test.mjs features/session-status/test/*.test.mjs features/usage-meter/test/*.test.mjs apps/dashboard/test/*.test.mjs features/unread-inbox/test/*.test.mjs features/sidebar-focus/test/*.test.mjs features/sites/test/*.test.mjs",
+    "test": "node --test packages/cli/test/*.test.mjs packages/runtime-host/test/*.test.mjs features/model-slider/test/*.test.mjs features/notes/test/*.test.mjs features/images/test/*.test.mjs features/hide-upsell-banner/test/*.test.mjs features/session-status/test/*.test.mjs features/usage-meter/test/*.test.mjs apps/dashboard/test/*.test.mjs features/unread-inbox/test/*.test.mjs features/sidebar-focus/test/*.test.mjs features/sites/test/*.test.mjs packages/ui/test/*.test.mjs",
     "test:cli": "node --test packages/cli/test/*.test.mjs",
     "test:runtime": "node --test packages/runtime-host/test/*.test.mjs",
     "check": "node scripts/check-syntax.mjs",
     "build:service": "scripts/build-service-app.zsh",
     "pack:check": "npm pack --dry-run",
     "pack:audit": "node scripts/audit-package.mjs",
-    "prepublishOnly": "npm test && npm run check && npm run pack:audit"
+    "prepublishOnly": "npm test && npm run check && npm run pack:audit",
+    "test:ui": "node --test packages/ui/test/*.test.mjs"
   },
   "repository": {
     "type": "git",

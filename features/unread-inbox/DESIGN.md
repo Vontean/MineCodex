@@ -37,4 +37,4 @@
 
 浮层标题颜色与原生 Sidebar 类别标题一致，使用 `--color-text-tertiary`。
 
-当前通过共享 `config.ui.surface` 接入；该接口尚未区分原生组件分支，后续迁移显式选择 Popover 材质。功能继续拥有定位、尺寸与列表内容。
+当前通过 UI 组件库的 `config.ui.surface(panel, "popover")` 选择原生 Popover；功能继续拥有定位、尺寸与内容。

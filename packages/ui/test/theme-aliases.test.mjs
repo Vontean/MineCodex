@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import vm from "node:vm";
-import { createInjectionSource } from "../src/codex-injection.mjs";
-import { CODEX_THEME_TOKENS, CODEX_THEME_TOKEN_ALIASES } from "../src/codex-design-contract.mjs";
+import { createInjectionSource } from "../../runtime-host/src/codex-injection.mjs";
+import { CODEX_THEME_TOKENS, CODEX_THEME_TOKEN_ALIASES } from "../src/native/tokens.mjs";
 
 const source = createInjectionSource([]);
 const start = source.indexOf("function resolvedTheme()");

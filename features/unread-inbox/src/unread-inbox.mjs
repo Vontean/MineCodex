@@ -16,7 +16,7 @@ style.textContent = `
 [data-minecodex-task-badge][data-notification=red]::after { background:#FF3B30; }
 [data-minecodex-sidebar-original] { display:none !important; }
 [data-minecodex-unread=trigger] { -webkit-app-region:no-drag; }
-[${marker}=panel] { position:fixed; z-index:2147483000; box-sizing:border-box; width:min(320px,calc(100vw - 16px)); max-height:min(440px,calc(100vh - 64px)); display:flex; flex-direction:column; overflow:hidden; padding:6px 0;  border-radius:16px;  color:var(--color-text-primary);  font-family:var(--font-sans-default); font-size:var(--text-sm); }
+[${marker}=panel] { position:fixed;  box-sizing:border-box; width:min(320px,calc(100vw - 16px)); max-height:min(440px,calc(100vh - 64px)); display:flex; flex-direction:column; overflow:hidden; padding:6px 0;  border-radius:16px;  color:var(--color-text-primary);  font-family:var(--font-sans-default); font-size:var(--text-sm); }
 [${marker}=panel][hidden] { display:none; }
 [${marker}=panel] .mcx-thread-list { min-height:0; overflow-y:auto; overscroll-behavior:contain; padding:0 6px; scrollbar-width:thin; scrollbar-color:var(--color-border) transparent; }
 [${marker}=panel] .mcx-thread-list:hover, [${marker}=panel] .mcx-thread-list:active { scrollbar-color:var(--color-border-strong) transparent; }
@@ -42,7 +42,7 @@ style.textContent = `
 document.head.append(style);
 const panel = document.createElement("div");
 panel.setAttribute(marker, "panel");
-config.ui.surface(panel);
+config.ui.surface(panel, "popover");
 panel.id = "minecodex-unread-panel";
 panel.setAttribute("role", "dialog");
 panel.hidden = true;

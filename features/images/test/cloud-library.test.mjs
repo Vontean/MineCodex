@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { cloudImagesInRenderer, cloudImagesAction } from "../src/cloud-images.mjs";
+import { cloudImagesInRenderer, cloudImagesAction } from "../src/backend/cloud-library.mjs";
 
 const key = Symbol.for("minecodex.cloud-images.v1");
 function fixture(context, {role = "assistant", prompt = "", size = 3} = {}) {
@@ -46,4 +46,15 @@ test("unlisted files, oversized images and invalid host input are rejected", asy
   await assert.rejects(cloudImagesInRenderer("import",{libraryId:"libfile_test"}),/32 MB/);
   assert.equal(f.stats().downloads,0);
   await assert.rejects(cloudImagesAction({},"import",{libraryId:"https://example.com"}),/Invalid/);
+});
+
+test("cloud image adapter accepts an evaluator without owning CDP transport", async () => {
+  const calls=[];
+  const result=await cloudImagesAction(async (expression,options)=>{
+    calls.push({expression,options}); return {items:[],cursor:null};
+  },"list",{cursor:"next"});
+  assert.deepEqual(result,{items:[],cursor:null});
+  assert.match(calls[0].expression,/cloudImagesInRenderer/);
+  assert.match(calls[0].expression,/"cursor":"next"/);
+  assert.equal(calls[0].options.timeoutMs,110000);
 });

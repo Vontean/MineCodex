@@ -91,7 +91,7 @@ test("usage button mounts immediately above the Avatar without inheriting accoun
   row.append(inner); inner.parentElement = row;
   inner.append(avatar); avatar.parentElement = inner;
   const document = { createElement: () => new Node(), body: new Node() };
-  const mount = new Function("document", "MARKER", "TIP_ID", `let record, hoverTimer; const hideTooltip = () => {}, showTooltip = () => {}; ${source.slice(source.indexOf("function avatarAnchor("), source.indexOf("function sync()"))}\nreturn (avatar, rail) => { mount(avatar, rail); return record; };`)(document, "data-minecodex-usage-meter", "minecodex-usage-tooltip");
+  const mount = new Function("document", "MARKER", "TIP_ID", "config", `let record, hoverTimer; const hideTooltip = () => {}, showTooltip = () => {}; ${source.slice(source.indexOf("function avatarAnchor("), source.indexOf("function sync()"))}\nreturn (avatar, rail) => { mount(avatar, rail); return record; };`)(document, "data-minecodex-usage-meter", "minecodex-usage-tooltip", {ui:{tooltipSurface:node=>node}});
   const record = mount(avatar, rail);
   assert.deepEqual(footer.children, [record.button, row]);
   assert.deepEqual(inner.children, [avatar]);

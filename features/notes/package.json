@@ -10,6 +10,6 @@
   "scripts": {
     "start": "node src/main.mjs",
     "test": "node --test",
-    "check": "node --check src/main.mjs && node --check src/product.mjs && node --check src/prompt-schema.mjs && node --check src/quick-prompts-server.mjs"
+    "check": "node --check src/main.mjs && node --check src/backend/product.mjs && node --check src/backend/prompt-schema.mjs && node --check src/backend/quick-prompts-server.mjs"
   }
 }

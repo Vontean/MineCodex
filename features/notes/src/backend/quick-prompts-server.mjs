@@ -1,6 +1,6 @@
 import { createServer } from "node:http";
-import nativeIcons from "../assets/native-prompt-icons.json" with { type: "json" };
-import nativeEmojis from "../assets/native-emojis.json" with { type: "json" };
+import nativeIcons from "../../assets/native-prompt-icons.json" with { type: "json" };
+import nativeEmojis from "../../assets/native-emojis.json" with { type: "json" };
 import { ProductError } from "./product.mjs";
 
 // 沿用已有提示词存储；不再暴露 Todo、Files 或旧版网页。

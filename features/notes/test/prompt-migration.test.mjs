@@ -5,8 +5,8 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { get } from "node:http";
-import { CodexNotesProduct } from "../src/product.mjs";
-import { createQuickPromptsServer } from "../src/quick-prompts-server.mjs";
+import { CodexNotesProduct } from "../src/backend/product.mjs";
+import { createQuickPromptsServer } from "../src/backend/quick-prompts-server.mjs";
 
 test("Legacy prompts migrate without changing retired tables or historic usage", async (t) => {
   const dir = await mkdtemp(path.join(os.tmpdir(), "mcx-prompt-migration-"));

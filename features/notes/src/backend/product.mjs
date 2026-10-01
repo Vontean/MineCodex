@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { chmod, mkdir, open as openFile } from "node:fs/promises";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import nativePromptIcons from "../assets/native-prompt-icons.json" with { type: "json" };
+import nativePromptIcons from "../../assets/native-prompt-icons.json" with { type: "json" };
 const PROMPT_CATEGORY_ICONS = new Set(Object.keys(nativePromptIcons));
 
 const PROMPT_CHANGE_FIELDS = new Set([

@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import vm from "node:vm";
-import { installFeatureDialogs } from "../src/feature-dialogs.mjs";
+import { createUIInstallerSource } from "../src/install.mjs";
 
 class Node extends EventTarget {
+  style = {};
   attributes = new Map();
   children = [];
   setAttribute(name, value) { this.attributes.set(name, value); }
@@ -12,10 +13,11 @@ class Node extends EventTarget {
 }
 
 test("serialized shared shell preserves content and callbacks and releases its stylesheet", () => {
-  const document = { head:new Node(), createElement:()=>new Node() };
+  const document = { head:new Node(), createElement:()=>new Node(), addEventListener:()=>{} };
+  const window = { addEventListener:()=>{} };
   const controller = new AbortController();
   // 验证实际注入形式，不依赖模块闭包。
-  const install = vm.runInNewContext(`(${installFeatureDialogs.toString()})`, { document });
+  const install = vm.runInNewContext(`(${createUIInstallerSource()})`, { document, window, AbortController, clearTimeout, cancelAnimationFrame:()=>{} });
   const ui = install(controller.signal);
   const dialog = new Node(), back = new Node(), content = new Node();
   const unsafeTitle = '<img src=x onerror="alert(1)">';
@@ -35,8 +37,8 @@ test("serialized shared shell preserves content and callbacks and releases its s
   const footer = ui.footer(new Node()), save = ui.action(new Node(), "primary");
   footer.append(save);
   assert.equal(save.attributes.get("data-mcx-ui-action"), "primary");
-  assert.equal(document.head.children.length, 1);
+  assert.equal(document.head.children.length, 5);
   controller.abort();
-  assert.equal(document.head.children[0].removed, true);
+  assert.ok(document.head.children.every(node => node.removed));
   assert.equal(content.removed, undefined);
 });
