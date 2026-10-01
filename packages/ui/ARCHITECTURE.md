@@ -60,4 +60,4 @@ Dropdown 与 Popover 当前只需要材质接口，直接由 `surfaces.mjs` 提�
 
 只为实际使用的原生分支实现组件；根设计文档可以记录尚未使用的原生事实，不代表组件库已经提供相应 Interface。原生 form/catalog/系统 glass 等未被本项目需要的分支不预建空壳。
 
-宿主继续维护 CDP、binding、安全边界、插件发现及 iframe 主题消息。原生模型控制器与 Summary 的耦合结构保留在宿主；本次没有把其闭包函数机械搬入 UI。
+宿主继续维护 CDP、binding、安全边界、插件发现及 iframe 主题消息。Model Slider 的纯规则与专有原生控制器适配归插件，宿主只组装安装源码并调度刷新/卸载；Summary 的宿主 surface 接入仍留在宿主。

@@ -18,6 +18,7 @@
     "packages/cli/src",
     "packages/cli/native/MineCodex.app",
     "packages/runtime-host/src",
+    "features/model-slider/src",
     "features/model-slider/assets",
     "features/model-slider/codex-feature.json",
     "features/model-slider/THIRD_PARTY_NOTICES.md",

@@ -200,3 +200,5 @@ page-script 可以用 manifest 的 `entry.resources` 声明本功能内的 CSS/�
 Images 提示词面板沿用原生 Version history 的特殊结构；iframe 页面继续通过宿主接收主题。会话统计与云 Library 业务归所属插件，Runtime Host 只组合业务能力和外部连接。领域规则与架构层参见根 [ARCHITECTURE.md](../../ARCHITECTURE.md)。
 
 `entry.sourceFactory` 可声明本插件内的源码工厂，导出 `createPageScriptSource()` 并返回 Renderer 函数体字符串。工厂路径不能越出插件；纯领域函数由插件工厂序列化，宿主不维护规则副本。Images 使用这一接口共享图片提示词溯源规则。
+
+Model Slider 的模型规则、原生控制器适配和专有呈现位于插件 `src/domain` / `src/frontend`，安装源码由插件工厂组装。宿主仅提供配置、locale、共享 UI、图标与刷新调度，维护 ensure/dispose 接线；原生菜单开合和节点恢复由插件负责。

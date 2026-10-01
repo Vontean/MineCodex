@@ -33,6 +33,7 @@ flowchart TB
 | Session Status | 回合、步骤、token 用量、缓存比例、体感 TPS 与上下文口径 | `features/session-status/src/domain/session-stats.mjs`、`src/backend/session-status-reader.mjs` |
 | Images | 图片身份、Library 来源、提示词溯源、导入与查看 | `features/images/src/`，云 Library 适配在 `src/backend/cloud-library.mjs` |
 | Sites | 站点来源、地址分类、项目归属、收录、发现与启动 | `features/sites/src/domain/site.mjs`、`src/backend/`、`src/frontend/` |
+| Model Slider | 模型身份、品牌、目录别名、真实档位、收藏与原生选择器增强 | `features/model-slider/src/domain/`、`src/frontend/`、`src/injection-source.mjs` |
 | 其他紧凑增强 | 各自的原生插入点与交互 | 保持本功能简单结构，不为统一外观创建空目录 |
 
 同为“会话”或“图片”的数据，不代表不同领域共享同一业务模型。业务结果通过明确的数据对象与动作传递；共享 UI 不解释 token 用量、提示词使用次数或站点启动状态。
@@ -63,4 +64,4 @@ Images 的 iframe 仍使用主题/消息桥；原生 Library 增强仍使用 Ren
 
 文件迁移同时更新 imports、manifest、命令、验证及 npm files。删除原位置文件，不保留转发兼容壳。公开 README 维护产品与使用说明；内部路由回写 AGENTS，通用视觉回写根 DESIGN，本级规则回写本级文档。
 
-宿主中的原生模型控制器和旧 Summary 布局仍与接入生命周期密切关联，现阶段保留在 `codex-injection.mjs`；后续有明确改动需求时沿实际接口逐项分离，不在本次目录重构中盲目重写原生控制器。
+Model Slider 的领域规则与原生控制器适配归插件，`src/injection-source.mjs` 显式组装两者；宿主只提供 feature 配置、共享 UI、图标工厂、locale 与刷新调度，调用 `ensure` / `dispose`。原生 React 操作仍由插件适配层维护，领域规则不读取 DOM 或 localStorage。旧 Summary 布局属于宿主 surface 接入，仍保留在 `codex-injection.mjs`。

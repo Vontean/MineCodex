@@ -22,6 +22,7 @@
 | CDP与运行生命周期 | `packages/runtime-host/src/codex-cdp.mjs`、`codex-runtime.mjs` | Runtime Host |
 | 注入组装、主题传递、host bridge | `packages/runtime-host/src/codex-injection.mjs`、`host-actions.mjs` | Runtime Host；不在这里继续堆积视觉组件 |
 | 注入UI源码组装 | `packages/ui/src/install.mjs` | UI组件库；宿主调用并注入 |
+| 模型规则与专有原生控制器适配 | `features/model-slider/src/domain/`、`src/frontend/`、`src/injection-source.mjs` | Model Slider；宿主只负责组装和调度 |
 | 会话指标与日志 | `features/session-status/src/domain/`、`src/backend/` | Session Status |
 | 站点规则、发现和启动 | `features/sites/src/domain/`、`src/backend/` | Sites |
 | 插件业务、特有组件与内容 | `features/<plugin>/src`；Images另有`web`界面 | 对应插件 |

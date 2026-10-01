@@ -28,3 +28,7 @@ Composer 触发器区分两种状态：占位态（"Select model" / "Select effo
 ## 5. Layout Principles
 
 宽度遵循原生菜单，垂直方向允许内容自然增长。长名称优先换行而不是扩大面板；Composer 的紧凑触发器优先保留 effort 可读性。
+
+## 代码归属
+
+模型身份、品牌与别名、目录匹配、路由去重及档位交集由 `src/domain/model-rules.mjs` 维护，不读取 DOM 或收藏存储。`src/frontend/install.mjs` 维护原生控制器适配、收藏存储、菜单、滑条与节点恢复，使用共享 Dropdown 材质。`src/injection-source.mjs` 将两者组装为自包含 Renderer 安装函数；宿主只提供配置、locale、共享 UI、图标工厂与刷新调度，调用 ensure/dispose。

@@ -477,14 +477,14 @@ async function executeModelSliderInjection({
       models,
       model: selected,
     }).map((model) => model.model);
-    window.__summaryShiftProbe = {
-      apply: applyThreadContentShift,
-      restore: restoreThreadContentShift,
-    };
     void loadNativeFastIconFromBundle();`,
   ).replace(
     "const runtimeApi = {",
-    `window.__toolbarProbe = {
+    `    window.__summaryShiftProbe = {
+      apply: applyThreadContentShift,
+      restore: restoreThreadContentShift,
+    };
+window.__toolbarProbe = {
       active: () => Boolean(toolbarReadiness),
       ensure: ensureToolbarEntries,
       hostActionFailure: (error) => typeof hostActionFailure === "function"
