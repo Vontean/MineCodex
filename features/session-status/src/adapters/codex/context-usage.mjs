@@ -2,10 +2,17 @@
 export function createContextUsageAdapter(signal, codex, onChange, loadFamily = null) {
   let family=null, thread=null, composer=null, unsubscribe=null;
   const empty = () => ({ contextUsedTokens:null, contextWindow:null, contextPercent:null });
+  let published = null;
+  function publish(value) {
+    // 未就绪时重复连接不能重绘，否则 DOM 监听会在微任务中自循环。
+    if (published && Object.keys(value).every(key => published[key] === value[key])) return;
+    published = value;
+    onChange(value);
+  }
   function disconnect() { unsubscribe?.(); unsubscribe=null; }
   function connect(id, element) {
-    if (thread === id && unsubscribe) return;
-    disconnect(); thread=id; composer=element; onChange(empty());
+    if (thread === id && composer === element && unsubscribe) return;
+    disconnect(); thread=id; composer=element; publish(empty());
     if (!id || !family || !element || signal.aborted) return;
     const props=codex.props(element, p => p.value instanceof Map && [...p.value.values()].some(node => node?.token?.__scopeBrand === 'AppScope'));
     const chain=props?.value, node=chain && [...chain.values()].find(node => node?.token?.__scopeBrand === 'AppScope');
@@ -13,11 +20,11 @@ export function createContextUsageAdapter(signal, codex, onChange, loadFamily = 
     try {
       const atom=family.resolve(node,chain,id).resolve(node,chain);
       const update=()=>{
-        if (signal.aborted || thread !== id) return;
+        if (signal.aborted || thread !== id || composer !== element) return;
         const usage=node.store.get(atom), window=usage?.modelContextWindow, total=usage?.last?.totalTokens;
         const valid=Number.isFinite(window) && window > 0 && Number.isFinite(total) && total >= 0;
         const used=valid ? Math.min(total,window) : null;
-        onChange(valid ? {contextUsedTokens:used,contextWindow:window,contextPercent:Math.round(used/window*100)} : empty());
+        publish(valid ? {contextUsedTokens:used,contextWindow:window,contextPercent:Math.round(used/window*100)} : empty());
       };
       unsubscribe=node.store.sub(atom,update); update(); codex.report("context-usage",true);
     } catch { codex.report("context-usage",false,"atom-contract-unavailable"); }

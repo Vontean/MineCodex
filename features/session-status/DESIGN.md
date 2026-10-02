@@ -14,7 +14,9 @@
 | 主要文字 | `--color-text-primary` | 弹层标题和数值 |
 | 分类进度 | Codex `--app-block-accent-purple`、`--app-block-accent-blue`、`--app-block-accent-green`，以及 `--color-token-border-default` | 各弹层的分类比例与未分类段 |
 
-状态行和输入框共用内容宽度，单行高度为 24px，顶部留 2px 内边距；每个状态按钮高 22px，内边距为上下 3px、左右 6px。按钮之间 gap 为 4px，两组可见内容间距为 16px（6 + 4 + 6）；按钮内图标与文字 gap 为 6px。状态行展开且可见时，将包含它的原生 `.bottom-0.pb-4` 容器底部 padding 从 16px 覆盖为 4px；收起、隐藏或卸载后自动恢复原生留白，展开的状态行使用 -4px 顶部外边距，将输入框下方原生 8px gap 的实际距离收为4px，收起时恢复。宽度不足时自然换行，不覆盖输入框或悬浮控件。统计图标采用 Lucide Gauge，用量图标采用 Phosphor Database 单路径版本，两者以 14px 绘制；上下文使用与 Codex 原生相同参数的 12px 百分环。弹层由按钮锚定，键盘可聚焦，Escape 和点击外部关闭。遵守系统减少动态效果设置，不添加持续动画。
+状态行和输入框共用内容宽度，单行高度为 24px，顶部留 2px 内边距；每个状态按钮高 22px，内边距为上下 3px、左右 6px。按钮之间 gap 为 4px，两组可见内容间距为 16px（6 + 4 + 6）；按钮内图标与文字 gap 为 6px。状态行展开且可见时，在包含它的原生 `[data-thread-scroll-footer="true"]` 容器上将 `--thread-composer-bottom-inset` 设为 4px；默认主聊天底部 padding 从 16px 收为 4px，收起、隐藏或卸载后自动恢复。原生 panel 的 `pb-3` 与 compact 分支不消费该变量，保留其独立留白。展开的状态行使用 -4px 顶部外边距，将输入框下方原生 8px gap 的实际距离收为4px，收起时恢复。宽度不足时自然换行，不覆盖输入框或悬浮控件。统计图标采用 Lucide Gauge，用量图标采用 Phosphor Database 单路径版本，两者以 14px 绘制；上下文使用与 Codex 原生相同参数的 12px 百分环。弹层由按钮锚定，键盘可聚焦，Escape 和点击外部关闭。遵守系统减少动态效果设置，不添加持续动画。
+
+挂载依据：2026-10-02，Codex 26.930.21537 的主聊天实测 DOM 与 `thread-scroll-layout` / `app-primary` 源码。状态行仍作为 `[data-codex-composer-root]` 的紧邻后续节点；中间的 `display:contents` 包装不改变它与输入框在外层 flex 中的顺序和宽度。折叠入口放在 reasoning 控件最接近 `items-center` 控制组的包装节点之前；原生 Context 环仍为带 `aria-label`、`role=img` 的 span，包含 SVG circle。新版默认 footer 使用 `pb-(--thread-composer-bottom-inset)`，不再匹配旧 `.pb-4` 规则。panel/compact 分支来自源码，未据此宣称侧边聊天的手动验收已完成。
 
 状态行以当前输入框所在的会话为准，不依赖侧栏中可能因项目折叠而卸载的 Thread 行。新聊天没有会话 ID 时隐藏旧数据；首条消息建立会话后默认展开详细状态行；若用户曾收起，则沿用其选择。尚未取得的指标用 `—` 占位，不等待日志或 Token 用量；切换会话时立即清空旧数值，详情展开状态保持不变。
 

@@ -43,7 +43,7 @@ style.textContent = `
   [data-minecodex-session-reveal]:not([data-expanded]) { pointer-events:none; }
   [data-minecodex-session-reveal][hidden] { display:none; }
   /* 仅展开状态行时缩减原生底部留白；收起或卸载后自动恢复。 */
-  .bottom-0.pb-4:has([data-minecodex-session-reveal][data-expanded]:not([hidden])) { padding-bottom:4px; }
+  [data-thread-scroll-footer="true"]:has([data-minecodex-session-reveal][data-expanded]:not([hidden])) { --thread-composer-bottom-inset:4px; }
   [data-minecodex-context-trigger] { display:inline-flex; align-items:center; justify-content:center; flex:none; width:24px; height:var(--height-token-button-composer,28px); padding:0; border:0; border-radius:var(--mcx-radius-full); background:transparent; color:var(--mcx-color-text-tertiary); cursor:pointer; }
   [data-minecodex-context-trigger][hidden] { display:none; }
   [data-context-progress] { transition:stroke-dashoffset 120ms ease-out; }

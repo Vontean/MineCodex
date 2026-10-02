@@ -55,6 +55,51 @@ test("cache hit retains precision above 99 percent from raw token counts", async
   assert.equal(format({}), "—");
 });
 
+test("unavailable context does not feed rendering back into composer scans", async () => {
+  const family = { resolve() { throw new Error("changed atom contract"); } };
+  for (const load of [() => new Promise(() => {}), () => Promise.reject(new Error("missing bundle")), async () => family]) {
+    const controller = new AbortController(), composer = {};
+    let renders = 0, adapter;
+    adapter = createContextUsageAdapter(controller.signal, {
+      props: () => ({ value: new Map([["app", { token: { __scopeBrand: "AppScope" } }]]) }), report() {},
+    }, () => {
+      renders++;
+      // 模拟重绘文字触发 MutationObserver，再检查同一输入框。
+      if (renders < 50) queueMicrotask(() => adapter.connect("old-thread", composer));
+    }, load);
+    adapter.connect("old-thread", composer);
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(renders, 1);
+    adapter.connect("old-thread", composer);
+    assert.equal(renders, 1);
+    controller.abort();
+  }
+});
+
+test("pending context discovery still subscribes and unchanged atom values do not redraw", async () => {
+  let resolveFamily, callback, renders = 0, unsubscribed = 0;
+  const node = { token: { __scopeBrand: "AppScope" }, store: {
+    get: () => ({ modelContextWindow: 100, last: { totalTokens: 25 } }),
+    sub: (_atom, listener) => { callback = listener; return () => { unsubscribed++; }; },
+  } };
+  const controller = new AbortController();
+  const adapter = createContextUsageAdapter(controller.signal, {
+    props: () => ({ value: new Map([["app", node]]) }), report() {},
+  }, () => { renders++; }, () => new Promise(resolve => { resolveFamily = resolve; }));
+  const composer = {};
+  adapter.connect("old-thread", composer);
+  resolveFamily({ resolve: () => ({ resolve: () => "atom" }) });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(renders, 2);
+  callback(); assert.equal(renders, 2);
+  adapter.connect("old-thread", composer); assert.equal(unsubscribed, 0);
+  const oldCallback = callback;
+  adapter.connect("old-thread", {}); assert.equal(unsubscribed, 1);
+  const beforeStaleUpdate = renders;
+  oldCallback(); assert.equal(renders, beforeStaleUpdate);
+  controller.abort(); assert.equal(unsubscribed, 2);
+});
+
 
 test("only visible thread composers own session status, including after tab moves", async () => {
   const source = await readFile(path.join(featureDir, "src/session-status.mjs"), "utf8");
