@@ -68,6 +68,8 @@ npm run pack:check
 npm run pack:audit
 ```
 
+维护者发布流程见 [GitHub Actions 发布说明](docs/npm-publishing.md)。发布工作流仅允许维护者本人触发，使用 npm 可信发布，无需长期访问令牌。
+
 ## 许可
 
 MineCodex 是非官方独立扩展项目，与 OpenAI 无关联。项目自有代码以 MIT License 授权；第三方图标、品牌和兼容资产遵循各自的权利说明，见 [`features/model-slider/THIRD_PARTY_NOTICES.md`](features/model-slider/THIRD_PARTY_NOTICES.md) 与 [`features/session-status/vendor/lucide-LICENSE`](features/session-status/vendor/lucide-LICENSE)。

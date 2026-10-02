@@ -1,0 +1,151 @@
+name: Publish MineCodex
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: '已推送到 main 的版本标签，例如 v2.0.5'
+        required: true
+        type: string
+      publish:
+        description: '检查通过后发布到 npm；不勾选则只验证'
+        default: false
+        type: boolean
+
+permissions: {}
+
+concurrency:
+  group: minecodex-npm-release
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    outputs:
+      artifact-id: ${{ steps.upload.outputs.artifact-id }}
+      sha256: ${{ steps.pack.outputs.sha256 }}
+    steps:
+      - name: Authorize owner and main workflow
+        env:
+          ACTOR_ID: ${{ github.actor_id }}
+          TRIGGERING_ACTOR: ${{ github.triggering_actor }}
+          REPOSITORY_ID: ${{ github.repository_id }}
+          WORKFLOW_REF: ${{ github.ref }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          # 发起与重跑都限本人；输入作为环境变量传入，避免脚本插值。
+          test "$ACTOR_ID" = '65079079'
+          test "$TRIGGERING_ACTOR" = 'Vontean'
+          test "$REPOSITORY_ID" = '1330065529'
+          test "$WORKFLOW_REF" = 'refs/heads/main'
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Select released commit
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          RELEASE_SHA=$(git rev-parse "refs/tags/$RELEASE_TAG^{commit}")
+          git merge-base --is-ancestor "$RELEASE_SHA" origin/main
+          git checkout --detach "$RELEASE_SHA"
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+          package-manager-cache: false
+
+      - name: Check package identity and version
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import {readFileSync} from 'node:fs';
+          const pkg=JSON.parse(readFileSync('package.json'));
+          const lock=JSON.parse(readFileSync('package-lock.json'));
+          assert.equal(pkg.name,'minecodex');
+          assert.equal(`v${pkg.version}`,process.env.RELEASE_TAG);
+          assert.equal(lock.version,pkg.version);
+          assert.equal(lock.packages[''].version,pkg.version);
+          JS
+
+      - run: npm ci --ignore-scripts
+      - run: npm run prepublishOnly
+
+      - name: Pack validated release
+        id: pack
+        run: |
+          mkdir -p "$RUNNER_TEMP/npm-release"
+          npm pack --ignore-scripts --pack-destination "$RUNNER_TEMP/npm-release"
+          PACKAGE=$(find "$RUNNER_TEMP/npm-release" -name '*.tgz' -type f)
+          echo "sha256=$(sha256sum "$PACKAGE" | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        id: upload
+        with:
+          name: minecodex-npm-package
+          path: ${{ runner.temp }}/npm-release/*.tgz
+          if-no-files-found: error
+          retention-days: 3
+
+  publish:
+    needs: prepare
+    if: >-
+      inputs.publish && github.actor_id == '65079079' &&
+      github.triggering_actor == 'Vontean' &&
+      github.repository_id == '1330065529' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: npm-release
+    permissions:
+      id-token: write
+      actions: read
+    steps:
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - run: npm install --global npm@11.19.0 --ignore-scripts
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          artifact-ids: ${{ needs.prepare.outputs.artifact-id }}
+          path: release
+          merge-multiple: true
+
+      - name: Publish verified tarball with OIDC
+        env:
+          EXPECTED_SHA256: ${{ needs.prepare.outputs.sha256 }}
+        run: |
+          PACKAGE=$(find release -name '*.tgz' -type f)
+          echo "$EXPECTED_SHA256  $PACKAGE" | sha256sum --check
+          # 私有源码仓库不生成公开 provenance；不使用 npm Token。
+          npm publish "$PACKAGE" --access public --tag latest --ignore-scripts --provenance=false
+
+      - name: Verify public registry
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          node --input-type=module <<'JS'
+          const version=process.env.RELEASE_TAG.slice(1);
+          for(let attempt=0;attempt<12;attempt++) {
+            const response=await fetch(`https://registry.npmjs.org/minecodex?release_check=${Date.now()}`);
+            if(response.ok) {
+              const data=await response.json();
+              if(data.versions?.[version]?.version===version && data['dist-tags']?.latest===version) {
+                console.log(`Published minecodex@${version}; latest=${version}`);
+                process.exit(0);
+              }
+            }
+            await new Promise(resolve=>setTimeout(resolve,20_000));
+          }
+          throw new Error(`Registry has not confirmed minecodex@${version} and latest`);
+          JS
