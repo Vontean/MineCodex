@@ -2942,3 +2942,14 @@ test("session status discovers main and side chat IDs without duplicates", () =>
   assert.deepEqual(Array.from(ids), [main, side]);
 });
 
+test("local image source requests require the enabled Images declaration and binding token", async () => {
+  const runtime=new CodexRuntime({features:[{id:"images",hostActions:["local-image-source"]}],profileDir:"/tmp/mcx-local-image-test"});
+  let reads=0;const responses=[];
+  runtime.localImageSource={action:async payload=>{reads++;assert.equal(payload.id,"exact");return {text:"recorded",kind:"generation"};}};
+  runtime.resolveHostAction=async (_client,_id,response)=>responses.push(response);
+  runtime.bindingTokens.set("target","expected");
+  const send=(token,featureId="images")=>runtime.handleBindingCalled("target",{}, {name:HOST_BINDING_NAME,payload:JSON.stringify({token,featureId,requestId:"request",action:"local-image-source",payload:{operation:"prompt",id:"exact"}})});
+  await send("wrong");assert.equal(reads,0);
+  await send("expected","disabled");assert.equal(reads,0);assert.equal(responses[0].error.code,"ACTION_NOT_ALLOWED");
+  await send("expected");assert.equal(reads,1);assert.deepEqual(responses[1],{ok:true,result:{text:"recorded",kind:"generation"}});
+});

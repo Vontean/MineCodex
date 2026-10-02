@@ -48,6 +48,8 @@ export function createLibraryApi({read:readSource=async url=>(await fetch(url)).
     return (await downloadCapability)(file,signal);
   }
   return {
+    fileNode:async(id,signal)=>(await connect()).api.safeGet("/files/library/files/{library_file_id}/node",{parameters:{path:{library_file_id:id}},signal}),
+    favoriteStatus:async(id,signal)=>(await connect()).api.safePost("/files/library/favorites/status",{requestBody:{target_refs:[{type:"library_file",library_file_id:id}]},signal}),
     conversation:async(id,signal)=>(await connect()).api.safeGet("/conversation/{conversation_id}",{parameters:{path:{conversation_id:id}},signal}),
     list:async(cursor,signal)=>(await connect()).api.safePost("/files/library",{requestBody:{limit:50,cursor:cursor ?? null,include_hidden_files:false,include_saved_entities:true},signal}),
     download,

@@ -1,27 +1,36 @@
-# Images · Library 提示词
+# Images · Image Gen 与图片提示词
 
-Images 在 Codex 原生 **Library → 图片详情**中补充提示词查看能力。
+Images 在 Codex 原生 **Space → Images** 中增加 **Image Gen**，集中浏览本机 Codex 或本地 Work 生成的图片。
 
-- 有可追溯的提示词时，在缩放胶囊左侧显示 **Prompt / 提示词**。
-- 点击后，使用原生 Version history 相同布局和 design token 的右侧面板展示内容。
-- 面板只展示提示词正文，支持一键复制；优先使用生成提示词，否则追溯该图片的用户输入。
-- 未找到提示词、普通上传图片或来源对话不可用时，不显示按钮。
-- 切换图片或关闭详情会移除旧内容；Escape 先关闭提示词面板。
+- Image Gen 位于 Your creations、Uploads 后，图片按生成时间倒序显示，支持搜索和滚动加载。
+- 标签、加载骨架、图片排布、悬浮卡片和菜单复用原生组件。
+- 点击图片进入原生详情，复用缩放、打开、下载以及可用的 Remove BG、Erase、Resize 编辑入口。
+- 本地图库菜单支持 Chat about this、Add to Favorites、Download、Add to folder、Delete 和 View prompts。仅点击收藏／文件夹操作才上传所选图片到原生 Library，浏览不上传；云端收藏和文件夹关系由服务器管理。
+- 图片菜单中的 **View prompts / 查看提示词** 打开与原生 File info 一致的右侧面板；加载时显示骨架并禁用复制。
+- 本地图片按精确生成记录读取提示词。云端图片优先显示真实生成提示词；只有原始用户请求时，明确告知差异并标注 Original request，再提供复制。
+- 切换图片会移除旧提示词；Escape 先关闭提示词面板。
 
-新版不再在 Sites 下方注入独立 Images 入口，也不启动第二套图库服务。
-图片浏览、编辑与下载使用 Codex 原生能力。读取仅在本机原生 Renderer 内完成，
-沿用当前登录态，不复制图片或持久化来源对话。
+索引在当前 Runtime profile 中维护，读取本机生成目录与会话日志，不迁移或删除源文件。原生组件和 API 契约不匹配时保留原生页面；Codex 更新后的可用性需要重新核验。
 
 ## 开发
 
-统一宿主通过 `codex-feature.json` 注册 `src/library-prompt-page.mjs` 页面脚本。
-原生 DOM 或 API 契约缺失时不注入。视觉契约见 [DESIGN.md](DESIGN.md)。
+统一宿主通过 `codex-feature.json` 与 `src/library-prompt-source.mjs` 组装页面脚本。
+
+- `src/backend/local-image-source.mjs`：本地索引、提示词与云端身份映射／上传预留。
+- `src/frontend/cloud-image-actions.mjs`：首次云端登记、去重与收藏工作流。
+- `src/adapters/codex/`：原生组件、文件读取、详情、编辑器及云端协议契约。
+- `src/frontend/local-image-source.mjs`：来源选择、搜索、分页和生命周期。
+- Runtime Host：鉴权、功能声明校验与转发。
+
+视觉与能力边界见 [DESIGN.md](DESIGN.md)。
 
 ```bash
-node --test features/images/test/library-prompt-page.test.mjs
+node --test features/images/test/*.test.mjs
 ```
 
-旧 `src/image-library.mjs`、索引、独立 `web/` 与服务脚本暂保留为历史工具，
-不属于当前插件入口；已有本地图片和缓存不会被迁移或删除。
+独立 `web/` 与旧服务入口保留为已有历史工具，不由当前 manifest 启动；ImageLibrary 与日志索引已由当前本地来源复用。历史图库交接见 [research/images](../../docs/research/images/2026-08-07-gallery-handoff.md)。
 
-历史图库的交接与视觉取证已归档到 [research/images](../../docs/research/images/2026-08-07-gallery-handoff.md)，不作为当前功能规范。历史服务仍可通过本插件的 `npm run service` 手动启动；它不由当前 manifest 加载。保留这些工具不意味着新增或恢复独立图库入口。
+2026-10-02 菜单核对：网格 More 明确使用原生 Library 的 mediaOverlay 分支，操作通过 leftIcon 传入真实原生图标。图库菜单按 Chat about this、Add to Favorites、Download、Add to folder、Delete、View prompts 排列。Chat about this 组合原生模式切换、新 Chat 草稿导航与图片面板链路，不发送消息；导航与面板已隔离验证，图片随消息提交的实际链路未进行发送验收。生成图片通用菜单中的重复查看、新标签、复制和 Finder 不再混入图库菜单。Add to Favorites／Remove from Favorites 和 Add to folder 已接入原生云端 Library。首次操作上传所选图片，之后复用账号与内容指纹对应的云端身份；收藏与文件夹归属保存在服务器。取消文件夹选择会显示原生 toast，已上传的图片仍留在 Library。上传结果不确定时不盲目重试；分享、重命名及删除尚未接入。
+
+
+Image Gen 支持原生圆形多选框、Shift 区间选择和底部动作条。Delete 会先二次确认，仅从 Image Gen 隐藏；本地原图和云端副本保留。隐藏状态由 MineCodex 当前 Runtime profile 持久维护，确认后立即生效，刷新／重启不再显示。缩略卡片沿用 Library 的 1:2 至 20:13 比例范围；极宽和极窄图片在卡片内完整缩放、居中留白，不裁切内容。

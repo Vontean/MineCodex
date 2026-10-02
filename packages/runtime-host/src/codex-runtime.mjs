@@ -1,3 +1,4 @@
+import { LocalImageSource } from "../../../features/images/src/backend/local-image-source.mjs";
 import { cloudImagesAction } from "../../../features/images/src/backend/cloud-library.mjs";
 // CodexRuntime：Codex Renderer 生命周期与 host action 执行。
 // 注入源（createInjectionSource）与 CDP 客户端分别在 codex-injection.mjs / codex-cdp.mjs。
@@ -78,6 +79,7 @@ export class CodexRuntime {
   }) {
     this.features = features;
     this.sitesService = sitesService ?? (features.some(feature => feature.id === "sites") ? new SitesService() : null);
+    this.localImageSource = features.some(feature => feature.id === "images") ? new LocalImageSource({dataDir:path.join(profileDir,"minecodex-image-gen")}) : null;
     this.profileDir = profileDir;
     this.appPath = appPath;
     this.cdpPort = cdpPort;
@@ -548,6 +550,15 @@ export class CodexRuntime {
       });
       return;
     }
+    if (feature.id === "images" && request.action === "local-image-source") {
+      try {
+        const result = await this.localImageSource.action(request.payload);
+        await this.resolveHostAction(client, request.requestId, {ok:true,result});
+      } catch (error) {
+        await this.resolveHostAction(client, request.requestId, {ok:false,error:{code:"LOCAL_IMAGE_SOURCE_FAILED",message:error.message}});
+      }
+      return;
+    }
     if (feature.id === "sites" && request.action === "sites") {
       try {
         const result = await this.sitesService.action(request.payload);
@@ -811,6 +822,7 @@ export class CodexRuntime {
     if (this.stopPromise) return this.stopPromise;
     this.stopPromise = (async () => {
       this.stopping = true;
+      await this.localImageSource?.close();
       this.targetRefreshQueued = false;
       this.monitorWake?.();
       await this.monitorPromise?.catch(() => {});

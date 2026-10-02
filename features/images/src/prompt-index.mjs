@@ -49,10 +49,17 @@ async function readPrompts(logPath, prompts) {
   const stored = new Map();
   const pendingSources = new Map();
   for await (const line of lines) {
-    if (line.includes('"image_generation_end"') || /"type"\s*:\s*"custom_tool_call"/.test(line) || /"name"\s*:\s*"wait"/.test(line) || [...pendingSources.keys()].some(id => line.includes(id))) {
+    if (line.includes('"image_generation_end"') || line.includes('"item_completed"') || /"type"\s*:\s*"custom_tool_call"/.test(line) || /"name"\s*:\s*"wait"/.test(line) || [...pendingSources.keys()].some(id => line.includes(id))) {
       let event;
       try { event = JSON.parse(line); } catch { continue; }
       const payload = event?.payload ?? event;
+      // 以完成事件为准；旧版内部状态可能仍是 generating，不能据此丢弃提示词。
+      const item = payload?.type === "item_completed" ? payload.item : null;
+      if (item?.type === "Extension" && item.kind === "image_gen.generation"
+        && typeof item.id === "string"
+        && typeof item.revisedPrompt === "string" && item.revisedPrompt.trim()) {
+        prompts.set(item.id, item.revisedPrompt);
+      }
       const legacy = legacyPromptFromPayload(payload);
       if (legacy && !prompts.has(legacy.imageGenerationItemId)) {
         prompts.set(legacy.imageGenerationItemId, legacy.prompt);
@@ -160,7 +167,12 @@ export class ThreadPromptIndex {
   async find(threadId, imageGenerationItemId) {
     const key = cacheKey(threadId, imageGenerationItemId);
     const cached = this.threadPrompts.get(threadId);
-    if (cached?.has(imageGenerationItemId)) return cached.get(imageGenerationItemId);
+    if (cached?.has(imageGenerationItemId)) {
+      // 工具请求先到、完成事件后到时，重新读取更准确的 revisedPrompt。
+      if (!await this.threadLogsChanged(threadId)) return cached.get(imageGenerationItemId);
+      this.threadPrompts.delete(threadId);
+      this.clearNegative(threadId);
+    }
 
     const negative = this.negativeCache.get(key);
     if (negative) {

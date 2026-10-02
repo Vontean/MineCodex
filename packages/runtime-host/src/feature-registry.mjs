@@ -17,6 +17,7 @@ const HOST_ACTIONS = new Set([
   "resolve-file-paths",
   "import-generated-image",
   "list-cloud-images",
+  "local-image-source",
   "import-cloud-image",
   "create-image-edit-thread",
 ]);

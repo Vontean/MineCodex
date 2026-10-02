@@ -4,11 +4,33 @@
 
 ## Scope
 
-Images enhances Codex's native Library image viewer. It does not inject a sidebar
-item after Sites, open its own gallery, import image bytes, or replace native
-editing/download controls. The previous standalone gallery and local index code
-remain available as legacy utilities, but the feature manifest no longer starts
-that service or registers that surface.
+Images enhances Codex's native Library image viewer, reached through Space → Images.
+It also appends **Image Gen** after Your creations and Uploads in the native Image sources tablist.
+This tab contains images generated locally by Codex or local Work. Browsing does not upload them; explicit Favorites/folder actions persist the selected image in native cloud Library.
+The native tabs, content nodes and routes are retained. Leaving Image Gen restores native selection and content;
+hover sidebars and the native full-page shell remain owned by Codex.
+
+## Image Gen
+
+Codex 26.930.21537（2026-10-02 隔离实测）：通过原生 `variant="browse"` 的 Image sources 契约接入。保留原生标签节点及路由，在插件拥有的 React root 中复用同一个原生 Tabs 组件，追加 Image Gen；退出时恢复原节点。原生上下文由 Adapter 从当前已提交的组件祖先读取，业务层不遍历 Fiber。
+
+本地来源复用 ImageLibrary、ThreadMetadataIndex 及文件监听，索引存放在当前 runtime profile；按生成时间倒序，每页 36 张，滚动增量加载，搜索复用原生输入框。稳定身份为 threadId + imageGenerationItemId，不猜测云端 ID 与本地文件的关系。
+
+加载使用原生 Library Skeleton，排布使用原生 Masonry，悬浮效果使用原生 Library Card，菜单使用原生 Dropdown、Button 与 Menu。图库本地文件通过原生生成图片 resolver 读取；浏览时 Backend 提供索引中的来源路径，图片由原生 resolver 读取；显式云端登记才读取该索引 ID 对应的完整字节并校验内容指纹，不接受 Renderer 任意路径读取，不维护第二套图库加载协议。
+
+点击图片进入原生 Library 主内容 viewport 内的图片画布，保留 navbar、Space 二级侧栏和窗口栏；不打开 side panel，也不使用覆盖整窗的 Dialog。画布、缩放、下载、打开、Markup、Comment、Remove BG、Erase、Resize 和底部 “Ask about this file” 输入框复用原生组件。底部直接使用画布的原生 `renderComposer` / overlay 承载，沿用底部留白、居中、避让和工具状态显隐；不得另建 absolute 底部输入框。进入 Comment 时隐藏大输入框，退出时恢复；原生拖拽工具栏保留位置记忆及 Home 居中重置。初始缩放与每张图的 Zoom to fit 使用原生 `zoom` 契约，`manualZoomPercent` 初始为 `null`，不自算比例，也不继承上一张图的手动缩放。关闭回到原列表并恢复交互，标注中的关闭交由原生编辑器处理。
+
+本地来源以真实路径、来源 thread 和生成项 ID 接入；首次发送或提交编辑时才通过原生上传准备临时附件，同一画布复用附件，查看不上传到 Library。附件使用原生返回的 `id`；不得把本地 ID 伪装为 cloud file ID。生成编辑调用原生提交能力，接受后沿用原生会话导航。View prompts 通过原生菜单扩展进入已有的 File info 风格面板。以上组件契约已按 Codex 26.930.21537 的产物与隔离窗口检查；实际云端生成结果须单独验证。
+
+图库菜单复用原生 mediaOverlay More Button、Dropdown、Menu.Item 与原生图标，按 Chat about this、Add to Favorites／Remove from Favorites、Download、Add to folder、Delete、View prompts 排列。View prompts 的图标约束为菜单使用的 16px，不继承导航栏尺寸。
+
+只有用户点击收藏或文件夹操作时，通过原生 Library upload（required persistence）上传所选 PNG；取得真实 Library ID 后保存账号、用户、本地图片 ID、SHA-256 内容指纹对应关系。收藏调用原生 setLibraryFavorite 并以服务器状态切换，文件夹使用原生 MoveLibraryItemsDialog；不在本地保存收藏或文件夹关系。云端节点读取采用原生 `/files/library/files/{library_file_id}/node` 契约，不能把上传返回的 Library ID 当普通内容 file ID。
+
+取消选择通过原生 toast 服务反馈。该操作首次上传后取消显示“Image saved to Library, but not added to a folder.”；已有云端身份则显示“No folder selected.”。取消不删除云端图片、不移动文件；移动成功后的关闭不误报取消。浏览与打开菜单不上传，收藏状态查询不创建记录。
+
+登记工作流位于 `src/frontend/cloud-image-actions.mjs`。同时操作同一图片复用在途任务，Backend 原子预留避免不同窗口重复上传。已确认的身份跨 Runtime 重启保留；内容变化或账号变化不复用。上传结果不确定时保留预留状态并用原生错误 toast 提醒检查 Library，禁止盲目重新上传；自动恢复不确定记录尚未实现。云端条目删除或访问失效时报告操作失败，不自动重新上传。
+
+原生构建产物和组件导出契约集中在 `src/adapters/codex/native-image-source.mjs`。按实际模块引用发现构建文件，不固定哈希；契约不匹配时保留原生页面并报告能力缺失。`src/frontend/local-image-source.mjs` 仅负责来源选择、分页、搜索与清理，Runtime Host 只鉴权和转发 `local-image-source` 的 list / prompt 与身份登记操作。
 
 ## Entry and identity
 
@@ -18,54 +40,97 @@ originating conversation/message IDs. Non-Library viewers and non-image files
 are excluded. No title, filename, image position or minified component name is
 used as identity. Missing native anchors fail closed.
 
-Resolve the prompt before adding the button. Missing/empty prompts, uploaded
-references without generated metadata, inaccessible conversations, and unresolved
-native API capabilities all leave the toolbar unchanged. There is no disabled
-button, loading placeholder, or empty prompt panel.
+Codex 26.930.21537（2026-10-02 隔离实测）：Space 图片详情使用嵌入式视口，Adapter 从其原生 `relative flex h-full min-w-0 flex-1` 容器取得面板承载；浮层分支沿用 presentation 容器。缩放按钮包含隐藏的测量百分比，识别时读取 `innerText`，不读取包含这些测量文字的 `textContent`。
 
-The text button is placed immediately before the native percentage/zoom menu and
-reuses its live base classes for capsule sizing, colors, border, hover and focus.
-Dropdown/zoom variants are excluded: width is max-content, flex is 0 0 auto, and
-symmetric inline padding is three native spacing units (12px in this runtime).
-The label is Prompt / 提示词, following the native document locale.
+Prepare the Prompt panel as soon as the native image has both originating conversation
+and message IDs and its viewer controls are ready; start source-conversation extraction in
+parallel. This is eligibility to look up a prompt, not proof that prompt text exists.
+Images without these source IDs have no View prompts entry. Exact generated-asset
+validation remains part of extraction, so uploaded references never supply prompt text.
+
+Opening while extraction is pending shows the complete File info-style header,
+a disabled Copy button, and four static rounded skeleton lines in the body.
+`aria-busy` marks the body; decorative lines are hidden from assistive technology.
+Closing does not cancel prefetch. Success replaces skeletons with selectable text
+and enables Copy. Missing generation text falls back to a traceable original request when available:
+first disclose that the generation prompt is unavailable, label the body “Original
+request”, and enable Copy with the accessible label “Copy original request”. If
+neither kind exists, show the unavailable message and leave Copy disabled. Failure ends with
+a localized message and Retry action. There is no perpetual loading placeholder.
+Changing images or disabling the feature aborts the old request; late results
+cannot change the new panel. Skeletons are static and respect reduced-motion.
+
+The entry is a native-style “View prompts” / “查看提示词” menu item in the image
+header's File actions dropdown, immediately before View original chat. There is
+no dedicated right-toolbar button. Adapter validates the menu's current Library
+file and the original-chat link's conversation/message IDs before inserting.
+The item uses the native row classes and existing Prompts glyph; native React
+nodes remain intact. It is recreated when the native menu remounts, without
+refetching prompt content. Arrow navigation includes the injected item; Enter /
+Space activate it. Opening dismisses the native menu, then focuses panel Close.
+Panel Close / Escape return focus to the Image dropdown trigger.
 
 ## Prompt panel
 
-The panel follows the native Library Version history implementation inspected in
-the isolated Codex runtime on 2026-09-27 (`layout` asset, version-history aside):
+The panel adopts the native File info accessory-panel branch, inspected in Codex
+26.930.21537 on 2026-10-02. General material rules are maintained in the root
+DESIGN.md; this feature uses the following native layout:
 
-- `absolute inset-x-2 top-toolbar bottom-2 z-30 ms-auto mt-2 max-w-75`.
-- `rounded-2xl border border-default bg-surface shadow-lg`.
-- Header: `flex items-center justify-between py-2 ps-4 pe-2`;
-  title: `text-base font-semibold text-default`.
-- Body: `min-h-0 flex-1 overflow-y-auto px-3`, with one spacing unit of
-  top padding (4px). The panel reserves three spacing units below the scroll
-  viewport (12px), so scrolling text never meets the rounded bottom edge.
-- Prompt: `text-sm leading-5 text-default whitespace-pre-wrap select-text`.
+- Right and bottom gutters: two spacing units (8px). Top: `pt-13` plus the
+  native wrapper's `pt-px` (53px from the viewer viewport top).
+- Width: 74 spacing units (296px), constrained to the viewport minus both gutters.
+- Header: `flex h-11 shrink-0 items-center justify-between gap-2 py-1 ps-4 pe-2`
+  (44px); `h2` contains a `text-base font-semibold` title.
+- Body: `min-h-0 flex-1 overflow-y-auto px-3 py-4` (12px horizontal,
+  16px vertical padding). Prompt paragraph retains `px-1 text-sm leading-5
+  text-default whitespace-pre-wrap break-words select-text` for long text.
+- Header controls use the native File info circular `button-toolbar` filled
+  ghost branch, with a 28px hit area. The close SVG is cloned from the native viewer.
 
-These are native tokens, not a plugin palette or fixed radius. In the inspected
-runtime they resolve to 300px width and 20px corners. The close glyph is cloned
-from the native viewer control. Long text scrolls inside the panel, remains
-selectable, and is rendered with textContent. The header Copy icon button reuses the existing Images Lucide copy/check glyphs
-at 16px, with a 32px hit area and an accessible label/tooltip. It writes only the
-prompt body to the clipboard and briefly confirms success. No source label or
-explanatory metadata appears in the panel. Close and Escape return focus to
-the prompt button; Escape does not close the underlying viewer on the same press.
+Long text scrolls inside the panel, remains selectable, and is rendered with
+textContent. The header Copy icon button reuses the existing Images Lucide copy/check glyphs
+at 16px, with a 28px hit area and an accessible label/tooltip. It writes only the
+generation prompt or original-request body to the clipboard and briefly confirms success. A generation prompt needs no source label; an original-request fallback must
+include the missing-generation disclosure and its distinct label. Close and Escape return focus to
+the Image dropdown trigger; Escape does not close the underlying viewer on the same press.
 
 ## Data and lifecycle
 
 Read the source conversation through the running renderer's native authenticated
 API; discover the API export through Library metadata's actual module imports,
-without fixed build hashes. No credentials, signed download URLs or image bytes
-are copied or sent to another service.
+without fixed build hashes. Prompt extraction does not copy credentials or signed download URLs. Explicit Favorites/folder actions upload the selected indexed image bytes through native Library; no third-party service receives them.
 
 Match both the originating message and exact image asset pointer, and require
-assistant/tool generation metadata. Prefer a recorded generator prompt. Otherwise use only the nearest user ancestor
-of that image. Provenance stays internal; the UI simply calls this Prompt / 提示词. Unrelated branches are never used.
+assistant/tool generation metadata. The Prompt viewer prefers a recorded
+generator prompt: the exact asset's `dalle.prompt`, the exact result message's
+`async_task_prompt`, or structured `prompt`/single `prompts` arguments from the
+nearest image-generation tool call in its ancestor chain. Tool text is parsed as
+JSON and never executed. Multi-image tool results do not infer per-image argument
+ownership; unrelated tools, older generation calls and other branches are excluded. A traceable original user request is a different fact and is
+shown only after an explicit missing-generation disclosure and “Original request” label. Unrelated branches are never used.
 
 Changing images or leaving the viewer aborts the pending lookup and removes the
-old UI. Late results cannot mount against a different image. Disabling the feature
+old UI. 等缩放工具栏和视口就绪后再开始解析，避免先到的提示词结果把稍后出现的原生锚点短路；同图的缩放节点或承载改变时重新挂载。 Late results cannot mount against a different image. Disabling the feature
 removes the observer, keyboard handler, button and panel. Prompt data is retained
 only for the current viewer; there is no persistent conversation cache.
 
-The viewer and retained cloud import utility share `src/domain/library-prompt.mjs`. The source factory serializes that pure rule into the viewer script; the cloud adapter serializes the same function into its evaluator call. Whitespace prompts follow the same fallback policy. A valid generated image without prompt text can still be imported by the historical utility, while the viewer shows no prompt control.
+The viewer and retained cloud import utility share `src/domain/library-prompt.mjs`. The source factory serializes that pure rule into the viewer script; the cloud adapter serializes the same function into its evaluator call. The shared resolver distinguishes generation from request provenance; the viewer
+preserves that distinction in fallback disclosure and labels. The historical import utility can retain a
+traceable request with its distinct provenance. A valid generated image without prompt text can still be imported by the historical utility, while the viewer shows no prompt control.
+
+### 本地提示词
+
+Image Gen 按已索引的精确图片 ID 提取对应 thread 的生成记录。已完成 `image_gen.generation` 的 revisedPrompt 优先于可静态解析的工具请求参数。没有真实生成提示词则明确显示不可用。云端图片保留 generation → 已标明来源的 Original request 回退；已移除没有实测命中的云端 gen_id → 本地文件猜测补充链路。
+
+2026-10-02 菜单核对：网格 More 明确使用原生 Library 的 mediaOverlay 分支，操作通过 leftIcon 传入真实原生图标。图库菜单当前按 Chat about this、Download、View prompts 排列。Chat about this 组合原生模式切换、新 Chat 草稿导航与图片面板链路，不发送消息；导航与面板已隔离验证，图片随消息提交的实际链路未进行发送验收。生成图片通用菜单中的重复查看、新标签、复制和 Finder 不再混入图库菜单。依赖云端 Library 的收藏、分享、重命名、文件夹及删除能力尚未接入本地来源。
+
+
+## Image Gen 多选与隐藏
+
+Codex 26.930.21537（2026-10-02）：卡片通过原生 Card 的 selection、selected、selectionActive 与 onSelect 契约接入；圆形 Checkbox 使用原生 overlay 分支。选中后显示原生边框，支持 Checkbox、选择状态下点击卡片、Shift 区间选择、动作条 Clear selection 与 Escape。查询变化、切换来源、离开页面释放选中状态；分页加载保留已选条目，不污染原生 Your creations／Uploads 的 selection atoms。
+
+缩略卡片沿用已核对的 Library 比例边界，宽高比限制在 1/2 至 20/13。卡片与图片比例分开处理：比例范围内按原比例展示；超出范围使用 object-contain 完整缩放并居中，极宽图上下留白，极窄图左右留白，不裁切图片内容。此显示策略按用户截图与验收要求实现，不将 Library 通用 object-cover 分支视为完整的 Images 展示规范。原图详情不改变比例。不能直接用原始极宽／极窄比例承载 Card，避免 More 与右下 Checkbox 重叠或单张卡片过高。
+
+动作条复用原生 Button、Dropdown、Menu、图标与 Library 布局分支，固定在底部，dark 材质，包含数量、Start chat、Download、Delete、More→Move 和 Clear selection。Start chat 调用原生 Chat 附件上传和草稿导航，不发送消息；Download 使用原生保存流程逐项处理；Move 在明确点击后登记所选图片并使用原生文件夹选择器，选择本身不上传。权限／忙状态属于当前操作，不伪造云端图片身份。
+
+Delete 在单张 More 与批量动作条共用一条隐藏流程，复用原生 Dialog、LibraryItemConfirmationContent 和实色警戒确认按钮。确认标题明确限定 Image Gen，正文明确“仅隐藏，本地原图和云端副本保留”。取消不改变任何条目；确认成功后立即移除当前条目、更新选中数、列表总数和分页偏移，并显示原生 toast。隐藏 ID 存于当前 Runtime profile 的 `hidden-image-ids.json`，本地源文件、原始生成提示词及已登记云端身份不修改；刷新和重启后继续隐藏。

@@ -32,7 +32,7 @@ test("legacy gallery retains its sidebar control without registering a native si
   assert.match(styles, /\.sidebar-open-button\[hidden\] \{ display: none; \}/);
   assert.match(styles, /\.sidebar-toggle-icon \{[^}]*width: 16px;[^}]*height: 16px;/s);
   assert.equal(manifest.entry.kind, "page-script");
-  assert.equal(manifest.hostActions, undefined);
+  assert.deepEqual(manifest.hostActions, ["local-image-source"]);
   assert.match(runtime, /button\[data-app-shell-sidebar-trigger="true"\]/);
   assert.match(runtime, /if \(action === "open-sidebar"\)/);
   assert.match(runtime, /type: "codex-personal:sidebar-state"/);

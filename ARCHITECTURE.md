@@ -42,7 +42,7 @@ flowchart TB
 | --- | --- | --- |
 | Prompts（功能 ID 保留 notes） | 提示词、分类、顺序、插入成功后的调用计数；不替用户发送消息 | `features/notes/src/backend/`、`src/frontend/` |
 | Session Status | 回合、步骤、token 用量、缓存比例、体感 TPS 与上下文口径 | `features/session-status/src/domain/session-stats.mjs`、`src/adapters/codex/session-reader.mjs` |
-| Images | 图片身份、Library 来源、提示词溯源、导入与查看 | `features/images/src/`，外部协议在 `src/adapters/codex/`，历史命令编排在 `src/backend/cloud-library.mjs` |
+| Images | 图片身份、Library 来源、提示词溯源、导入与查看 | `features/images/src/`，外部协议在 `src/adapters/codex/`，本地 Image Gen 编排在 `src/backend/local-image-source.mjs`，历史命令编排在 `src/backend/cloud-library.mjs` |
 | Sites | 站点来源、地址分类、项目归属、收录、发现与启动 | `features/sites/src/domain/site.mjs`、`src/backend/`、`src/frontend/` |
 | Model Slider | 模型身份、品牌、目录别名、真实档位、收藏与原生选择器增强 | `features/model-slider/src/domain/`、`src/frontend/`、`src/injection-source.mjs` |
 | 其他紧凑增强 | 各自的原生插入点与交互 | 保持本功能简单结构，不为统一外观创建空目录 |
