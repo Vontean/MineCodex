@@ -7,7 +7,7 @@ const host = payload => config.requestHostAction("sites", payload);
 const owned = "data-mcx-sites";
 let disposed = false, state = { sites: [], projects: [], threads: [] }, addButton, rowsRoot, fallback, dialog, menu;
 let rowSignature = "", nativeButton, nativeInner, nativePlus, nativeSiteIcon, nativeMore, timer, revision = 0, opening = false;
-let addedTab, addedOnly = false, nativeExternal, nativeGlobe, nativeActionsClass, tabClasses;
+let nativeExternal, nativeGlobe, nativeActionsClass;
 let currentPage, refreshAt = 0, pendingLayout = null;
 const style = document.createElement("style");
 style.setAttribute(owned, "style");
@@ -147,31 +147,73 @@ function row(site, grid) {
   }
   return r;
 }
-function updateAddedTab(page) {
-  const group = page.page.querySelector('[aria-label="Site ownership"]');
-  if (!group) return;
-  const tabs = [...group.querySelectorAll("button")].filter(b => !b.hasAttribute(owned));
-  if (tabs.length !== 2) return;
-  if (!tabClasses) tabClasses = { active: tabs.find(b => b.getAttribute("aria-pressed") === "true")?.className, inactive: tabs.find(b => b.getAttribute("aria-pressed") === "false")?.className };
-  if (!addedTab?.isConnected) {
-    addedTab = tabs[1].cloneNode(false); addedTab.setAttribute(owned, "added-tab"); addedTab.textContent = text("Added by you", "由你添加");
-    addedTab.onclick = () => { addedOnly = true; rowSignature = ""; reconcile(); }; group.append(addedTab);
+function updateBrowserMenu() {
+  const context = nativeSites.browserMenu();
+  if (!context || context.menu.querySelector(`[${owned}=browser-add]`)) return;
+  const item = context.downloads.cloneNode(true);
+  item.setAttribute(owned, "browser-add"); item.removeAttribute("id"); item.removeAttribute("data-radix-collection-item");
+  item.removeAttribute("data-highlighted"); item.tabIndex = -1;
+  item.querySelector('[data-menu-row-content]')?.replaceChildren(document.createTextNode(text("Add to Sites", "添加到站点")));
+  item.onclick = async event => {
+    event.preventDefault(); event.stopPropagation();
+    // 点击时重新读取菜单所属标签，避免使用菜单打开前的网址。
+    const current = nativeSites.browserMenu();
+    if (!current || current.menu !== context.menu) return;
+    current.close();
+    try {
+      const prepared = await host({ operation: "prepare-browser-site", ...current.page });
+      if (!disposed) showBrowserAdd(prepared);
+    } catch (error) { notice(error.message); }
+  };
+  item.onpointermove = () => item.focus({ preventScroll: true });
+  context.downloads.after(item);
+}
+function browserMenuKey(event) {
+  const root = event.target.closest?.('[role="menu"]');
+  const item = root?.querySelector(`[${owned}=browser-add]`);
+  if (!item) return;
+  const previous = item.previousElementSibling, next = item.nextElementSibling;
+  let target;
+  // 注入项不属于 Radix collection，只接管与它相邻的键盘移动。
+  if (event.key === "ArrowDown" && event.target === previous || event.key === "ArrowUp" && event.target === next) target = item;
+  else if (event.target === item) {
+    if (event.key === "ArrowUp") target = previous;
+    else if (event.key === "ArrowDown") target = next;
+    else if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.stopImmediatePropagation(); item.click(); return; }
   }
-  tabs.forEach((tab, i) => {
-    const selected = !addedOnly && (i === (page.shared ? 1 : 0));
-    const cls = selected ? tabClasses.active : tabClasses.inactive;
-    if (tab.className !== cls) tab.className = cls;
-    if (tab.getAttribute("aria-pressed") !== String(selected)) tab.setAttribute("aria-pressed", String(selected));
+  if (target) { event.preventDefault(); event.stopImmediatePropagation(); target.focus(); }
+}
+function showBrowserAdd({ site, project, preferProject }) {
+  const d = newDialog(text("Add to Sites", "添加到站点"));
+  let useProject = preferProject;
+  const modes = element("div", "mcx-site-modes"); modes.setAttribute("role", "tablist");
+  modes.setAttribute("aria-label", text("Site type", "站点类型"));
+  const caption = element("p");
+  const tabs = [text("Project", "项目"), text("Custom", "自定义")].map((label, index) => {
+    const tab = element("button", "mcx-site-mode", label); tab.type = "button"; tab.setAttribute("role", "tab");
+    tab.disabled = index === 0 && !project;
+    tab.onclick = () => { useProject = index === 0; update(); };
+    modes.append(tab); return tab;
   });
-  addedTab.className = addedOnly ? tabClasses.active : tabClasses.inactive;
-  addedTab.setAttribute("aria-pressed", String(addedOnly));
-  page.list?.querySelectorAll("[data-appgen-row], article").forEach(r => r.toggleAttribute("data-mcx-sites-native-hidden", addedOnly));
+  function update() {
+    tabs.forEach((tab, index) => tab.setAttribute("aria-selected", String(useProject === (index === 0))));
+    caption.textContent = useProject ? project.name : text("Saved as a custom URL", "保存为自定义网址");
+  }
+  modes.onkeydown = event => {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    const index = event.key === "Home" ? (project ? 0 : 1) : event.key === "End" ? 1 : useProject || !project ? 1 : 0;
+    tabs[index].click(); tabs[index].focus();
+  };
+  d.append(modes, caption); update();
+  mountEditor(d, d, site, null, { getOrigin: () => useProject ? { kind: "project", projectId: project.id } : { kind: "external" } });
 }
 function reconcile() {
   if (disposed) return;
+  updateBrowserMenu();
   const page = nativeSites.pageInfo();
-  if (!page) { addedOnly = false; addedTab?.remove(); addedTab = null; addButton?.remove(); addButton = null; rowsRoot?.remove(); rowsRoot = null; fallback?.remove(); fallback = null; rowSignature = ""; currentPage = null; closeMenu(); return; }
-  cacheNative(page); updateAddedTab(page);
+  if (!page) { addButton?.remove(); addButton = null; rowsRoot?.remove(); rowsRoot = null; fallback?.remove(); fallback = null; rowSignature = ""; currentPage = null; closeMenu(); return; }
+  cacheNative(page);
   if (currentPage !== page.page) { currentPage = page.page; rowSignature = ""; if (Date.now() - refreshAt > 1500) refresh().catch(e => notice(e.message)); }
   if (!addButton?.isConnected && page.create) {
     addButton = button(text("Add site", "添加站点"), () => showDiscovery()); addButton.setAttribute(owned, "add");
@@ -179,23 +221,21 @@ function reconcile() {
     page.create.before(addButton);
   }
   const query = page.input.value.trim().toLowerCase();
-  const sites = !addedOnly ? [] : state.sites.filter(s => [s.title, s.url || "", state.projects.find(p => p.id === s.origin.projectId)?.name || ""].some(v => v.toLowerCase().includes(query)));
-  const signature = JSON.stringify([revision, query, page.shared, page.grid, addedOnly]);
+  const sites = state.sites.filter(s => [s.title, s.url || "", state.projects.find(p => p.id === s.origin.projectId)?.name || ""].some(v => v.toLowerCase().includes(query)));
+  const signature = JSON.stringify([revision, query, page.shared, page.grid]);
   if (signature === rowSignature && rowsRoot?.isConnected && (page.list ? rowsRoot.parentElement === page.list : fallback?.isConnected)) return;
   rowsRoot?.remove(); fallback?.remove(); fallback = null;
   document.querySelectorAll("[data-mcx-sites-empty-suppressed]").forEach(e => e.removeAttribute("data-mcx-sites-empty-suppressed"));
   rowsRoot = element("div"); rowsRoot.setAttribute(owned, "rows"); rowSignature = signature;
-  if (!sites.length && !addedOnly) { rowsRoot = null; return; }
-  if (addedOnly && !page.list && page.content.firstElementChild) page.content.firstElementChild.setAttribute("data-mcx-sites-empty-suppressed", "");
+  if (!sites.length) { rowsRoot = null; return; }
+  if (page.empty) page.empty.setAttribute("data-mcx-sites-empty-suppressed", "");
   if (page.list) page.list.append(rowsRoot);
   else {
     fallback = element("div", "@container pb-3"); fallback.setAttribute(owned, "fallback");
     const layout = element("div"); layout.setAttribute(owned, page.grid ? "grid" : "table"); fallback.append(layout); layout.append(rowsRoot);
-    if (page.content.firstElementChild) page.content.firstElementChild.setAttribute("data-mcx-sites-empty-suppressed", "");
     page.content.append(fallback);
   }
   rowsRoot.append(...sites.map(s => row(s, page.grid)));
-  if (addedOnly && !sites.length) { const empty = element("div", "col-span-full py-8 text-center text-sm text-secondary", text("No added sites", "暂无添加的站点")); rowsRoot.append(empty); }
 }
 function schedule() { clearTimeout(timer); timer = setTimeout(reconcile, 60); }
 function newDialog(title, back) {
@@ -274,15 +314,16 @@ async function mountDiscovery(d, panel) {
       });
       return;
     }
-    if (!candidates.length) results.append(element("div", "mcx-site-empty", text("No project websites found", "尚未发现项目网页")));
-    for (const candidate of candidates) {
+    const available = candidates.filter(candidate => !completed.has(candidate) && !state.sites.some(s =>
+      (candidate.entryId && s.entryId === candidate.entryId || candidate.url && s.url === candidate.url)));
+    if (!available.length) results.append(element("div", "mcx-site-empty", text("No new project websites found", "暂无可添加的项目网页")));
+    for (const candidate of available) {
       const item = element("label", "mcx-site-candidate");
       const art = element("span", "mcx-site-candidate-art"); if (nativeSiteIcon) art.append(nativeSiteIcon.cloneNode(true));
       const info = element("div", "mcx-site-candidate-info"); info.append(element("div", "", candidate.title), element("div", "mcx-site-url", siteSecondary(candidate)));
-      const added = completed.has(candidate) || state.sites.some(s => (candidate.entryId && s.entryId === candidate.entryId || candidate.url && s.url === candidate.url) && s.origin.projectId === candidate.projectId);
       const checkbox = element("input", "mcx-site-checkbox"); checkbox.type = "checkbox";
-      checkbox.checked = added || selected.has(candidate); checkbox.disabled = added || saving;
-      checkbox.setAttribute("aria-label", (added ? text("Added: ", "已添加：") : "") + candidate.title);
+      checkbox.checked = selected.has(candidate); checkbox.disabled = saving;
+      checkbox.setAttribute("aria-label", candidate.title);
       checkbox.onchange = () => { if (checkbox.checked) selected.add(candidate); else selected.delete(candidate); updateActions(); };
       item.append(art, info, checkbox); if (candidate.url) loadPreview(art, candidate.url, candidate.status !== "running"); else art.classList.add("mcx-site-placeholder");
       results.append(item);
@@ -300,14 +341,14 @@ function showEditor(site, problem) {
   const d = newDialog(text("Edit site", "编辑站点"));
   mountEditor(d, d, site, problem).focus();
 }
-function mountEditor(d, container, site, problem) {
+function mountEditor(d, container, site, problem, options = {}) {
   const form = element("form"), content = element("div", "mcx-site-content"); form.append(content); container.append(form);
   function field(label, key, value, type) { const l = element("label", "", label), i = element("input"); i.id = `mcx-site-${key}`; l.htmlFor = i.id; i.name = key; i.value = value || ""; i.type = type || "text"; content.append(l, i); return i; }
   const url = field(text("URL", "网址"), "url", site?.url, "url"); url.required = true; url.placeholder = "http://localhost:3000";
   const title = field(text("Name", "名称"), "title", site?.title); title.maxLength = 160; title.required = true;
   let origin = site?.origin || { kind: "external" };
   const error = element("div", "", problem); error.setAttribute("role", "alert"); content.append(error);
-  const footer = config.ui.footer(element("div", "mcx-site-footer")); const cancel = dialogButton(text("Cancel", "取消"), () => d.close(), false, "ghost"); const save = dialogButton(site ? text("Save", "保存") : text("Add", "添加"), () => {}, true); save.type = "submit"; footer.append(cancel, save); form.append(footer);
+  const footer = config.ui.footer(element("div", "mcx-site-footer")); const cancel = dialogButton(text("Cancel", "取消"), () => d.close(), false, "ghost"); const save = dialogButton(site?.id ? text("Save", "保存") : text("Add", "添加"), () => {}, true); save.type = "submit"; footer.append(cancel, save); form.append(footer);
   let submitting = false;
   function validFields() {
     if (!title.value.trim() || title.value.trim().length > 160 || !url.value.trim() || !url.validity.valid) return false;
@@ -319,7 +360,7 @@ function mountEditor(d, container, site, problem) {
   form.onsubmit = async e => {
     e.preventDefault(); if (submitting || !validFields()) { updateSave(); return; }
     submitting = true; updateSave(); error.textContent = "";
-    try { await host({ operation: "save", id: site?.id, site: { title: title.value.trim(), url: url.value.trim(), origin } }); await refresh(); d.close(); }
+    try { await host({ operation: "save", id: site?.id, site: { title: title.value.trim(), url: url.value.trim(), origin: options.getOrigin?.() || origin } }); await refresh(); d.close(); }
     catch (e) { error.textContent = e.message; }
     finally { submitting = false; updateSave(); }
   };
@@ -356,7 +397,6 @@ async function openSite(site) {
   finally { opening = false; }
 }
 function onClick(e) {
-  if (addedOnly && e.target.closest('[aria-label="Site ownership"] button:not([data-mcx-sites])')) { addedOnly = false; rowSignature = ""; schedule(); }
   if (menu && !menu.node.contains(e.target) && !menu.trigger.contains(e.target)) closeMenu();
   if (e.target.closest(`[${owned}]`)) return;
   const row = e.target.closest("[data-appgen-row], [data-testid=sites-grid] > article");
@@ -367,7 +407,7 @@ function onClick(e) {
     const token = {}; pendingLayout = token; void applyWebLayout(token);
   }
 }
-function onKey(e) { if (e.key === "Escape" && menu) { e.preventDefault(); closeMenu(); } else if (e.key === "Tab" && menu) closeMenu(); }
+function onKey(e) { browserMenuKey(e); if (e.defaultPrevented) return; if (e.key === "Escape" && menu) { e.preventDefault(); closeMenu(); } else if (e.key === "Tab" && menu) closeMenu(); }
 function onPointer(e) { if (e.target.closest('[role="separator"]')) pendingLayout = null; }
 const observer = new MutationObserver(records => { if (records.some(r => !r.target.closest?.(`[${owned}]`))) schedule(); });
 observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["aria-pressed"] });
@@ -376,8 +416,6 @@ refresh().catch(e => notice(e.message)); schedule();
 return () => {
   disposed = true; pendingLayout = null; clearTimeout(timer); observer.disconnect();
   document.removeEventListener("input", schedule); document.removeEventListener("click", onClick, true); document.removeEventListener("keydown", onKey, true); document.removeEventListener("pointerdown", onPointer, true);
-  addedOnly = false; const page = nativeSites.pageInfo(); if (page) updateAddedTab(page);
-  document.querySelectorAll("[data-mcx-sites-native-hidden]").forEach(e => e.removeAttribute("data-mcx-sites-native-hidden"));
   closeMenu(); dialog?.close(); document.querySelectorAll(`[${owned}]`).forEach(e => e.remove());
   document.querySelectorAll("[data-mcx-sites-empty-suppressed]").forEach(e => e.removeAttribute("data-mcx-sites-empty-suppressed"));
 };

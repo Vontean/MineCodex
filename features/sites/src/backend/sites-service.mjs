@@ -6,7 +6,8 @@ import os from "node:os";
 import path from "node:path";
 import { CodexCatalog } from "../adapters/codex/catalog.mjs";
 
-import { findProjectSites, entryKey } from "./project-sites.mjs";
+import { isAuxiliarySite, selectDiscoveryCandidates } from "../domain/discovery-candidates.mjs";
+import { findProjectSites, entryKey, isSkillExample } from "./project-sites.mjs";
 import { SiteLauncher } from "./site-launcher.mjs";
 import { SitePreviews } from "./sites-preview.mjs";
 
@@ -45,17 +46,19 @@ export class SitesService {
     const attributed = await Promise.all(listeners.map(async e => {
       const cwd = e.cwd ? await realpath(e.cwd).catch(() => e.cwd) : null;
       const project = projectForDirectory(canonical, cwd) || (process.platform === "win32" ? canonical.filter(p => p.rootPaths.some(r => String(e.command).toLowerCase().includes((r + path.sep).toLowerCase()))).sort((a,b) => b.rootPaths[0].length - a.rootPaths[0].length)[0] : null);
-      return { ...e, project };
+      const root = project?.rootPaths.find(r => projectForDirectory([{ rootPaths: [r] }], cwd)) || project?.rootPaths[0];
+      const auxiliary = root && (isAuxiliarySite(path.relative(root, cwd || root)) || cwd && await isSkillExample(cwd, root));
+      return { ...e, cwd, project, auxiliary };
     }));
     // 模拟器桥接首页也会执行 simctl；须在 HTTP 探测前排除，避免安装授权弹窗。
     // 无法读取完整命令时不主动探测，仍允许用户手动添加网址。
-    const pending = attributed.filter(e => e.project && e.command && !/(?:^|[\s/\\])(?:serve-sim|swiftui-preview-browser)(?:[.\s/\\]|$)/i.test(e.command));
+    const pending = attributed.filter(e => e.project && e.command && !e.auxiliary && !/(?:^|[\s/\\])(?:serve-sim|swiftui-preview-browser)(?:[.\s/\\]|$)/i.test(e.command));
     await Promise.all(Array.from({ length: Math.min(6, pending.length) }, async () => {
       while (pending.length && Date.now() < deadline) {
         const entry = pending.shift();
         if ([...this.launcher.running.values()].some(r => r.url === entry.url)) continue;
         if (seen.has(entry.url)) continue; seen.add(entry.url);
-        try { const page = await this.probe(entry.url, { timeoutMs: Math.min(1400, Math.max(1, deadline - Date.now())) }); if (page) candidates.push({ title: page.title, url: entry.url, projectId: entry.project.id, projectName: entry.project.name, directory: entry.cwd, status: "running" }); } catch { /* 未就绪或非 HTTP 服务不列为网页。 */ }
+        try { const page = await this.probe(entry.url, { timeoutMs: Math.min(1400, Math.max(1, deadline - Date.now())) }); if (page && !isAuxiliarySite("", page.title)) candidates.push({ title: page.title, url: entry.url, projectId: entry.project.id, projectName: entry.project.name, directory: entry.cwd, status: "running" }); } catch { /* 未就绪或非 HTTP 服务不列为网页。 */ }
       }
     }));
     const historyFile = path.join(path.dirname(this.file), "project-history.json");
@@ -64,24 +67,33 @@ export class SitesService {
     for (const candidate of candidates) {
       const definition = definitions.filter(d => d.projectId === candidate.projectId && candidate.directory && projectForDirectory([{ rootPaths: [d.directory] }], candidate.directory)).sort((a,b) => b.directory.length - a.directory.length)[0];
       candidate.entryId = definition?.entryId || entryKey(candidate.projectId, candidate.directory || candidate.url);
-      if (definition) { Object.assign(candidate, { framework: definition.framework, script: definition.script, command: definition.command }); definitions.splice(definitions.indexOf(definition), 1); }
+      if (definition) { Object.assign(candidate, { directory: definition.directory, modifiedAt: definition.modifiedAt, framework: definition.framework, script: definition.script, command: definition.command }); definitions.splice(definitions.indexOf(definition), 1); }
       history[candidate.entryId] = { ...history[candidate.entryId], projectId:candidate.projectId,projectName:candidate.projectName,directory:candidate.directory, lastSeenAt: Date.now(), url: candidate.url, title: candidate.title };
     }
-    for (const [id, previous] of Object.entries(history)) {
-      if (previous.directory && projectForDirectory(canonical.filter(p => p.id === previous.projectId), previous.directory) && !candidates.some(c => c.entryId === id) && !definitions.some(c => c.entryId === id)) definitions.push({ ...previous,entryId:id,status:"stopped" });
-    }
+    // 历史只补充当前入口的运行信息，不再独立生成离线候选。
+    const validIds = new Set([...candidates, ...definitions].map(c => c.entryId));
+    for (const id of Object.keys(history)) if (!validIds.has(id)) delete history[id];
     for (const definition of definitions) {
       const running = this.launcher.running.get(definition.entryId);
-      candidates.push({ ...definition, ...history[definition.entryId], url: running?.url || history[definition.entryId]?.url || null, status: running ? "running" : "stopped" });
+      candidates.push({ ...history[definition.entryId], ...definition, url: running?.url || history[definition.entryId]?.url || null, status: running ? "running" : "stopped" });
     }
     for (const candidate of candidates) Object.assign(candidate, { lastSeenAt: history[candidate.entryId]?.lastSeenAt, lastStartedAt: history[candidate.entryId]?.lastStartedAt });
     await mkdir(path.dirname(this.file), { recursive: true, mode: 0o700 });
     await writeFile(historyFile, JSON.stringify(history), { mode: 0o600 });
     this.entries = new Map(candidates.map(c => [c.entryId, c])); this.scannedAt = Date.now();
     this.discoveredUrls = new Set(candidates.filter(c => c.status === "running").map(c => c.url));
-    return { candidates: candidates.sort((a,b) => a.projectName.localeCompare(b.projectName) || (a.url || a.directory).localeCompare(b.url || b.directory)), scope: "local-projects" };
+    return { candidates: selectDiscoveryCandidates(candidates, await this.read()), scope: "local-projects" };
   }
   async action(payload = {}) {
+    if (payload.operation === "prepare-browser-site") {
+      const site = normalizeSite({ url: payload.url, title: payload.title, origin: { kind: "external" } });
+      const { projects } = await this.catalog();
+      const cwd = payload.cwd ? await realpath(payload.cwd).catch(() => null) : null;
+      const canonical = await Promise.all(projects.map(async p => ({ ...p, rootPaths: await Promise.all(p.rootPaths.map(r => realpath(r).catch(() => r))) })));
+      const project = cwd ? projectForDirectory(canonical, cwd) : null;
+      return { site, project: project ? { id: project.id, name: project.name } : null,
+        preferProject: !!project && isLocalAddress(new URL(site.url).hostname) };
+    }
     if (payload.operation === "start") {
       const site = (await this.read()).find(s => s.id === payload.id);
       if (!site || site.origin.kind !== "project") throw new Error("Project site is unavailable.");

@@ -6,9 +6,9 @@
 
 ## 用户路径
 
-Sites 标题工具区增加次要操作 Add site，保留官方 Create。添加弹窗默认展示 Codex 本地项目中的网页入口候选（含未启动网站），不显示重复的项目分组标题，项目名称仅在候选次级文本呈现；候选使用 checkbox 多选，点击整行切换勾选；已收录项勾选且禁用。两个模式底部统一提供 Cancel / Add，项目模式未选择时禁用 Add，点击后才批量收录；取消不保存选择。候选不自动收录；扫描不启动服务。打开已收录的未启动站点时，使用支持的启动方式按需启动。弹窗使用「Project / Custom」分段按钮切换；切换保留已填写的网址；项目模式自动扫描并直接展示候选，不显示搜索框、说明行或刷新按钮。「自定义网址」只提供网址和名称，默认作为外部网址收录，在无项目聊天中打开；不显示开发来源及说明。网址与名称均必填；名称不能仅含空白且最多160字符，网址须为不含嵌入凭证的有效 HTTP(S) 地址。不符合时禁用 Add，输入变化后实时更新。项目关联自动来自扫描，不在编辑弹窗暴露。
+Sites 标题工具区增加次要操作 Add site，保留官方 New。添加弹窗默认展示 Codex 本地项目中的网页入口候选（含未启动网站），不显示重复的项目分组标题，项目名称仅在候选次级文本呈现；候选使用 checkbox 多选，点击整行切换勾选；已收录项不再出现在候选列表中。两个模式底部统一提供 Cancel / Add，项目模式未选择时禁用 Add，点击后才批量收录；取消不保存选择。候选不自动收录；扫描不启动服务。打开已收录的未启动站点时，使用支持的启动方式按需启动。弹窗使用「Project / Custom」分段按钮切换；切换保留已填写的网址；项目模式自动扫描并直接展示候选，不显示搜索框、说明行或刷新按钮。「自定义网址」只提供网址和名称，默认作为外部网址收录，在无项目聊天中打开；不显示开发来源及说明。网址与名称均必填；名称不能仅含空白且最多160字符，网址须为不含嵌入凭证的有效 HTTP(S) 地址。不符合时禁用 Add，输入变化后实时更新。项目关联自动来自扫描，不在编辑弹窗暴露。
 
-通过 MineCodex 添加的条目统一展示在 Added by you 标签的列表/网格，Owned by you 和 Shared with you 保持官方条目；使用同一搜索框。标题下只显示主机地址与端口；访问列用图标 + Local address / External site，沿用原生 16px 图标、主文字色、text-sm 与 gap-1.5。Added by you 同时包含 Local 和 External，访问列继续区分地址类型。操作列复用原生外部箭头，在默认浏览器打开；Project 条目菜单只提供移除，Custom URL 可编辑网址与名称，沿用添加校验。移除只移除入口。
+通过 MineCodex 添加的条目直接追加在 Space → Sites 的原生列表/网格中，保留官方条目，共用原生搜索与列表/网格切换，不提供额外筛选 tabs。标题下只显示主机地址与端口；访问列用图标 + Local address / External site，沿用原生 16px 图标、主文字色、text-sm 与 gap-1.5。Local 和 External 同时展示，访问列区分地址类型。操作列复用原生外部箭头，在默认浏览器打开；Project 条目菜单只提供移除，Custom URL 可编辑网址与名称，沿用添加校验。移除只移除入口。
 
 ## 原生 token 与组件
 
@@ -17,7 +17,7 @@ Sites 标题工具区增加次要操作 Add site，保留官方 Create。添加�
 - 按钮：复用原生 `_Button` 与 `_ButtonInner` 类以及 data-color / data-variant / data-size 状态接口。Add site 为 secondary outline；确认沿用 primary solid。
 - 弹窗：选择通用 Dialog 的 opaque 分支（Sites Share），最大宽560px，不加独立操作区分隔线；当前通过 `config.ui` 接入。通用容器、遮罩、标题、Close及焦点契约遵循根规范。
 - 分段按钮：使用原生 segmented-control 的统一底板、等宽选项及选中块，复用 gap/gutter/background/font-weight/thumb-background/thumb-shadow/option-highlight token；控件尺寸为 control-size-md，支持方向键切换与选中状态语义。
-- 图标：从原生 Sites、Create、行菜单节点克隆 SVG；不重画。扫描结果和添加后的条目异步获取真实网页截图，本地缓存；完成后替换占位。没有截图时保留原生 Sites 图标，不阻塞选择和添加。
+- 图标：从原生 Space 下的 Sites、New、行菜单节点克隆 SVG；不重画。扫描结果和添加后的条目异步获取真实网页截图，本地缓存；完成后替换占位。没有截图时保留原生 Sites 图标，不阻塞选择和添加。
 
 ## 打开与布局
 
@@ -58,3 +58,25 @@ Custom 地址分类：localhost/回环、IPv4私有网段及链路本地、IPv6�
 
 新版 Sites 位于 `/space/sites`；注入与离开页面的布局判断使用该路由，移除旧 `/sites` 判断。
 标题区通过 New 的语义定位创建入口；按钮容器复用原生 lg secondary Button，不再假设 New 提供 data-variant。
+
+2026-10-02 隔离原生页面验证：新版已移除 Site ownership 筛选组；注入不依赖该组，也不隐藏官方条目。仅在原生列表为空且存在匹配的本地站点时隐藏原生空状态，保留头部与工具区；搜索无匹配或卸载时恢复。空状态定位排除本插件节点。
+
+添加候选行使用 flex 横排：96×60 预览、可收缩的标题/项目名、16px checkbox，间距12px；表单 label 的块布局不应用于候选行。New 的 SVG 带桌面隐藏类，克隆为 Add site 图标时移除该显示限制。
+
+## 添加候选筛选
+
+Project 模式保持单一完整列表，按标题首字母排序（忽略大小写、数字自然顺序），同名按项目名与路径稳定排序；不设推荐、数量上限、筛选 tabs 或版本展开。
+
+同一项目、相同归一目录的迭代仅展示一个入口：识别目录段或后缀中的 v/ver/version/rev/revision 数字版本，以及 final/latest/copy/backup/old 副本标记，也识别 name-1.2.0 形式的发布目录。明确版本号最高者优先；无版本号或版本相同时按入口文件修改时间选取。修改时间只用于内部选择，不作为运行或访问时间。不同目录和项目不因标题相同而合并。此规则作用于当前已支持的站点入口，不额外枚举任意 HTML 文件。
+
+排除明确自测/证据目录（test/tests、__tests__、fixtures、test-results、playwright-report、coverage、agent-tests/checks/notes/reports、self-test）及 docs/research、internal-notes、implementation-notes；明确自测报告/实现说明标题同样排除。带 SKILL.md 的技能目录下 demo/example/examples/preview 属于技能说明示例，同样排除；普通项目的 docs、demo、prototype 保留。历史记录仅补充当前磁盘入口或在线服务，失效历史记录从发现缓存清除；不删除用户文件或已保存站点。
+
+已添加的 entryId、相同 URL 或同一迭代组不再呈现为候选；后端仍保留完整有效入口供已保存站点启动与解析，不自动迁移用户之前保存的版本。全部已添加时显示“暂无可添加的项目网页”。批量添加部分成功时，成功项从候选中移除，失败项保留选择。
+
+## 浏览器快捷添加
+
+Codex 26.930.21537 隔离窗口验证：浏览器 panel 的 More（Browser options）菜单在 Downloads 下方插入 Add to Sites，复用原生菜单行样式；保持 History 等原生动作及 Escape 行为。方向键可经过注入项，Enter/Space 可激活，卸载移除入口。
+
+通过菜单所属浏览器的原生状态读取实时 URL、标题及本地 cwd，不读取地址栏草稿，也不使用其他选中标签的缓存。仅支持无嵌入凭证的 HTTP(S) 页面。点击后预填添加弹窗，沿用 Project / Custom 分段选择与网址、名称校验。已确认本地项目归属的本地地址默认 Project；其余默认 Custom。有本地项目上下文时可切换 Project，无归属时禁用该项。远程浏览器路径不映射为本机项目。
+
+保存 Project 使用已确认项目身份，Custom 使用独立网址身份；复用既有重复检测。保存或取消后仍留在浏览器，不跳转 Sites，不发送聊天消息。原生 browserState、菜单动作及关闭协议仅由 Sites Adapter 解释，后端负责校验 URL 和本机项目目录归属。

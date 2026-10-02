@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, readFile, rm, realpath } from "node:fs/promises";
 import { createServer } from "node:http";
 import os from "node:os";
 import path from "node:path";
@@ -150,10 +150,10 @@ test("offline static project can be discovered, saved without a URL, started and
   let result=await service.action({operation:"start",id:saved.id});
   for(let i=0;result.pending&&i<30;i++){await new Promise(r=>setTimeout(r,10));result=await service.action({operation:"start",id:saved.id});}
   assert.match(result.url,/http:\/\/127\.0\.0\.1:/);assert.match(await(await fetch(result.url)).text(),/Hello/);
-  discovery=await service.discover();assert.equal(discovery.candidates[0].status,"running");
+  discovery=await service.discover();assert.equal(discovery.candidates.length,0);assert.equal(service.entries.get(saved.entryId).status,"running");
   service.launcher.stop();
   const restarted=new SitesService({codexHome:root,dataDir:path.join(root,"saved"),listeners:async()=>[]});
-  discovery=await restarted.discover();assert.equal(discovery.candidates[0].status,"stopped");assert.ok(discovery.candidates[0].lastStartedAt);
+  discovery=await restarted.discover();assert.equal(discovery.candidates.length,0);assert.equal(restarted.entries.get(saved.entryId).status,"stopped");assert.ok(restarted.entries.get(saved.entryId).lastStartedAt);
 });
 
 test("project metadata finds framework websites but excludes watch tools",async t=>{
@@ -161,4 +161,81 @@ test("project metadata finds framework websites but excludes watch tools",async 
   await mkdir(path.join(project,"web"));await writeFile(path.join(project,"web","package.json"),JSON.stringify({name:"My web",scripts:{dev:"vite"}}));
   await mkdir(path.join(project,"tools"));await writeFile(path.join(project,"tools","package.json"),JSON.stringify({scripts:{dev:"tsc --watch"}}));
   const result=await service.discover();assert.equal(result.candidates.length,1);assert.equal(result.candidates[0].framework,"vite");assert.equal(result.candidates[0].lastStartedAt,undefined);
+});
+
+test("discovery keeps latest iterations, excludes agent artifacts, sorts titles and hides saved families", async t => {
+  const { service, project } = await fixture(t); service.listeners = async () => [];
+  for (const [directory, title] of [
+    ["portfolio-v2", "Portfolio"], ["portfolio-v10", "Portfolio"],
+    ["shop", "alpha Shop"], ["docs", "Product documentation"],
+    ["tests/sample", "Sample"], ["playwright-report", "Report"],
+    ["docs/research/example", "Internal page"], ["check", "Agent self-test"],
+    ["independent", "Portfolio"],
+  ]) {
+    await mkdir(path.join(project, directory), { recursive: true });
+    await writeFile(path.join(project, directory, "index.html"), `<title>${title}</title>`);
+  }
+  let result = await service.discover();
+  assert.deepEqual(result.candidates.map(c => c.title), ["alpha Shop", "Portfolio", "Portfolio", "Product documentation"]);
+  assert.ok(result.candidates.some(c => c.directory.endsWith("portfolio-v10")));
+  assert.ok(!result.candidates.some(c => c.directory.endsWith("portfolio-v2")));
+  const old = [...service.entries.values()].find(c => c.directory.endsWith("portfolio-v2"));
+  await service.action({ operation: "save", site: old });
+  result = await service.discover();
+  assert.equal(result.candidates.filter(c => c.title === "Portfolio").length, 1);
+  assert.ok(service.entries.has(old.entryId), "saved older entry remains usable");
+});
+
+test("history cannot resurrect missing entrances, removed projects or test pages", async t => {
+  const { service, project } = await fixture(t);
+  const directory = path.join(project, "site"); await mkdir(directory);
+  await writeFile(path.join(directory, "index.html"), "<title>Current title</title>");
+  service.listeners = async () => [{ cwd: directory, command: "node server.js", url: "http://127.0.0.1:3333/" }];
+  service.probe = async () => ({ title: "Old title" });
+  const first = (await service.discover()).candidates[0];
+  service.listeners = async () => [];
+  assert.equal((await service.discover()).candidates[0].title, "Current title");
+  await rm(path.join(directory, "index.html"));
+  assert.equal((await service.discover()).candidates.length, 0);
+  const historyFile = path.join(path.dirname(service.file), "project-history.json");
+  assert.equal(JSON.parse(await readFile(historyFile, "utf8"))[first.entryId], undefined);
+  await writeFile(historyFile, JSON.stringify({ ghost: { projectId: "removed", directory, title: "Ghost" } }));
+  assert.equal((await service.discover()).candidates.length, 0);
+  assert.deepEqual(JSON.parse(await readFile(historyFile, "utf8")), {});
+  let probes = 0;
+  service.listeners = async () => [{ cwd: path.join(project, "tests"), command: "node server.js", url: "http://127.0.0.1:3334/" }];
+  service.probe = async () => { probes++; return { title: "Test" }; };
+  assert.equal((await service.discover()).candidates.length, 0);
+  assert.equal(probes, 0);
+});
+
+test("skill documentation demos are excluded from files and live listeners; ordinary demos remain", async t => {
+  const { service, project } = await fixture(t);
+  for (const dir of ["skill/demo", "ordinary/demo"]) {
+    await mkdir(path.join(project, dir), { recursive: true });
+    await writeFile(path.join(project, dir, "index.html"), "<title>Demo</title>");
+  }
+  await writeFile(path.join(project, "skill/SKILL.md"), "# Skill");
+  service.listeners = async () => [{ cwd: path.join(project, "skill/demo"), command: "node server.js", url: "http://127.0.0.1:3334/" }];
+  service.probe = async () => { throw new Error("Skill example must not be probed"); };
+  const result = await service.discover();
+  assert.deepEqual(result.candidates.map(c => c.directory), [await realpath(path.join(project, "ordinary/demo"))]);
+});
+
+test("browser quick add resolves project context, defaults external pages to Custom and deduplicates saves", async t => {
+  const { service, project } = await fixture(t);
+  const local = await service.action({ operation: "prepare-browser-site", url: "http://localhost:4321/demo", title: "My design", cwd: project });
+  assert.equal(local.project.id, "project1"); assert.equal(local.preferProject, true);
+  assert.equal(local.site.url, "http://localhost:4321/demo");
+  const external = await service.action({ operation: "prepare-browser-site", url: "https://example.com/path?q=1", title: "Example", cwd: project });
+  assert.equal(external.preferProject, false); assert.equal(external.project.id, "project1");
+  const unowned = await service.action({ operation: "prepare-browser-site", url: "http://localhost:4321", title: "Page" });
+  assert.equal(unowned.project, null); assert.equal(unowned.preferProject, false);
+  const site = { ...local.site, origin: { kind: "project", projectId: local.project.id } };
+  const first = await service.action({ operation: "save", site });
+  const second = await service.action({ operation: "save", site });
+  assert.equal(first.id, second.id); assert.equal((await service.read()).length, 1);
+  for (const url of ["file:///tmp/index.html", "about:blank", "https://u:pw@example.com/"]) {
+    await assert.rejects(service.action({ operation: "prepare-browser-site", url, cwd: project }));
+  }
 });

@@ -7,8 +7,8 @@
     "zh-CN": "本地与自托管站点"
   },
   "description": {
-    "en": "Discover project web services and open saved sites in their development context.",
-    "zh-CN": "发现项目网页服务，快捷添加，并在对应开发聊天中打开站点。"
+    "en": "Find project web services and open your saved sites.",
+    "zh-CN": "发现项目网页服务，收藏并打开常用站点。"
   },
   "entry": {
     "kind": "page-script",
@@ -22,6 +22,7 @@
   "hostActions": [
     "sites"
   ],
+  "icon": {"viewBox": "0 0 24 24", "markup": "<circle cx=\"12\" cy=\"12\" r=\"10\" />\n  <path d=\"M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20\" />\n  <path d=\"M2 12h20\" />"},
   "placement": {
     "order": 90
   }

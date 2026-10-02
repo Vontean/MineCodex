@@ -31,7 +31,26 @@ function pageInfo() {
   const shared = native ? !!native.shared : [...page.querySelectorAll("button[aria-pressed=true]")].some(b => /Shared with you|与你共享|與你共用/.test(b.textContent));
   const create = [...page.firstElementChild.querySelectorAll("button")].find(b => /^(New|新建|新增)$/.test(b.textContent.trim()) && !b.hasAttribute(owned));
   codex.report("sites-page",true);
-  return { page, input, content, list, grid, shared, create };
+  return { page, input, content, list, grid, shared, create, empty: list ? null : [...content.children].findLast(e => !e.hasAttribute(owned)) };
+}
+function browserMenu() {
+  for (const menu of document.querySelectorAll('[role="menu"]')) {
+    if (!visible(menu)) continue;
+    const actions = nativeProps(menu, p => typeof p.onOpenDownloads === "function" && typeof p.onOpenChange === "function");
+    const page = nativeProps(menu, p => p.browserState && p.browserTabId);
+    if (!actions || !page || page.isVisible === false) continue;
+    const downloads = [...menu.querySelectorAll('[role="menuitem"]')].find(e => /^(Downloads|下载|下載)$/.test(e.textContent.trim()));
+    if (!downloads) continue;
+    const host = nativeProps(menu, p => p.browserTabId === page.browserTabId && "browserHostDisplayName" in p);
+    let url;
+    try { url = new URL(page.browserState.url); } catch { continue; }
+    if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) continue;
+    return { menu, downloads, tabId: page.browserTabId,
+      page: { url: url.href, title: page.browserState.title || url.hostname,
+        cwd: host?.browserHostDisplayName === "Local" ? page.cwd : null },
+      close: () => actions.onOpenChange(false) };
+  }
+  return null;
 }
 function fullViewControl(enter) {
   const pattern = enter ? /^(Enter full view|进入完整视图|进入全屏视图|進入完整檢視|進入全螢幕檢視)$/ : /^(Exit full view|退出完整视图|退出全屏视图|退出完整檢視|退出全螢幕檢視)$/;
@@ -67,10 +86,12 @@ function templates(page) {
   const create = page.create;
   if (create) {
     const template = page.page.querySelector('button[data-size="lg"][data-color="secondary"]');
-    nativeButton = template.className; nativeInner = template.firstElementChild.className;
+    if (template) { nativeButton = template.className; nativeInner = template.firstElementChild?.className || ""; }
     nativePlus = create.querySelector("svg")?.cloneNode(true);
+    // New 的图标在桌面端隐藏，克隆后只保留图标自身样式。
+    nativePlus?.classList.remove("hidden", "browser:max-md:block");
   }
-  nativeSiteIcon ||= document.querySelector('[data-sidebar-destination="builtin:sites"] svg')?.cloneNode(true);
+  nativeSiteIcon ||= [...document.querySelectorAll('button, a')].find(e => /^(Sites|站点|網站)$/.test(e.textContent.trim()) && !e.closest(`[${owned}]`))?.querySelector("svg")?.cloneNode(true);
   const row = page.list?.querySelector("[data-appgen-row], article");
   nativeExternal ||= row?.querySelector('button[aria-label*="new tab"]')?.cloneNode(true);
   nativeActionsClass ||= row?.lastElementChild?.className;
@@ -79,5 +100,5 @@ function templates(page) {
   return {nativeButton,nativeInner,nativePlus,nativeSiteIcon,nativeMore,nativeExternal,nativeGlobe,nativeActionsClass};
 }
 
-return {templates,pageInfo,fullViewControl,open,path:()=>router()?.state?.location?.pathname};
+return {templates,pageInfo,browserMenu,fullViewControl,open,path:()=>router()?.state?.location?.pathname};
 }
