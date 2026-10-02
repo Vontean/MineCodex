@@ -32,3 +32,7 @@ Renderer安装函数经序列化注入，必须自包含。组件代码与Node/C
 ## 验证边界
 
 组件验证关注可注入性、结构与回调、状态清理、挂载/焦点以及所选原生类型的实际行为，不镜像每条CSS写实现测试。布局、材质和原生状态变化按风险做隔离验收；只移动文件时验证导入、序列化、发布名单与已有功能回归。
+
+## 账号菜单接入
+
+`accountMenuEntry({label, icon, externalIcon, onOpen})` 通过 native/account-menu Adapter 获取原生 Settings 模板与关闭句柄。组件只修改脱离 React 的副本，负责重建去重、相邻键盘导航与卸载；回调拥有打开动作，组件不读取控制台 token 或浏览器状态。通用位置与视觉规则见根 DESIGN.md。

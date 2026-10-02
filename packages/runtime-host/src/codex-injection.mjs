@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { createCodexEnvironment } from "../../codex-adapter/src/renderer/environment.mjs";
 // 注入源生成：createInjectionSource 产出注入到 Codex Renderer 的自包含脚本字符串。
 // 该字符串经 CDP 注入后独立执行，因此 install 函数体必须自包含；
@@ -8,7 +9,9 @@ import { createUIInstallerSource } from "../../ui/src/install.mjs";
 import { randomBytes } from "node:crypto";
 import { CODEX_THEME_TOKENS, CODEX_THEME_TOKEN_ALIASES, MINECODEX_THEME_BINDINGS } from "../../ui/src/native/tokens.mjs";
 
-export const RUNTIME_VERSION = 107;
+export const RUNTIME_VERSION = 108;
+const PROJECT_ICON = readFileSync(new URL("../../../assets/brand/minecodex-icon.svg", import.meta.url), "utf8");
+const EXTERNAL_ICON = readFileSync(new URL("../../ui/assets/arrow-up-right.svg", import.meta.url), "utf8");
 export const HOST_BINDING_NAME = "__codexPersonalHostAction";
 export const CSP_BOOTSTRAP_VERSION = 1;
 export const CSP_BOOTSTRAP_KEY = "__mineCodexCspBootstrapVersion";
@@ -204,6 +207,8 @@ export function createInjectionSource(features, {
       } : null,
       hostActions: new Set(feature.hostActions ?? []),
     }));
+    featureUI.accountMenuEntry?.({ label:"MineCodex", icon:config.projectIcon, externalIcon:config.externalIcon,
+      onOpen:() => requestPageHostAction("minecodex", "open-control-panel", {}) });
     const featureById = new Map(features.map((feature) => [feature.id, feature]));
     const sidebarFeatures = features.filter((feature) => feature.entry?.kind === "sidebar");
     const toolbarFeatures = features.filter((feature) => feature.entry?.kind === "conversation-toolbar");
@@ -2170,14 +2175,14 @@ export function createInjectionSource(features, {
     }
 
     function requestPageHostAction(featureId, action, payload) {
-      if (!featureById.get(featureId)?.hostActions.has(action)) return Promise.reject(new Error("Host action is not registered"));
+      if (!(featureId === "minecodex" && action === "open-control-panel") && !featureById.get(featureId)?.hostActions.has(action)) return Promise.reject(new Error("Host action is not registered"));
       if (typeof globalThis[config.bindingName] !== "function") return Promise.reject(new Error("Host bridge is unavailable"));
       return new Promise((resolve, reject) => {
         const requestId = crypto.randomUUID();
         const timer = setTimeout(() => {
           pendingHostActions.delete(requestId);
           reject(new Error("Host request timed out"));
-        }, 10_000);
+        }, featureId === "minecodex" ? 30_000 : 10_000);
         pendingHostActions.set(requestId, { kind: "page-script", resolve, reject, timer });
         try {
           globalThis[config.bindingName](JSON.stringify({ token: config.bindingToken, featureId, requestId, action, payload }));
@@ -2438,6 +2443,8 @@ export function createInjectionSource(features, {
     } : null,
   }));
   return `(${install.toString()})(${JSON.stringify({
+    projectIcon: PROJECT_ICON,
+    externalIcon: EXTERNAL_ICON,
     version: RUNTIME_VERSION,
     sessionId: runtimeSessionId,
     bindingName,

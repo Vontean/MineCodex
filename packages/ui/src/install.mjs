@@ -1,3 +1,5 @@
+import { createNativeAccountMenuAdapter } from "./native/account-menu.mjs";
+import { installAccountMenuEntry } from "./components/account-menu.mjs";
 import { createNativeThemeAdapter } from "./native/theme.mjs";
 import { createNativePageAdapter } from "./native/page.mjs";
 import { createNativeRailAdapter } from "./native/navigation-rail.mjs";
@@ -19,6 +21,7 @@ export function createUIInstallerSource() {
     Object.assign(ui, (${installPage.toString()})(signal, ui, (${createNativePageAdapter.toString()})(context.codex)));
     Object.assign(ui, (${installNavigationRail.toString()})(signal, ui, (${createNativeRailAdapter.toString()})(context.codex)));
     Object.assign(ui, (${installFeatureTooltips.toString()})(signal));
+    Object.assign(ui, (${installAccountMenuEntry.toString()})(signal, ui, (${createNativeAccountMenuAdapter.toString()})(context.codex)));
     return ui;
   }`;
 }

@@ -1,3 +1,4 @@
+import { openMacControlPanel } from "./browser-control-panel.mjs";
 import { execFile as execFileCallback } from "node:child_process";
 import { mkdir, readFile, rename, rm, stat, unlink, writeFile } from "node:fs/promises";
 import os from "node:os";
@@ -702,6 +703,10 @@ export class MacPlatformAdapter {
 
   async openBrowser(url) {
     await this.execFile("/usr/bin/open", [url]);
+  }
+
+  async openControlPanel(url, origin) {
+    return openMacControlPanel(this.execFile, url, origin);
   }
 
   async openNativeCodex({ cdpPort } = {}) {

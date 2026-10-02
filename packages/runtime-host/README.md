@@ -201,3 +201,9 @@ Images 提示词面板沿用原生 File info 的附属信息面板结构；ifram
 `entry.sourceFactory` 可声明本插件内的源码工厂，导出 `createPageScriptSource()` 并返回 Renderer 函数体字符串。工厂路径不能越出插件；纯领域函数由插件工厂序列化，宿主不维护规则副本。Images 使用这一接口共享图片提示词溯源规则。
 
 Model Slider 的模型规则、原生控制器适配和专有呈现位于插件 `src/domain` / `src/frontend`，安装源码由插件工厂组装。宿主仅提供配置、locale、共享 UI、图标与刷新调度，维护 ensure/dispose 接线；原生菜单开合和节点恢复由插件负责。
+
+## 项目控制台入口
+
+Runtime Host 在账号菜单 Settings 下挂载 MineCodex 项目入口，不属于可开关的插件。`minecodex/open-control-panel` 是独立 builtin action，必须通过对应 renderer 的 binding token 验证；它不接受任意 URL 或 shell 参数，固定调用包内 CLI 的 `gui` 命令。组件的项目图标、外链箭头与菜单模板由共享 UI 提供。
+
+CLI 继续通过一次性 browser exchange 打开控制台。macOS 默认 Safari 与 Chrome/Chromium、Edge、Brave、Vivaldi 支持查找现有控制台标签页并激活；没有匹配页才调用系统默认浏览器打开登录地址。自动化权限被拒绝时返回错误，不用重复开页掩盖失败。其他浏览器和 Windows 保留系统 URL 打开行为，目前不保证标签页复用。

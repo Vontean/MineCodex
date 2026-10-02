@@ -187,7 +187,9 @@ async function openCommand({ paths, platform, output, serviceProbe, fetchImpl })
     if (!exchangeResponse.ok) throw new Error(`MineCodex browser exchange failed: HTTP ${exchangeResponse.status}`);
     const { exchange } = await exchangeResponse.json();
     if (!exchange) throw new Error("MineCodex browser exchange did not return a short-lived value.");
-    await platform.openBrowser(`${controlOrigin()}/auth?exchange=${encodeURIComponent(exchange)}`);
+    const url = `${controlOrigin()}/auth?exchange=${encodeURIComponent(exchange)}`;
+    if (platform.openControlPanel) await platform.openControlPanel(url, controlOrigin());
+    else await platform.openBrowser(url);
   };
   if (reporter) await reporter.step(2, 2, "Opening the control panel", openControlPanel);
   else await openControlPanel();

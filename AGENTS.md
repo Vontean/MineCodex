@@ -18,6 +18,7 @@
 | 组件库结构与接入 | `packages/ui/ARCHITECTURE.md`、`packages/ui/DESIGN.md` | 已建立的UI组件库 |
 | 共享Dialog、Button、Scrim、Surface | `packages/ui/src/components/dialog.mjs`、`button.mjs`、`foundation/surfaces.mjs` | UI组件库 |
 | 共享Navbar状态与原生图标 | `packages/ui/src/components/navigation-rail.mjs`、`native/navigation-rail.mjs` | UI组件库 |
+| 原生账号菜单项目入口 | `packages/ui/src/native/account-menu.mjs`、`components/account-menu.mjs` | UI 组件库；打开动作归 Runtime Host 与 CLI |
 | 共享Tooltip | `packages/ui/src/components/tooltip.mjs` | UI组件库 |
 | token映射、别名、主题变量与恢复 | `packages/ui/src/native/tokens.mjs`、`theme.mjs` | UI组件库 |
 | 共享原生Composer、thread、rail与React读取机制 | `packages/codex-adapter/src/renderer/environment.mjs`、`packages/codex-adapter/README.md` | Codex环境Adapter；不放插件业务 |
