@@ -65,7 +65,13 @@
     "packages/codex-adapter/src",
     "packages/codex-adapter/package.json",
     "packages/ui/package.json",
-    "DESIGN.md"
+    "DESIGN.md",
+    "assets/brand/minecodex-icon.svg",
+    "assets/brand/minecodex-icon-light.svg",
+    "assets/brand/minecodex-icon-dark.svg",
+    "assets/brand/references/lucide-LICENSE.txt",
+    "assets/readme/hero.svg",
+    "packages/ui/assets"
   ],
   "engines": {
     "node": ">=22.5.0"
@@ -80,7 +86,8 @@
     "pack:check": "npm pack --dry-run",
     "pack:audit": "node scripts/audit-package.mjs",
     "prepublishOnly": "npm test && npm run check && npm run pack:audit",
-    "test:ui": "node --test packages/ui/test/*.test.mjs"
+    "test:ui": "node --test packages/ui/test/*.test.mjs",
+    "build:icons": "node scripts/build-brand-icons.mjs"
   },
   "repository": {
     "type": "git",

@@ -172,3 +172,9 @@ Navbar 在入口右侧居中，使用 `data-minecodex-tooltip-side="right"`；�
 ### Library 多选动作条的实色警戒按钮
 
 Codex 26.930.21537（2026-10-02 原生源码与隔离窗口）：Library 选中动作条的 Delete 使用 `dangerSolid`、full radius、toolbar size，图标 16px，警戒底与白色配对文字；hover 使用 danger solid 90% alpha，禁用保留原生 40% opacity 与禁止交互。确认弹窗也使用实色警戒提交按钮。共享 DOM 入口为 `ui.action(button, "danger-solid")`，和既有 soft `danger` 分支并存，不迁移原有功能的语义。通用组件只提供视觉和交互状态，删除确认、隐藏／回收站／永久删除的范围由所属功能明确告知。
+
+## MineCodex 项目品牌图标
+
+项目标识采用实心镐子与 Codex 原生六瓣外圈，唯一可编辑源为 `assets/brand/minecodex-icon.svg`。内部镐子使用 `translate(6.24 6.24) scale(.48)`，纯填充、无描边；保留已确认的留白比例。此标识代表 MineCodex，不替换插件功能图标、模型厂商图标或 Codex 原生应用图标。
+
+内联使用 `currentColor` 跟随所在表面的语义文字色；外链明暗版本分别使用 `#0d0d0d` / `#fafafa`，透明背景。favicon 在 SVG 内通过 `prefers-color-scheme` 适配系统主题，Dashboard 标题通过 CSS mask 跟随页面 `--ink`。明暗版本、favicon 和 README 标识由 `npm run build:icons` 从同一源文件生成，修改几何后运行该命令。
