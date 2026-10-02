@@ -9,6 +9,7 @@ let button = null;
 let addButton = null;
 let composerRoot = null;
 let composerThread = null;
+let composerEditable = null;
 let panel = null;
 let items = [];
 let generation = 0;
@@ -169,7 +170,7 @@ function renderList() {
         async () => {
           const current = generation;
           try {
-            window.__codexPersonalRuntime.insertText(item.body);
+            window.__codexPersonalRuntime.insertText(item.body, composerEditable);
             // 插入同步成功后再记一次调用；失败和单纯浏览不计数。
             close();
             await api(`/api/prompts/${encodeURIComponent(item.id)}/use`, {
@@ -224,7 +225,7 @@ function isOpenComposerMenu(node) {
 function sync() {
   if (disposed || signal.aborted) return;
   syncNavigation();
-  const nativeComposer = config.codex.composer(null,{threadOnly:false});
+  const nativeComposer = config.codex.composer(null,{purpose:"insertion"});
   const add = nativeComposer?.add;
   const card = nativeComposer?.root;
   const thread = nativeComposer?.threadId ?? null;
@@ -232,13 +233,14 @@ function sync() {
     close();
     composerThread = thread;
   }
-  if (add !== addButton || card !== composerRoot) {
+  if (add !== addButton || card !== composerRoot || nativeComposer?.editable !== composerEditable) {
     close();
     button?.remove();
     button = null;
     addButton = add;
     composerRoot = card;
   }
+  composerEditable = nativeComposer?.editable ?? null;
   if (!add) return;
   if (
     panel &&
@@ -325,11 +327,12 @@ function syncNavigationSelection() {
 function restoreNavigationSelection() {
   navigationRail?.select(false);
 }
-function closePage(restoreFocus = false) {
+function closePage(restoreFocus = false, restoreNavigation = true) {
   dragState?.cancel();
   pageGeneration++;
   closePagePopup();
   closeEditor(false);
+  if (page) config.ui.releasePage(page, { restoreNavigation });
   page?.remove();
   page = null;
   restoreNavigationSelection();
@@ -362,7 +365,7 @@ function openPage() {
   pageFocus = document.activeElement;
   page = element("section");
   page.setAttribute(MARKER, "page");
-  config.ui.page(page);
+  config.ui.page(page, { sidebar:"none" });
   page.setAttribute("aria-label", text("Prompts", "提示词"));
   document.body.append(page);
   // 只隔离主内容的焦点，保留导航栏与原生窗口控件。
@@ -726,6 +729,18 @@ function orderControls(item, ordered, isCategory, row) {
     const parent = row.parentElement;
     const siblings = [...parent.children].filter(node => node.dataset.orderGroup === group);
     const originalNext = row.nextSibling;
+    const rect = row.getBoundingClientRect();
+    const radius = getComputedStyle(row).borderRadius;
+    const dragImage = row.cloneNode(true);
+    dragImage.removeAttribute("data-order-group");
+    dragImage.removeAttribute("data-order-id");
+    dragImage.setAttribute("aria-hidden", "true");
+    Object.assign(dragImage.style, { position:"fixed", left:"-10000px", top:"0", width:`${rect.width}px`,
+      height:`${rect.height}px`, margin:"0", boxSizing:"border-box", pointerEvents:"none",
+      background:"var(--mcx-color-surface)", borderRadius:radius, overflow:"hidden", clipPath:`inset(0 round ${radius})` });
+    // 显式裁切拖影，避免浏览器自动截图留下矩形外边界。
+    parent.append(dragImage);
+    event.dataTransfer.setDragImage(dragImage, event.clientX - rect.left, event.clientY - rect.top);
     const placeholder = element("div", "pm-drop-placeholder");
     placeholder.style.height = `${row.getBoundingClientRect().height}px`;
     placeholder.setAttribute("aria-hidden", "true");
@@ -752,6 +767,7 @@ function orderControls(item, ordered, isCategory, row) {
       if (finished) return;
       finished = true;
       lifetime.abort();
+      dragImage.remove();
       dragState = null;
       row.draggable = false;
       if (!started) return;
@@ -768,8 +784,9 @@ function orderControls(item, ordered, isCategory, row) {
     dragState = { cancel: () => finish(false) };
     event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData("text/plain", item.id);
-    // 等浏览器截取拖影后再隐藏原行，避免拖影变成空白。
+    // 等浏览器截取拖影后再清理替身、隐藏原行。
     requestAnimationFrame(() => {
+      dragImage.remove();
       if (finished || !row.isConnected) return;
       row.before(placeholder);
       row.classList.add("pm-dragging");
@@ -1075,7 +1092,7 @@ function manageCategories() {
   const target = editorShell(text("Categories", "分类"));
   const footer = config.ui.footer(element("div", "pm-footer"));
   footer.append(
-    pageControl(text("New category", "新建分类"), () => editCategory(), true),
+    pageControl(text("New category", "新建分类"), () => editCategory()),
   );
   for (const category of categories) {
     const row = element("div", "pm-row");
@@ -1291,11 +1308,11 @@ document.addEventListener(
       event.target.closest("[data-app-navigation-rail] button") &&
       !navButton?.contains(event.target)
     )
-      closePage();
+      closePage(false, false);
   },
   { signal, capture: true },
 );
-window.addEventListener("popstate", () => closePage(), { signal });
+window.addEventListener("popstate", () => closePage(false, false), { signal });
 window.addEventListener("resize", positionPage, { signal });
 
 const observer = new MutationObserver(() => {

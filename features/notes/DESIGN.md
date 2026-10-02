@@ -38,7 +38,9 @@ Header 为 Prompts；右侧依次为排序图标、分类调节图标、常驻�
 
 点击提示词只插入当前输入框，保留原草稿且不发送。Escape 关闭并回到入口；点击外部关闭；方向键移动列表焦点。原生 Add 或权限面板打开时关闭。切换输入框时关闭，异步结果不得插入另一会话。沿用原生焦点与 hover，无额外进场动画。
 
-入口仅挂载到可见 Codex 输入框；原生可见的 Add 或菜单按钮展开时关闭 Popover。Session Status 的 Context 展开状态不是弹出菜单，不作为冲突条件；隐藏输入框和隐藏控件不参与锚点定位或菜单判断。
+入口通过 Codex Adapter 的 `purpose:"insertion"` 挂载到可见的原生输入框，覆盖 Chat、Work、Codex、Temporary Chat、浮动聊天，以及 side panel 全屏非聊天页面的 chat bar。多输入框并存时优先当前焦点所在输入框；插入操作显式绑定打开面板的输入框，切换后关闭旧面板，不向隐藏输入框插入。此插入契约不扩展会话指标使用的 Codex thread 契约。
+
+原生可见的 Add 或菜单按钮展开时关闭 Popover。Session Status 的 Context 展开状态不是弹出菜单，不作为冲突条件；隐藏输入框和隐藏控件不参与锚点定位或菜单判断。
 
 ## 统计
 成功插入后原子增加 `use_count` 并更新 `called_at`，保存于现有 SQLite。创建、编辑、复制和排序不计数。历史次数未知，从 0 开始，不从旧 `last_used_at` 推断。删除分类、切换页面、重启不清零。
@@ -50,9 +52,9 @@ Header 为 Prompts；右侧依次为排序图标、分类调节图标、常驻�
 
 导航栏 book-open 单独采用 20px 容器、27×27 viewBox，实际轮廓约 16.15px，描边折算 1.33px，与原生导航一致。Lucide 两个描边子路径合为一个 path，一次绘制半透明 currentColor，避免书脊交叠变深。选中态使用 Phosphor 官方 book-open-fill 的20px资源；授权见 vendor/phosphor-LICENSE。输入框入口尺寸不变。
 
-拖拽排序使用等高 Drop Placeholder，原生拖影跟随指针；同组条目以 180ms ease-out 让位，落位淡入 140ms。放到范围外或取消恢复原位，不写入排序。遵循 prefers-reduced-motion。
+拖拽排序使用等高 Drop Placeholder，拖影跟随指针并显式按源行圆角裁切，不留下矩形外边界；同组条目以 180ms ease-out 让位，落位淡入 140ms。放到范围外或取消恢复原位，不写入排序。遵循 prefers-reduced-motion。
 
-页面选择通用 Page 外壳，保留原生 Home sidebar 的悬浮与导航行为。
+页面选择通用 Page 的 `sidebar:"none"` 分支，自身不带常驻二级侧栏，保留原生 Home、Space、Scheduled sidebar 的悬浮叠加与导航行为。关闭页面恢复原页面位置，不改变用户的侧栏展开偏好。
 
 提示词编辑沿用原生 Project 的复合标题输入：40px 图标段位于标题前，细分隔线，共用圆角边框与 focus-within 状态。图标选择入口不再单独占一行；Title 通过 aria-label 标识。
 
@@ -68,3 +70,5 @@ Category 下拉面板与触发栏等宽、左右对齐，宽度包含内边距�
 内置 24 条来自 dsh-prompt 0.1.13 的 MIT 提示词，正文保持原样，按思考、学习、编程、效率分类并配 Emoji。来源与许可保存在 assets/dsh-prompt-LICENSE.txt。首次启动或旧库升级时单次导入；随后允许编辑和删除，重启不还原，也不重建被删除的分类。用户个人内容只保留在本机数据库，不纳入默认资源。
 
 简短悬浮提示调用共享 Tooltip；具体文案由本功能维护。Quick Prompts 通过通用 ComposerMenu 使用原生浮动建议列表材质和输入框主体锚点。排序、分类与图标菜单显式选择 Dropdown。
+
+Categories 管理弹窗的 New category 是有实际功能的次级操作，使用共享 Button 的 `secondary`（outline）分支；分类编辑的 Save 保留主按钮。
