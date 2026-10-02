@@ -178,3 +178,5 @@ Codex 26.930.21537（2026-10-02 原生源码与隔离窗口）：Library 选中�
 项目标识采用实心镐子与 Codex 原生六瓣外圈，唯一可编辑源为 `assets/brand/minecodex-icon.svg`。内部镐子使用 `translate(6.24 6.24) scale(.48)`，纯填充、无描边；保留已确认的留白比例。此标识代表 MineCodex，不替换插件功能图标、模型厂商图标或 Codex 原生应用图标。
 
 内联使用 `currentColor` 跟随所在表面的语义文字色；外链明暗版本分别使用 `#0d0d0d` / `#fafafa`，透明背景。favicon 在 SVG 内通过 `prefers-color-scheme` 适配系统主题，Dashboard 标题通过 CSS mask 跟随页面 `--ink`。明暗版本、favicon 和 README 标识由 `npm run build:icons` 从同一源文件生成，修改几何后运行该命令。
+
+macOS 后台服务 App 在明确的原生资源修订 1.0.1 中接入实心图标，采用浅色圆角底板，保证在明暗系统表面均可辨认。ICNS 来自同一项目几何。安装器先注销旧后台项，再验证并替换 bundle，最后重新注册；不能直接修改已安装的签名资源。后续普通 JavaScript 发布保留此原生 bundle 的签名身份，升级流程与验收边界见 `packages/cli/native/README.md`。

@@ -4,6 +4,10 @@
 <dict>
 	<key>files</key>
 	<dict>
+		<key>Resources/MineCodex.icns</key>
+		<data>
+		mSztCiWeEvLkAINXLTTBTVSA0f8=
+		</data>
 		<key>Resources/MineCodexServiceHost</key>
 		<data>
 		kB0iYBcULzqcS1yOgYpY3LZjeq4=
@@ -16,6 +20,13 @@
 			<key>hash2</key>
 			<data>
 			mGWkf+X17Pau3uy8xUUB1s+JXofeKYKNRzFPk3FXeaA=
+			</data>
+		</dict>
+		<key>Resources/MineCodex.icns</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			Wg3Q9bbvnrEwou/t4h9Gk/nWmlwm0UGGt+qR4+LySAI=
 			</data>
 		</dict>
 		<key>Resources/MineCodexServiceHost</key>

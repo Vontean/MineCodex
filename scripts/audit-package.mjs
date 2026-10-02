@@ -65,6 +65,7 @@ const requiredFiles = [
   "package.json",
   "packages/cli/bin/mcx.mjs",
   "packages/cli/native/MineCodex.app/Contents/Info.plist",
+  "packages/cli/native/MineCodex.app/Contents/Resources/MineCodex.icns",
   "packages/cli/native/MineCodex.app/Contents/Library/LaunchAgents/com.vontean.minecodex.background.plist",
   "packages/cli/native/MineCodex.app/Contents/MacOS/MineCodexServiceManager",
   "packages/cli/native/MineCodex.app/Contents/Resources/MineCodexServiceHost",

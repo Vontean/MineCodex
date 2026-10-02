@@ -31,6 +31,10 @@ test("MineCodex owns the background item while runtime config keeps exact Node a
     readFile(`${paths.serviceBundleSource}/Contents/Info.plist`, "utf8"),
     readFile(`${paths.serviceBundleSource}/Contents/Library/LaunchAgents/${SERVICE_LABEL}.plist`, "utf8"),
   ]);
+  assert.match(infoPlist, /<key>CFBundleIconFile<\/key>\s*<string>MineCodex\.icns<\/string>/);
+  const serviceIcon = await readFile(`${paths.serviceBundleSource}/Contents/Resources/MineCodex.icns`);
+  assert.equal(serviceIcon.subarray(0, 4).toString(), "icns");
+  assert.equal(serviceIcon.readUInt32BE(4), serviceIcon.length);
   assert.match(infoPlist, /<key>CFBundleDisplayName<\/key>\s*<string>MineCodex<\/string>/);
   assert.match(launchAgent, /<key>BundleProgram<\/key>\s*<string>Contents\/Resources\/MineCodexServiceHost<\/string>/);
   assert.doesNotMatch(launchAgent, /Node\.js|ProgramArguments/);
