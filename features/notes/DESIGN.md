@@ -54,7 +54,7 @@ Header 为 Prompts；右侧依次为排序图标、分类调节图标、常驻�
 
 拖拽排序使用等高 Drop Placeholder，拖影跟随指针并显式按源行圆角裁切，不留下矩形外边界；同组条目以 180ms ease-out 让位，落位淡入 140ms。放到范围外或取消恢复原位，不写入排序。遵循 prefers-reduced-motion。
 
-页面选择通用 Page 的 `sidebar:"none"` 分支，自身不带常驻二级侧栏，保留原生 Home、Space、Scheduled sidebar 的悬浮叠加与导航行为。关闭页面恢复原页面位置，不改变用户的侧栏展开偏好。
+页面选择通用 Page 的 `sidebar:"none"` 分支，自身不带常驻二级侧栏，保留原生 Home、Space、Scheduled sidebar 的悬浮叠加与导航行为。关闭页面恢复原页面位置，不改变用户的侧栏展开偏好。原生二级入口（如 Space → Images）提交导航后，通过共享 Page 的 `onNavigate` 关闭 Prompts、编辑浮层并释放底层 inert；保留用户刚选择的目标路由。仅悬浮展开侧栏不退出 Prompts。
 
 提示词编辑沿用原生 Project 的复合标题输入：40px 图标段位于标题前，细分隔线，共用圆角边框与 focus-within 状态。图标选择入口不再单独占一行；Title 通过 aria-label 标识。
 

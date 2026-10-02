@@ -23,7 +23,7 @@
 
 当前page-script通过 `config.ui` 使用公共能力；现有API包括 `heading`、`footer`、`action`、`overlay`、`surface`。`surface(node, kind, options)` 显式区分原生材质；`page`、`mount`、`trapFocus`、`composerMenu`、`tooltipSurface`、`navigationRail` 维护实际复用的层级、焦点与定位。`entry.resources` 通过 `config.resources` 提供插件自身 CSS 与图标，通用视觉仍由组件库维护。
 
-独立全页面且无专属二级导航的功能使用 `config.ui.page(node, { sidebar:"none" })`。移除页面前调用 `config.ui.releasePage(node)`；若用户正在主动选择原生导航，则传 `{ restoreNavigation:false }`，避免恢复动作覆盖用户选择。默认 `sidebar:"inherit"` 保留现有接入行为，不自动迁移其他功能。页面壳的产品规则与验收标准见根 DESIGN.md 的「全页面功能的页面壳选择」。
+独立全页面且无专属二级导航的功能使用 `config.ui.page(node, { sidebar:"none" })`。移除页面前调用 `config.ui.releasePage(node)`；若用户正在主动选择原生导航，则传 `{ restoreNavigation:false }`，避免恢复动作覆盖用户选择。`sidebar:"none"` 页面通过 `onNavigate` 接收原生路由提交后的退出通知；一级、二级和程序化导航共用该契约，悬浮展开与加载中的通知不关闭页面。Adapter 在通知前取消路由订阅并放弃恢复旧位置，功能回调负责移除内容与恢复自身状态。默认 `sidebar:"inherit"` 保留现有接入行为，不自动迁移其他功能。页面壳的产品规则与验收标准见根 DESIGN.md 的「全页面功能的页面壳选择」。
 
 Renderer安装函数经序列化注入，必须自包含。组件代码与Node/CDP隔离，宿主负责组装注入源码、生命周期和iframe主题桥；不为整理目录引入不必要的打包系统。
 

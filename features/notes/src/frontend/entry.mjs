@@ -365,7 +365,7 @@ function openPage() {
   pageFocus = document.activeElement;
   page = element("section");
   page.setAttribute(MARKER, "page");
-  config.ui.page(page, { sidebar:"none" });
+  config.ui.page(page, { sidebar:"none", onNavigate:() => closePage(false, false) });
   page.setAttribute("aria-label", text("Prompts", "提示词"));
   document.body.append(page);
   // 只隔离主内容的焦点，保留导航栏与原生窗口控件。
