@@ -1,5 +1,6 @@
 const nativeFocus = createFocusAdapter(config.codex);
-const FOCUS_GLYPH = "<svg aria-hidden=\"true\"\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"16\"\n  height=\"16\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"1.575\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n>\n  <path d=\"M3 5h8\" />\n  <path d=\"M3 12h8\" />\n  <path d=\"M3 19h8\" />\n  <path d=\"m15 5 3 3 3-3\" />\n  <path d=\"m15 19 3-3 3 3\" />\n</svg>\n";
+const COLLAPSE_GLYPH = "<svg aria-hidden=\"true\"\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"16\"\n  height=\"16\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"1.575\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n>\n  <path d=\"M3 5h8\" />\n  <path d=\"M3 12h8\" />\n  <path d=\"M3 19h8\" />\n  <path d=\"m15 5 3 3 3-3\" />\n  <path d=\"m15 19 3-3 3 3\" />\n</svg>\n";
+const EXPAND_GLYPH = "<svg aria-hidden=\"true\"\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"16\"\n  height=\"16\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"1.575\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n>\n  <path d=\"M3 5h8\" />\n  <path d=\"M3 12h8\" />\n  <path d=\"M3 19h8\" />\n  <path d=\"m15 8 3-3 3 3\" />\n  <path d=\"m15 16 3 3 3-3\" />\n</svg>\n";
 
 
 const states = new Map();
@@ -22,7 +23,7 @@ function reconcile() {
     button.setAttribute("data-minecodex-focus", "");
     // 复用原生内层容器，由其负责图标在热区内居中。
     const inner = bell.firstElementChild.cloneNode(false);
-    inner.innerHTML = FOCUS_GLYPH;
+    inner.innerHTML = COLLAPSE_GLYPH;
     button.replaceChildren(inner);
     button.removeAttribute("title");
     button.removeAttribute("aria-describedby");
@@ -38,16 +39,17 @@ function reconcile() {
     }
     anchor.after(button);
   }
-  const label = active ? text("Exit focus", "退出聚焦") : text("Focus current task", "聚焦当前任务");
+  const label = active ? text("Restore layout", "恢复布局") : text("Focus current task", "聚焦当前任务");
   if (button.getAttribute("aria-label") !== label) button.setAttribute("aria-label", label);
   button.setAttribute("data-minecodex-tooltip", label);
   const pressed = String(active);
   if (button.getAttribute("aria-pressed") !== pressed) {
     button.setAttribute("aria-pressed", pressed);
+    button.firstElementChild.innerHTML = active ? EXPAND_GLYPH : COLLAPSE_GLYPH;
   }
-  // 与原生 View activity 共用 info / soft 激活态及明暗主题 token。
-  button.setAttribute("data-color", active ? "info" : "secondary");
-  button.setAttribute("data-variant", active ? "soft" : "ghost");
+  // 图标表达下一步操作；保持中性按钮，不显示持续模式的选中底色。
+  button.setAttribute("data-color", "secondary");
+  button.setAttribute("data-variant", "ghost");
   const items = nativeFocus.branches(), path = nativeFocus.target(items);
   const activityActive = bell.getAttribute("aria-pressed") === "true";
   button.disabled = activityActive || (!active && !restoring && !path);
@@ -74,7 +76,7 @@ function schedule() {
 }
 document.addEventListener("click", event => {
   if (!active || !event.isTrusted) return;
-  if (event.target.closest("[data-app-action-sidebar-section-toggle], " + projectSelector)) {
+  if (nativeFocus.isBranchToggle(event.target)) {
     active = false; states.clear(); schedule();
   }
 }, { capture:true, signal });
