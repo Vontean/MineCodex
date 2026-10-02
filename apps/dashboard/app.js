@@ -3,13 +3,11 @@ document.documentElement.lang = locale;
 
 const copy = {
   en: {
-    subtitle: "Personal plugins for Codex",
     connecting: "Connecting…",
     runtimeActive: "Active in Codex",
     runtimeStopped: "Runtime unavailable",
     runtimeNotInjected: "Runtime running — restart Codex to apply plugins",
-    plugins: "Plugins",
-    pluginsCopy: "Choose which enhancements appear in Codex.",
+    plugins: "Your extensions",
     restartTitle: "Restart Codex to apply changes",
     restartCopy: "Your plugin choices are saved. Restart when you are ready.",
     restart: "Restart Codex",
@@ -30,10 +28,9 @@ const copy = {
     loadErrorCopy: "Check that the background service is running.",
     retry: "Try again",
     version: "Version",
-    installation: "Installation",
-    runtimeHost: "RuntimeHost",
-    running: "Running",
-    stopped: "Stopped",
+    darkAppearance: "Dark appearance",
+    lightAppearance: "Light appearance",
+    updateFailed: "Couldn’t check for updates. Please try again.",
     checkUpdates: "Check for updates",
     checkingUpdates: "Checking…",
     current: "You’re up to date.",
@@ -43,13 +40,11 @@ const copy = {
     failureDetail: "Health or renderer status could not be confirmed.",
   },
   "zh-CN": {
-    subtitle: "为 Codex 准备的个人插件",
     connecting: "正在连接…",
     runtimeActive: "已在 Codex 中生效",
     runtimeStopped: "运行服务不可用",
     runtimeNotInjected: "运行服务已启动——重启 Codex 以应用插件",
-    plugins: "插件",
-    pluginsCopy: "选择要在 Codex 中启用的增强功能。",
+    plugins: "功能扩展",
     restartTitle: "重启 Codex 以应用更改",
     restartCopy: "插件选择已经保存，可以在准备好后统一重启。",
     restart: "重启 Codex",
@@ -70,10 +65,9 @@ const copy = {
     loadErrorCopy: "请检查后台服务是否正在运行。",
     retry: "重试",
     version: "版本",
-    installation: "安装位置",
-    runtimeHost: "运行服务",
-    running: "运行中",
-    stopped: "已停止",
+    darkAppearance: "深色外观",
+    lightAppearance: "浅色外观",
+    updateFailed: "暂时无法检查更新，请稍后重试。",
     checkUpdates: "检查更新",
     checkingUpdates: "正在检查…",
     current: "当前已是最新版本。",
@@ -85,7 +79,6 @@ const copy = {
 }[locale];
 
 const elements = {
-  subtitle: document.querySelector("#subtitle"),
   runtimeDot: document.querySelector("#runtime-dot"),
   runtimeLabel: document.querySelector("#runtime-label"),
   restartNotice: document.querySelector("#restart-notice"),
@@ -93,7 +86,6 @@ const elements = {
   restartCopy: document.querySelector("#restart-copy"),
   restartButton: document.querySelector("#restart-button"),
   pluginsHeading: document.querySelector("#plugins-heading"),
-  pluginsCopy: document.querySelector("#plugins-copy"),
   saveState: document.querySelector("#save-state"),
   pluginList: document.querySelector("#plugin-list"),
   loadError: document.querySelector("#load-error"),
@@ -102,9 +94,9 @@ const elements = {
   retryButton: document.querySelector("#retry-button"),
   versionLabel: document.querySelector("#version-label"),
   versionValue: document.querySelector("#version-value"),
-  installLabel: document.querySelector("#install-label"),
-  hostLabel: document.querySelector("#host-label"),
-  hostValue: document.querySelector("#host-value"),
+  themeToggle: document.querySelector(".theme-toggle"),
+  themeButtons: [...document.querySelectorAll("[data-theme-choice]")],
+  updateResult: document.querySelector("#update-result"),
   updateButton: document.querySelector("#update-button"),
   toast: document.querySelector("#toast"),
 };
@@ -114,20 +106,16 @@ let toastTimer = null;
 const pendingFeatureIds = new Set();
 
 function applyStaticCopy() {
-  elements.subtitle.textContent = copy.subtitle;
   elements.runtimeLabel.textContent = copy.connecting;
   elements.restartTitle.textContent = copy.restartTitle;
   elements.restartCopy.textContent = copy.restartCopy;
   elements.restartButton.querySelector(".button-label").textContent = copy.restart;
   elements.pluginsHeading.textContent = copy.plugins;
-  elements.pluginsCopy.textContent = copy.pluginsCopy;
   elements.errorTitle.textContent = copy.loadError;
   elements.errorCopy.textContent = copy.loadErrorCopy;
   elements.retryButton.textContent = copy.retry;
   elements.versionLabel.textContent = copy.version;
-  elements.installLabel.textContent = copy.installation;
-  elements.hostLabel.textContent = copy.runtimeHost;
-  elements.updateButton.textContent = copy.checkUpdates;
+  elements.updateButton.querySelector(".button-label").textContent = copy.checkUpdates;
 }
 
 function featureState(feature) {
@@ -164,23 +152,25 @@ function createPluginCard(feature) {
   icon.setAttribute("aria-hidden", "true");
   const image = element("img");
   image.alt = "";
-  image.width = 18;
-  image.height = 18;
+  image.width = 24;
+  image.height = 24;
   icon.append(image);
 
   const pluginCopy = element("div", "plugin-copy");
   const titleLine = element("div", "plugin-title-line");
   const name = element("h3", "plugin-name");
-  const version = element("span", "plugin-version");
-  titleLine.append(name, version);
+  titleLine.append(name);
   const description = element("p", "plugin-description");
   pluginCopy.append(titleLine, description);
 
-  const control = element("div", "plugin-control");
+  const heading = element("div", "plugin-topline");
   const label = element("label", "switch");
   const input = element("input");
   input.type = "checkbox";
   input.name = `feature-${feature.id}`;
+  input.setAttribute("role", "switch");
+  input.setAttribute("aria-describedby", `description-${feature.id} state-${feature.id}`);
+  description.id = `description-${feature.id}`;
   const track = element("span", "switch-track");
   track.setAttribute("aria-hidden", "true");
   label.append(input, track);
@@ -188,9 +178,10 @@ function createPluginCard(feature) {
   const dot = element("span", "status-dot");
   dot.setAttribute("aria-hidden", "true");
   const stateLabel = element("span", "plugin-state-label");
+  stateLabel.id = `state-${feature.id}`;
   pluginState.append(dot, stateLabel);
-  control.append(label, pluginState);
-  card.append(icon, pluginCopy, control);
+  heading.append(icon, label);
+  card.append(heading, pluginCopy, pluginState);
   return card;
 }
 
@@ -199,14 +190,12 @@ function updatePluginCard(card, feature) {
   const input = card.querySelector('input[type="checkbox"]');
   const image = card.querySelector(".plugin-icon img");
   const name = card.querySelector(".plugin-name");
-  const version = card.querySelector(".plugin-version");
   const description = card.querySelector(".plugin-description");
   const dot = card.querySelector(".plugin-state .status-dot");
   const stateLabel = card.querySelector(".plugin-state-label");
   card.dataset.featureId = feature.id;
-  image.src = feature.iconUrl;
+  image.src = `${feature.iconUrl}?v=stroke-2.1`;
   name.textContent = feature.label;
-  version.textContent = feature.version;
   description.textContent = feature.description;
   input.checked = Boolean(feature.enabled);
   input.disabled = pendingFeatureIds.has(feature.id);
@@ -249,13 +238,13 @@ function renderRuntime() {
       && Number(renderer.injectedTargets) > 0,
   );
   const active = runtimeRunning && rendererCurrent;
+  elements.runtimeLabel.closest(".overview").hidden = active;
   elements.runtimeDot.className = `status-dot ${active ? "is-active" : "is-warning"}`;
   elements.runtimeLabel.textContent = active
     ? copy.runtimeActive
     : runtimeRunning
       ? copy.runtimeNotInjected
       : copy.runtimeStopped;
-  elements.hostValue.textContent = runtimeRunning ? copy.running : copy.stopped;
   elements.versionValue.textContent = state?.version ?? "—";
   elements.restartNotice.hidden = !state?.pendingRestart;
 }
@@ -302,6 +291,7 @@ async function load() {
     elements.loadError.hidden = false;
     elements.runtimeDot.className = "status-dot is-warning";
     elements.runtimeLabel.textContent = copy.runtimeStopped;
+    elements.runtimeLabel.closest(".overview").hidden = true;
   }
 }
 
@@ -369,19 +359,45 @@ elements.retryButton.addEventListener("click", () => {
 
 elements.updateButton.addEventListener("click", async () => {
   elements.updateButton.disabled = true;
-  elements.updateButton.textContent = copy.checkingUpdates;
+  elements.updateButton.querySelector(".button-label").textContent = copy.checkingUpdates;
+  elements.updateResult.hidden = true;
   try {
     const response = await fetch("/api/update");
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const update = await response.json();
-    showToast(update.available ? copy.updateAvailable(update.latest) : copy.current);
+    elements.updateResult.textContent = update.available ? copy.updateAvailable(update.latest) : copy.current;
+    elements.updateResult.hidden = false;
   } catch {
-    showToast(copy.loadErrorCopy);
+    elements.updateResult.textContent = copy.updateFailed;
+    elements.updateResult.hidden = false;
   } finally {
     elements.updateButton.disabled = false;
-    elements.updateButton.textContent = copy.checkUpdates;
+    elements.updateButton.querySelector(".button-label").textContent = copy.checkUpdates;
   }
 });
 
+const systemTheme = matchMedia("(prefers-color-scheme: dark)");
+let selectedTheme = null;
+try { selectedTheme = localStorage.getItem("minecodex-appearance"); } catch { /* 存储不可用时仍允许本次切换。 */ }
+function applyTheme() {
+  const dark = selectedTheme === "dark" || (selectedTheme !== "light" && systemTheme.matches);
+  document.documentElement.dataset.theme = dark ? "dark" : "light";
+  elements.themeToggle.setAttribute("aria-label", locale === "zh-CN" ? "外观" : "Appearance");
+  for (const button of elements.themeButtons) {
+    button.setAttribute("aria-label", button.dataset.themeChoice === "light" ? copy.lightAppearance : copy.darkAppearance);
+    button.setAttribute("aria-pressed", String(button.dataset.themeChoice === (dark ? "dark" : "light")));
+  }
+}
+elements.themeToggle.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-theme-choice]");
+  if (!button) return;
+  selectedTheme = button.dataset.themeChoice;
+  try { localStorage.setItem("minecodex-appearance", selectedTheme); } catch { /* 保留内存中的选择。 */ }
+  applyTheme();
+});
+systemTheme.addEventListener("change", applyTheme);
+document.addEventListener("keydown", () => { document.documentElement.dataset.input = "keyboard"; });
+document.addEventListener("pointerdown", () => { document.documentElement.dataset.input = "pointer"; });
 applyStaticCopy();
+applyTheme();
 void load();

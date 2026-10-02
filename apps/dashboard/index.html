@@ -5,25 +5,36 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="color-scheme" content="light dark">
     <title>MineCodex</title>
-    <link rel="icon" href="/favicon.svg?v=0.1.0" type="image/svg+xml">
-    <link rel="stylesheet" href="/styles.css?v=0.1.0">
-    <script type="module" src="/app.js?v=0.1.0"></script>
+    <link rel="icon" href="/favicon.svg?v=minecodex-1" type="image/svg+xml">
+    <link rel="stylesheet" href="/styles.css?v=mcx-block-1">
+    <script type="module" src="/app.js?v=mcx-block-1"></script>
+    <script type="module" src="/assets/terrain.js"></script>
   </head>
   <body>
+    <canvas id="agent-world" aria-hidden="true"></canvas>
     <main class="shell">
       <header class="page-header">
         <div>
-          <h1>MineCodex</h1>
-          <p id="subtitle" class="subtitle">Personal plugins for Codex</p>
+          <h1><span class="brand-icon" aria-hidden="true"></span><span class="brand-name">MineCodex</span></h1>
         </div>
+        <div class="header-actions">
+          <div class="theme-toggle" role="group" aria-label="Appearance">
+            <span class="theme-selection" aria-hidden="true"></span>
+            <button data-theme-choice="light" type="button" aria-label="Light appearance" aria-pressed="false"><span class="ui-icon sun-icon" aria-hidden="true"></span></button>
+            <button data-theme-choice="dark" type="button" aria-label="Dark appearance" aria-pressed="false"><span class="ui-icon moon-icon" aria-hidden="true"></span></button>
+          </div>
+        </div>
+      </header>
+      <div class="overview">
         <div class="runtime-state" aria-live="polite">
           <span id="runtime-dot" class="status-dot" aria-hidden="true"></span>
           <span id="runtime-label">Connecting…</span>
         </div>
-      </header>
+      </div>
 
       <section id="restart-notice" class="restart-notice" hidden aria-live="polite">
-        <div>
+        <span class="notice-icon ui-icon info-icon" aria-hidden="true"></span>
+        <div class="notice-copy">
           <h2 id="restart-title">Restart Codex to apply changes</h2>
           <p id="restart-copy">Your plugin choices are saved. Restart when you are ready.</p>
         </div>
@@ -33,13 +44,8 @@
       </section>
 
       <section aria-labelledby="plugins-heading">
-        <div class="section-heading">
-          <div>
-            <h2 id="plugins-heading">Plugins</h2>
-            <p id="plugins-copy">Choose which enhancements appear in Codex.</p>
-          </div>
-          <span id="save-state" class="save-state" aria-live="polite"></span>
-        </div>
+        <h2 id="plugins-heading" class="sr-only">Your extensions</h2>
+        <span id="save-state" class="sr-only" aria-live="polite"></span>
 
         <div id="plugin-list" class="plugin-list" aria-busy="true">
           <div class="plugin-skeleton"></div>
@@ -48,7 +54,8 @@
         </div>
 
         <div id="load-error" class="error-state" hidden role="alert">
-          <div>
+          <span class="notice-icon ui-icon alert-icon" aria-hidden="true"></span>
+          <div class="notice-copy">
             <strong id="error-title">Couldn’t load MineCodex</strong>
             <p id="error-copy">Check that the background service is running.</p>
           </div>
@@ -59,11 +66,10 @@
       <footer class="diagnostics">
         <dl>
           <div><dt id="version-label">Version</dt><dd id="version-value">—</dd></div>
-          <div><dt id="install-label">Installation</dt><dd>~/Library/Application Support/MineCodex</dd></div>
-          <div><dt id="host-label">RuntimeHost</dt><dd id="host-value">—</dd></div>
         </dl>
-        <button id="update-button" class="button quiet" type="button">Check for updates</button>
+        <button id="update-button" class="button quiet" type="button"><span class="ui-icon refresh-icon" aria-hidden="true"></span><span class="button-label">Check for updates</span></button>
       </footer>
+      <p id="update-result" class="update-result" role="status" hidden></p>
     </main>
     <div id="toast" class="toast" hidden role="status" aria-live="polite"></div>
   </body>

@@ -1,45 +1,67 @@
 # MineCodex Dashboard Design System
 
-## Theme
+The standalone control panel follows the root DESIGN.md semantic color and interaction
+contract. It uses local light/dark tokens because no Codex renderer theme bridge exists here.
 
-The control panel is a restrained Codex-native settings surface. It follows system light/dark
-appearance, uses one system sans family, and reserves accent color for enabled switches, focus,
-and the primary restart action.
+## Layout and reference
 
-## Color
+Reference: VPN Dashboard settings source, inspected 2026-10-03. Its card grid uses a 16px
+radius/gap, top icon and trailing arrow, followed by a title and description. The live URL
+required login; this reference is source-based, not a live visual match.
 
-Use semantic OKLCH tokens rather than brand colors:
+MineCodex uses one centered 1064px column without a sidebar or category groups. The header
+holds the shared brand and appearance control; a runtime notice appears below only when the service needs attention.
+There is no tagline or visible section introduction. Save feedback remains available to screen readers.
+Nine independent cards form a three-column grid, two columns at 960px and one at 600px.
+Each card has an icon and switch at the top, name and purpose below, and a readable actual-state line
+at the bottom of every card. Enabled switches and runtime state remain distinct information. A card is not itself clickable. The footer shows only the MineCodex version
+and adjacent update check (16px gap, regular weight, refresh icon), with persistent update feedback below it. No install path or plugin versions.
 
-- Canvas: neutral near-white / near-black.
-- Surface: one subtle elevation step from the canvas.
-- Ink: high-contrast neutral foreground.
-- Secondary and tertiary ink: still meet AA for their text size.
-- Border: quiet neutral separator.
-- Accent: Codex-like blue used only for action and active state.
-- Success and warning: paired with labels or icons, never color alone.
+## Tokens and components
 
-## Typography
-
-Use `-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`. Page title is 20px/600,
-plugin names 15px/600, body text 13px/1.5, and compact metadata 12px. No display type,
-uppercase tracking, or fluid heading sizes.
-
-## Layout
-
-The page uses a centered 880px content column with a compact header, one restart notice when
-needed, a vertical plugin settings group, and a low-emphasis diagnostics footer. At narrow widths
-the rows wrap their status and switch controls beneath the copy without horizontal scrolling.
-
-## Components
-
-- Plugin row: icon, name, description, actual-state label, and native checkbox switch.
-- Status dot: always accompanied by readable state text.
-- Restart notice: inline surface between header and plugin group, not a modal.
-- Buttons: one primary restart button and quiet secondary actions with full hover, focus,
-  active, disabled, and loading states.
-- Loading: skeleton rows preserve layout; errors use an inline retry surface.
+- Canvas: cool #edf1f7 / deep blue #101722, with a decorative ASCII voxel world.
+- Surface: white / #1b2533, with a hard 3px lower edge for a block-like silhouette; no blur.
+- Border: #d7dfe9 / #334359; blue #3478d4 / #71a8f3 switches and active state accents.
+- Ink, secondary ink, accent, success, warning and danger use the local semantic CSS tokens.
+- `--card-radius`: 8px; `--grid-gap`: 16px; `--card-padding`: 24px.
+- Card minimum height: 216px desktop, 204px mobile; content can grow without clipping.
+- System sans family; pixel brand title 36–64px/700, feature name 16px/600, description 14px/1.65,
+  state metadata 13px/1.5. Each description is one short statement of purpose; remove promotional filler while preserving each feature’s actual state.
+- Feature icons: 24px display size, uniform 2.1-unit stroke in a 24×24 viewBox, matching Prompts. The control-server normalizes only dashboard output; original injected assets stay unchanged.
+- Icons: existing manifest assets, with official Lucide bell, panel-left and globe for
+  Task Switcher, Sidebar Focus and Sites. Lucide ISC license is retained in
+  `packages/ui/assets/lucide-LICENSE.txt`.
+- Checkbox switches expose switch semantics, feature labels, descriptions and state text.
+  Track is 36×21px with a 32px-high label hit area. Pending requests disable only their switch;
+  failures restore the previous value and focus. Enabled and active remain distinct facts.
+- Appearance uses the VPN reference’s two-segment sun/moon capsule (32px segments, 4px gap and padding). A sliding selected circle and aria-pressed expose selection. It initially follows the system; manual choices persist locally.
+- Restart and error notices use a neutral card, colored left edge, status icon, compact copy and trailing action; toast errors share that material. Restart notice appears only for a pending restart. No automatic restart.
+- Update checks retain loading, result and retryable failure states; installation stays with
+  the existing `mcx update` flow.
 
 ## Motion
 
-Use 160–200ms ease-out transitions only for switch position, button feedback, and the restart
-notice appearing. Disable nonessential transitions under `prefers-reduced-motion: reduce`.
+`--ease-out: cubic-bezier(0.23, 1, 0.32, 1)`. Switch thumb: 180ms transform;
+button press: 140ms transform to scale(0.97). No stagger, card lift, layout motion or continuous
+loading shimmer. Hover is limited to fine pointers. Keyboard actions disable transitions;
+reduced-motion preferences disable movement. Focus rings remain visible in both themes.
+
+## Project identity
+
+The masthead uses self-hosted Silkscreen Bold (SIL OFL, bundled license in assets/OFL.txt),
+with a stone-colored face, dark outline and stepped text shadow inspired by Minecraft lettering.
+The shared pickaxe mark is 76px desktop / 48px mobile. Body and state text retain the legible
+project sans-serif contract. This is a dashboard-specific visual treatment; the brand geometry
+and other injected plugin UI remain governed by root DESIGN.md.
+
+Dashboard icons are official Lucide SVGs, covered by packages/ui/assets/lucide-LICENSE.txt.
+All font and icon assets are served locally and included in the npm package.
+
+## ASCII agent world
+
+A fixed, pointer-transparent and aria-hidden canvas renders deterministic terraced terrain,
+ASCII water, paths and coding nodes (>_, {}, git, </>, [AI], $). It rotates around its vertical
+axis once every 240 seconds, rendered at at most 20 fps and device pixel ratio capped at 2.
+The world stays behind opaque cards; text and controls never rotate. Reduced motion freezes
+the view, hidden tabs pause the animation. The terrain module has no external dependency
+or network request and does not consume user or session data.

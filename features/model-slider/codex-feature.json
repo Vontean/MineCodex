@@ -7,8 +7,8 @@
     "zh-CN": "模型滑条"
   },
   "description": {
-    "en": "A clearer, faster model picker with provider identity, favorites, and smoother interaction.",
-    "zh-CN": "让模型选择更清楚、更快，提供品牌识别、常用收藏和更顺畅的交互。"
+    "en": "Switch models and thinking levels. Keep favorites within reach.",
+    "zh-CN": "切换模型与思考强度，快速找到常用收藏。"
   },
   "entry": {
     "kind": "composer-model-selector"

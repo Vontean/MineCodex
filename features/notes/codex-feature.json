@@ -7,8 +7,8 @@
     "zh-CN": "提示词"
   },
   "description": {
-    "en": "Organize prompts, track usage, and insert them from the composer.",
-    "zh-CN": "分类管理提示词、统计调用次数，并从输入框快速调用。"
+    "en": "Organize reusable prompts and insert them with one click.",
+    "zh-CN": "整理常用提示词，一键填入输入框。"
   },
   "surfaceUrl": "http://127.0.0.1:47832/",
   "healthUrl": "http://127.0.0.1:47832/api/health",

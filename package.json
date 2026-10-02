@@ -41,6 +41,7 @@
     "features/session-status/vendor/lucide-LICENSE",
     "features/session-status/vendor/phosphor-LICENSE",
     "apps/dashboard/app.js",
+    "apps/dashboard/assets",
     "apps/dashboard/favicon.svg",
     "apps/dashboard/index.html",
     "apps/dashboard/styles.css",

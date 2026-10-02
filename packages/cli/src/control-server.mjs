@@ -17,6 +17,7 @@ const CONTENT_TYPES = new Map([
   [".html", "text/html; charset=utf-8"],
   [".js", "text/javascript; charset=utf-8"],
   [".svg", "image/svg+xml"],
+  [".ttf", "font/ttf"],
 ]);
 
 function tokenMatches(candidate, expected) {
@@ -197,10 +198,10 @@ async function iconResponse(id, paths, response) {
     iconPath = path.join(paths.featuresRoot, id, "assets", "ui", "sparkles.svg");
   } else if (id === "notes") {
     iconPath = path.join(paths.featuresRoot, id, "assets", "icons", "book-open.svg");
-  } else if (["images", "hide-upsell-banner", "session-status", "usage-meter"].includes(id)) {
+  } else if (FEATURE_IDS.includes(id)) {
     const manifest = JSON.parse(await readFile(path.join(paths.featuresRoot, id, "codex-feature.json"), "utf8"));
     const viewBox = manifest.icon?.viewBox ?? "0 0 24 24";
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${manifest.icon.markup}</svg>`;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">${manifest.icon.markup}</svg>`;
     response.writeHead(200, { "Content-Type": "image/svg+xml", "Cache-Control": "public, max-age=3600" });
     response.end(svg);
     return;
@@ -209,7 +210,9 @@ async function iconResponse(id, paths, response) {
     return;
   }
   response.writeHead(200, { "Content-Type": "image/svg+xml", "Cache-Control": "public, max-age=3600" });
-  await pipeline(createReadStream(iconPath), response);
+  // 仅统一控制台图标，不改变插件在 Codex 内使用的原始资源。
+  const svg = (await readFile(iconPath, "utf8")).replace(/stroke-width="[^"]+"/g, 'stroke-width="2.1"');
+  response.end(svg);
 }
 
 async function staticResponse(url, paths, response) {

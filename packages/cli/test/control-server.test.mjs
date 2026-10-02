@@ -144,6 +144,18 @@ test("control server exchanges a short-lived one-time value for a cookie and pro
     assert.equal(usageIcon.status, 200);
     assert.match(await usageIcon.text(), /<circle/);
 
+    for (const id of ["unread-inbox", "sidebar-focus", "sites"]) {
+      const response = await fetch(`${origin}/api/icons/${id}.svg`, { headers: { Cookie: cookie } });
+      assert.equal(response.status, 200, `${id} must have a dashboard icon`);
+      assert.match(await response.text(), /<svg[^>]+viewBox="0 0 24 24"/);
+    }
+
+    for (const feature of initial.features) {
+      const svg = await (await fetch(`${origin}${feature.iconUrl}`, { headers: { Cookie: cookie } })).text();
+      assert.match(svg, /stroke-width="2\.1"/, `${feature.id} must match the Prompts stroke`);
+      assert.match(svg, /viewBox="0 0 24 24"/);
+    }
+
     const sessionIcon = await fetch(`${origin}/api/icons/session-status.svg`, { headers: { Cookie: cookie } });
     assert.equal(sessionIcon.status, 200);
     assert.match(sessionIcon.headers.get("content-type"), /image\/svg\+xml/);
