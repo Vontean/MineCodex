@@ -20,7 +20,7 @@ concurrency:
 
 jobs:
   prepare:
-    runs-on: ubuntu-24.04
+    runs-on: macos-14
     timeout-minutes: 15
     permissions:
       contents: read
@@ -86,7 +86,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/npm-release"
           npm pack --ignore-scripts --pack-destination "$RUNNER_TEMP/npm-release"
           PACKAGE=$(find "$RUNNER_TEMP/npm-release" -name '*.tgz' -type f)
-          echo "sha256=$(sha256sum "$PACKAGE" | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
+          echo "sha256=$(shasum -a 256 "$PACKAGE" | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         id: upload
