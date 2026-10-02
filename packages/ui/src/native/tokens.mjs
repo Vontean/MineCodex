@@ -39,6 +39,7 @@ export const CODEX_THEME_TOKENS = Object.freeze([
   "--color-background-elevated-primary-opaque",
   "--color-background-primary-ghost-hover",
   "--color-chart-blue",
+  "--color-chart-green",
   "--color-chart-purple",
   "--color-background-panel",
   "--color-background-control",

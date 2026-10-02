@@ -85,7 +85,7 @@ Model Slider 的领域规则与原生控制器适配归插件，`src/injection-s
 - `packages/codex-adapter/src/renderer/environment.mjs` 只拥有真实共享的原生读取机制与锚点。`composer()` 默认返回可见 thread 输入框的 root/body/add 与身份；Prompts 使用 `purpose:"insertion"` 读取可见的 Codex／ChatGPT 原生输入框，包含首页、浮动聊天和面板 chat bar；插入操作绑定打开面板的 editable，非thread不提供身份。缺失身份立即返回 null。`railSlot()` 返回扩展挂载句柄。`currentFiber()` / `props()` 仅供 native Adapter 使用，不向业务层传递 React props。
 - `packages/ui/src/native/` 拥有视觉协议。`tokens.mjs` 的规范名称和别名解析到 `--mcx-*`；`theme.mjs` 处理主题读取、直接注入变量、桥接快照和卸载恢复。原生 token 改名时加别名，保留项目规范名称和输出 token；插件不复制原生兼容映射。
 - `features/<id>/src/adapters/codex/` 拥有专有语义转换。Session Status 的日志转为 `kind/at` 事实和 `input/cached/output/total` 用量；Images 将原始树转换为生成事实，再由领域选择提示词。SitesCatalog 返回内部 projects/threads；Usage 返回额度快照，不暴露 queryClient/auth/router。
-- Model Slider 暴露明确字段的控制器视图和选择/菜单动作，不返回整个 React props；档位对象作为原生选择动作的句柄保留在该接口内，不进入模型领域规则。Task Switcher 输出线程展示记录及 activate 回调，排序和流式消息更新时间仍归交互策略。
+- Model Slider 暴露明确字段的控制器视图和选择/菜单动作，不返回整个 React props；档位对象作为原生选择动作的句柄保留在该接口内，不进入模型领域规则。Task Switcher 从原生目录输出线程展示记录及 activate 回调；通知状态事件、去重与关闭记录归本功能 domain，前端维护通知堆栈。
 - 能力诊断由 Adapter 维护。Renderer 可通过运行时 `nativeCapabilities()` 查看 name/available/reason；目录 Adapter 提供 `diagnostics()`。未知状态不伪装成已读或闲置；用户界面不展示技术诊断。
 
 不要把原生相关代码一律移到共享层：Library、模型控制器、账号额度、Sites 路由和数据库属于专有 Adapter。简单 Banner 本身是一个呈现 Adapter，无业务领域，不新增空 domain/backend 目录。宿主的原生标签、surface 接入仍属于注入与生命周期边界；通用视觉与插件业务不回流到宿主。

@@ -16,7 +16,7 @@ MineCodex 给 Codex Desktop 增加一组轻量、本地优先的扩展功能。�
 | **Images** | 在原生 Images 中浏览本地 Image Gen 图片，查看并复制提示词 |
 | **Hide Upsell Banner** | 隐藏输入框上方的用量提示横幅，仅优化界面展示，不影响正常的用量统计 |
 | **Session Status** | 在输入框下方查看当前任务的步骤、观测速度、Token 用量与上下文明细 |
-| **Task Switcher** | 点击聊天标题或标签页前的任务按钮，查看并切换工作中与未读会话 |
+| **Task Switcher** | 会话侧栏不可见时显示通知条，点击跳转到已完成未读或需要处理的会话 |
 
 ## 安装
 

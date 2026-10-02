@@ -7,14 +7,15 @@
     "zh-CN": "任务切换"
   },
   "description": {
-    "en": "Switch between working and unread chats from the chat title or task button.",
-    "zh-CN": "点击聊天标题或任务按钮，切换工作中与未读会话。"
+    "en": "Get chat notifications when the sidebar is hidden.",
+    "zh-CN": "收起侧栏时接收会话通知，点击返回聊天。"
   },
   "entry": {
     "kind": "page-script",
     "script": "src/unread-inbox.mjs",
     "sourceFactory": "src/injection-source.mjs"
   },
+  "icon": {"viewBox": "0 0 24 24", "markup": "<path d=\"M10.268 21a2 2 0 0 0 3.464 0\" />\n  <path d=\"M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326\" />"},
   "placement": {
     "order": 70
   }
