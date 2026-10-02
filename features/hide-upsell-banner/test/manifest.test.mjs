@@ -40,7 +40,7 @@ test("script body matches the runtime-host page-script contract", () => {
 
 test("re-scans on style, class, hidden, and text mutations, not just added nodes", () => {
   assert.match(source, /attributes: true/);
-  assert.match(source, /attributeFilter: \["style", "class", "hidden"\]/);
+  assert.match(source, /attributeFilter: \["style", "class", "hidden", "aria-label"\]/);
   assert.match(source, /characterData: true/);
   assert.match(source, /rescanBanners\(\)/);
   assert.match(source, /hideVisibleBanners\(document\)/);

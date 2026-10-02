@@ -7,8 +7,8 @@
     "zh-CN": "隐藏用量横幅"
   },
   "description": {
-    "en": "Hide the rate-limit upsell banner in the composer while leaving usage checks untouched.",
-    "zh-CN": "隐藏输入区上方的用量耗尽横幅，不拦截额度查询功能。"
+    "en": "Hide usage upsell banners above the composer.",
+    "zh-CN": "隐藏输入框上方的额度推广横幅。"
   },
   "entry": {
     "kind": "page-script",
