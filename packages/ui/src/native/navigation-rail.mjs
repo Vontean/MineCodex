@@ -28,6 +28,11 @@ export function createNativeRailAdapter(codex) {
     }
     return defaultIcons.get(node)?.cloneNode(true) ?? null;
   }
-  return { item:nativeItem, icon:defaultIcon,
+  function attributes(node, names) {
+    const props = codex.currentFiber(node)?.memoizedProps;
+    if (!props || !names.some(name => Object.hasOwn(props, name))) return null;
+    return new Map(names.map(name => [name, props[name] == null ? null : String(props[name])]));
+  }
+  return { item:nativeItem, icon:defaultIcon, attributes,
     remember:(node, icon) => defaultIcons.set(node, icon.cloneNode(true)) };
 }

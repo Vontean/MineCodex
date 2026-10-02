@@ -13,14 +13,17 @@
 - 原生适配层：解析实际token、主题、zoom和能力状态；共享锚点仅包含真实跨插件需求。原生事实遵循根规范，不在每个组件重新猜测。
 - 材质与层级基础：按Dialog、Dropdown、Popover、ComposerMenu、Page的原生分支提供有限选项，将遮罩与Portal规则同所选组件匹配。
 - Dialog：提供容器、标题、Close及操作区的结构；插件填表单、列表或确认内容。
-- Button：表达操作角色和状态，保留Cancel ghost、实际次级outline与主操作solid的语义区分；业务动作由插件传入。
-- Navbar：使用成对 default/selected 图标管理展示状态；原生图标与选中状态适配集中在 native 层，保留原生路由与 sidebar hover。
+- Button：通过 `action(node, "danger-solid")` 提供原生实色警戒分支，保留既有 `danger` soft 分支；通用 token 与适用规则见根 DESIGN.md。表达操作角色和状态，保留Cancel ghost、实际次级outline与主操作solid的语义区分；业务动作由插件传入。
+- Navbar：使用成对 default/selected 图标管理展示状态；原生图标与选中状态适配集中在 native 层，保留原生路由与 sidebar hover。退出注入页面时按当前 committed 原生状态恢复选中属性，不回放进入时的旧状态；原生目的地变化时及时移除替身图标，原节点复用或重渲染后仍保证只显示一个图标。
 - Tooltip：处理声明式标记、hover/focus、aria关联、关闭与卸载，不接管原生Tooltip。
+- Page 的 `sidebar:"none"` 分支通过 native/page Adapter 取得原生无上下文侧栏页面壳；`releasePage` 释放时区分返回原页面和用户主动导航，禁用时清理。
 - 页面、菜单与浮层：提供对应类型的外壳、挂载和通用交互，不读取提示词、会话或站点业务数据。
 
 ## 接入约束
 
 当前page-script通过 `config.ui` 使用公共能力；现有API包括 `heading`、`footer`、`action`、`overlay`、`surface`。`surface(node, kind, options)` 显式区分原生材质；`page`、`mount`、`trapFocus`、`composerMenu`、`tooltipSurface`、`navigationRail` 维护实际复用的层级、焦点与定位。`entry.resources` 通过 `config.resources` 提供插件自身 CSS 与图标，通用视觉仍由组件库维护。
+
+独立全页面且无专属二级导航的功能使用 `config.ui.page(node, { sidebar:"none" })`。移除页面前调用 `config.ui.releasePage(node)`；若用户正在主动选择原生导航，则传 `{ restoreNavigation:false }`，避免恢复动作覆盖用户选择。默认 `sidebar:"inherit"` 保留现有接入行为，不自动迁移其他功能。页面壳的产品规则与验收标准见根 DESIGN.md 的「全页面功能的页面壳选择」。
 
 Renderer安装函数经序列化注入，必须自包含。组件代码与Node/CDP隔离，宿主负责组装注入源码、生命周期和iframe主题桥；不为整理目录引入不必要的打包系统。
 

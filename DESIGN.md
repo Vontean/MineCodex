@@ -44,7 +44,8 @@ Token 名称是实现依据；括号内数值是本版本观测值。读取实�
 | Cancel 等取消操作（`ghost`） | 透明、无描边；hover 才出现底色 | `--color-text-secondary`、`--color-background-primary-ghost-hover` |
 | 有实际功能的次级操作（outline，现有API tone为`secondary`） | 透明底、内描边 | `--color-text-primary`、`--color-border-primary-outline`、`--color-background-primary-outline-hover` |
 | 主操作（solid，现有API tone为`primary`） | 实色底与配对文字色 | `--color-background-primary-solid`、`--color-text-primary-solid`、`--color-background-primary-solid-hover` |
-| 警戒操作（现有`danger`） | 警戒色，独立于主操作；插件负责确认业务 | `--color-background-danger-soft-alpha`、`--color-background-danger-soft-alpha-hover`、`--color-text-danger` |
+| 轻量警戒操作（现有`danger`） | 警戒色，独立于主操作；插件负责确认业务 | `--color-background-danger-soft-alpha`、`--color-background-danger-soft-alpha-hover`、`--color-text-danger` |
+| 实色警戒操作（`danger-solid`；原生 React 为 `dangerSolid`） | 用于明确的删除／移除动作，实色警戒底与配对文字；操作范围和二次确认由业务决定 | `--color-background-danger-solid`、`--color-text-danger-solid`；Library 动作条 hover 为 solid 90% alpha |
 
 尺寸：`--control-size-lg`（36px）、`--control-font-size-md`（13px）、`--font-weight-normal`（原生按钮400）、`--radius-full`。水平 gutter 为 `--control-gutter-md × --control-gutter-pill-scaling`（15.96px），图文 gap 为 `--button-gap-lg`。焦点使用 `--color-ring`；禁用保留语义并阻止 hover 反馈。
 
@@ -65,6 +66,12 @@ Dropdown 的 `--shadow-dropdown-overlay` 当前指向 `--shadow-xl-spread`，该
 
 Composer菜单的锚点是实际输入框主体（当前语义标记 `data-composer-body`），不是包含diff和请求队列的外层Root。挂载位置、可用高度、zoom与碰撞行为沿用对应原生组件，不为修复坐标问题盲目提高z-index。
 
+## Viewer 附属信息面板
+
+Codex 26.930.21537（2026-10-02 原生 File info DOM 与计算样式实测）：viewer 右侧附属信息面板使用不透明 `bg-surface-elevated-secondary`、`rounded-2xl`（20px）和 Electron `elevation-prominent`；没有容器模糊，也不额外叠加 CSS border 或 `shadow-lg`。该 elevation 自带 0.5px 边缘及两层柔和投影，应直接沿用原生 utility。此分支不同于 Dialog、Dropdown 和页面内容面。
+
+标题栏使用固定高度、原生 text-base/semibold 标题及圆形 `button-toolbar` 的 `bg-text/5` 按钮分支，hover 为 `bg-text/10`。面板宽度、viewer 工具栏避让及正文间距由所选原生信息面板的业务布局确定，在功能 DESIGN.md 记录。Images Prompt 采用当前 File info 分支。
+
 ## Page 与 sidebar
 
 页面内容面使用 `--color-surface`，当前不透明、无模糊，`--radius-xl-base`（12px）；外部PageSurface使用 `--app-shell-page-surface-shadow`，当前由 `--elevation-stroke-subtle` 与 `--shadow-card` 组成。区分内容面和窗口外壳，不重复施加阴影。
@@ -75,6 +82,18 @@ sidebar规则分状态：
 | --- | --- |
 | 非peeking sidebar-navigation | `--color-surface` 65%（oklab混合），无CSS模糊、无浮窗阴影；可见桌面程度还取决于窗口材质 |
 | `data-slate-sidebar-peeking=true` | `--app-shell-sidebar-popover-background`强制alpha=1；`--app-shell-sidebar-popover-radius`当前为radius-xl-base减spacing（8px）；`--hairline`、`--app-shell-sidebar-popover-border`内边缘与`--shadow-card` |
+
+### 全页面功能的页面壳选择
+
+后续功能开发独立全页面时，先按页面自身的导航需求选择页面壳。没有专属二级导航的页面默认使用无二级侧栏的 Page 分支，以原生 Projects 为行为参照；只有任务确实需要常驻二级导航时才选择带侧栏的布局。不能因入口来自 Home、Space、Scheduled 就继承它们的常驻二级侧栏。
+
+页面是否带常驻二级侧栏，与用户的侧栏展开／收起偏好是两个独立语义。无二级侧栏页面只保留 Navbar，内容从 Navbar 右侧开始，不调用侧栏收起动作，也不修改用户的展开偏好。悬浮 Home、Space、Scheduled 等入口时，原生二级侧栏仍叠加在页面上，页面内容不移位；鼠标可进入操作，离开后沿用原生退出行为。
+
+页面壳、原生导航适配与恢复由共享 UI 维护，功能只声明所需分支并负责自己的内容。新功能不得复制侧栏状态机、直接切换原生侧栏按钮，或另写隐藏侧栏的 CSS。退出页面时区分返回原页面与用户主动选择原生导航；卸载／禁用时释放页面壳并恢复所属状态。
+
+验收至少覆盖：从 Home、Space、Scheduled 进入时无常驻二级侧栏；原有展开偏好不变；三个入口的悬浮侧栏覆盖页面且可操作，内容不移位；退出、原生导航与卸载恢复正确。
+
+原生依据与当前实现：Codex 26.930.21537 的源码与隔离窗口确认该布局由路由决定。当前注入 Page 借用 `/projects` 作为原生页面壳，关闭时恢复原位置，用户主动选择原生导航时交还路由；这是版本相关的适配实现，不是功能的业务路由规范。后续原生接口变化只更新共享 Adapter，不改变上述页面语义。
 
 保留原生的固定展开、收起与hover状态。hover sidebar应能覆盖注入页面，鼠标能进入操作，移回页面后可正常收起；不要通过页面层级、pointer-events或额外遮罩挡住它。原生overflow和contain切换负责浮出与裁切，插件不复制一套侧栏状态机。
 
@@ -147,3 +166,8 @@ Navbar 在入口右侧居中，使用 `data-minecodex-tooltip-side="right"`；�
 这里的规范名称是稳定的项目映射键。Codex 更新名称时补充原生别名，不能跟着重命名插件消费的项目 token。新增实际使用的语义才增加映射；不预建完整的第三方 token 系统。`native/theme.mjs` 为直接注入容器写入同一快照，Runtime Host 将它传给 iframe；卸载恢复原值。主题变化丢失某个 token 时清除旧项目值，继续使用该组件既有的明确默认值或不可用状态，不复用上一主题颜色。
 
 这些映射不改变原生组件分类、材质分支和 hover sidebar 层级，也不重写原生 Tailwind utility class。插件复用 native Adapter 返回的原生模板；特殊样式使用项目 token，Dialog、Button、Tooltip 等通用表现继续由组件库维护。
+
+
+### Library 多选动作条的实色警戒按钮
+
+Codex 26.930.21537（2026-10-02 原生源码与隔离窗口）：Library 选中动作条的 Delete 使用 `dangerSolid`、full radius、toolbar size，图标 16px，警戒底与白色配对文字；hover 使用 danger solid 90% alpha，禁用保留原生 40% opacity 与禁止交互。确认弹窗也使用实色警戒提交按钮。共享 DOM 入口为 `ui.action(button, "danger-solid")`，和既有 soft `danger` 分支并存，不迁移原有功能的语义。通用组件只提供视觉和交互状态，删除确认、隐藏／回收站／永久删除的范围由所属功能明确告知。

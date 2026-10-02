@@ -37,6 +37,9 @@ test("injected navigation owns selection and restores native attributes and Reac
   assert.equal(nativeIcon.hasAttribute("data-mcx-native-rail-icon-hidden"),true);
   assert.equal(home.children[1].innerHTML,'<path fill="none"/>');
   const replacement=home.children[1];entry.select(true);assert.equal(home.children[1],replacement);
+  // 原节点复用但属性被 React 更新时，仍必须隐藏原图标。
+  nativeIcon.removeAttribute("data-mcx-native-rail-icon-hidden");entry.select(true);
+  assert.equal(nativeIcon.hasAttribute("data-mcx-native-rail-icon-hidden"),true);
   // 原生 React 重渲染替换 SVG，组件只清理自己创建的替身。
   nativeIcon.remove();const nextIcon=new Node();home.append(nextIcon);entry.select(true);
   assert.equal(replacement.isConnected,false);assert.equal(nextIcon.hasAttribute("data-mcx-native-rail-icon-hidden"),true);
@@ -45,6 +48,12 @@ test("injected navigation owns selection and restores native attributes and Reac
   assert.equal(home.hasAttribute("data-suppress-active-style"),false);assert.equal(home.children.length,1);
   assert.equal(nextIcon.hasAttribute("data-mcx-native-rail-icon-hidden"),false);
   entry.select(true);controller.abort();assert.equal(home.children.length,1);assert.equal(home.getAttribute("aria-current"),"page");
+  // 原生切到另一页面后，不恢复进入时的旧选中属性。
+  entry.select(true);
+  home.__reactFiber$test.memoizedProps={"data-selected":undefined,"aria-current":undefined,"data-suppress-active-style":""};
+  item.isCurrentDestination=false;entry.select(true);
+  assert.equal(home.children.length,1);assert.equal(nextIcon.hasAttribute("data-mcx-native-rail-icon-hidden"),false);
+  entry.select(false);assert.equal(home.hasAttribute("data-selected"),false);assert.equal(home.hasAttribute("aria-current"),false);
 });
 test("native component icons reuse captured default SVG without invoking React components", () => {
   const adapter=createNativeRailAdapter(createCodexEnvironment()),node=new Node(),icon=new Node();

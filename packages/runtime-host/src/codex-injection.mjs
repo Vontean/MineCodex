@@ -812,10 +812,7 @@ export function createInjectionSource(features, {
     }
 
     function currentComposer() {
-      const marked = document.querySelector('[data-codex-composer="true"][contenteditable="true"]');
-      if (marked) return marked;
-      return Array.from(document.querySelectorAll('[contenteditable="true"][role="textbox"]'))
-        .find((element) => isVisibleToolbarControl(element)) ?? null;
+      return codex.composer(null, { purpose: "insertion" })?.editable ?? null;
     }
 
     function rememberComposerSelection() {
@@ -828,9 +825,9 @@ export function createInjectionSource(features, {
       savedComposerThread = threadIdentity();
     }
 
-    function insertComposerText(text) {
+    function insertComposerText(text, target = null) {
       if (typeof text !== "string" || !text) throw new Error("Text is required");
-      const composer = currentComposer();
+      const composer = target ? codex.composer(target, { purpose: "insertion" })?.editable : currentComposer();
       if (!composer) throw new Error("The active Composer was not found");
       const selection = document.getSelection();
       let fallback = true;

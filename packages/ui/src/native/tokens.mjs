@@ -135,6 +135,9 @@ export const CODEX_THEME_TOKENS = Object.freeze([
   "--color-background-danger-soft-alpha",
   "--color-background-danger-soft-alpha-hover",
   "--color-text-danger",
+  "--color-background-danger-solid",
+  "--color-background-danger-solid-hover",
+  "--color-text-danger-solid",
 ]);
 
 // images 图片编辑器可用性依赖的项目 token 子集。

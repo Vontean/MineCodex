@@ -82,7 +82,7 @@ Model Slider 的领域规则与原生控制器适配归插件，`src/injection-s
 
 ## Codex 防腐层职责（2026-10-01）
 
-- `packages/codex-adapter/src/renderer/environment.mjs` 只拥有真实共享的原生读取机制与锚点。`composer()` 默认返回可见 thread 输入框的 root/body/add 与身份；Prompts 使用 `threadOnly:false` 保留首页插入能力，非thread不提供身份。缺失身份立即返回 null。`railSlot()` 返回扩展挂载句柄。`currentFiber()` / `props()` 仅供 native Adapter 使用，不向业务层传递 React props。
+- `packages/codex-adapter/src/renderer/environment.mjs` 只拥有真实共享的原生读取机制与锚点。`composer()` 默认返回可见 thread 输入框的 root/body/add 与身份；Prompts 使用 `purpose:"insertion"` 读取可见的 Codex／ChatGPT 原生输入框，包含首页、浮动聊天和面板 chat bar；插入操作绑定打开面板的 editable，非thread不提供身份。缺失身份立即返回 null。`railSlot()` 返回扩展挂载句柄。`currentFiber()` / `props()` 仅供 native Adapter 使用，不向业务层传递 React props。
 - `packages/ui/src/native/` 拥有视觉协议。`tokens.mjs` 的规范名称和别名解析到 `--mcx-*`；`theme.mjs` 处理主题读取、直接注入变量、桥接快照和卸载恢复。原生 token 改名时加别名，保留项目规范名称和输出 token；插件不复制原生兼容映射。
 - `features/<id>/src/adapters/codex/` 拥有专有语义转换。Session Status 的日志转为 `kind/at` 事实和 `input/cached/output/total` 用量；Images 将原始树转换为生成事实，再由领域选择提示词。SitesCatalog 返回内部 projects/threads；Usage 返回额度快照，不暴露 queryClient/auth/router。
 - Model Slider 暴露明确字段的控制器视图和选择/菜单动作，不返回整个 React props；档位对象作为原生选择动作的句柄保留在该接口内，不进入模型领域规则。Task Switcher 输出线程展示记录及 activate 回调，排序和流式消息更新时间仍归交互策略。

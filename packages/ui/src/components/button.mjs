@@ -11,6 +11,8 @@ export function installButton(signal, ui) {
     [data-mcx-ui-surface=dialog] [data-mcx-ui-footer]>[data-mcx-ui-action=primary]:hover:not(:disabled):not([aria-disabled=true]) { background:var(--mcx-color-background-primary-solid-hover); }
     [data-mcx-ui-surface=dialog] [data-mcx-ui-footer]>[data-mcx-ui-action=danger] { box-shadow:none; background:var(--mcx-color-background-danger-soft-alpha); color:var(--mcx-color-text-danger); }
     [data-mcx-ui-surface=dialog] [data-mcx-ui-footer]>[data-mcx-ui-action=danger]:hover:not(:disabled):not([aria-disabled=true]) { background:var(--mcx-color-background-danger-soft-alpha-hover); }
+    [data-mcx-ui-action=danger-solid], [data-mcx-ui-surface=dialog] [data-mcx-ui-footer]>[data-mcx-ui-action=danger-solid] { box-shadow:none; border-color:transparent; background:var(--mcx-color-background-danger-solid); color:var(--mcx-color-text-danger-solid); }
+    [data-mcx-ui-action=danger-solid]:hover:not(:disabled):not([aria-disabled=true]), [data-mcx-ui-surface=dialog] [data-mcx-ui-footer]>[data-mcx-ui-action=danger-solid]:hover:not(:disabled):not([aria-disabled=true]) { background:color-mix(in oklab,var(--mcx-color-background-danger-solid) 90%,transparent); }
     [data-mcx-ui-surface=dialog] button:disabled { opacity:.4; cursor:default; }
     [data-mcx-ui-surface=dialog] [data-mcx-ui-close]:focus-visible, [data-mcx-ui-surface=dialog] [data-mcx-ui-footer]>button:focus-visible { outline:2px solid var(--mcx-color-ring); outline-offset:0; }
   `;

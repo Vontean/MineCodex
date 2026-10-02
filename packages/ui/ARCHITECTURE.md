@@ -38,6 +38,7 @@ packages/ui/
       tokens.mjs                      # token 与别名的权威名单
       theme.mjs                       # 原生别名到项目变量、主题更新与卸载恢复
       navigation-rail.mjs              # 原生导航资源的 DOM 适配
+      page.mjs                         # 原生无上下文侧栏页面壳与恢复
     foundation/
       surfaces.mjs                    # Dialog / Dropdown / Popover / Composer / Page 材质
       layers.mjs                      # 角色层级与挂载
