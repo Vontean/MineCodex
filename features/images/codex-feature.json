@@ -7,8 +7,8 @@
     "zh-CN": "图片"
   },
   "description": {
-    "en": "Browse local Image Gen creations and view prompts inside native Images.",
-    "zh-CN": "在原生 Images 中浏览本地 Image Gen 图片，查看并复制提示词。"
+    "en": "Browse generated images and copy their prompts.",
+    "zh-CN": "浏览本地生成图片，查看与复制提示词。"
   },
   "icon": {
     "viewBox": "0 0 24 24",

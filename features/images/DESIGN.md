@@ -22,7 +22,9 @@ Codex 26.930.21537（2026-10-02 隔离实测）：通过原生 `variant="browse"
 
 本地来源以真实路径、来源 thread 和生成项 ID 接入；首次发送或提交编辑时才通过原生上传准备临时附件，同一画布复用附件，查看不上传到 Library。附件使用原生返回的 `id`；不得把本地 ID 伪装为 cloud file ID。生成编辑调用原生提交能力，接受后沿用原生会话导航。View prompts 通过原生菜单扩展进入已有的 File info 风格面板。以上组件契约已按 Codex 26.930.21537 的产物与隔离窗口检查；实际云端生成结果须单独验证。
 
-图库菜单复用原生 mediaOverlay More Button、Dropdown、Menu.Item 与原生图标，按 Chat about this、Add to Favorites／Remove from Favorites、Download、Add to folder、Delete、View prompts 排列。View prompts 的图标约束为菜单使用的 16px，不继承导航栏尺寸。
+发送准备保持用户点击发送后才上传，不在开始输入时预上传；本地字节转换直接填充 typed array，避免大图片经字符串迭代器生成中间数组。该优化只减少本地准备成本，不代表上传或原生提交网络等待已经缩短。
+
+图库菜单复用原生 mediaOverlay More Button、Dropdown、Menu.Item 与原生图标，按 Chat about this、View prompts、Add to Favorites／Remove from Favorites、Download、Add to folder、Delete 排列。View prompts 的图标约束为菜单使用的 16px，不继承导航栏尺寸。
 
 只有用户点击收藏或文件夹操作时，通过原生 Library upload（required persistence）上传所选 PNG；取得真实 Library ID 后保存账号、用户、本地图片 ID、SHA-256 内容指纹对应关系。收藏调用原生 setLibraryFavorite 并以服务器状态切换，文件夹使用原生 MoveLibraryItemsDialog；不在本地保存收藏或文件夹关系。云端节点读取采用原生 `/files/library/files/{library_file_id}/node` 契约，不能把上传返回的 Library ID 当普通内容 file ID。
 
@@ -122,7 +124,7 @@ traceable request with its distinct provenance. A valid generated image without 
 
 Image Gen 按已索引的精确图片 ID 提取对应 thread 的生成记录。已完成 `image_gen.generation` 的 revisedPrompt 优先于可静态解析的工具请求参数。没有真实生成提示词则明确显示不可用。云端图片保留 generation → 已标明来源的 Original request 回退；已移除没有实测命中的云端 gen_id → 本地文件猜测补充链路。
 
-2026-10-02 菜单核对：网格 More 明确使用原生 Library 的 mediaOverlay 分支，操作通过 leftIcon 传入真实原生图标。图库菜单当前按 Chat about this、Download、View prompts 排列。Chat about this 组合原生模式切换、新 Chat 草稿导航与图片面板链路，不发送消息；导航与面板已隔离验证，图片随消息提交的实际链路未进行发送验收。生成图片通用菜单中的重复查看、新标签、复制和 Finder 不再混入图库菜单。依赖云端 Library 的收藏、分享、重命名、文件夹及删除能力尚未接入本地来源。
+2026-10-02 菜单核对：网格 More 使用原生 Library 的 mediaOverlay 分支，操作通过 leftIcon 传入真实原生图标。菜单按 Chat about this、View prompts、Add to Favorites／Remove from Favorites、Download、Add to folder、Delete 排列。收藏和文件夹使用真实云端 Library 身份；Delete 仅持久隐藏 Image Gen 条目。Chat about this 组合原生模式切换、新 Chat 草稿导航与图片面板链路，不发送消息；图片随消息提交的实际链路未进行发送验收。生成图片通用菜单中的重复查看、新标签、复制和 Finder 不混入图库菜单。Image Gen 不提供 Rename 与 Share。
 
 
 ## Image Gen 多选与隐藏
@@ -134,3 +136,12 @@ Codex 26.930.21537（2026-10-02）：卡片通过原生 Card 的 selection、sel
 动作条复用原生 Button、Dropdown、Menu、图标与 Library 布局分支，固定在底部，dark 材质，包含数量、Start chat、Download、Delete、More→Move 和 Clear selection。Start chat 调用原生 Chat 附件上传和草稿导航，不发送消息；Download 使用原生保存流程逐项处理；Move 在明确点击后登记所选图片并使用原生文件夹选择器，选择本身不上传。权限／忙状态属于当前操作，不伪造云端图片身份。
 
 Delete 在单张 More 与批量动作条共用一条隐藏流程，复用原生 Dialog、LibraryItemConfirmationContent 和实色警戒确认按钮。确认标题明确限定 Image Gen，正文明确“仅隐藏，本地原图和云端副本保留”。取消不改变任何条目；确认成功后立即移除当前条目、更新选中数、列表总数和分页偏移，并显示原生 toast。隐藏 ID 存于当前 Runtime profile 的 `hidden-image-ids.json`，本地源文件、原始生成提示词及已登记云端身份不修改；刷新和重启后继续隐藏。
+
+
+## 维护接口（2026-10-02）
+
+`adapters/codex/native-image-modules.mjs` 拥有构建产物读取、import 引用与组件发现。导航、图库、画布分别连接，画布与 Composer 在用户打开图片时加载；画布契约失效通过操作反馈报告，不移除仍可用的图库。Composer 角色按文件预览实际调用关系解析，不固定压缩变量名。
+
+`adapters/codex/native-image-source.mjs` 拥有 React 呈现、上下文、原生动作与 UI 生命周期。异步结果进入对话框、收藏状态或原生修改动作前核对挂载实例及账号；成功上传的云端身份仍须登记，不能因页面关闭丢失已完成上传。普通 workflow 只接收／返回 `libraryFileId` 与 `created`，原生文件节点和 MoveDialog entries 由 Adapter 构建。
+
+`library-prompt-source.mjs` 只序列化显式依赖；`library-prompt-page.mjs` 直接安装本地来源并组合清理，不通过普通语句的文本替换接线。清理为幂等操作，手动卸载与 signal abort 不重复释放。

@@ -3,6 +3,7 @@ const PANEL_ID = "minecodex-library-prompt";
 const zh = () => (document.documentElement.lang || navigator.language || "en").toLowerCase().startsWith("zh");
 const label = (en, cn) => zh() ? cn : en;
 let mounted = null;
+let localImageSource = null;
 const libraryApi=createLibraryApi();
 let scheduled = false;
 let candidate = null;
@@ -257,6 +258,9 @@ function localPromptRequested(){openPendingLocalPrompt();void scan();}
 document.addEventListener("minecodex:image-prompt",localPromptRequested);
 const localeObserver = new MutationObserver(() => mounted?.refreshLocale());
 localeObserver.observe(document.documentElement, { attributes:true, attributeFilter:["lang"] });
+localImageSource = installLocalImageSource(config, signal, createImageSourcesAdapter(config.codex), createNativeImageSource(config.codex, {
+  requestHostAction:config.requestHostAction, libraryApi, createCloudImageActions, signal,
+}));
 const observer = new MutationObserver(() => {
   if (scheduled) return;
   scheduled = true;
@@ -270,7 +274,8 @@ function escape(event) {
   closePanel(mounted, true);
 }
 document.addEventListener("keydown", escape, true);
-const cleanup = () => { document.removeEventListener("minecodex:image-prompt",localPromptRequested); candidate?.request.abort(); candidate = null; observer.disconnect(); localeObserver.disconnect(); document.removeEventListener("keydown", escape, true); unmount(); };
+let cleaned = false;
+const cleanup = () => {if(cleaned)return;cleaned=true;document.removeEventListener("minecodex:image-prompt",localPromptRequested);candidate?.request.abort();candidate=null;observer.disconnect();localeObserver.disconnect();document.removeEventListener("keydown",escape,true);unmount();localImageSource.cleanup();};
 signal.addEventListener("abort", cleanup, { once: true });
 scan();
 return cleanup;

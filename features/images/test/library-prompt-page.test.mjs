@@ -7,6 +7,24 @@ const source = await createPageScriptSource();
 import { createCodexEnvironment } from "../../../packages/codex-adapter/src/renderer/environment.mjs";
 const { libraryImage, promptFromConversation } = new Function("config", `${source.slice(0, source.indexOf('document.addEventListener("minecodex:image-prompt"'))}\nreturn {libraryImage, promptFromConversation};`)({codex:createCodexEnvironment()});
 const file = { id: "libfile_a", file_id: "file_a", mime_type: "image/png", origination_message_id: "image", origination_thread_id: "thread" };
+
+test("assembled Images installer owns each observer and cleans both enhancements exactly once",async()=>{
+  const observers=[],listeners=new Set();
+  class Observer {
+    constructor(){this.observed=0;this.disconnected=0;observers.push(this);}
+    observe(){this.observed++;}disconnect(){this.disconnected++;}
+  }
+  const document={body:{},documentElement:{lang:"en"},querySelectorAll:()=>[],
+    addEventListener:(name,handler)=>listeners.add(handler),removeEventListener:(name,handler)=>listeners.delete(handler)};
+  const controller=new AbortController();
+  const cleanup=new Function("config","signal","document","MutationObserver","navigator",source)(
+    {codex:{}},controller.signal,document,Observer,{language:"en"});
+  await Promise.resolve();
+  assert.equal(observers.length,3);assert.ok(observers.every(observer=>observer.observed===1));
+  assert.equal(listeners.size,2);
+  cleanup();controller.abort();cleanup();
+  assert.ok(observers.every(observer=>observer.disconnected===1));assert.equal(listeners.size,0);
+});
 function conversation({ prompt = "exact prompt", role = "tool", asset = "sediment://file_a", generation = true } = {}) {
   return { mapping: {
     unrelated: { id: "unrelated", message: { author: { role: "user" }, content: { parts: ["wrong branch"] } } },

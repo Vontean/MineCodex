@@ -183,7 +183,8 @@ export function installLocalImageSource(config, signal, sources, native) {
   });
   observer.observe(document.body, {childList:true, subtree:true, attributes:true, attributeFilter:["aria-selected"]});
   void scan();
-  const cleanup = () => {observer.disconnect(); unmount(); pendingPrompt = null;};
+  let cleaned = false;
+  const cleanup = () => {if(cleaned)return;cleaned=true;observer.disconnect();unmount();pendingPrompt=null;};
   signal.addEventListener("abort", cleanup, {once:true});
   return {
     cleanup,

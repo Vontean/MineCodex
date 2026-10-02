@@ -1,13 +1,13 @@
 # Codex Runtime Host
 
-本机个人 Codex 功能的统一运行宿主。它是唯一的 Injector / Adapter，负责：
+本机个人 Codex 功能的统一运行宿主。它是统一 Injector 与生命周期宿主，负责：
 
 - 连接或启动支持 loopback CDP 的隔离 Codex 桌面实例；
 - 从同级项目的 `codex-feature.json` 注册 Sidebar 或 Conversation toolbar 入口；
 - 挂载 full-page、Pinned Summary，并把 Detail iframe Surface 优先注册为 Codex 原生右侧 Task Tab；
 - 把 Codex 当前 resolved Theme Tokens 同步给每个 Surface；
 - 执行经过 manifest allowlist、Surface 身份和 renderer token 校验的 Host actions；
-- 把所有易变的 Codex DOM / CDP 细节留在一个 Adapter 中。
+- 维护共享 CDP、注入与可信通信；插件专有的 Codex 协议由各功能 Adapter 维护。
 
 各功能项目继续拥有自己的数据、HTTP API 与页面。宿主不读取业务数据库；单个
 功能服务失效不会阻止 Codex 或其他功能运行。
@@ -173,8 +173,7 @@ Host 会再次发送当前状态。功能页面可据此暂停隐藏状态下的
 | `Runtime.addBinding`、`DOM.setFileInputFiles`、注入脚本 | high-risk CDP | 必须使用隔离 profile 验收 |
 | `togglePinnedSummary`、`composer.addFiles` 字符串 | 探索证据 | 当前实现不把它们当契约 |
 
-这是非官方 CDP / DOM Adapter，不是公开的 Codex Contribution API。Codex 更新后应只
-在这个宿主中修复；各功能的数据和 Web UI不需要跟随重写。
+这是非官方 CDP / DOM Adapter，不是公开的 Codex Contribution API。Codex 更新后按协议所有者修复：共享注入和生命周期归宿主，专有原生组件与 API 归对应插件 Adapter；领域规则与 Web UI不应直接跟随外部协议重写。
 
 
 ## 共享弹窗与浮层
@@ -197,7 +196,7 @@ config.ui.surface(popover); // 只统一材质，保留功能的定位与内容
 
 page-script 可以用 manifest 的 `entry.resources` 声明本功能内的 CSS/图标资源，宿主读取后通过 `config.resources` 一次传入。JSON 作为数据、其他文件作为文本；越出功能目录的路径会被拒绝。它不改变 host action、服务启动或消息协议。
 
-Images 提示词面板沿用原生 Version history 的特殊结构；iframe 页面继续通过宿主接收主题。会话统计与云 Library 业务归所属插件，Runtime Host 只组合业务能力和外部连接。领域规则与架构层参见根 [ARCHITECTURE.md](../../ARCHITECTURE.md)。
+Images 提示词面板沿用原生 File info 的附属信息面板结构；iframe 页面继续通过宿主接收主题。会话统计与云 Library 业务归所属插件，Runtime Host 只组合业务能力和外部连接。领域规则与架构层参见根 [ARCHITECTURE.md](../../ARCHITECTURE.md)。
 
 `entry.sourceFactory` 可声明本插件内的源码工厂，导出 `createPageScriptSource()` 并返回 Renderer 函数体字符串。工厂路径不能越出插件；纯领域函数由插件工厂序列化，宿主不维护规则副本。Images 使用这一接口共享图片提示词溯源规则。
 

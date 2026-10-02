@@ -17,8 +17,9 @@ Images 在 Codex 原生 **Space → Images** 中增加 **Image Gen**，集中浏
 统一宿主通过 `codex-feature.json` 与 `src/library-prompt-source.mjs` 组装页面脚本。
 
 - `src/backend/local-image-source.mjs`：本地索引、提示词与云端身份映射／上传预留。
-- `src/frontend/cloud-image-actions.mjs`：首次云端登记、去重与收藏工作流。
-- `src/adapters/codex/`：原生组件、文件读取、详情、编辑器及云端协议契约。
+- `src/frontend/cloud-image-actions.mjs`：首次云端登记、去重与收藏工作流；只返回云端身份，不解释原生文件节点。
+- `src/adapters/codex/native-image-modules.mjs`：原生构建产物发现，按导航／图库／画布能力分别连接。
+- `src/adapters/codex/native-image-source.mjs`：原生呈现、上下文及异步动作归属。其余 Adapter 维护 Library API、图片来源与提示词协议。
 - `src/frontend/local-image-source.mjs`：来源选择、搜索、分页和生命周期。
 - Runtime Host：鉴权、功能声明校验与转发。
 
@@ -30,7 +31,7 @@ node --test features/images/test/*.test.mjs
 
 独立 `web/` 与旧服务入口保留为已有历史工具，不由当前 manifest 启动；ImageLibrary 与日志索引已由当前本地来源复用。历史图库交接见 [research/images](../../docs/research/images/2026-08-07-gallery-handoff.md)。
 
-2026-10-02 菜单核对：网格 More 明确使用原生 Library 的 mediaOverlay 分支，操作通过 leftIcon 传入真实原生图标。图库菜单按 Chat about this、Add to Favorites、Download、Add to folder、Delete、View prompts 排列。Chat about this 组合原生模式切换、新 Chat 草稿导航与图片面板链路，不发送消息；导航与面板已隔离验证，图片随消息提交的实际链路未进行发送验收。生成图片通用菜单中的重复查看、新标签、复制和 Finder 不再混入图库菜单。Add to Favorites／Remove from Favorites 和 Add to folder 已接入原生云端 Library。首次操作上传所选图片，之后复用账号与内容指纹对应的云端身份；收藏与文件夹归属保存在服务器。取消文件夹选择会显示原生 toast，已上传的图片仍留在 Library。上传结果不确定时不盲目重试；分享、重命名及删除尚未接入。
+2026-10-02 菜单核对：网格 More 明确使用原生 Library 的 mediaOverlay 分支，操作通过 leftIcon 传入真实原生图标。图库菜单按 Chat about this、View prompts、Add to Favorites／Remove from Favorites、Download、Add to folder、Delete 排列。Chat about this 组合原生模式切换、新 Chat 草稿导航与图片面板链路，不发送消息；导航与面板已隔离验证，图片随消息提交的实际链路未进行发送验收。生成图片通用菜单中的重复查看、新标签、复制和 Finder 不再混入图库菜单。Add to Favorites／Remove from Favorites 和 Add to folder 已接入原生云端 Library。首次操作上传所选图片，之后复用账号与内容指纹对应的云端身份；收藏与文件夹归属保存在服务器。取消文件夹选择会显示原生 toast，已上传的图片仍留在 Library。上传结果不确定时不盲目重试；Image Gen 不提供分享与重命名；Delete 的隐藏范围见下文。
 
 
 Image Gen 支持原生圆形多选框、Shift 区间选择和底部动作条。Delete 会先二次确认，仅从 Image Gen 隐藏；本地原图和云端副本保留。隐藏状态由 MineCodex 当前 Runtime profile 持久维护，确认后立即生效，刷新／重启不再显示。缩略卡片沿用 Library 的 1:2 至 20:13 比例范围；极宽和极窄图片在卡片内完整缩放、居中留白，不裁切内容。
