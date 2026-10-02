@@ -809,7 +809,7 @@ test("emits a fail-closed native Composer model selector Adapter", () => {
   assert.match(source, /data-model-picker-view-toggle/);
   assert.match(source, /function modelIdentity\(rawValue\)/);
   assert.match(source, /function modelDisplayLabel\(identity, selector\)/);
-  assert.match(source, /featureUI.surface\(menu, "dropdown"\)/);
+  assert.match(source, /featureUI.surface\(menu, "dropdown", \{ variant: "opaque" \}\)/);
   assert.match(source, /data-mcx-ui-surface=popover/);
   assert.match(source, /catalogModelFor\(identity, selector\) \?\? nativeCatalogModelFor\(identity\)/);
   assert.match(source, /const label = modelDisplayLabel\(modelIdentity\(raw\), selector\)/);

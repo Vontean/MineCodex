@@ -683,6 +683,7 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
 
   function sizeModelMenuViewport(menu, maxVisibleItems) {
     if (!menu.isConnected) return;
+    if (modelSelectorControllerMenu?.menu === menu && modelSelectorControllerMenu.animations?.length) return;
     const items = modelMenuItems(menu).filter((item) => item.dataset.codexModelSliderRaw);
     if (items.length <= maxVisibleItems) {
       menu.removeAttribute("data-codex-model-slider-overflow");
@@ -959,9 +960,38 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
     }
   }
 
-  function closeControllerModelMenu() {
+  function animateControllerModelMenu(record, opening, onFinish) {
+    const height = record.menu.getBoundingClientRect().height;
+    clearTimeout(record.motionTimer);
+    record.animations?.forEach((animation) => animation.cancel());
+    record.animations = [];
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      onFinish();
+      return;
+    }
+    // 原生视图切换：底边保持锚定，高度 320ms，内容 200ms 淡变并位移 10px。
+    record.menu.style.overflowY = "hidden";
+    const size = record.menu.animate([
+      { height: `${opening ? record.sliderHeight : height}px` },
+      { height: `${opening ? record.listHeight : record.sliderHeight}px` },
+    ], { duration: 320, easing: "cubic-bezier(.19,1,.22,1)", fill: "both" });
+    const content = record.content.animate(opening
+      ? [{ opacity: 0, translate: "0 10px" }, { opacity: 1, translate: "0 0" }]
+      : [{ opacity: 1, translate: "0 0" }, { opacity: 0, translate: "0 10px" }],
+    { duration: 200, delay: opening ? 40 : 0, easing: "cubic-bezier(.23,1,.32,1)", fill: "both" });
+    record.animations.push(size, content);
+    if (!opening) {
+      record.animations.push(record.menu.animate([{ opacity: 1 }, { opacity: 0 }],
+        { duration: 200, delay: 40, easing: "cubic-bezier(.23,1,.32,1)", fill: "both" }));
+    }
+    // 后台窗口未必派发动画完成事件，清理按同一时长结束，避免残留菜单。
+    record.motionTimer = setTimeout(onFinish, 320);
+  }
+
+  function closeControllerModelMenu({ immediate = false } = {}) {
     const record = modelSelectorControllerMenu;
     if (!record) return false;
+    if (record.closing && !immediate) return true;
     const placeholder = document.querySelector(
       '[data-codex-intelligence-trigger] [class*="_ModelPickerTriggerPlaceholder_"]',
     );
@@ -969,10 +999,18 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
       placeholder.firstChild.nodeValue = record.placeholderText;
     }
     record.button.setAttribute("aria-expanded", "false");
-    record.parentMenu.style.position = record.position;
-    record.parentMenu.style.overflow = record.overflow;
-    record.menu.remove();
-    modelSelectorControllerMenu = null;
+    record.closing = true;
+    record.menu.inert = true;
+    const finish = () => {
+      clearTimeout(record.motionTimer);
+      record.animations?.forEach((animation) => animation.cancel());
+      record.parentMenu.style.position = record.position;
+      record.parentMenu.style.overflow = record.overflow;
+      record.menu.remove();
+      if (modelSelectorControllerMenu === record) modelSelectorControllerMenu = null;
+    };
+    if (immediate || !record.parentMenu.isConnected) finish();
+    else animateControllerModelMenu(record, false, finish);
     return true;
   }
 
@@ -988,8 +1026,11 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
 
   function openControllerModelMenu(parentMenu, modelButton, selector) {
     if (modelSelectorControllerMenu) {
-      closeControllerModelMenu();
-      return;
+      if (!modelSelectorControllerMenu.closing) {
+        closeControllerModelMenu();
+        return;
+      }
+      closeControllerModelMenu({ immediate: true });
     }
     const controller = nativeComposerModelController();
     if (!Array.isArray(controller?.models) || typeof controller.onSelectModel !== "function") return;
@@ -1002,7 +1043,12 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
     menu.setAttribute("data-state", "open");
     menu.setAttribute("data-codex-model-slider-menu", "");
     menu.setAttribute("data-codex-model-slider-controller-menu", "");
-    featureUI.surface(menu, "dropdown");
+    featureUI.surface(menu, "dropdown", { variant: "opaque" });
+    // 切换同一个 picker 视图，不重复播放整个 Dropdown 的入场缩放。
+    menu.style.animation = "none";
+    const content = document.createElement("div");
+    content.style.flexShrink = "0";
+    menu.append(content);
     models.forEach((model, index) => {
       const item = document.createElement("div");
       item.className = "no-drag outline-hidden rounded-lg px-[var(--padding-row-x)] py-[var(--padding-row-y)] text-sm text-default group hover:bg-primary-ghost-hover focus:bg-primary-ghost-hover cursor-interaction flex flex-col";
@@ -1014,7 +1060,7 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
         scheduleReturn: false,
         owned: true,
       });
-      menu.append(item);
+      content.append(item);
     });
     menu.addEventListener("click", (event) => {
       const star = event.target.closest?.("[data-codex-model-slider-star]");
@@ -1038,6 +1084,7 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
     menu.addEventListener("keydown", (event) => {
       if (event.key === "Escape") {
         event.preventDefault();
+        event.stopPropagation();
         closeControllerModelMenu();
         modelButton.focus();
         return;
@@ -1063,11 +1110,13 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
 
     modelSelectorControllerMenu = {
       menu,
+      content,
       parentMenu,
       button: modelButton,
       placeholderText,
       position: parentMenu.style.position,
       overflow: parentMenu.style.overflow,
+      sliderHeight: parentMenu.getBoundingClientRect().height,
     };
     parentMenu.style.position = "relative";
     parentMenu.style.overflow = "visible";
@@ -1076,6 +1125,15 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
     modelButton.setAttribute("aria-expanded", "true");
     (menu.querySelector('[data-codex-model-slider-selected]')
       ?? menu.querySelector('[role="menuitem"]'))?.focus();
+    const record = modelSelectorControllerMenu;
+    record.listHeight = menu.getBoundingClientRect().height;
+    animateControllerModelMenu(record, true, () => {
+      if (modelSelectorControllerMenu !== record || record.closing) return;
+      record.animations.forEach((animation) => animation.cancel());
+      record.animations = [];
+      menu.style.overflowY = "auto";
+      sizeModelMenuViewport(menu, selector.maxVisibleItems);
+    });
   }
 
   // ========================================================================
@@ -2005,7 +2063,7 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
     enhanceComposerModelTrigger(selector);
     const parentMenu = nativeModelPickerMenu();
     if (modelSelectorControllerMenu && modelSelectorControllerMenu.parentMenu !== parentMenu) {
-      closeControllerModelMenu();
+      closeControllerModelMenu({ immediate: true });
     }
     if (!parentMenu) {
       if (
@@ -2031,7 +2089,7 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
   }
 
   function restoreModelSelectorEnhancements() {
-    closeControllerModelMenu();
+    closeControllerModelMenu({ immediate: true });
     clearTimeout(modelSelectorReturnTimer);
     clearTimeout(modelSelectorEffortTransactionTimer);
     modelSelectorTriggerObserver?.disconnect();
@@ -2091,6 +2149,15 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
     modelSelectorNativeToggleHandlers.clear();
   }
 
+  window.addEventListener("keydown", event => {
+    const record = modelSelectorControllerMenu;
+    if (event.key !== "Escape" || !record) return;
+    // 先退出插件模型视图，避免原生 document 监听同时关闭整个 picker。
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    closeControllerModelMenu();
+    record.button.focus();
+  }, { capture: true, signal });
   document.addEventListener("click", event => {
     if (modelSelectorControllerMenu
       && !modelSelectorControllerMenu.menu.contains(event.target)
