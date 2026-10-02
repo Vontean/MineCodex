@@ -125,7 +125,7 @@ jobs:
         env:
           EXPECTED_SHA256: ${{ needs.prepare.outputs.sha256 }}
         run: |
-          PACKAGE=$(find release -name '*.tgz' -type f)
+          PACKAGE=$(find "$GITHUB_WORKSPACE/release" -name '*.tgz' -type f)
           echo "$EXPECTED_SHA256  $PACKAGE" | sha256sum --check
           # 私有源码仓库不生成公开 provenance；不使用 npm Token。
           npm publish "$PACKAGE" --access public --tag latest --ignore-scripts --provenance=false
