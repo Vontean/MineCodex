@@ -35,9 +35,7 @@ style.id = STYLE_ID;
 style.textContent = `
   [${MARKER}] { box-sizing:border-box; display:flex; flex-wrap:wrap; justify-content:center; align-items:center; gap:0 4px; margin:0 auto; padding-top:2px; max-width:100%; min-height:24px; min-width:0; font-family:var(--mcx-font-sans-default,inherit); font-size:var(--mcx-text-xs,12px); line-height:16px; font-variant-numeric:tabular-nums; color:var(--mcx-color-text-tertiary); }
   [${MARKER}][hidden] { display:none; }
-  [data-minecodex-session-reveal] { display:grid; grid-template-rows:0fr; opacity:0; transition:grid-template-rows 200ms ease,opacity 160ms ease; }
-  [data-minecodex-session-reveal][data-expanded] { grid-template-rows:1fr; opacity:1; }
-  @starting-style { [data-minecodex-session-reveal][data-expanded] { grid-template-rows:0fr; opacity:0; } }
+  [data-minecodex-session-reveal] { display:grid; grid-template-rows:1fr; }
   [data-minecodex-session-reveal][data-expanded]:not([hidden]) { margin-top:-4px; }
   [data-minecodex-session-reveal] > div { min-height:0; overflow:hidden; }
   [data-minecodex-session-reveal]:not([data-expanded]) { pointer-events:none; }
@@ -102,7 +100,7 @@ window.addEventListener("storage", (event) => {
 }, { signal });
 // Codex 会把离屏输入框搬到 Quick Chat 浮层；节点仍连接不代表当前页面是聊天。
 function isActiveComposer(composer) {
-  return Boolean(config.codex.composer(composer));
+  return Boolean(config.codex.composerSurface(composer));
 }
 function createInstance(composerElement) {
 let copy = selectedCopy();
@@ -156,15 +154,30 @@ document.body.append(tooltip);
 let expanded = globalExpanded;
 let collapseTimer = null;
 let collapsing = false;
+const motion = new Set();
+function clearMotion() {
+  for (const animation of motion) animation.cancel();
+  motion.clear();
+  for (const key of ["position", "left", "top", "width"]) reveal.style.removeProperty(key);
+}
 const nativeIndicators = new Set();
 function setExpanded(value) {
+  const card = reveal.previousElementSibling;
+  const model = card?.querySelector('[data-composer-navigation-target="reasoning"]');
+  const controls = model?.parentElement;
+  const before = card?.getBoundingClientRect();
+  const controlsBefore = controls?.getBoundingClientRect();
+  const revealBefore = reveal.getBoundingClientRect();
+  const opacity = reveal.hidden ? 0 : Number(getComputedStyle(reveal).opacity);
+  const animate = value !== expanded && !root.hidden && !matchMedia("(prefers-reduced-motion: reduce)").matches;
   clearTimeout(collapseTimer);
-  collapsing = expanded && !value && !matchMedia("(prefers-reduced-motion: reduce)").matches;
+  clearMotion();
+  collapsing = animate && !value;
   expanded = value;
-  if (collapsing) collapseTimer = setTimeout(() => {
-    collapsing = false;
-    syncVisibility(findComposer());
-  }, 200);
+  // 退出内容暂时脱离布局，原生输入框一次到达目标位置，再以位移衔接。
+  if (collapsing) Object.assign(reveal.style, {
+    position:"fixed", left:`${revealBefore.left}px`, top:`${revealBefore.top}px`, width:`${revealBefore.width}px`,
+  });
   reveal.toggleAttribute("data-expanded", expanded);
   clip.inert = !expanded;
   trigger.setAttribute("aria-expanded", String(expanded));
@@ -172,6 +185,25 @@ function setExpanded(value) {
   if (expanded) reveal.hidden = false;
   syncVisibility(findComposer());
   if (!expanded) closePanel();
+  if (!animate) return;
+  const duration = expanded ? 220 : 160;
+  const options = { duration, easing:"cubic-bezier(0.23,1,0.32,1)", fill:"both" };
+  const play = (node, frames) => { if (node) motion.add(node.animate(frames, options)); };
+  const after = card.getBoundingClientRect();
+  play(card, [{transform:`translateY(${before.top-after.top}px)`},{transform:"translateY(0)"}]);
+  if (controlsBefore) {
+    const after = controls.getBoundingClientRect();
+    play(controls, [{transform:`translateX(${controlsBefore.left-after.left}px)`},{transform:"translateX(0)"}]);
+  }
+  const offset = expanded && revealBefore.height ? revealBefore.top-reveal.getBoundingClientRect().top : -4;
+  play(reveal, [{opacity,transform:`translateY(${expanded ? offset : 0}px)`},
+    {opacity:expanded ? 1 : 0,transform:`translateY(${expanded ? 0 : -4}px)`}]);
+  if (!expanded) play(trigger, [{opacity:0},{opacity:1}]);
+  collapseTimer = setTimeout(() => {
+    collapsing = false;
+    clearMotion();
+    syncVisibility(findComposer());
+  }, duration);
 }
 trigger.addEventListener("click", () => setGlobalExpanded(!expanded), { signal });
 function hideTooltip() { tooltip.hidden = true; trigger.removeAttribute("aria-describedby"); }
@@ -401,7 +433,7 @@ function findComposer() {
   return isActiveComposer(composerElement) ? composerElement : null;
 }
 function currentThreadId(composer) {
-  return config.codex.currentThreadId(composer);
+  return composer ? config.codex.composerSurface(composer)?.threadId ?? null : null;
 }
 // 与原生 Context 指示器订阅同一会话状态；不以日志百分比覆盖它。
 const emptyNativeContext = () => ({ contextUsedTokens:null,contextWindow:null,contextPercent:null });
@@ -445,6 +477,9 @@ function ensurePosition() {
   const composer = findComposer();
   const threadId = currentThreadId(composer);
   if (threadId !== activeThreadId) {
+    clearTimeout(collapseTimer);
+    clearMotion();
+    collapsing = false;
     activeThreadId = threadId;
     nativeContext = emptyNativeContext();
     // 会话建立后先展示占位，不让日志落盘速度决定状态栏是否出现。
@@ -547,6 +582,7 @@ return { update: receiver.update, setExpanded, dispose() {
   nativeUsage.dispose();
   clearTimeout(refreshTimer);
   clearTimeout(collapseTimer);
+  clearMotion();
   observer.disconnect();
   localeObserver.disconnect();
   closePanel();
@@ -560,7 +596,7 @@ function syncInstances() {
   for (const [composer, instance] of instances) {
     if (!isActiveComposer(composer)) { instance.dispose(); instances.delete(composer); }
   }
-  for (const composer of document.querySelectorAll('[data-codex-composer="true"][contenteditable="true"]')) {
+  for (const composer of document.querySelectorAll('[data-codex-composer-root]')) {
     if (isActiveComposer(composer) && !instances.has(composer)) instances.set(composer, createInstance(composer));
   }
 }

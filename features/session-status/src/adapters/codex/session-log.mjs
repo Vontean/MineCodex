@@ -7,6 +7,7 @@ function estimatedTextTokens(value) {
 }
 
 function estimatedContentTokens(content) {
+  if (typeof content === "string") return estimatedTextTokens(content);
   if (!Array.isArray(content)) return 0;
   return content.reduce((total, item) => {
     if (item?.type === "input_image" || item?.type === "output_image") return total + IMAGE_TOKENS_ESTIMATE;
@@ -71,7 +72,7 @@ export function sessionFacts(record) {
     if (p.type === "task_complete" && Number.isFinite(p.time_to_first_token_ms)) emit("first-token-measured", { elapsed:p.time_to_first_token_ms });
     if (p.type === "item_completed") {
       if (p.item?.type === "ContextCompaction") emit("compaction-finished");
-      if (MODEL_OUTPUT_ITEMS.has(p.item?.type) && Number.isFinite(p.started_at_ms)) emit("output-observed", { start:p.started_at_ms });
+      if (MODEL_OUTPUT_ITEMS.has(p.item?.type) && Number.isFinite(p.started_at_ms)) emit("output-observed", { start:p.started_at_ms, end:p.completed_at_ms });
       if (TOOL_ITEMS.has(p.item?.type) && Number.isFinite(p.started_at_ms) && Number.isFinite(p.completed_at_ms)) emit("tool-measured", { start:p.started_at_ms, end:p.completed_at_ms });
     }
     if (p.type === "token_count") emit("usage-observed", { total:usage(p.info?.total_token_usage), last:usage(p.info?.last_token_usage), contextWindow:p.info?.model_context_window });

@@ -17,3 +17,14 @@ test('domain computes cache from internal usage and does not accept raw records'
   const snapshot=sessionStatusSnapshot(state,'thread');assert.equal(snapshot.cacheHitPercent,60);assert.equal(snapshot.outputTokens,20);
   applySessionStatusEvent(state,{type:'event_msg',payload:{type:'token_count'}});assert.equal(sessionStatusSnapshot(state,'thread').outputTokens,20);
 });
+
+test('tool history includes string results as well as content arrays, including after compaction',()=>{
+  const item={type:'function_call_output',output:'中文工具结果'};
+  const expected=Math.ceil(Buffer.byteLength(item.output,'utf8')/4);
+  const state=createSessionState();
+  for(const payload of [item,{type:'custom_tool_call_output',output:[{type:'input_text',text:item.output}]}])
+    for(const fact of sessionFacts({type:'response_item',payload})) applySessionStatusEvent(state,fact);
+  assert.equal(sessionStatusSnapshot(state,'thread').contextSections.toolHistory,expected*2);
+  for(const fact of sessionFacts({type:'compacted',payload:{replacement_history:[item],window_number:1}})) applySessionStatusEvent(state,fact);
+  assert.equal(sessionStatusSnapshot(state,'thread').contextSections.toolHistory,expected);
+});

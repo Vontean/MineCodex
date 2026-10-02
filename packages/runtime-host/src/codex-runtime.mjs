@@ -34,6 +34,7 @@ import {
 } from "./host-actions.mjs";
 import { SitesService } from "../../../features/sites/src/backend/sites-service.mjs";
 import { SessionStatusReader, threadIdFromLocation } from "../../../features/session-status/src/adapters/codex/session-reader.mjs";
+import { createCodexEnvironment } from "../../codex-adapter/src/renderer/environment.mjs";
 
 
 // 保持公共入口兼容：历史 import 从本文件继续可用。
@@ -48,11 +49,9 @@ export {
 } from "./codex-injection.mjs";
 
 export const SESSION_STATUS_THREAD_ID_EXPRESSION = `(() => {
-  return [...new Set([...document.querySelectorAll('[data-codex-composer="true"][contenteditable="true"]')].map(composer => {
-    const card = composer.closest('[data-codex-composer-root]');
-    if (card?.getAttribute('data-composer-placement') !== 'thread') return null;
-    return card.querySelector('[data-above-composer-portal]')?.getAttribute('data-above-composer-conversation-id');
-  }).filter(Boolean))];
+  const codex = (${createCodexEnvironment.toString()})();
+  return [...new Set([...document.querySelectorAll('[data-codex-composer-root]')]
+    .map(root => codex.composerSurface(root)?.threadId).filter(Boolean))];
 })()`;
 
 export class CodexRuntime {

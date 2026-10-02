@@ -14,6 +14,7 @@ export function createSessionState() {
     last: null,
     contextWindow: null,
     firstOutputAt: null,
+    pendingOutputIntervals: [],
     pendingToolIntervals: [],
     speedMeasurements: [],
     ttftTotalMs: 0,
@@ -30,14 +31,17 @@ export function createSessionState() {
   };
 }
 
-function overlappingToolMs(intervals, start, end) {
-  const clipped = intervals
-    .map(([toolStart, toolEnd]) => [Math.max(start, toolStart), Math.min(end, toolEnd)])
+function boundedToolWaitMs(intervals, start, end, outputs) {
+  // 仅扣同一响应内、与已观测生成不重叠的工具区间；后台进程存活时间不是等待时间。
+  if (outputs.some(([, outputEnd]) => !Number.isFinite(outputEnd))) return 0;
+  const waits = intervals
+    .filter(([toolStart, toolEnd]) => toolStart >= start && toolEnd <= end
+      && !outputs.some(([outputStart, outputEnd]) => toolStart < outputEnd && toolEnd > outputStart))
     .filter(([left, right]) => right > left)
     .sort((left, right) => left[0] - right[0]);
   let elapsed = 0;
   let rightEdge = start;
-  for (const [left, right] of clipped) {
+  for (const [left, right] of waits) {
     elapsed += Math.max(0, right - Math.max(left, rightEdge));
     rightEdge = Math.max(rightEdge, right);
   }
@@ -45,7 +49,7 @@ function overlappingToolMs(intervals, start, end) {
 }
 
 export function applySessionStatusEvent(state, event) {
-  const reset = () => { state.firstOutputAt=null; state.pendingToolIntervals=[]; };
+  const reset = () => { state.firstOutputAt=null; state.pendingOutputIntervals=[]; state.pendingToolIntervals=[]; };
   switch (event.kind) {
     case "history-replaced":
       state.compactionRecords++; state.last=null; reset();
@@ -63,11 +67,14 @@ export function applySessionStatusEvent(state, event) {
     case "turn-ended": reset(); if (event.id) state.runningTurns.delete(event.id); else state.runningTurns.clear(); break;
     case "first-token-measured": state.ttftTotalMs+=event.elapsed; state.ttftSamples++; break;
     case "compaction-finished": state.compactionCompleted++; break;
-    case "output-observed": state.firstOutputAt=Math.min(state.firstOutputAt ?? event.start,event.start); break;
+    case "output-observed":
+      state.firstOutputAt=Math.min(state.firstOutputAt ?? event.start,event.start);
+      state.pendingOutputIntervals.push([event.start,event.end]);
+      break;
     case "tool-measured":
       state.toolMs+=Math.max(0,event.end-event.start);
       state.pendingToolIntervals.push([event.start,event.end]);
-      // 工具记录可能晚到，补扣与既有响应样本重叠的时间。
+      // 工具记录可能晚到；是否属于可扣除等待区间，由样本的生成边界判断。
       for (const sample of state.speedMeasurements) if (event.start < sample.end && event.end > sample.start) sample.tools.push([event.start,event.end]);
       break;
     case "usage-observed":
@@ -81,7 +88,8 @@ export function applySessionStatusEvent(state, event) {
         state.responses.add(event.id);
         const output=event.last?.output;
         if (Number.isFinite(output) && output > 0 && state.firstOutputAt != null && Number.isFinite(event.end) && event.end > state.firstOutputAt)
-          state.speedMeasurements.push({ start:state.firstOutputAt,end:event.end,output,tools:state.pendingToolIntervals.slice() });
+          state.speedMeasurements.push({ start:state.firstOutputAt,end:event.end,output,
+            outputs:state.pendingOutputIntervals.slice(),tools:state.pendingToolIntervals.slice() });
       }
       reset();
       if (event.total) { state.total=event.total; state.hasResponseUsage=true; }
@@ -96,7 +104,7 @@ export function sessionStatusSnapshot(state, threadId) {
   let decodeMs = 0;
   let speedSamples = 0;
   for (const sample of state.speedMeasurements) {
-    const elapsed = sample.end - sample.start - overlappingToolMs(sample.tools, sample.start, sample.end);
+    const elapsed = sample.end - sample.start - boundedToolWaitMs(sample.tools, sample.start, sample.end, sample.outputs);
     if (elapsed <= 0 || elapsed >= 600_000) continue;
     decodeTokens += sample.output;
     decodeMs += elapsed;

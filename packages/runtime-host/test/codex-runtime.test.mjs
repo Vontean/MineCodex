@@ -71,10 +71,12 @@ test("session status reads composer-bound threads only", () => {
     const card = {
       querySelector: () => portal,
       getAttribute: () => placement,
+      isConnected:true, checkVisibility:()=>true,
+      closest:selector=>selector === '[data-codex-composer-root]' ? card : null,
     };
     const document = {
       querySelectorAll(selector) {
-        if (selector.includes("data-codex-composer=")) return codexComposer ? [{ closest: () => card }] : [];
+        if (selector.includes("data-codex-composer-root")) return codexComposer ? [card] : [];
         if (selector.includes("data-app-action-sidebar-thread-selected")) {
           return selectedId ? { getAttribute: () => selectedId } : null;
         }
@@ -2927,14 +2929,16 @@ test("Quick Prompts bridge permits only declared prompt routes on the registered
 });
 
 test("session status discovers main and side chat IDs without duplicates", () => {
-  const cards = ["main", "side", "main", null].map(id => ({
-    closest: () => ({
-      getAttribute: () => "thread",
-      querySelector: () => ({ getAttribute: () => id }),
-    }),
-  }));
+  const main='12345678-1234-1234-1234-123456789abc',side='abcdef12-1234-1234-1234-123456789abc';
+  const cards = [main, side, main, null].map(id => {
+    const card={isConnected:true,checkVisibility:()=>true,
+      closest: selector => selector === '[data-codex-composer-root]' ? card : null,
+      getAttribute: () => "thread",querySelector: () => ({getAttribute:()=>id})};
+    return card;
+  });
   const ids = vm.runInNewContext(SESSION_STATUS_THREAD_ID_EXPRESSION, {
     document: { querySelectorAll: () => cards },
   });
-  assert.deepEqual(Array.from(ids), ["main", "side"]);
+  assert.deepEqual(Array.from(ids), [main, side]);
 });
+

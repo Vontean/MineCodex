@@ -106,7 +106,8 @@ test("only visible thread composers own session status, including after tab move
   const eligible = new Function("config", source.slice(source.indexOf("function isActiveComposer("), source.indexOf("function createInstance(")) + ";return isActiveComposer;")({codex:createCodexEnvironment()});
   let placement = "thread", blocked = false, visible = true;
   const composer = { isConnected: true, checkVisibility: () => visible,
-    closest: selector => selector === '[data-codex-composer-root]' ? { getAttribute: () => placement, querySelector:()=>null } : blocked };
+    getAttribute:()=>placement, querySelector:()=>null,
+    closest: selector => selector === '[data-codex-composer-root]' ? composer : blocked };
   assert.equal(eligible(composer), true);
   blocked = true; // 全屏标签页切到浮动 Quick Chat，或祖先隐藏。
   assert.equal(eligible(composer), false);
