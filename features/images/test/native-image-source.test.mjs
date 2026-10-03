@@ -43,7 +43,7 @@ async function fixture(context,{fileNode=async()=>({id:"libfile_image"}),favorit
 test("folder node result is ignored after the gallery unmounts",async context=>{
   const node=deferred();let requested=false;
   const f=await fixture(context,{fileNode:()=>{requested=true;return node.promise;}});
-  f.menu("Add to folder").props.onSelect();await settle();assert.equal(requested,true);
+  f.menu("Add to folder (uploads to Library)").props.onSelect();await settle();assert.equal(requested,true);
   f.view.dispose();const count=f.state.renders.length;
   node.resolve({id:"libfile_image"});await settle();
   assert.equal(f.state.renders.length,count);assert.deepEqual(f.state.toasts,[]);
@@ -52,7 +52,7 @@ test("folder node result is ignored after the gallery unmounts",async context=>{
 test("folder result cannot open a dialog under a different account",async context=>{
   const node=deferred();
   const f=await fixture(context,{fileNode:()=>node.promise});
-  f.menu("Add to folder").props.onSelect();await settle();
+  f.menu("Add to folder (uploads to Library)").props.onSelect();await settle();
   f.state.account="other";const count=f.state.renders.length;
   node.resolve({id:"libfile_image"});await settle();
   assert.equal(f.state.renders.length,count);assert.deepEqual(f.state.toasts,[]);f.view.dispose();

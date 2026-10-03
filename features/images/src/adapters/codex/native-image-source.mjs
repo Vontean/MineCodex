@@ -423,13 +423,13 @@ export function createNativeImageSource(codex, { requestHostAction, libraryApi, 
         {id:"view-prompts", icon:promptIcon, text:context.intl.formatMessage({id:"minecodex.images.viewPrompts",defaultMessage:"View prompts"}),onSelect:() => {void open(image).then(opened=>{if(opened&&isCurrent())onPrompt(image);}).catch(operationError);}},
         {id:"favorite",icon:native.favoriteIcon(saved),text:saved
           ? message("library.favorites.remove","Remove from Favorites")
-          : message("library.favorites.add","Add to Favorites"),onSelect:() => {void perform(async () => {
+          : message("minecodex.images.addToCloudFavorites",(context.intl.locale?.startsWith("zh") ? "加入收藏（上传至 Library）" : "Add to Favorites (uploads to Library)")),onSelect:() => {void perform(async () => {
             favoriteRevision.current++;
             const value=await cloud.favorite(image);
             if(active.current&&isCurrent()){favoriteRevision.current++;setSaved(value);}
           });}},
         action("download-a-copy", native.downloadIcon, {id:"libraryNext.actions.download", defaultMessage:"Download"}),
-        {id:"folder",icon:native.folderIcon,text:message("libraryNext.actions.addToFolder","Add to folder"),onSelect:() => {void perform(() => folder(image));}},
+        {id:"folder",icon:native.folderIcon,text:message("minecodex.images.addToCloudFolder",(context.intl.locale?.startsWith("zh") ? "加入文件夹（上传至 Library）" : "Add to folder (uploads to Library)")),onSelect:() => {void perform(() => folder(image));}},
         {id:"delete",icon:native.deleteIcon,tone:"danger",text:message("libraryNext.actions.delete","Delete"),onSelect:()=>confirmRemove([image])},
       ].filter(Boolean);
       const dropdown = h(native.Dropdown, {
