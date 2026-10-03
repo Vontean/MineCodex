@@ -4,7 +4,7 @@ export function installLayers(signal) {
   style.setAttribute("data-minecodex-ui-styles", "layers");
   style.textContent = `
     [data-mcx-ui-layer=page] { position:fixed; z-index:20; }
-    [data-mcx-ui-layer=notification] { position:fixed; z-index:30; }
+    [data-mcx-ui-layer=notification] { position:fixed; z-index:45; }
     [data-mcx-ui-layer=floating], [data-mcx-ui-layer=modal] { position:fixed; z-index:50; }
   `;
   document.head.append(style);

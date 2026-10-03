@@ -65,9 +65,46 @@ function threadRecord(row) {
   return {read:threadRecord};
 }
 
+export function notificationVisibilityStyles() {
+  // 原生展开状态变化时同步隐藏，不等待 MutationObserver 或每秒刷新。
+  return ':root:has([data-sidebar-destination="builtin:home"][aria-current="page"]):has([data-app-shell-sidebar-trigger][aria-expanded="true"]) [data-minecodex-unread] { display:none; }';
+}
+
 // 会话侧栏是可卸载视图，通知从同一原生 store 读取完整目录。
 export function createNotificationAdapter(codex, load, invalidate) {
   let bindings=null, loading=null, retryAt=0, disposed=false;
+  let watchedScope=null, stopWatching=null;
+  function watch(scope) {
+    if(watchedScope===scope)return;
+    stopWatching?.();watchedScope=scope;
+    stopWatching=scope.watch(({get})=>{
+      const catalog=get(bindings.catalog);
+      get(bindings.projects,"codex");
+      for(const key of catalog.allSidebarThreadKeys){
+        const summary=get(bindings.thread,key)?.summary;
+        if(!summary?.conversationId||!summary.hostId)continue;
+        const args={conversationId:summary.conversationId,hostId:summary.hostId};
+        get(bindings.title,{threadId:summary.conversationId,hostId:summary.hostId});
+        get(bindings.activityTurns,summary.conversationId);
+        get(bindings.status,args);get(bindings.attention,args);
+        get(bindings.unread,{conversationId:summary.conversationId,fallbackRootUnread:summary.hasUnreadTurn});
+      }
+      invalidate();
+    });
+  }
+  function activitySummary(scope,conversationId) {
+    const turns=scope.get(bindings.activityTurns,conversationId);
+    // 与 View Activity 相同：从最近的 agentMessage 读取原生纯文本预览。
+    for(let i=(turns?.length??0)-1;i>=0;i--){
+      const items=turns[i].items;
+      for(let j=items.length-1;j>=0;j--){
+        if(items[j].type!=="agentMessage")continue;
+        const text=bindings.previewText(items[j].text);
+        if(text.length)return text;
+      }
+    }
+    return "";
+  }
   function scopeFor(rail) {
     let fiber=codex.currentFiber(rail);
     for (let depth=0;fiber&&depth<160;depth++,fiber=fiber.return) {
@@ -95,9 +132,12 @@ export function createNotificationAdapter(codex, load, invalidate) {
       return pageKey!==null;
     });
     const home=rail.querySelector('[data-sidebar-destination="builtin:home"]');
-    const sidebar=document.querySelector('[data-slate-sidebar-content]:not([inert])');
     const isVisible=e=>!!e && !e.closest('[inert],[aria-hidden="true"]') && e.checkVisibility() && e.getBoundingClientRect().width>0;
-    const homeSidebar=isVisible(sidebar) && isVisible(sidebar.querySelector('[data-app-action-sidebar-scroll]'));
+    // 展开状态先于列表完成布局；先隐藏通知，避免过渡期间与侧栏重叠。
+    const homeExpanded=home?.getAttribute("aria-current")==="page"
+      && !!document.querySelector('[data-app-shell-sidebar-trigger][aria-expanded="true"]');
+    const homeSidebar=homeExpanded || [...document.querySelectorAll('[data-app-action-sidebar-scroll]')]
+      .some(list=>isVisible(list.closest('[data-slate-sidebar-content]')) && isVisible(list));
     const peeking=home?.getAttribute("aria-expanded")==="true" || !!document.querySelector('[data-slate-sidebar-peeking="true"]');
     const titlebar=[...document.querySelectorAll('[data-app-shell-titlebar-slot="main"]')].find(isVisible);
     const rect=rail.getBoundingClientRect(), titleRect=titlebar?.getBoundingClientRect();
@@ -108,10 +148,12 @@ export function createNotificationAdapter(codex, load, invalidate) {
     ensure();
     const rail=codex.rail(), scope=rail && scopeFor(rail);
     if (!bindings || !scope) {
+      stopWatching?.();stopWatching=null;watchedScope=null;
       if (!scope) codex.report("task-notification-catalog",false,"native-scope-unavailable");
       return null;
     }
     try {
+      watch(scope);
       const catalog=scope.get(bindings.catalog);
       const projectCatalog=scope.get(bindings.projects,"codex");
       const projects=new Map();
@@ -131,8 +173,8 @@ export function createNotificationAdapter(codex, load, invalidate) {
           ? {deadlineMs:resolution.resolutionState.deadlineMs,durationMs:bindings.countdownDuration} : null;
         const unread=scope.get(bindings.unread,{conversationId,fallbackRootUnread:summary.hasUnreadTurn});
         const row=rows.get(key), mounted=row ? rowAdapter.read(row) : null;
-        return [{key,threadId:conversationId,hostId,title:summary.title||mounted?.title||"",
-          summary:mounted?.summary||"",project:projects.get(key)??mounted?.project??null,
+        return [{key,threadId:conversationId,hostId,title:scope.get(bindings.title,{threadId:conversationId,hostId})??summary.title??"",
+          summary:activitySummary(scope,conversationId),project:projects.get(key)??null,
           timestamp:unread.unreadMessageAt??summary.recencyAt??summary.updatedAt??null,
           unread:unread.hasUnread,working:status==="loading"&&attention!=="response",
           attention:attention==="approval"?"approval":attention==="response"?"input":null,
@@ -152,5 +194,5 @@ export function createNotificationAdapter(codex, load, invalidate) {
       return null;
     }
   }
-  return {snapshot,layout,dispose(){disposed=true;bindings=null;}};
+  return {snapshot,layout,dispose(){disposed=true;stopWatching?.();stopWatching=null;watchedScope=null;bindings=null;}};
 }

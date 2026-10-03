@@ -44,6 +44,7 @@ style.textContent = `
 [${marker}=panel] .mcx-countdown { display:inline-block; margin-inline-start:5px; font-variant-numeric:tabular-nums; min-width:2.5ch; }
 @media (prefers-reduced-motion:reduce) { [${marker}=panel] .mcx-attention::before { transition:none; } }
 `;
+style.textContent += notificationVisibilityStyles();
 document.head.append(style);
 const panel=document.createElement("section");
 panel.setAttribute(marker,"panel");
@@ -298,7 +299,7 @@ function schedule() {
 const observer=new MutationObserver(mutations=>{
   if(mutations.some(m=>!panel.contains(m.target)&&m.target!==style&&!more.contains(m.target)&&!tail.contains(m.target)))schedule();
 });
-observer.observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:["inert","aria-hidden","aria-expanded","data-app-shell-sidebar-open","data-slate-sidebar-peeking","lang"]});
+observer.observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:["inert","aria-hidden","aria-expanded","aria-current","data-app-shell-sidebar-open","data-slate-sidebar-peeking","lang"]});
 window.addEventListener("resize",schedule,{signal});
 // 隐藏的原生视图不一定重绘；每秒读取 store，不发送请求或切换 Activity。
 const timer=setInterval(schedule,1000);

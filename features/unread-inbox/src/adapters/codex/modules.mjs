@@ -15,7 +15,13 @@ export function discoverThreadBindings(source) {
   const pendingValue = requireMatch(/=([\w$]+)\?\.pendingRequest/, row);
   const durationName = requireMatch(/durationMs:([\w$]+)/, row);
   const durationMs = Number(requireMatch(new RegExp(`${escape(durationName)}=([0-9.eE+]+)`)));
+  const previewIndex=source.search(/\.type===`agentMessage`/);
+  const preview=source.slice(source.lastIndexOf("=>{",previewIndex),source.indexOf("return null})",previewIndex));
+  const previewHelper=requireMatch(/let [\w$]+=([\w$]+)\([\w$]+\.text\)/,preview);
   const roles = {
+    activityTurns:requireMatch(/let [\w$]+=[\w$]+\(([\w$]+),[\w$]+\);if\([\w$]+==null\)return null;for/,preview),
+    previewText:requireMatch(new RegExp(`function ${escape(previewHelper)}\\([\\w$]+\\)\\{let [\\w$]+=([\\w$]+)\\(`)),
+    title:requireMatch(/=[\w$]+\(([\w$]+),\{hostId:[^}]+,threadId:[\w$]+\}\)\?\?[\w$]+\?\.title/,row),
     resolution: selectorFor(resolutionValue),
     pending: selectorFor(pendingValue),
     catalog: requireMatch(/allSidebarThreadKeys:[\w$]+,pinnedThreadKeys:[\w$]+\}=[\w$]+\(([\w$]+)\)/),

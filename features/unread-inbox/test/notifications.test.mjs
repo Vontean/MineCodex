@@ -37,14 +37,16 @@ test('serialized entry contains its dependencies and removes legacy native mutat
 });
 // 最小原生契约样例，变量与导出名刻意不同于当前安装包。
 const fixture=`
-import{navExport as go}from"./shared-new.js";
+import{navExport as go,turnExport as turnsAtom,previewExport as cleanText}from"./shared-new.js";
+function preview(text){let value=cleanText(text);return value.length===0?null:value}
+let activity=family(root,(id,{get:g})=>{if(id==null)return null;let turns=g(turnsAtom,id);if(turns==null)return null;for(let i=turns.length-1;i>=0;i--){let items=turns[i].items;for(let j=items.length-1;j>=0;j--){let item=items[j];if(item.type===\`agentMessage\`){let value=preview(item.text);if(value!=null)return value}}}return null});
 let projectAtom=family(root,(mode,{get:g,scope:s})=>{let allowed=mode!==\`chatgpt\`;let{allSidebarThreadKeys:a,pinnedThreadKeys:b}=g(catalogAtom);});
 function records(g,keys){return keys.flatMap(k=>{let n=g(threadAtom,k);return n==null?[]:[{task:n,isPinned:false}]})}
 let duration=6e4;
-function row(p){let pending=use(pendingAtom,threadArgs),request=pending?.pendingRequest,resolution=use(resolutionAtom,args),matches=resolution?.requestId===request.userInputRequestId,progress={durationMs:duration};let att=use(attentionAtom,args),loading=use(statusAtom,args);let read=use(unreadAtom,args),room=read.roomId,shown=loading;(att===\`response\`);let chip=att===\`approval\`||child?{id:\`awaiting-approval\`}:null;let label={id:\`codex.localTaskRow.needsInput\`};let nav=isCloud?scope.get(router).navigate(path(id)):go(scope,id,host)}var end;
-export{resolutionAtom as r,pendingAtom as pnd,catalogAtom as c,threadAtom as t,projectAtom as p,attentionAtom as a,statusAtom as s,unreadAtom as u};`;
+function row(p){let pending=use(pendingAtom,threadArgs),request=pending?.pendingRequest,resolution=use(resolutionAtom,args),matches=resolution?.requestId===request.userInputRequestId,progress={durationMs:duration};let title=use(titleAtom,{hostId:host,threadId:id})??summary?.title;let att=use(attentionAtom,args),loading=use(statusAtom,args);let read=use(unreadAtom,args),room=read.roomId,shown=loading;(att===\`response\`);let chip=att===\`approval\`||child?{id:\`awaiting-approval\`}:null;let label={id:\`codex.localTaskRow.needsInput\`};let nav=isCloud?scope.get(router).navigate(path(id)):go(scope,id,host)}var end;
+export{titleAtom as ttl,resolutionAtom as r,pendingAtom as pnd,catalogAtom as c,threadAtom as t,projectAtom as p,attentionAtom as a,statusAtom as s,unreadAtom as u};`;
 test('native roles follow semantic call paths, including an imported navigation action',()=>{
-  assert.deepEqual(discoverThreadBindings(fixture),{countdownDuration:{value:60000},resolution:{name:'r'},pending:{name:'pnd'},catalog:{name:'c'},thread:{name:'t'},projects:{name:'p'},attention:{name:'a'},status:{name:'s'},unread:{name:'u'},navigate:{name:'navExport',file:'./shared-new.js'}});
+  assert.deepEqual(discoverThreadBindings(fixture),{countdownDuration:{value:60000},activityTurns:{name:'turnExport',file:'./shared-new.js'},previewText:{name:'previewExport',file:'./shared-new.js'},title:{name:'ttl'},resolution:{name:'r'},pending:{name:'pnd'},catalog:{name:'c'},thread:{name:'t'},projects:{name:'p'},attention:{name:'a'},status:{name:'s'},unread:{name:'u'},navigate:{name:'navExport',file:'./shared-new.js'}});
   assert.throws(()=>discoverThreadBindings(fixture.replace('allSidebarThreadKeys','unknown')),/contract changed/);
 });
 

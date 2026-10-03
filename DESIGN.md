@@ -116,7 +116,7 @@ sidebar规则分状态：
 层级数字是本版本实现值，不是原生CSS设计token；共同约束应集中维护语义角色与挂载点。
 
 - 内容页面位于原生sidebar悬浮层下方；MineCodex当前Page使用20，原生左侧栏40。
-- 通知使用共享 `notification` 挂载角色（当前30），位于内容页面之上、原生sidebar与模态浮层之下；通知业务负责在原生侧栏 peeking 时暂停呈现，不抢占原生导航。
+- 通知使用共享 `notification` 挂载角色（当前45），位于内容页面与常驻二级sidebar（40）之上、原生菜单和模态浮层（通常50）之下，避免 Space 等页面的侧栏遮挡通知；通知业务负责在原生侧栏 peeking 时暂停呈现，不抢占原生导航。
 - 原生Dialog、Dropdown、Popover和Composer Floating父容器通常为50；同数值不保证相同层级，仍受挂载顺序与stacking context影响。
 - 模态层挂在窗口根容器/原生Portal，遮罩覆盖整个窗口；不要嵌在Page的低层级容器内。原生`dialog.showModal()`使用top layer，不能仅用z-index推断。
 - Tooltip使用专用角色与层级；现有MineCodex实现值不是原生标准，不传播为通用token。
