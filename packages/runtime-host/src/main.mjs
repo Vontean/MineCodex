@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import os from "node:os";
-import { writeFile } from "node:fs/promises";
+import { writeFile, rename } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { CodexRuntime, createRuntimeReadyContract } from "./codex-runtime.mjs";
@@ -43,16 +43,19 @@ const updateCodexPidFile = createManagedPidFileWriter(process.env.MINECODEX_CODE
 function writeReadyFile() {
   if (!process.env.MINECODEX_RUNTIME_READY_FILE) return Promise.resolve();
   const filePath = process.env.MINECODEX_RUNTIME_READY_FILE;
-  readyWritePromise = readyWritePromise.catch(() => {}).then(() => writeFile(filePath, `${JSON.stringify(
+  readyWritePromise = readyWritePromise.catch(() => {}).then(async () => {
+    await writeFile(`${filePath}.pending`, `${JSON.stringify(
     createRuntimeReadyContract({
       pid: process.pid,
       features,
-      plugins: featureProcesses.getStatuses({ rendererActive: runtime?.getRendererStatus().active }),
+      plugins: featureProcesses.getStatuses(),
       failures: featureProcesses.getFailures(),
       renderer: runtime?.getRendererStatus(),
       runtimeSessionId: runtime?.runtimeSessionId,
     }),
-  )}\n`, { mode: 0o600 }));
+    )}\n`, { mode: 0o600 });
+    await rename(`${filePath}.pending`,filePath);
+  });
   return readyWritePromise;
 }
 
@@ -71,6 +74,7 @@ featureProcesses = await startFeatureProcesses(features, {
 runtime = new CodexRuntime({
   features,
   featureInstanceId,
+  codexBuild:process.env.MINECODEX_CODEX_BUILD || null,
   profileDir,
   cdpPort,
   onManagedCodexPidChange: updateCodexPidFile,

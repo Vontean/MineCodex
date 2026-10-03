@@ -834,10 +834,9 @@ export async function startFeatureProcesses(features, loggerOrOptions = console,
     getFailures() {
       return records.map(featureFailure).filter(Boolean);
     },
-    getStatuses({ rendererActive = false } = {}) {
+    getStatuses() {
       return records.map((record) => {
-        let state = record.state;
-        if (rendererActive && (state === "configured" || state === "ready")) state = "injected";
+        const state = record.state;
         return {
           featureId: record.featureId,
           state,

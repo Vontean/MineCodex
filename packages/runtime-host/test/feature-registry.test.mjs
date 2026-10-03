@@ -74,7 +74,7 @@ test("keeps service-free model-slider configured until the current renderer is i
 
   assert.equal(supervisor.plugins[0].state, "configured");
   assert.equal(supervisor.getStatuses({ rendererActive: false })[0].state, "configured");
-  assert.equal(supervisor.getStatuses({ rendererActive: true })[0].state, "injected");
+  assert.equal(supervisor.getStatuses({ rendererActive: true })[0].state, "configured");
   await supervisor.stop();
 });
 

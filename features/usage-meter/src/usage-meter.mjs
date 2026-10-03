@@ -158,4 +158,12 @@ const cleanup = () => {
 };
 signal.addEventListener("abort", cleanup, { once: true });
 sync();
+config.registerSelfCheck?.(() => {
+  const snapshot=nativeUsage.read();
+  const available=Boolean(snapshot.available && record?.button.isConnected);
+  return {state:available ? "available" : snapshot.applicable === false ? "not-applicable" : !snapshot.anchorAvailable && snapshot.rail ? "unavailable" : "unknown",reason:available ? null : "quota-data-or-anchor-unavailable",
+    checks:[{name:"account-anchor",available:Boolean(snapshot.avatar)},{name:"account-quota",available:Boolean(snapshot.windows)},{name:"usage-meter-mount",available:Boolean(record?.button.isConnected)}],
+    scopes:[{name:"account",element:snapshot.avatar}]};
+});
+
 return cleanup;

@@ -91,3 +91,9 @@ Model Slider 的领域规则与原生控制器适配归插件，`src/injection-s
 不要把原生相关代码一律移到共享层：Library、模型控制器、账号额度、Sites 路由和数据库属于专有 Adapter。简单 Banner 本身是一个呈现 Adapter，无业务领域，不新增空 domain/backend 目录。宿主的原生标签、surface 接入仍属于注入与生命周期边界；通用视觉与插件业务不回流到宿主。
 
 契约验证覆盖内部事实、当前 React alternate、隐藏输入框、账号切换、订阅清理、bundle 失效重试、主题消失/恢复和九插件源码组装。架构检查同时阻止 domain 重新解析已隔离的外部 schema，以及交互入口重新发现 React/query cache/bundle API。
+
+## 注入自检契约（2026-10-03）
+
+安装证据、后台服务健康、必要原生能力、用户操作结果与构建验收分别记录。功能定义必要锚点和适用场景，UI 主题 Adapter 负责实际作用域的 token 读取，Runtime Host 负责每个文档完成注入后的一次观测、窗口与 session 归属、重载／重连后的重检、失效清理及汇总；不持续轮询锚点和 token。domain 不解释 DOM、CSS 或原始自检协议。
+
+`selfCheck()` 仅确认当前可观测条件，不将缺少场景误报为不兼容，也不将全局脚本安装成功当成逐功能成功。静态源码消费清单用于定位 token，实际可用性必须读取当前计算样式。已知 CSS fallback 的缺失项仍记录；无 fallback 的必需值缺失或作用域映射不一致标为 degraded。用户操作和完整构建验收仍有独立证据边界。

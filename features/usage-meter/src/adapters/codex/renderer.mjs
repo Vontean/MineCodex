@@ -53,7 +53,8 @@ function avatarAnchor(avatar, rail) {
     const windows=currentWindows(context), avatar=findAvatar(rail);
     const available=Boolean(avatar && context.router && windows);
     codex.report("usage-meter",available,available ? null : "account-quota-or-anchor-unavailable");
-    return { rail,avatar,windows,available };
+    return { rail,avatar,windows,available,anchorAvailable:Boolean(avatar && context.router),
+      applicable:context.auth?.isLoading ? null : context.auth ? ["chatgpt","chatgptAuthTokens"].includes(context.auth.authMethod) : null };
   }
   function open(rail) { const {router}=nativeContext(rail); return router?.navigate("/settings/usage?tab=overview",{state:router.state?.location?.state}); }
   signal.addEventListener("abort",()=>unsubscribe?.(),{once:true});

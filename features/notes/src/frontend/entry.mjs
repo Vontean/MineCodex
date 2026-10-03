@@ -1376,6 +1376,16 @@ document.addEventListener(
 window.addEventListener("resize", position, { signal });
 window.addEventListener("scroll", position, { signal, capture: true });
 sync();
+
+config.registerSelfCheck?.(() => {
+  const rail=config.codex.railSlot(ownNavGroup), composer=config.codex.composer(null,{purpose:"insertion"});
+  const checks=[{name:"prompts-navigation-anchor",available:Boolean(rail && navButton?.isConnected)}];
+  if (composer) checks.push({name:"quick-prompts-anchor",available:Boolean(composer.add && button?.isConnected && composerRoot === composer.root)});
+  const available=checks.every(check=>check.available);
+  return {state:available ? "available" : "unavailable",reason:available ? null : "prompts-anchor-unavailable",checks,
+    scopes:[{name:"navigation",element:navButton},{name:"composer",element:composer?.root},{name:"prompts-page",element:page},{name:"prompts-popup",element:pagePopup},{name:"quick-prompts",element:panel}]};
+});
+
 return () => {
   disposed = true;
   observer.disconnect();

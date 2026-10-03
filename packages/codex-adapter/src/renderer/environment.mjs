@@ -65,7 +65,12 @@ export function createCodexEnvironment() {
     const group = [...(scroll?.children ?? [])].find(child => child !== ownGroup && child.classList.contains('flex-col') && child.classList.contains('shrink-0'));
     return node && template && scroll ? { rail:node, template, scroll, group } : null;
   }
-  return { composer, composerSurface, rail, railSlot, currentThreadId:element => composer(element)?.threadId ?? null,
+  function route() {
+    const node = rail();
+    const scope = node && props(node, value => Boolean((value.router ?? value.value?.router)?.state?.location));
+    return (scope?.router ?? scope?.value?.router)?.state?.location?.pathname ?? null;
+  }
+  return { composer, composerSurface, rail, railSlot, route, currentThreadId:element => composer(element)?.threadId ?? null,
     // 仅供 UI／插件 native Adapter 使用，交互层不读取 React props。
     currentFiber, props, report, diagnostics:() => [...capabilities.values()].map(item => ({...item})) };
 }

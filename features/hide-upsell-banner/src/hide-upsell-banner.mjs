@@ -83,6 +83,8 @@ observer.observe(document.documentElement, {
   characterData: true,
 });
 
+config.registerSelfCheck?.(() => ({state:hiddenBanners.size ? "available" : "not-applicable",reason:hiddenBanners.size ? null : "no-usage-banner",
+  checks:[...hiddenBanners.keys()].filter(node=>node.isConnected).map(()=>({name:"usage-banner-hidden",available:true}))}));
 return () => {
   disposed = true;
   observer.disconnect();

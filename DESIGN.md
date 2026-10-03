@@ -179,7 +179,7 @@ Codex 26.930.21537（2026-10-02 原生源码与隔离窗口）：Library 选中�
 
 内联使用 `currentColor` 跟随所在表面的语义文字色；外链明暗版本分别使用 `#0d0d0d` / `#fafafa`，透明背景。favicon 在 SVG 内通过 `prefers-color-scheme` 适配系统主题，Dashboard 标题通过 CSS mask 跟随页面 `--ink`。明暗版本、favicon 和 README 标识由 `npm run build:icons` 从同一源文件生成，修改几何后运行该命令。
 
-macOS 后台服务 App 在明确的原生资源修订 1.0.1 中接入实心图标，采用浅色圆角底板，保证在明暗系统表面均可辨认。ICNS 来自同一项目几何。安装器先注销旧后台项，再验证并替换 bundle，最后重新注册；不能直接修改已安装的签名资源。后续普通 JavaScript 发布保留此原生 bundle 的签名身份，升级流程与验收边界见 `packages/cli/native/README.md`。
+macOS 后台服务 App 在明确的原生资源修订 1.0.1 中接入实心图标，采用浅色圆角底板，保证在明暗系统表面均可辨认。ICNS 来自同一项目几何。安装器先注销旧后台项，再验证并替换 bundle，最后重新注册；不能直接修改已安装的签名资源。后续普通 JavaScript 发布保留此原生 bundle 的签名身份，升级流程与验收边界见 `packages/cli/native/DEVELOPMENT.md`。
 
 ### 账号菜单中的 MineCodex 入口
 
@@ -190,3 +190,9 @@ Codex 26.930.21537（2026-10-03 安装包源码与隔离 DOM）：`profile-dropd
 右侧箭头的两段几何合并在单个 SVG path 中一次描边，避免 `currentColor` 自带 alpha 时，两个独立 path 在交叉点重复叠色。保留原资源的形状与端点规则；24px viewBox 中 stroke-width 为 1.575，在 16px 显示时实际线宽 1.05px，与原生 Help 箭头的线条粗细对齐。
 
 入口随账号菜单重建恢复且只出现一次；补齐 Settings → MineCodex → Help 的上下键导航与 Enter/Space，保留原生 Escape 关闭行为。点击经已认证 Host bridge 调用 `mcx gui`；成功后关闭菜单，失败时显示实际错误。原生 UI 手动验收本次因 Computer Use 拒绝操作应用而未完成；隔离 DOM 契约页验证了位置、明暗颜色、点击、键盘、重建去重与清理。
+
+## 更新后的 token 自检
+
+自检按实际控件所在作用域读取 token 的原生名称与已知别名，记录来源、计算值和对应 `--mcx-*` 值，核对映射是否与当前作用域一致。原生值消失时不能因旧项目变量仍存在而判定通过。根节点全量诊断只是观察，不能代替控件作用域检查。
+
+功能的检查名单由当前源码／样式中消费的项目 token 派生。有明确 fallback 的变量缺失可继续使用既有默认值，但必须在诊断中标记；必需变量缺失或作用域映射不一致显示外观适配降级。自检不擅自换主题、改 token 值或修改原生布局。

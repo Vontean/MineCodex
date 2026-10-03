@@ -149,3 +149,7 @@ Delete 在单张 More 与批量动作条共用一条隐藏流程，复用原生 
 `adapters/codex/native-image-source.mjs` 拥有 React 呈现、上下文、原生动作与 UI 生命周期。异步结果进入对话框、收藏状态或原生修改动作前核对挂载实例及账号；成功上传的云端身份仍须登记，不能因页面关闭丢失已完成上传。普通 workflow 只接收／返回 `libraryFileId` 与 `created`，原生文件节点和 MoveDialog entries 由 Adapter 构建。
 
 `library-prompt-source.mjs` 只序列化显式依赖；`library-prompt-page.mjs` 直接安装本地来源并组合清理，不通过普通语句的文本替换接线。清理为幂等操作，手动卸载与 signal abort 不重复释放。
+
+## 自检适用场景
+
+2026-10-03 在 Codex 26.930.21537 的独立 profile 通过原生 Images 按钮确认：当前路由为 `/space/files?tab=images`，来源标签的 `variant:"browse"` 与 `generated/uploaded` 契约保持有效。适用场景由 Images Adapter 解释，不按功能名称猜 `/space/images`。未在图库但存在可识别图片 viewer 时，单独检查提示词入口；无图库或图片 viewer 时不判定版本不兼容。

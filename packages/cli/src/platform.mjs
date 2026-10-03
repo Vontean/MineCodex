@@ -377,6 +377,14 @@ export class MacPlatformAdapter {
     return this.codexInstallation;
   }
 
+  async codexBuild() {
+    const installation=await this.codex();
+    try {
+      const {stdout}=await this.execFile("/usr/bin/plutil",["-extract","CFBundleShortVersionString","raw","-o","-",path.join(installation.appPath,"Contents","Info.plist")]);
+      return String(stdout).trim() || null;
+    } catch { return null; }
+  }
+
   async readCodexInstallationFingerprint(installation) {
     if (typeof this.fileSystem.stat !== "function") return null;
     const paths = [
@@ -837,6 +845,8 @@ export class WindowsPlatformAdapter {
     }
     return this.codexInstallation;
   }
+
+  async codexBuild() { return (await this.codex()).version ?? null; }
 
   async readCodexInstallationFingerprint(installation) {
     if (typeof this.fileSystem.stat !== "function") return null;

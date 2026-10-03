@@ -129,7 +129,7 @@ async function featureStatuses(paths, runtimeManager, locale, runtimeState = nul
     const plugin = ready.plugins.find((candidate) => candidate.featureId === feature.id) ?? null;
     const pluginState = plugin?.state ?? null;
     const applied = appliedFeatures.includes(feature.id)
-      || ["configured", "launching", "ready", "injected"].includes(pluginState);
+      || ["configured", "launching", "ready", "injected", "checking", "partial", "degraded", "unavailable", "not-applicable"].includes(pluginState);
     const injected = Boolean(
       pluginState === "injected" && rendererCurrent,
     );
@@ -152,6 +152,8 @@ async function featureStatuses(paths, runtimeManager, locale, runtimeState = nul
       state = "failed";
     } else if (config.features[feature.id] !== applied) {
       state = "restart-required";
+    } else if (["checking","partial","degraded","unavailable","not-applicable"].includes(pluginState)) {
+      state = rendererCurrent ? pluginState : "checking";
     } else if (pluginState === "configured" || pluginState === "launching" || pluginState === "ready") {
       state = "launching";
     } else if (injected && healthy) {
@@ -178,6 +180,7 @@ async function featureStatuses(paths, runtimeManager, locale, runtimeState = nul
       injected,
       healthy,
       state,
+      targets: plugin?.targets ?? [],
       health: plugin?.health ?? null,
       failure,
     };

@@ -19,6 +19,12 @@ import {
 import { createManagedPidFileWriter } from "../src/pid-file.mjs";
 import { HOST_BINDING_NAME } from "../src/codex-injection.mjs";
 
+function rendererTransportStatus(runtime) {
+  const { targets, ...transport } = runtime.getRendererStatus();
+  assert.ok(Array.isArray(targets));
+  return transport;
+}
+
 test("authenticates immediate status requests, coalesces reads, and invalidates timed-out connections", async () => {
   const runtime = new CodexRuntime({ features: [{ id: "session-status" }], profileDir: "/tmp/mcx-status-request", logger: { warn() {} } });
   const threadId = "11111111-2222-4333-8444-555555555555";
@@ -2160,7 +2166,7 @@ test("starts idle without a foreground application launcher", async () => {
 
   await runtime.start();
   assert.equal(spawnCount, 0);
-  assert.equal(runtime.getRendererStatus().active, false);
+  assert.equal(rendererTransportStatus(runtime).active, false);
   await runtime.stop();
 });
 
@@ -2328,11 +2334,11 @@ test("does not relaunch Codex when an attached CDP endpoint exits", async () => 
     assert.deepEqual(discoveryUrls, [`ws://localhost:${cdpPort}/devtools/browser/existing`]);
 
     cdpAvailable = false;
-    await waitFor(() => runtime.getRendererStatus().active === false, 500);
+    await waitFor(() => rendererTransportStatus(runtime).active === false, 500);
     await new Promise((resolve) => setTimeout(resolve, 30));
     assert.equal(spawnCount, 0);
     assert.equal(runtime.appPid, null);
-    assert.equal(runtime.getRendererStatus().active, false);
+    assert.equal(rendererTransportStatus(runtime).active, false);
     assert.deepEqual(discoveryUrls, [`ws://localhost:${cdpPort}/devtools/browser/existing`]);
   } finally {
     await runtime.stop();
@@ -2383,7 +2389,7 @@ test("reconciles an available CDP without relaunching during a target-list outag
     await waitFor(() => targetListCalls >= 2, 500);
     await new Promise((resolve) => setTimeout(resolve, 50));
     assert.equal(spawnCount, 0);
-    assert.equal(runtime.getRendererStatus().active, false);
+    assert.equal(rendererTransportStatus(runtime).active, false);
     targetListHealthy = true;
   } finally {
     await runtime.stop();
@@ -2426,7 +2432,7 @@ test("reconnects a closed renderer and publishes the first turn before token usa
     assert.equal(runtime.clients.get("current"), clients[1]);
     assert.equal(updates.length, 2);
     assert.match(updates[1], /"turns":1,"totalTokens":null/);
-    assert.equal(runtime.getRendererStatus().healthy, true);
+    assert.equal(rendererTransportStatus(runtime).healthy, true);
   } finally {
     await runtime.stop();
   }
@@ -2477,13 +2483,13 @@ test("replaces the current page runtime without reloading the Codex page", async
   });
 
   await runtime.refreshTargets();
-  assert.equal(runtime.getRendererStatus().active, true);
+  assert.equal(rendererTransportStatus(runtime).active, true);
   assert.equal(calls.includes("Page.reload"), false);
   assert.match(injectedSource, /__mineCodexCspBootstrapVersion/);
   assert.match(injectedSource, /"sessionId":"runtime-session-current"/);
   targets = [{ id: "target-current", type: "page", url: "about:blank", webSocketDebuggerUrl: "ws://target" }];
   await runtime.refreshTargets();
-  assert.deepEqual(runtime.getRendererStatus(), {
+  assert.deepEqual(rendererTransportStatus(runtime), {
     discovered: false,
     discoveredTargets: 0,
     injectedTargets: 0,
@@ -2494,7 +2500,7 @@ test("replaces the current page runtime without reloading the Codex page", async
   });
   targets = [];
   await runtime.refreshTargets();
-  assert.deepEqual(runtime.getRendererStatus(), {
+  assert.deepEqual(rendererTransportStatus(runtime), {
     discovered: false,
     discoveredTargets: 0,
     injectedTargets: 0,
@@ -2562,7 +2568,7 @@ test("bootstraps the current Codex document without reloading it", async () => {
 
   await runtime.refreshTargets();
 
-  assert.equal(runtime.getRendererStatus().active, true);
+  assert.equal(rendererTransportStatus(runtime).active, true);
   assert.equal(calls.includes("Page.reload"), false);
   assert.equal(calls.includes("waitFor:Page.loadEventFired"), false);
   assert.ok(calls.indexOf("Page.setBypassCSP") < calls.indexOf("Page.addScriptToEvaluateOnNewDocument"));
@@ -2619,7 +2625,7 @@ test("isolates renderer injection failures and retries only the failed target", 
   assert.equal(runtime.injectedTargets.has("target-a"), true);
   assert.equal(runtime.injectedTargets.has("target-b"), false);
   assert.deepEqual(closed, ["target-b"]);
-  assert.deepEqual(runtime.getRendererStatus(), {
+  assert.deepEqual(rendererTransportStatus(runtime), {
     discovered: true,
     discoveredTargets: 2,
     injectedTargets: 1,
@@ -2639,8 +2645,8 @@ test("isolates renderer injection failures and retries only the failed target", 
   await runtime.refreshTargets();
   assert.equal(runtime.injectedTargets.size, 2);
   assert.equal(closed.includes("target-a"), false);
-  assert.deepEqual(runtime.getRendererStatus().targetFailures, []);
-  assert.equal(runtime.getRendererStatus().healthy, true);
+  assert.deepEqual(rendererTransportStatus(runtime).targetFailures, []);
+  assert.equal(rendererTransportStatus(runtime).healthy, true);
 });
 
 test("clears injected target state when the current target list disappears", async () => {
@@ -2667,7 +2673,7 @@ test("clears injected target state when the current target list disappears", asy
   runtime.bindingTokens.set("target-stale", "binding-stale");
 
   await assert.rejects(runtime.refreshTargets(), /CDP target list unavailable/);
-  assert.deepEqual(runtime.getRendererStatus(), {
+  assert.deepEqual(rendererTransportStatus(runtime), {
     discovered: false,
     discoveredTargets: 0,
     injectedTargets: 0,
@@ -2713,7 +2719,7 @@ test("clears stale renderer state for non-OK and invalid target-list responses",
     });
 
     await assert.rejects(runtime.refreshTargets(), scenario.error);
-    assert.deepEqual(runtime.getRendererStatus(), {
+    assert.deepEqual(rendererTransportStatus(runtime), {
       discovered: false,
       discoveredTargets: 0,
       injectedTargets: 0,
@@ -2777,7 +2783,7 @@ test("reports renderer absence as inactive and reconciles service-free plugins o
     features: [],
     profileDir: "/tmp/codex-runtime-status-profile",
   });
-  assert.deepEqual(runtime.getRendererStatus(), {
+  assert.deepEqual(rendererTransportStatus(runtime), {
     discovered: false,
     discoveredTargets: 0,
     injectedTargets: 0,
@@ -2811,8 +2817,8 @@ test("reports renderer absence as inactive and reconciles service-free plugins o
     },
     runtimeSessionId: "runtime-session-contract",
   });
-  assert.equal(contract.plugins.find((plugin) => plugin.featureId === "model-slider").state, "injected");
-  assert.equal(contract.plugins.find((plugin) => plugin.featureId === "notes").state, "injected");
+  assert.equal(contract.plugins.find((plugin) => plugin.featureId === "model-slider").state, "checking");
+  assert.equal(contract.plugins.find((plugin) => plugin.featureId === "notes").state, "checking");
   assert.equal(contract.plugins.find((plugin) => plugin.featureId === "images").state, "failed");
   assert.equal(contract.renderer.active, true);
   assert.equal(contract.renderer.healthy, false);

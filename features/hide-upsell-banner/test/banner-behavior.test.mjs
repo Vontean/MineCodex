@@ -22,7 +22,7 @@ function fixture(specs) {
   const nodes=specs.map(s=>new Element(s)),pending=[];let notify,disconnected=false;
   const document={documentElement:{},querySelectorAll:s=>s==='aside'?nodes:nodes.filter(n=>n.hasAttribute('data-codex-upsell-banner-hidden'))};
   class Observer {constructor(fn){notify=fn;}observe(){}disconnect(){disconnected=true;}}
-  const cleanup=new Function('signal','window','document','MutationObserver','queueMicrotask',source)(new AbortController().signal,{HTMLElement:Element},document,Observer,fn=>pending.push(fn));
+  const cleanup=new Function('signal','window','document','MutationObserver','queueMicrotask','config',source)(new AbortController().signal,{HTMLElement:Element},document,Observer,fn=>pending.push(fn),{});
   const flush=()=>{while(pending.length)pending.shift()();};
   return {nodes,cleanup,flush,mutate:()=>{notify([]);flush();},queue:()=>notify([]),disconnected:()=>disconnected};
 }

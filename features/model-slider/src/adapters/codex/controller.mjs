@@ -89,5 +89,18 @@ function invokeNativeMenuItemSelect(item) {
     codex.report("fast-icons",Boolean(active && inactive),active && inactive ? null : "icon-resource-contract-changed");
     return {active:{path:active,viewBox:"0 0 24 24"},inactive:{path:inactive,viewBox:"0 0 20 20"}};
   }
-return {fastIcons,trigger:nativeComposerTrigger,read:nativeComposerModelController,descriptor:nativeModelDescriptorForItem,setOpen:setReactControlledMenuOpen,selectItem:invokeNativeMenuItemSelect};
+function selfCheck() {
+  const trigger=nativeComposerTrigger();
+  if (!trigger) {
+    const path=codex.route();
+    const applicable=Boolean(codex.composer(null,{threadOnly:false})) || path?.startsWith("/local/");
+    return {state:applicable ? "unavailable" : path ? "not-applicable" : "unknown",reason:applicable ? "model-trigger-unavailable" : "no-task-composer",checks:[{name:"model-trigger",available:false}]};
+  }
+  const generic=codex.props(trigger,p=>!!p.selectedModel && typeof p.onModelChange === "function",40);
+  if (generic) return {state:"not-applicable",reason:"chat-model-picker"};
+  const available=Boolean(nativeComposerModelController());
+  return {state:available ? "available" : "unavailable",reason:available ? null : "model-controller-unavailable",
+    scopes:[{name:"model-trigger",element:trigger}],checks:[{name:"model-trigger",available:true},{name:"model-controller",available}]};
+}
+return {selfCheck,fastIcons,trigger:nativeComposerTrigger,read:nativeComposerModelController,descriptor:nativeModelDescriptorForItem,setOpen:setReactControlledMenuOpen,selectItem:invokeNativeMenuItemSelect};
 }

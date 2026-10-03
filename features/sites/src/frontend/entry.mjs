@@ -413,6 +413,14 @@ const observer = new MutationObserver(records => { if (records.some(r => !r.targ
 observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["aria-pressed"] });
 document.addEventListener("input", schedule); document.addEventListener("click", onClick, true); document.addEventListener("keydown", onKey, true); document.addEventListener("pointerdown", onPointer, true);
 refresh().catch(e => notice(e.message)); schedule();
+config.registerSelfCheck?.(() => {
+  const path=nativeSites.path();
+  if (!path) return {state:"unknown",reason:"navigation-context-unavailable"};
+  if (path !== "/space/sites") return {state:"not-applicable",reason:"outside-sites-page"};
+  const page=nativeSites.pageInfo(),available=Boolean(page?.create && addButton?.isConnected);
+  return {state:available ? "available" : "unavailable",reason:available ? null : "sites-anchor-unavailable",
+    checks:[{name:"sites-page",available:Boolean(page)},{name:"sites-create-anchor",available}],scopes:[{name:"sites-page",element:page?.page},{name:"sites-dialog",element:dialog},{name:"sites-menu",element:menu}]};
+});
 return () => {
   disposed = true; pendingLayout = null; clearTimeout(timer); observer.disconnect();
   document.removeEventListener("input", schedule); document.removeEventListener("click", onClick, true); document.removeEventListener("keydown", onKey, true); document.removeEventListener("pointerdown", onPointer, true);

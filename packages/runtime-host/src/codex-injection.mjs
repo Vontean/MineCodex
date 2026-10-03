@@ -1,3 +1,4 @@
+import { createRendererSelfCheck, tokenRequirements } from "./renderer-self-check.mjs";
 import { readFileSync } from "node:fs";
 import { createCodexEnvironment } from "../../codex-adapter/src/renderer/environment.mjs";
 // 注入源生成：createInjectionSource 产出注入到 Codex Renderer 的自包含脚本字符串。
@@ -9,7 +10,7 @@ import { createUIInstallerSource } from "../../ui/src/install.mjs";
 import { randomBytes } from "node:crypto";
 import { CODEX_THEME_TOKENS, CODEX_THEME_TOKEN_ALIASES, MINECODEX_THEME_BINDINGS } from "../../ui/src/native/tokens.mjs";
 
-export const RUNTIME_VERSION = 108;
+export const RUNTIME_VERSION = 109;
 const PROJECT_ICON = Object.fromEntries([16, 20].map(size => [size,
   readFileSync(new URL(`../../ui/assets/minecodex-menu-${size}.svg`, import.meta.url), "utf8"),
 ]));
@@ -127,14 +128,14 @@ export function createInjectionSource(features, {
   bindingToken = "test-binding-token",
   runtimeSessionId = randomBytes(16).toString("hex"),
 } = {}) {
-  function install(config, installUI, installModelSliderFeature, createCodexEnvironment) {
+  function install(config, installUI, installModelSliderFeature, createCodexEnvironment, createRendererSelfCheck) {
     if (window.top !== window) return;
     if (!document.documentElement) {
       // The document bootstrap runs before the root element exists. Defer the
       // whole install until the DOM is ready instead of crashing on a null
       // documentElement (which previously left the runtime permanently absent
       // after a renderer reload).
-      document.addEventListener("DOMContentLoaded", () => install(config, installUI, installModelSliderFeature, createCodexEnvironment), { once: true });
+      document.addEventListener("DOMContentLoaded", () => install(config, installUI, installModelSliderFeature, createCodexEnvironment, createRendererSelfCheck), { once: true });
       return;
     }
     const currentRuntime = window.__codexPersonalRuntime;
@@ -211,6 +212,7 @@ export function createInjectionSource(features, {
     }));
     featureUI.accountMenuEntry?.({ label:"MineCodex", icon:config.projectIcon, externalIcon:config.externalIcon,
       onOpen:() => requestPageHostAction("minecodex", "open-control-panel", {}) });
+    const selfCheck = createRendererSelfCheck(features, config.sessionId, featureUI.theme);
     const featureById = new Map(features.map((feature) => [feature.id, feature]));
     const sidebarFeatures = features.filter((feature) => feature.entry?.kind === "sidebar");
     const toolbarFeatures = features.filter((feature) => feature.entry?.kind === "conversation-toolbar");
@@ -248,9 +250,19 @@ export function createInjectionSource(features, {
     let nativeTabCapabilityPromise = null;
     let nativeTabCapability = null;
     let nativeTabCapabilityError = null;
-    const modelSlider = installModelSliderFeature(lifetime.signal, {
-      feature: modelSelectorFeature, codex, ui: featureUI, createIcon: createMarkupIcon, requestRefresh: queueEnsure, locale,
-    });
+    let modelSlider = {ensure() {}, dispose() {}};
+    try {
+      modelSlider = installModelSliderFeature(lifetime.signal, {
+        feature: modelSelectorFeature, codex, ui: featureUI, createIcon: createMarkupIcon, requestRefresh: queueEnsure, locale,
+      });
+      if (modelSelectorFeature) {
+        selfCheck.register(modelSelectorFeature.id, () => modelSlider.selfCheck());
+        selfCheck.installed(modelSelectorFeature.id);
+      }
+    } catch (error) {
+      if (modelSelectorFeature) selfCheck.failed(modelSelectorFeature.id);
+      console.warn("[codex-personal] model selector installation failed", error);
+    }
 
     // ========================================================================
     // page-script 特征安装 — 执行各 feature 声明的页面脚本并登记清理
@@ -271,6 +283,7 @@ export function createInjectionSource(features, {
         const pageConfig = feature.pageScript.config ??= {};
         pageConfig.ui = featureUI;
         pageConfig.codex = codex;
+        pageConfig.registerSelfCheck = probe => selfCheck.register(feature.id, probe);
         pageConfig.requestHostAction = (action, payload) => requestPageHostAction(feature.id, action, payload);
         const cleanup = installer(
           lifetime.signal,
@@ -280,7 +293,9 @@ export function createInjectionSource(features, {
           pageConfig,
         );
         if (typeof cleanup === "function") pageScriptCleanups.push(cleanup);
+        selfCheck.installed(feature.id);
       } catch (error) {
+        selfCheck.failed(feature.id);
         console.warn(`[codex-personal] page-script feature failed: ${feature.id}`, error);
       }
     }
@@ -2369,6 +2384,7 @@ export function createInjectionSource(features, {
       sessionId: config.sessionId,
       updateHostBinding,
       nativeCapabilities: () => codex.diagnostics(),
+      selfCheck: () => ({...selfCheck.snapshot(),capabilities:codex.diagnostics()}),
       ensure: queueEnsure,
       show: showPageSurface,
       hide: () => {
@@ -2422,6 +2438,7 @@ export function createInjectionSource(features, {
   }
 
   const runtimeFeatures = features.map((feature) => ({
+    requiredTokens:tokenRequirements(`${feature.pageScript?.source ?? ""} ${Object.values(feature.pageScript?.resources ?? {}).filter(value => typeof value === "string").join(" ")} ${feature.modelSelector ? createModelSliderInstallerSource() : ""}`,MINECODEX_THEME_BINDINGS),
     id: feature.id,
     label: feature.label,
     labels: feature.labels ?? null,
@@ -2457,7 +2474,7 @@ export function createInjectionSource(features, {
     themeTokenAliases: CODEX_THEME_TOKEN_ALIASES,
     themeBindings: MINECODEX_THEME_BINDINGS,
     features: runtimeFeatures,
-  })}, ${createUIInstallerSource()}, ${createModelSliderInstallerSource()}, ${createCodexEnvironment.toString()})`;
+  })}, ${createUIInstallerSource()}, ${createModelSliderInstallerSource()}, ${createCodexEnvironment.toString()}, ${createRendererSelfCheck.toString()})`;
 }
 
 export function createRuntimeReadyContract({
@@ -2478,15 +2495,28 @@ export function createRuntimeReadyContract({
     features: features.map((feature) => typeof feature === "string" ? feature : feature.id),
     failures,
     runtimeSessionId,
-    plugins: plugins.map((plugin) => ({
-      featureId: plugin.featureId,
-      state: active && (plugin.state === "configured" || plugin.state === "ready")
-        ? "injected"
-        : plugin.state,
-      owned: Boolean(plugin.owned),
-      health: plugin.health ?? null,
-      failure: plugin.failure ?? null,
-    })),
+    plugins: plugins.map(plugin => {
+      const targets=(renderer.targets ?? []).map(target => {
+        const result=target.sessionId === runtimeSessionId && active
+          ? target.plugins?.find(result => result.featureId === plugin.featureId) : null;
+        return {targetId:target.targetId,checkedAt:target.checkedAt ?? null,
+          ...(result ?? {state:"unknown",reason:target.reason ?? "self-check-pending",installation:"pending",checks:[],tokens:[]})};
+      });
+      const states=targets.map(target=>target.state);
+      // 未观测的窗口也参与汇总，不能凭一项成功宣称全部窗口可用。
+      const missing=Math.max(0,discoveredTargets-targets.length);
+      let state=plugin.state;
+      const definition=features.find(feature=>typeof feature === "object" && feature.id === plugin.featureId);
+      if (definition?.healthUrl && state === "configured") state="launching";
+      else if (active && ["configured","ready","injected"].includes(state)) {
+        if (states.includes("available")) state=missing || states.some(value=>!["available","not-applicable"].includes(value)) ? "partial" : "injected";
+        else if (states.includes("degraded")) state="degraded";
+        else if (states.some(value=>["failed","unavailable"].includes(value))) state="unavailable";
+        else if (!missing && states.length && states.every(value=>value === "not-applicable")) state="not-applicable";
+        else state="checking";
+      } else if (state === "injected") state="checking";
+      return {featureId:plugin.featureId,state,serviceState:plugin.state,owned:Boolean(plugin.owned),health:plugin.health ?? null,failure:plugin.failure ?? null,targets};
+    }),
     renderer: {
       discovered,
       discoveredTargets,
@@ -2495,6 +2525,9 @@ export function createRuntimeReadyContract({
       healthy: active && targetFailures.length === 0 && injectedTargets === discoveredTargets,
       targetFailures,
       runtimeSessionId: renderer.runtimeSessionId ?? runtimeSessionId,
+      targets:renderer.targets ?? [],
+      codexBuild:renderer.codexBuild ?? null,
+      buildSource:renderer.buildSource ?? null,
     },
   };
 }

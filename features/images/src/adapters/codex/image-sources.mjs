@@ -3,7 +3,14 @@ export function createImageSourcesAdapter(codex) {
     && props.tabs?.some(item => item.key === "generated")
     && props.tabs?.some(item => item.key === "uploaded");
 
-  return {read() {
+  function applicability() {
+    const props=codex.props(codex.rail(),value=>Boolean((value.router ?? value.value?.router)?.state?.location));
+    const location=(props?.router ?? props?.value?.router)?.state?.location;
+    if (!location) return "unknown";
+    return location.pathname === "/space/files" && new URLSearchParams(location.search).get("tab") === "images"
+      ? "applicable" : "not-applicable";
+  }
+  return {applicability,read() {
     const tabs = [...document.querySelectorAll('[role="tablist"]')].find(node =>
       !node.closest("[data-minecodex-image-navigation]")
       && codex.props(node, isImageNavigation));

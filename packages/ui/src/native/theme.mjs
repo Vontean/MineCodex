@@ -31,5 +31,20 @@ export function createNativeThemeAdapter(themeTokenNames,themeTokenAliases,theme
     }
 
   function dispose() {for (const [name,value] of previousThemeBindings) { if(value) document.documentElement.style.setProperty(name,value); else document.documentElement.style.removeProperty(name); } }
-  return {read,dispose};
+  function checkTokens(element, names) {
+    const style = getComputedStyle(element);
+    return names.map(name => {
+      const candidates = [name,...(themeTokenAliases[name] ?? [])].flatMap(candidate => candidate.startsWith("--color-")
+        ? [candidate,candidate.replace("--color-","--app-color-")] : [candidate]);
+      const source = candidates.find(candidate => style.getPropertyValue(candidate).trim());
+      const value = source ? style.getPropertyValue(source).trim() : null;
+      const projectName = themeBindings[name];
+      const projectValue = projectName ? style.getPropertyValue(projectName).trim() || null : null;
+      return {name,source:source ?? null,value,available:Boolean(value),
+        projectName:projectName ?? null,projectValue,scopeMatches:!projectName || projectValue === value,
+        reason:!value ? "native-token-unavailable" : projectName && !projectValue ? "project-token-unavailable"
+          : projectName && projectValue !== value ? "scope-mapping-mismatch" : null};
+    });
+  }
+  return {read,dispose,checkTokens,diagnostics:() => checkTokens(document.documentElement,themeTokenNames)};
 }

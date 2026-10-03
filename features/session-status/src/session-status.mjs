@@ -612,6 +612,17 @@ instanceObserver.observe(document.documentElement, {
   attributeFilter:["class", "style", "hidden", "inert", "aria-hidden", "data-composer-placement"],
 });
 syncInstances();
+config.registerSelfCheck?.(() => {
+  const surfaces=[...document.querySelectorAll('[data-codex-composer-root]')].map(root=>config.codex.composerSurface(root)).filter(Boolean);
+  if (!surfaces.length) {
+    const path=config.codex.route();
+    return {state:path?.startsWith("/local/") ? "unavailable" : path ? "not-applicable" : "unknown",reason:"no-thread-surface"};
+  }
+  const identity=surfaces.every(surface=>!!surface.threadId),mounted=surfaces.every(surface=>instances.has(surface.root));
+  const available=identity && mounted;
+  return {state:available ? "available" : "unavailable",reason:available ? null : "thread-identity-or-status-anchor-unavailable",
+    checks:[{name:"thread-identity",available:identity},{name:"session-status-mount",available:mounted}],scopes:surfaces.map((surface,index)=>({name:`composer-${index+1}`,element:surface.root}))};
+});
 return () => {
   instanceObserver.disconnect();
   for (const instance of instances.values()) instance.dispose();

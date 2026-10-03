@@ -2173,5 +2173,8 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
     void loadNativeFastIconFromBundle();
   }
 
-  return { ensure: ensureModelSelector, dispose: restoreModelSelectorEnhancements };
+  return { selfCheck: () => {
+    const result=nativeModel.selfCheck();
+    return {...result,scopes:[...(result.scopes ?? []),{name:"model-menu",element:modelSelectorControllerMenu?.menu}]};
+  }, ensure: ensureModelSelector, dispose: restoreModelSelectorEnhancements };
 }

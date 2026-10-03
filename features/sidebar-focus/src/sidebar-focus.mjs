@@ -86,4 +86,12 @@ observer.observe(document.documentElement, { subtree:true, childList:true, attri
   "data-app-action-sidebar-section-collapsed", "data-above-composer-conversation-id", "lang"
 ] });
 reconcile();
+config.registerSelfCheck?.(() => {
+  const sidebar=document.querySelector("#app-shell-sidebar");
+  if (!sidebar) return {state:"unknown",reason:"sidebar-anchor-unavailable"};
+  if (!sidebar.checkVisibility({visibilityProperty:true})) return {state:"not-applicable",reason:"sidebar-hidden"};
+  const available=Boolean(button?.isConnected);
+  return {state:available ? "available" : "unavailable",reason:available ? null : "sidebar-focus-anchor-unavailable",
+    checks:[{name:"sidebar-focus-anchor",available}],scopes:[{name:"sidebar",element:sidebar}]};
+});
 return () => { disposed = true; clearTimeout(timer); observer.disconnect(); button?.remove(); };

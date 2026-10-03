@@ -8,6 +8,11 @@ export const RUNTIME_PLUGIN_STATES = Object.freeze([
   "launching",
   "ready",
   "injected",
+  "checking",
+  "partial",
+  "degraded",
+  "unavailable",
+  "not-applicable",
   "failed",
   "stopped",
 ]);
@@ -48,7 +53,7 @@ export function normalizeRuntimeReady(ready = {}) {
     : [];
   const features = [...new Set([
     ...legacyFeatures,
-    ...plugins.filter(({ state }) => ["configured", "launching", "ready", "injected"].includes(state)).map(({ featureId }) => featureId),
+    ...plugins.filter(({ state }) => ["configured", "launching", "ready", "injected", "checking", "partial", "degraded", "unavailable", "not-applicable"].includes(state)).map(({ featureId }) => featureId),
   ])];
   const renderer = ready.renderer && typeof ready.renderer === "object"
     ? {
@@ -78,12 +83,13 @@ function rendererUnavailableReady(ready) {
   const normalized = normalizeRuntimeReady(ready);
   return normalizeRuntimeReady({
     ...normalized,
-    plugins: normalized.plugins.map((plugin) => plugin.state === "injected"
-      ? { ...plugin, state: "ready", health: null }
+    plugins: normalized.plugins.map((plugin) => ["injected","partial","degraded","not-applicable","unavailable","checking"].includes(plugin.state)
+      ? { ...plugin, state: "checking", health: null, targets:[] }
       : plugin),
     renderer: {
       ...(normalized.renderer ?? {}),
       discovered: false,
+      targets:[],
       injectedTargets: 0,
       active: false,
       runtimeSessionId: normalized.runtimeSessionId,
@@ -170,6 +176,7 @@ export class RuntimeManager {
     const config = await readConfig(this.paths.configPath);
     const features = enabledFeatureIds(config);
     if (typeof this.platform?.codex === "function") await this.platform.codex();
+    const codexBuild=await this.platform?.codexBuild?.();
     await mkdir(this.paths.supportDir, { recursive: true, mode: 0o700 });
     await unlink(this.paths.runtimeReadyPath).catch((error) => {
       if (error.code !== "ENOENT") throw error;
@@ -179,6 +186,7 @@ export class RuntimeManager {
       CODEX_FEATURES_ROOT: this.paths.featuresRoot,
       CODEX_RUNTIME_PROFILE_DIR: this.paths.profileDir,
       CODEX_RUNTIME_CDP_PORT: String(this.cdpPort),
+      MINECODEX_CODEX_BUILD: codexBuild ?? "",
       CODEX_IMAGE_HOST_DATA_DIR: this.paths.imagesDataDir,
       CODEX_NOTES_DATA_DIR: this.paths.notesDataDir,
       MINECODEX_ENABLED_FEATURES: features.join(","),

@@ -262,6 +262,15 @@ localeObserver.observe(document.documentElement, { attributes:true, attributeFil
 localImageSource = installLocalImageSource(config, signal, createImageSourcesAdapter(config.codex), createNativeImageSource(config.codex, {
   requestHostAction:config.requestHostAction, libraryApi, createCloudImageActions, promptGlyphSource, signal,
 }));
+config.registerSelfCheck?.(() => {
+  const source=localImageSource.selfCheck();
+  if (source.state !== "not-applicable") return source;
+  const header=document.querySelector('[data-testid="viewer-header"]');
+  if (!header || !libraryImage(header)) return source;
+  const available=Boolean(mounted?.button.isConnected);
+  return {state:available ? "available" : "unknown",reason:available ? null : "image-viewer-mount-pending",
+    checks:[{name:"image-viewer-anchor",available:true},{name:"prompt-control",available}],scopes:[{name:"image-viewer",element:header}]};
+});
 const observer = new MutationObserver(() => {
   if (scheduled) return;
   scheduled = true;

@@ -188,6 +188,13 @@ export function installLocalImageSource(config, signal, sources, native) {
   signal.addEventListener("abort", cleanup, {once:true});
   return {
     cleanup,
+    selfCheck() {
+      const entry=sources.read(),scope=sources.applicability();
+      if (!entry) return {state:scope === "applicable" ? "unavailable" : scope,reason:scope === "not-applicable" ? "outside-image-sources" : "image-sources-anchor-unavailable"};
+      const available=Boolean(mounted?.nav && mounted?.view && mounted.navigation.isConnected);
+      return {state:available ? "available" : mounted ? "unknown" : "unavailable",reason:available ? null : "native-image-mount-unavailable",
+        checks:[{name:"image-sources-anchor",available:true},{name:"native-image-mount",available}],scopes:[{name:"image-sources",element:entry.shell}]};
+    },
     readViewer:header => native.readViewer(header),
     pendingPrompt:() => pendingPrompt,
     consumePrompt:() => {pendingPrompt = null;},
