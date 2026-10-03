@@ -10,7 +10,9 @@ import { randomBytes } from "node:crypto";
 import { CODEX_THEME_TOKENS, CODEX_THEME_TOKEN_ALIASES, MINECODEX_THEME_BINDINGS } from "../../ui/src/native/tokens.mjs";
 
 export const RUNTIME_VERSION = 108;
-const PROJECT_ICON = readFileSync(new URL("../../../assets/brand/minecodex-icon.svg", import.meta.url), "utf8");
+const PROJECT_ICON = Object.fromEntries([16, 20].map(size => [size,
+  readFileSync(new URL(`../../ui/assets/minecodex-menu-${size}.svg`, import.meta.url), "utf8"),
+]));
 const EXTERNAL_ICON = readFileSync(new URL("../../ui/assets/arrow-up-right.svg", import.meta.url), "utf8");
 export const HOST_BINDING_NAME = "__codexPersonalHostAction";
 export const CSP_BOOTSTRAP_VERSION = 1;

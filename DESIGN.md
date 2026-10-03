@@ -183,6 +183,10 @@ macOS 后台服务 App 在明确的原生资源修订 1.0.1 中接入实心图�
 
 ### 账号菜单中的 MineCodex 入口
 
-Codex 26.930.21537（2026-10-03 安装包源码）：`profile-dropdown-items` 的 Settings 使用原生菜单行，紧接 Help 前的 Separator；`onOpenSettings` / `settingsShortcut` 标识其行为，外层 `onClose` 关闭账号面板。MineCodex 行插在 Settings 与 Separator 之间，复制脱离 React 的原生行，保留原始 Settings 及其所属层级。左侧使用实心项目标识，右侧使用 Lucide ArrowUpRight，复用 Settings 快捷键区域的 class、间距与 `text-codex-description` 颜色。
+Codex 26.930.21537（2026-10-03 安装包源码与隔离 DOM）：`profile-dropdown-items` 的 Settings 使用原生菜单行，紧接 Help 前的 Separator；`onOpenSettings` / `settingsShortcut` 标识其行为，外层 `onClose` 关闭账号面板。MineCodex 行插在 Settings 与 Separator 之间，复制脱离 React 的原生行，保留原始 Settings 及其所属层级。左侧使用实心项目标识，右侧使用 Lucide ArrowUpRight；右侧沿用快捷键区域的间距，图标使用原生 Help 右侧箭头的 `text-tertiary` 色与 opacity 1（当前浅色为 rgba(13,13,13,0.482)），不套左侧图标的 0.75 / hover、focus 时 1 的透明度。隔离 DOM 确认左侧普通态与 Settings 同为 rgb(13,13,13)、opacity 0.75，hover / focus 时为 1。
+
+左侧保留原生 CompactSource / LeadingSource 两套结构，只替换其中 SVG；分别继承原生 SVG 的 width、height、class 和 style。菜单标识复用当前 `codex-light-16` / `codex-light-20` 的真实填充外圈路径，引用存于 `assets/brand/references/codex-menu-16.svg` / `codex-menu-20.svg`；内部镐子仍从品牌源生成，由 `npm run build:icons` 输出两套 `packages/ui/assets/minecodex-menu-*.svg`。不能将 24px 品牌外圈缩小代替原生菜单的路径粗细。账号图标沿用原生 `currentColor` 与 `--profile-menu-icon-opacity`（桌面默认 0.75，行 hover / focus 时为 1），不另设固定灰色。此项为安装包源码核对，实际窗口视觉仍待手动验收。
+
+右侧箭头的两段几何合并在单个 SVG path 中一次描边，避免 `currentColor` 自带 alpha 时，两个独立 path 在交叉点重复叠色。保留原资源的形状与端点规则；24px viewBox 中 stroke-width 为 1.575，在 16px 显示时实际线宽 1.05px，与原生 Help 箭头的线条粗细对齐。
 
 入口随账号菜单重建恢复且只出现一次；补齐 Settings → MineCodex → Help 的上下键导航与 Enter/Space，保留原生 Escape 关闭行为。点击经已认证 Host bridge 调用 `mcx gui`；成功后关闭菜单，失败时显示实际错误。原生 UI 手动验收本次因 Computer Use 拒绝操作应用而未完成；隔离 DOM 契约页验证了位置、明暗颜色、点击、键盘、重建去重与清理。
