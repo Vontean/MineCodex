@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const manifest = JSON.parse(await readFile(path.join(root, "codex-feature.json"), "utf8"));
-const readme = await readFile(path.join(root, "README.md"), "utf8");
+const readme = await readFile(path.join(root, "DEVELOPMENT.md"), "utf8");
 const product = await readFile(path.join(root, "PRODUCT.md"), "utf8");
 
 test("registers a service-free Composer model selector", () => {

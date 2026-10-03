@@ -94,10 +94,13 @@ const requiredFiles = [
   "features/images/src/domain/library-prompt.mjs",
   "features/images/src/library-prompt-source.mjs",
   "features/sites/src/domain/site.mjs",
-  "DESIGN.md",
 ];
 
 const forbiddenPaths = [
+  [/(^|\/)(?:DESIGN|DEVELOPMENT|ARCHITECTURE|AGENTS|OCX-CODEX-HANDOFF|MIGRATION)\.md$/i, "internal documentation"],
+  [/^(?:docs|scripts)\//, "maintenance or research content"],
+  [/^(?:features|packages)\/.*\/README\.md$/i, "developer README"],
+  [/^features\/unread-inbox\//, "suspended feature"],
   [/(^|\/)(?:test|tests|__tests__|fixtures|coverage)(\/|$)/i, "test or coverage content"],
   [/(^|\/)(?:node_modules|\.git|\.github|\.codex|\.agents|\.claude|\.cursor|\.idea|\.vscode)(\/|$)/i, "development or personal configuration"],
   [/(^|\/)(?:\.impeccable|\.playwright-cli|output|dist)(\/|$)/i, "build or tool output"],
@@ -133,6 +136,15 @@ for (const filePath of files) {
   for (const [pattern, reason] of sensitiveContent) {
     if (pattern.test(text)) failures.push(`${reason}: ${filePath}`);
   }
+}
+
+// 用户帮助里的相对链接必须随包交付，在线维护链接不受包边界限制。
+const readme=await readFile(path.join(root,"README.md"),"utf8");
+for (const match of readme.matchAll(/!?\[[^\]]*\]\(([^)]+)\)/g)) {
+  const target=match[1].split("#")[0];
+  if (!target || /^[a-z][a-z0-9+.-]*:/i.test(target)) continue;
+  const local=path.posix.normalize(target.replace(/^\.\//,""));
+  if (!files.includes(local)) failures.push(`missing user help link: ${target}`);
 }
 
 const infoPlist = await readFile(path.join(

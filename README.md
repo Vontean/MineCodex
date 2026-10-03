@@ -4,7 +4,7 @@
 
 # MineCodex
 
-MineCodex 给 Codex Desktop 增加一组轻量、本地优先的扩展功能。所有数据均保存在本地，不经过任何第三方服务器，也不会改变 Codex 的原有使用习惯。
+MineCodex 给 Codex Desktop 增加一组轻量、本地优先的扩展功能。配置、提示词和图片索引保存在本机。Images 的本地浏览不上传图片；使用云端收藏、加入文件夹或部分生成编辑操作时，所选图片会通过 Codex 原生能力上传至 OpenAI。
 
 ## 插件列表
 
@@ -16,6 +16,8 @@ MineCodex 给 Codex Desktop 增加一组轻量、本地优先的扩展功能。�
 | **Images** | 在原生 Images 中浏览本地 Image Gen 图片，查看并复制提示词 |
 | **Hide Upsell Banner** | 隐藏输入框上方的用量提示横幅，仅优化界面展示，不影响正常的用量统计 |
 | **Session Status** | 在输入框下方查看当前任务的步骤、观测速度、Token 用量与上下文明细 |
+| **Sidebar Focus** | 展开侧栏时聚焦当前任务路径，再次点击恢复布局 |
+| **Sites** | 在原生 Sites 中收录项目网页与自定义网址，按需打开或启动 |
 
 ## 安装
 
@@ -53,6 +55,18 @@ mcx open
 
 运行 `mcx uninstall` 会移除名为 MineCodex 的后台项目，并默认保留配置设置、Notes 笔记和 Images 图片索引；只有显式加上 `--purge` 参数，才会清理 MineCodex 产生的本地配置。MineCodex 绝不会删除 `~/.codex/generated_images` 中的原始图片或 Notes 引用的本地文件。
 
+## 数据与图片操作
+
+本地 Image Gen 浏览、搜索、提示词查看和下载不会创建云端图片。首次收藏或加入文件夹时，会将所选图片上传到 OpenAI 的 Library；收藏和文件夹关系由云端保存。首次上传后取消文件夹选择，已产生的云端副本仍会保留，界面会提示“图片已保存到 Library，但未加入文件夹”。
+
+图片生成编辑可能通过原生能力准备临时上传附件；查看图片不会触发这类操作。从 Image Gen 删除仅隐藏本地索引条目，保留原始图片和云端副本。卸载或 `--purge` 不会删除云端图片，也不会删除 Codex 的原始生成图片。
+
+## 更新后的自检
+
+MineCodex 在每个 Codex 窗口启动并完成注入后，后台检查一次功能安装、原生锚点与实际使用的设计变量。新窗口、页面重载或重新接入时重新检查；结果代表检查时的页面，不持续监测后续页面切换。控制台区分“正在自检”“部分窗口可用”“外观适配需要更新”“暂不可用”和“当前页面不适用”。没有输入框或未打开 Sites / Images 时，相关功能可能不适用，并不直接表示版本不兼容。
+
+可使用控制台的“复制诊断信息”提供自检结果。诊断包含功能、窗口、锚点与设计变量证据，不包含提示词、聊天内容、账号资料或安装路径。自检可用表示当前检查项通过，实际保存、上传、模型切换等操作仍以各自的结果为准。
+
 ## 工作原理
 
 MineCodex 统一管理 Codex 内的菜单入口、主题风格与界面适配。Model Slider、Prompts 各自管理操作界面，Images 在原生 Images 中接入本地生成图片和提示词查看；Session Status 只读汇总本机 Codex 会话事件，Hide Upsell Banner 优化界面展示。所有功能按需开启，关闭后即停止运行。
@@ -67,16 +81,16 @@ npm run pack:check
 npm run pack:audit
 ```
 
-维护者发布流程见 [GitHub Actions 发布说明](docs/npm-publishing.md)。发布工作流仅允许维护者本人触发，使用 npm 可信发布，无需长期访问令牌。
+维护者发布流程见 [GitHub Actions 发布说明](https://github.com/Vontean/MineCodex/blob/main/docs/npm-publishing.md)。发布工作流仅允许维护者本人触发，使用 npm 可信发布，无需长期访问令牌。
 
 ## 许可
 
 MineCodex 是非官方独立扩展项目，与 OpenAI 无关联。项目自有代码以 MIT License 授权；第三方图标、品牌和兼容资产遵循各自的权利说明，见 [`features/model-slider/THIRD_PARTY_NOTICES.md`](features/model-slider/THIRD_PARTY_NOTICES.md) 与 [`features/session-status/vendor/lucide-LICENSE`](features/session-status/vendor/lucide-LICENSE)。
 
-### Sidebar Focus / 侧栏聚焦
+## 侧栏聚焦
 
 展开侧栏时，点击铃铛与搜索之间的聚焦按钮，保留当前任务路径并收起其他分支。再次点击恢复原先布局；切换任务时跟随路径，手动调整分支时退出聚焦。
 
-### 从账号菜单打开控制台
+## 从账号菜单打开控制台
 
 在 Codex Navbar 底部打开账号菜单，点击 Settings 下方的 **MineCodex ↗**，即可在外部默认浏览器打开本地控制台，等同于 `mcx gui`。macOS 默认 Safari、Chrome/Chromium、Edge、Brave 和 Vivaldi 会定位已有控制台标签页，没有时才新建；首次定位可能需要系统自动化权限。其他浏览器与 Windows 仍由系统打开 URL。

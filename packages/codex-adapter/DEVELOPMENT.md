@@ -9,6 +9,7 @@
 | `composer(element?, {threadOnly, purpose}?)` | 默认仅可见的 Codex thread 输入框；Prompts 使用 `purpose:"insertion"` 支持 Chat、Work、Codex、Temporary Chat 与面板 chat bar。优先当前焦点所在输入框，并可显式绑定插入目标。返回 editable/root/body/add/threadId；非thread不提供身份，隐藏祖先返回 null |
 | `currentThreadId(element?)` | 从合格输入框取得 UUID；不从残留 sidebar 选中项猜当前线程 |
 | `composerSurface(element?)` | 返回可见正式会话外壳 root/threadId，独立于编辑区是否存在或暂时 inert；供会话状态呈现与宿主统计订阅使用。真正隐藏、移入浮层、切换 home 或卸载时返回 null；不能作为文字插入许可 |
+| `route()` | 当前原生路由 pathname；只返回路径类型信息，不返回路由 state；缺失上下文返回 null，供功能判定适用场景 |
 | `rail()` / `railSlot(ownGroup)` | 可见原生 rail 与模板/滚动区/固定组句柄；不包含插件菜单策略 |
 | `currentFiber(element)` / `props(element,predicate,limit?)` | 仅供 native Adapter 使用；优先匹配当前 committed props，支持最近祖先的 scope |
 | `report(name,available,reason?)` / `diagnostics()` | 最新能力状态的副本；不持有凭据、原始账户数据或用户内容 |

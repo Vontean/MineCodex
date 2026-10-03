@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const manifest = JSON.parse(await readFile(path.join(root, "codex-feature.json"), "utf8"));
 const source = await readFile(path.join(root, manifest.entry.script), "utf8");
-const readme = await readFile(path.join(root, "README.md"), "utf8");
+const readme = await readFile(path.join(root, "DEVELOPMENT.md"), "utf8");
 
 test("registers a service-free page-script feature", () => {
   assert.equal(manifest.entry.kind, "page-script");

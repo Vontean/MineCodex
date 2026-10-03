@@ -29,7 +29,7 @@ Images 在 Codex 原生 **Space → Images** 中增加 **Image Gen**，集中浏
 node --test features/images/test/*.test.mjs
 ```
 
-独立 `web/` 与旧服务入口保留为已有历史工具，不由当前 manifest 启动；ImageLibrary 与日志索引已由当前本地来源复用。历史图库交接见 [research/images](../../docs/research/images/2026-08-07-gallery-handoff.md)。
+独立 `web/` 与旧服务入口保留为已有历史工具，不由当前 manifest 启动；ImageLibrary 与日志索引已由当前本地来源复用。历史图库交接仅作为本机调查材料保留，当前开发以本文件、DESIGN.md 与源码为准。
 
 2026-10-02 菜单核对：网格 More 明确使用原生 Library 的 mediaOverlay 分支，操作通过 leftIcon 传入真实原生图标。图库菜单按 Chat about this、View prompts、Add to Favorites／Remove from Favorites、Download、Add to folder、Delete 排列。Chat about this 组合原生模式切换、新 Chat 草稿导航与图片面板链路，不发送消息；导航与面板已隔离验证，图片随消息提交的实际链路未进行发送验收。生成图片通用菜单中的重复查看、新标签、复制和 Finder 不再混入图库菜单。Add to Favorites／Remove from Favorites 和 Add to folder 已接入原生云端 Library。首次操作上传所选图片，之后复用账号与内容指纹对应的云端身份；收藏与文件夹归属保存在服务器。取消文件夹选择会显示原生 toast，已上传的图片仍留在 Library。上传结果不确定时不盲目重试；Image Gen 不提供分享与重命名；Delete 的隐藏范围见下文。
 

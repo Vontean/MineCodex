@@ -7,7 +7,7 @@
 1. 先读根 [DESIGN.md](DESIGN.md)：全项目通用视觉、原生组件分类、token、层级、sidebar行为与材质规则的唯一权威来源。
 2. 涉及领域、架构层与柔性设计时读根 [ARCHITECTURE.md](ARCHITECTURE.md)；共享 UI 文件归属与接入见 [UI 架构](packages/ui/ARCHITECTURE.md)。
 3. 修改共享UI时读 [组件库 DESIGN.md](packages/ui/DESIGN.md)；修改插件时读对应 `features/<plugin>/DESIGN.md`。本级文档只负责特殊组件、业务布局与已选用的通用分支。
-4. 通信、加载、生命周期和注入方式读 [Runtime Host 文档](packages/runtime-host/README.md)。设计细节回写根 DESIGN.md，不在Runtime README或插件文档另起通用规则副本。
+4. 通信、加载、生命周期和注入方式读 [Runtime Host 文档](packages/runtime-host/DEVELOPMENT.md)。设计细节回写根 DESIGN.md，不在Runtime README或插件文档另起通用规则副本。
 
 ## 文件路由
 
@@ -21,7 +21,7 @@
 | 原生账号菜单项目入口 | `packages/ui/src/native/account-menu.mjs`、`components/account-menu.mjs` | UI 组件库；打开动作归 Runtime Host 与 CLI |
 | 共享Tooltip | `packages/ui/src/components/tooltip.mjs` | UI组件库 |
 | token映射、别名、主题变量与恢复 | `packages/ui/src/native/tokens.mjs`、`theme.mjs` | UI组件库 |
-| 共享原生Composer、thread、rail与React读取机制 | `packages/codex-adapter/src/renderer/environment.mjs`、`packages/codex-adapter/README.md` | Codex环境Adapter；不放插件业务 |
+| 共享原生Composer、thread、rail与React读取机制 | `packages/codex-adapter/src/renderer/environment.mjs`、`packages/codex-adapter/DEVELOPMENT.md` | Codex环境Adapter；不放插件业务 |
 | 插件专有日志、目录、API与原生动作 | `features/<plugin>/src/adapters/codex/` | 对应功能防腐层 |
 | CDP与运行生命周期 | `packages/runtime-host/src/codex-cdp.mjs`、`codex-runtime.mjs` | Runtime Host |
 | 注入组装、主题传递、host bridge | `packages/runtime-host/src/codex-injection.mjs`、`host-actions.mjs` | Runtime Host；不在这里继续堆积视觉组件 |
@@ -32,8 +32,9 @@
 | 插件业务、特有组件与内容 | `features/<plugin>/src`；Images另有`web`界面 | 对应插件 |
 | CLI、安装与服务管理 | `packages/cli` | CLI |
 | 本地控制台 | `apps/dashboard` | 控制台应用 |
+| 注入自检 | `packages/runtime-host/src/renderer-self-check.mjs`、各插件注册的 probe、`packages/ui/src/native/theme.mjs` | 宿主管证据与窗口归属，插件管原生能力，UI管token |
 | 验证 | 对应模块的`test/`、`scripts/check-syntax.mjs` | 按改动范围验证 |
-| 历史调查与交付流程 | `docs/research/`、`docs/windows-acceptance.md` | 证据与流程，不覆盖当前设计规范 |
+| 发布操作 | `docs/npm-publishing.md` | 当前发布流程；历史验收不能替代当前检查 |
 
 有 `.codegraph/` 时，理解或定位代码先使用 `codegraph explore` / `codegraph node`，再做针对性搜索。不要把本文件的路径清单当成比当前源码更可靠的调用图。
 
@@ -49,3 +50,9 @@
 领域归属与柔性设计遵循根 ARCHITECTURE.md：先确定规则所有者，再按实际变化选择接口；不要仅为目录对称增加抽象、空模块或转发文件。
 
 外部协议变化时先修改所属 Adapter 和契约样例，再核对调用方；不让领域代码读取原始 Codex 对象，不在交互入口遍历 React Fiber。Renderer 诊断经 `nativeCapabilities()` 读取；不要把技术诊断插入产品页面。
+
+## GitHub 文件范围
+
+Git 保留开发与运行源码、必要资源、测试、构建／发布脚本、依赖清单与锁文件、许可证，以及当前 README、AGENTS、ARCHITECTURE、DESIGN、PRODUCT、DEVELOPMENT 等项目规范和模块说明。
+
+调研、阶段计划、历史交接、一次性验收记录与截图留在本机的 `docs/research/`、`docs/history/`、`docs/verification/` 等已忽略位置；压缩产物和图标对比预览不提交。仍有效的规则须提炼到所属规范，不让代码、测试或公开文档依赖被忽略的本地材料。取消跟踪使用仅移除 Git 索引的方式，保留本地文件；不为此重写历史。GitHub 源码范围与 npm 运行包名单分别维护。
