@@ -21,7 +21,7 @@ Prompts 页面负责新增、编辑、分类、Emoji、排序和统计；Quick P
 | Popover 内边距 | --spacing | 4px，底部保留内边距 |
 | Popover 列表行 | --suggestion-menu-item-padding / --app-menu-item-padding / --padding-row-y、--padding-row-x | 5px 8px |
 | 行圆角 | --suggestion-menu-item-radius / --radius-xl | 15px |
-| Popover 位置 | Add 所属的 `[data-composer-body]` 上方 | 与输入框主体等宽，间隔 4px；外层 Root 的 diff / request stack 不参与定位 |
+| Popover 位置 | Add 所属的 `[data-composer-body]`；home 下方、已有会话上方 | 与输入框主体等宽，间隔 4px；外层 Root 的 diff / request stack 不参与定位 |
 | 页面条目正文预览宽度 | `.pm-preview` 的 `max-width:65%` | 相对于条目文字区域 `.pm-info`，单行省略；标题与点击区域保持全宽 |
 
 分类颜色复用原生选择器的亮 / 暗模式色值：blue #0285ff / #339cff、green #04b84c / #40c977、orange #fb6a22 / #ff8549、pink #ff66ad / #ff8cc1、purple #924ff7 / #ad7bf9、red #fa423e / #ff6764、yellow #ffc300 / #ffd240；black 使用原生次级文字 token。
@@ -72,3 +72,5 @@ Category 下拉面板与触发栏等宽、左右对齐，宽度包含内边距�
 简短悬浮提示调用共享 Tooltip；具体文案由本功能维护。Quick Prompts 通过通用 ComposerMenu 使用原生浮动建议列表材质和输入框主体锚点。排序、分类与图标菜单显式选择 Dropdown。
 
 Categories 管理弹窗的 New category 是有实际功能的次级操作，使用共享 Button 的 `secondary`（outline）分支；分类编辑的 Save 保留主按钮。
+
+2026-10-03：按用户提供的 Work 新会话截图及 Codex 26.930.21537 安装源码的 `data-composer-placement="home"` 语义，Quick Prompts 在 home 输入框下方展开，已有会话继续向上。两侧均与主体等宽、间隔4px，按展开方向计算可用高度并处理 zoom。截图和安装源码已核对，修复后的原生窗口视觉待验收。

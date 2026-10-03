@@ -238,15 +238,34 @@ test("Quick Prompts anchors to the composer body when diff and request stacks ex
   const panel = { style:{} };
   let bodyRect = { left:100, top:600, width:720 };
   const root = { isConnected:true, getBoundingClientRect:()=>{ throw new Error("Outer stack must not be used as the anchor"); } };
-  const add = { closest:selector=>{ assert.equal(selector, "[data-composer-body]"); return { getBoundingClientRect:()=>bodyRect }; } };
+  const add = { closest:selector=>selector === "[data-composer-body]" ? { getBoundingClientRect:()=>bodyRect } : {getAttribute:()=>"thread"} };
   const menu = new Function("getComputedStyle", `return (${installComposerMenu.toString()})(null, {surface:()=>{},layer:()=>{}});`)(()=>({zoom:"1"}));
   const position = new Function("panel", "composerRoot", "addButton", "config", `${positioning}; return position;`)(panel, root, add, {ui:menu});
   position();
-  assert.deepEqual(panel.style, { left:"100px", top:"596px", width:"720px", maxHeight:"400px" });
+  assert.deepEqual(panel.style, { left:"100px", top:"596px", transform:"translateY(-100%)", width:"720px", maxHeight:"400px" });
   // 上方组件高度变化不影响主体坐标；主体移动后继续跟随。
   position();
   assert.equal(panel.style.top, "596px");
   bodyRect = { left:120, top:330, width:500 };
   position();
-  assert.deepEqual(panel.style, { left:"120px", top:"326px", width:"500px", maxHeight:"314px" });
+  assert.deepEqual(panel.style, { left:"120px", top:"326px", transform:"translateY(-100%)", width:"500px", maxHeight:"314px" });
+});
+
+
+test("home Quick Prompts opens below like Add, accounts for zoom and resets on thread placement", () => {
+  let placement="home",zoom="1";
+  const body={getBoundingClientRect:()=>({left:100,top:300,bottom:460,width:720})};
+  const root={getAttribute:()=>placement};
+  const add={closest:selector=>selector === "[data-composer-body]" ? body : root};
+  const panel={style:{}};
+  const menu=new Function("getComputedStyle","innerHeight",`return (${installComposerMenu.toString()})(null,{surface:()=>{},layer:()=>{}});`)(()=>({zoom}),800);
+  menu.composerMenu(panel,add);
+  assert.deepEqual(panel.style,{left:"100px",top:"464px",transform:"translateY(0)",width:"720px",maxHeight:"320px"});
+  zoom="2";menu.composerMenu(panel,add);
+  assert.equal(panel.style.top,"232px");
+  assert.equal(panel.style.maxHeight,"160px");
+  placement="thread";menu.composerMenu(panel,add);
+  assert.equal(panel.style.top,"148px");
+  assert.equal(panel.style.transform,"translateY(-100%)");
+  assert.equal(panel.style.maxHeight,"142px");
 });

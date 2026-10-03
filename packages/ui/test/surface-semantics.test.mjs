@@ -39,11 +39,11 @@ test("surface selection keeps composer, dropdown, popover and dialog roles disti
 test("composer menu uses body coordinates and zoom independently of outer stacks", t => {
   const {ui} = fixture(t), panel = new Node();
   const anchor = {closest:selector=>{
-    assert.equal(selector,"[data-composer-body]");
+    if (selector !== "[data-composer-body]") return null;
     return {getBoundingClientRect:()=>({left:100,top:600,width:720})};
   }};
   ui.composerMenu(panel,anchor);
-  assert.deepEqual(panel.style,{left:"50px",top:"298px",width:"360px",maxHeight:"292px"});
+  assert.deepEqual(panel.style,{left:"50px",top:"298px",transform:"translateY(-100%)",width:"360px",maxHeight:"292px"});
 });
 test("modal focus wraps, gives child popups priority, and stops when disposed", t => {
   const {ui,document} = fixture(t);
