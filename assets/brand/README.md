@@ -1,6 +1,6 @@
 # MineCodex 图标
 
-`minecodex-icon.svg` 是透明底、单色的可编辑矢量图标，使用 `viewBox="0 0 24 24"` 和 `currentColor`。外圈与镐子分别位于 `codex-outline`、`pickaxe`，可单独编辑。`minecodex-icon.png` 是 512×512 透明底预览；`minecodex-icon-preview.png` 展示已选实心版的明暗主题及 16/24/32/48px 尺寸。当前主文件为实心版；`minecodex-icon-filled.svg` 是实心版副本，`minecodex-icon-outline.svg` 保留上一版空心设计。
+`minecodex-icon.svg` 是透明底、单色的可编辑矢量图标，使用 `viewBox="0 0 24 24"` 和 `currentColor`。外圈与镐子分别位于 `codex-outline`、`pickaxe`，可单独编辑。本机 PNG 预览用于透明底、明暗主题及 16/24/32/48px 尺寸对比，已加入 Git 忽略规则。当前主文件为实心版；`minecodex-icon-filled.svg` 是实心版副本，`minecodex-icon-outline.svg` 保留上一版空心设计。
 
 ## 设计与来源
 
@@ -16,4 +16,4 @@
 
 `minecodex-icon.svg` 是唯一可编辑的生产源；运行 `npm run build:icons` 生成明暗 SVG、Dashboard favicon 和 README 顶部标识。`minecodex-icon-light.svg` 用于浅色背景，`minecodex-icon-dark.svg` 用于深色背景。Dashboard 标题通过 favicon 的 CSS mask 消费同一几何，颜色继承页面文字色。主题 SVG 与生产源、Lucide 许可、README 展示图均进入 npm 发布名单。
 
-历史空心版和 PNG 对比图仅用于设计参考，不进入 npm 发布包。macOS 后台服务 1.0.1 已接入 ICNS 图标；`minecodex-service-icon.svg` 为同一几何配浅色圆角底板的原生图标源，更新遵循原生服务文档的注销、替换和重新注册流程。
+历史空心版仅用于设计参考，不进入 npm 发布包；PNG 对比图保留本机，不进入 GitHub 或 npm 发布包。macOS 后台服务 1.0.1 已接入 ICNS 图标；`minecodex-service-icon.svg` 为同一几何配浅色圆角底板的原生图标源，更新遵循原生服务文档的注销、替换和重新注册流程。

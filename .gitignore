@@ -8,3 +8,31 @@ dist/
 .playwright-cli/
 output/
 .firecrawl/
+
+# 本地环境与工具配置；共享样例保留在 Git。
+.env
+.env.*
+!.env.example
+!.env.sample
+**/.impeccable/live/
+
+# 本地调查、阶段计划、历史交接与验收证据；当前规范仍纳入 Git。
+/docs/research/
+/docs/verification/
+/docs/history/
+/docs/release-plan.md
+/docs/windows-acceptance.md
+/MIGRATION.md
+/OCX-CODEX-HANDOFF.md
+
+# 本地压缩产物；生产资源与许可证不按目录整体排除。
+*.zip
+*.tar
+*.tar.gz
+*.tar.xz
+*.7z
+*.rar
+
+# 仅供设计对比的位图预览，保留 SVG 源与生产图标。
+/assets/brand/*-preview.png
+/assets/brand/minecodex-icon.png
