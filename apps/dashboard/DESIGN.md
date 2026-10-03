@@ -10,12 +10,14 @@ radius/gap, top icon and trailing arrow, followed by a title and description. Th
 required login; this reference is source-based, not a live visual match.
 
 MineCodex uses one centered 1064px column without a sidebar or category groups. The header
-holds the shared brand and appearance control; a runtime notice appears below only when the service needs attention.
+holds the shared brand, a Chinese / English language selector to the left of the appearance control, and the appearance control; a runtime notice appears below only when the service needs attention.
 There is no tagline or visible section introduction. Save feedback remains available to screen readers.
-Nine independent cards form a three-column grid, two columns at 960px and one at 600px.
+Eight independent cards form a three-column grid, two columns at 960px and one at 600px.
 Each card has an icon and switch at the top, name and purpose below, and a readable actual-state line
-at the bottom of every card. Enabled switches and runtime state remain distinct information. A card is not itself clickable. The footer shows only the MineCodex version
-and adjacent update check (16px gap, regular weight, refresh icon), with persistent update feedback below it. No install path or plugin versions.
+at the bottom of every card. Enabled switches and runtime state remain distinct information. A card is not itself clickable. The footer shows the MineCodex version
+and adjacent update check (16px gap, regular weight, refresh icon), with persistent update feedback below it. An optional Copy diagnostics action exports only capability and token evidence; no install path, account data or session content is shown.
+
+Self-check states distinguish checking, available, partially available across windows, missing appearance tokens, unavailable and not applicable on this page. Installation evidence does not certify full user actions. Visible cards refresh while the page is visible; active setting saves are preserved.
 
 ## Tokens and components
 
@@ -34,6 +36,7 @@ and adjacent update check (16px gap, regular weight, refresh icon), with persist
 - Checkbox switches expose switch semantics, feature labels, descriptions and state text.
   Track is 36×21px with a 32px-high label hit area. Pending requests disable only their switch;
   failures restore the previous value and focus. Enabled and active remain distinct facts.
+- Language uses a compact 中文 / EN capsule with aria-pressed. It follows the browser initially; manual choices persist locally and reload localized card content. Switching is disabled during feature saves. Healthy and injected share the same visible Active in Codex label; backend health remains diagnostic data.
 - Appearance uses the VPN reference’s two-segment sun/moon capsule (32px segments, 4px gap and padding). A sliding selected circle and aria-pressed expose selection. It initially follows the system; manual choices persist locally.
 - Restart and error notices use a neutral card, colored left edge, status icon, compact copy and trailing action; toast errors share that material. Restart notice appears only for a pending restart. No automatic restart.
 - Update checks retain loading, result and retryable failure states; installation stays with

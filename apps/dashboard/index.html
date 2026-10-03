@@ -18,6 +18,10 @@
           <h1><span class="brand-icon" aria-hidden="true"></span><span class="brand-name">MineCodex</span></h1>
         </div>
         <div class="header-actions">
+          <div class="language-toggle" role="group" aria-label="Language">
+            <button data-language-choice="zh-CN" type="button" lang="zh-CN" aria-pressed="false">中文</button>
+            <button data-language-choice="en" type="button" lang="en" aria-pressed="false">EN</button>
+          </div>
           <div class="theme-toggle" role="group" aria-label="Appearance">
             <span class="theme-selection" aria-hidden="true"></span>
             <button data-theme-choice="light" type="button" aria-label="Light appearance" aria-pressed="false"><span class="ui-icon sun-icon" aria-hidden="true"></span></button>
@@ -67,6 +71,7 @@
         <dl>
           <div><dt id="version-label">Version</dt><dd id="version-value">—</dd></div>
         </dl>
+        <button id="diagnostics-button" class="button quiet" type="button">Copy diagnostics</button>
         <button id="update-button" class="button quiet" type="button"><span class="ui-icon refresh-icon" aria-hidden="true"></span><span class="button-label">Check for updates</span></button>
       </footer>
       <p id="update-result" class="update-result" role="status" hidden></p>

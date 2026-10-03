@@ -145,7 +145,11 @@ h2 { font-size: 14px; font-weight: 620; }
 }
 
 .overview { margin: 0 0 32px; }
-.header-actions { flex-shrink: 0; }
+.header-actions { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+.language-toggle { display: flex; gap: 4px; padding: 4px; border-radius: 999px; background: var(--surface-muted); box-shadow: inset 0 0 0 1px var(--border); }
+.language-toggle button { min-width: 40px; height: 32px; padding: 0 8px; border: 0; border-radius: 999px; background: transparent; color: var(--ink-secondary); font: inherit; font-size: 12px; cursor: pointer; }
+.language-toggle button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px #0002; }
+.language-toggle button:disabled { cursor: wait; }
 
 .runtime-state, .plugin-state {
   display: inline-flex;

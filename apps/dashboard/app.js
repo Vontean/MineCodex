@@ -1,4 +1,8 @@
-const locale = navigator.language.toLowerCase().startsWith("zh") ? "zh-CN" : "en";
+import {diagnosticReport} from "./assets/diagnostics.js";
+let savedLocale;
+try { savedLocale = localStorage.getItem("minecodex-language"); } catch { /* 存储不可用时跟随浏览器语言。 */ }
+const locale = ["en", "zh-CN"].includes(savedLocale) ? savedLocale
+  : navigator.language.toLowerCase().startsWith("zh") ? "zh-CN" : "en";
 document.documentElement.lang = locale;
 
 const copy = {
@@ -19,8 +23,13 @@ const copy = {
       configured: "Configured — starting in Codex…",
       launching: "Launching in Codex…",
       injected: "Active in Codex",
-      healthy: "Healthy in Codex",
-      failed: "Failed — restart Codex",
+      healthy: "Active in Codex",
+      checking: "Checking compatibility…",
+      partial: "Available in some windows",
+      degraded: "Appearance needs an update",
+      unavailable: "Temporarily unavailable — check for updates",
+      "not-applicable": "Not needed on this page",
+      failed: "Couldn’t start — try again",
       stopped: "Stopped",
       "restart-required": "Restart required — restart Codex",
     },
@@ -31,13 +40,16 @@ const copy = {
     darkAppearance: "Dark appearance",
     lightAppearance: "Light appearance",
     updateFailed: "Couldn’t check for updates. Please try again.",
+    copyDiagnostics: "Copy diagnostics",
+    diagnosticsCopied: "Diagnostics copied",
+    diagnosticsFailed: "Couldn’t copy diagnostics. Please try again.",
     checkUpdates: "Check for updates",
     checkingUpdates: "Checking…",
     current: "You’re up to date.",
     updateAvailable: (version) => `MineCodex ${version} is available. Run mcx update in Terminal.`,
     changeFailed: "The plugin setting could not be saved.",
-    restartFailed: "MineCodex could not restart Codex. Check the service log and try again.",
-    failureDetail: "Health or renderer status could not be confirmed.",
+    restartFailed: "MineCodex could not restart Codex. Please try again or copy diagnostics.",
+    failureDetail: "This extension could not be confirmed. Copy diagnostics to help investigate.",
   },
   "zh-CN": {
     connecting: "正在连接…",
@@ -56,8 +68,13 @@ const copy = {
       configured: "已配置——正在 Codex 中启动…",
       launching: "正在 Codex 中启动…",
       injected: "已在 Codex 中生效",
-      healthy: "Codex 中运行正常",
-      failed: "运行失败——请重启 Codex",
+      healthy: "已在 Codex 中生效",
+      checking: "正在自检…",
+      partial: "部分窗口可用",
+      degraded: "外观适配需要更新",
+      unavailable: "暂不可用——请检查更新",
+      "not-applicable": "当前页面不适用",
+      failed: "暂时无法启动——请重试",
       stopped: "已停止",
       "restart-required": "需要重启——请重启 Codex",
     },
@@ -68,13 +85,16 @@ const copy = {
     darkAppearance: "深色外观",
     lightAppearance: "浅色外观",
     updateFailed: "暂时无法检查更新，请稍后重试。",
+    copyDiagnostics: "复制诊断信息",
+    diagnosticsCopied: "诊断信息已复制",
+    diagnosticsFailed: "暂时无法复制诊断信息，请重试。",
     checkUpdates: "检查更新",
     checkingUpdates: "正在检查…",
     current: "当前已是最新版本。",
     updateAvailable: (version) => `发现 MineCodex ${version}，请在终端运行 mcx update。`,
     changeFailed: "插件设置保存失败。",
-    restartFailed: "MineCodex 无法重启 Codex。请检查服务日志后重试。",
-    failureDetail: "无法确认插件健康状态或 Codex 渲染器状态。",
+    restartFailed: "MineCodex 无法重启 Codex。请重试或复制诊断信息协助排查。",
+    failureDetail: "暂时无法确认这项功能的状态，可复制诊断信息协助排查。",
   },
 }[locale];
 
@@ -94,10 +114,13 @@ const elements = {
   retryButton: document.querySelector("#retry-button"),
   versionLabel: document.querySelector("#version-label"),
   versionValue: document.querySelector("#version-value"),
+  languageToggle: document.querySelector(".language-toggle"),
+  languageButtons: [...document.querySelectorAll("[data-language-choice]")],
   themeToggle: document.querySelector(".theme-toggle"),
   themeButtons: [...document.querySelectorAll("[data-theme-choice]")],
   updateResult: document.querySelector("#update-result"),
   updateButton: document.querySelector("#update-button"),
+  diagnosticsButton: document.querySelector("#diagnostics-button"),
   toast: document.querySelector("#toast"),
 };
 
@@ -106,6 +129,8 @@ let toastTimer = null;
 const pendingFeatureIds = new Set();
 
 function applyStaticCopy() {
+  elements.languageToggle.setAttribute("aria-label", locale === "zh-CN" ? "语言" : "Language");
+  for (const button of elements.languageButtons) button.setAttribute("aria-pressed", String(button.dataset.languageChoice === locale));
   elements.runtimeLabel.textContent = copy.connecting;
   elements.restartTitle.textContent = copy.restartTitle;
   elements.restartCopy.textContent = copy.restartCopy;
@@ -115,6 +140,7 @@ function applyStaticCopy() {
   elements.errorCopy.textContent = copy.loadErrorCopy;
   elements.retryButton.textContent = copy.retry;
   elements.versionLabel.textContent = copy.version;
+  elements.diagnosticsButton.textContent = copy.copyDiagnostics;
   elements.updateButton.querySelector(".button-label").textContent = copy.checkUpdates;
 }
 
@@ -186,6 +212,7 @@ function createPluginCard(feature) {
 }
 
 function updatePluginCard(card, feature) {
+  for (const button of elements.languageButtons) button.disabled = pendingFeatureIds.size > 0;
   const status = featureState(feature);
   const input = card.querySelector('input[type="checkbox"]');
   const image = card.querySelector(".plugin-icon img");
@@ -285,7 +312,10 @@ async function load() {
   try {
     const response = await fetch("/api/status", { headers: { "Accept-Language": locale } });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    state = await response.json();
+    const fresh = await response.json();
+    if (pendingFeatureIds.size && state) fresh.features = fresh.features.map(feature =>
+      pendingFeatureIds.has(feature.id) ? state.features.find(previous=>previous.id === feature.id) ?? feature : feature);
+    state = fresh;
     elements.pluginList.hidden = false;
     render();
   } catch {
@@ -359,6 +389,16 @@ elements.retryButton.addEventListener("click", () => {
   void load();
 });
 
+elements.diagnosticsButton.addEventListener("click", async () => {
+  try {
+    await navigator.clipboard.writeText(JSON.stringify(diagnosticReport(state),null,2));
+    showToast(copy.diagnosticsCopied);
+  } catch { showToast(copy.diagnosticsFailed); }
+});
+
+// 页面可见时更新自检结果；保留正在保存的卡片和键盘焦点。
+setInterval(() => { if (!document.hidden && !pendingFeatureIds.size) void load(); }, 5000);
+
 elements.updateButton.addEventListener("click", async () => {
   elements.updateButton.disabled = true;
   elements.updateButton.querySelector(".button-label").textContent = copy.checkingUpdates;
@@ -396,6 +436,15 @@ elements.themeToggle.addEventListener("click", (event) => {
   selectedTheme = button.dataset.themeChoice;
   try { localStorage.setItem("minecodex-appearance", selectedTheme); } catch { /* 保留内存中的选择。 */ }
   applyTheme();
+});
+elements.languageToggle.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-language-choice]");
+  if (!button || pendingFeatureIds.size || elements.restartButton.disabled) return;
+  const choice = button.dataset.languageChoice;
+  if (choice === locale) return;
+  try { localStorage.setItem("minecodex-language", choice); } catch { return; }
+  // 重载后以同一语言请求卡片内容，不影响功能配置与外观选择。
+  location.reload();
 });
 systemTheme.addEventListener("change", applyTheme);
 document.addEventListener("keydown", () => { document.documentElement.dataset.input = "keyboard"; });
