@@ -34,7 +34,10 @@ function reconcile() {
     }, { signal });
     // 作为原生按钮组的独立子项，继承组内 gap，不放进铃铛的 Tooltip 包装层。
     let anchor = bell;
-    while (anchor.parentElement && getComputedStyle(anchor.parentElement).display !== "flex") {
+    while (anchor.parentElement && anchor.parentElement !== sidebar) {
+      const layout = getComputedStyle(anchor.parentElement);
+      // 跳过零间距的通知包装层，接入真正带原生 gap 的按钮组。
+      if (["flex", "inline-flex"].includes(layout.display) && Number.parseFloat(layout.columnGap) > 0) break;
       anchor = anchor.parentElement;
     }
     anchor.after(button);
