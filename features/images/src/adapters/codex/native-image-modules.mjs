@@ -10,6 +10,7 @@ export function discoverFilePreviewComposerBindings(source) {
   const scopeBody=requireBody(/draftId:[\w$]+,imageDataUrl:/);
   const homeBody=requireBody(/homeComposerController:[\w$]+,homeComposerMode:/);
   const composerBody=requireBody(/lockedLayout:`single-line`/);
+  const localBody=requireBody(/prepareLocalConversationAttachments:/);
   const alias=(body,local,call=false)=>{
     const escaped=local?.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
     const value=escaped&&body.match(new RegExp(`(?:[,;]|let )${escaped}=([\\w$]+)${call?"\\(":"(?=[,;])"}`))?.[1];
@@ -30,6 +31,12 @@ export function discoverFilePreviewComposerBindings(source) {
     composerScope:alias(scopeBody,scopes[0][2]),
     createComposerValue:alias(scopeBody,scopes[0][3],true),
     composerRouteScope:alias(scopeBody,scopes[1][2]),
+    FileComposer:localBody.match(/jsx\)\(([\w$]+),\{\.\.\.[\w$]+,aboveComposerContent:/)?.[1],
+    fileComposerAvailability:localBody.match(/composerModeAvailability:([\w$]+)/)?.[1],
+    localAttachmentService:localBody.match(/await ([\w$]+)\([\w$]+,[\w$]+\)\.createFileAttachment/)?.[1],
+    deleteLocalAttachment:localBody.match(/aborted&&\(([\w$]+)\(/)?.[1],
+    useFileNavigate:alias(localBody,localBody.match(/([\w$]+)\(([\w$]+)\([\w$]+\),\{state:/)?.[1],true),
+    localThreadRoute:localBody.match(/[\w$]+\(([\w$]+)\([\w$]+\),\{state:/)?.[1],
   };
   if(Object.values(roles).some(value=>!value))throw new Error("Native file preview Composer role changed");
   return roles;
@@ -193,15 +200,17 @@ export function createNativeImageModules({read = async url => (await fetch(url))
       const createPortal=(await binding(canvas.source,canvas.url,portalInit))().createPortal;
       // 文件画布使用原生 Home Composer 的控制器、附件 scope 和输入组件。
       const composerLocals=Object.values(discoverFilePreviewComposerBindings(filePreview.source));
-      const [useComposerController,useHomeComposer,Composer,ComposerSurface,ScopeProvider,composerScope,createComposerValue,composerRouteScope] = await Promise.all(composerLocals.map(local=>binding(filePreview.source,filePreview.url,local)));
+      const [useComposerController,useHomeComposer,Composer,ComposerSurface,ScopeProvider,composerScope,createComposerValue,composerRouteScope,FileComposer,fileComposerAvailability,localAttachmentService,deleteLocalAttachment,useFileNavigate,localThreadRoute] = await Promise.all(composerLocals.map(local=>binding(filePreview.source,filePreview.url,local)));
       if (!canvas.exports.t || !canvasLayout.exports.r || !Composer || !ComposerSurface || !ScopeProvider
         || !composerScope || !composerRouteScope?.parent
-        || [createPortal,useComposerController,useHomeComposer,createComposerValue].some(value=>typeof value!=="function")) {
+        || !FileComposer || !fileComposerAvailability
+        || [createPortal,useComposerController,useHomeComposer,createComposerValue,localAttachmentService,deleteLocalAttachment,useFileNavigate,localThreadRoute].some(value=>typeof value!=="function")) {
         throw new Error("Native Images canvas contract changed");
       }
       return {
         createPortal,Canvas:canvas.exports.t,CanvasLayout:canvasLayout.exports.r,
         useComposerController,useHomeComposer,Composer,ComposerSurface,ScopeProvider,composerScope,createComposerValue,composerRouteScope,
+        FileComposer,fileComposerAvailability,localAttachmentService,deleteLocalAttachment,useFileNavigate,localThreadRoute,
         editImage:component(initial,source=>/async function/.test(source)&&/requireDispatchAcceptance:/.test(source)&&/sourceAttachment:/.test(source)&&/imageVariant/.test(source),"image edit submission"),
       };
     })().catch(error=>{canvasConnecting=null;throw error;});

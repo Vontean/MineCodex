@@ -72,12 +72,13 @@ function syncMenu(record) {
   item.dataset.minecodexLibraryPrompt = "menuitem";
   const row = original.firstElementChild.cloneNode(true);
   row.querySelector(".truncate").textContent = label("View prompts", "查看提示词");
-  // 使用项目现有 Prompts 图形，保留原生菜单的紧凑／标准图标布局。
-  const glyph = document.querySelector('[aria-label="Prompts"] svg');
-  if (glyph) for (const svg of row.querySelectorAll("svg")) {
+  // 图标随 Images 注入，不依赖 Prompts 导航入口是否显示。
+  const glyph = new DOMParser().parseFromString(promptGlyphSource,"image/svg+xml").documentElement;
+  for (const svg of row.querySelectorAll("svg")) {
     const icon = glyph.cloneNode(true);
     icon.setAttribute("width", svg.getAttribute("width"));
     icon.setAttribute("height", svg.getAttribute("height"));
+    icon.setAttribute("class", svg.getAttribute("class") ?? "");
     svg.replaceWith(icon);
   }
   item.append(row);
@@ -259,7 +260,7 @@ document.addEventListener("minecodex:image-prompt",localPromptRequested);
 const localeObserver = new MutationObserver(() => mounted?.refreshLocale());
 localeObserver.observe(document.documentElement, { attributes:true, attributeFilter:["lang"] });
 localImageSource = installLocalImageSource(config, signal, createImageSourcesAdapter(config.codex), createNativeImageSource(config.codex, {
-  requestHostAction:config.requestHostAction, libraryApi, createCloudImageActions, signal,
+  requestHostAction:config.requestHostAction, libraryApi, createCloudImageActions, promptGlyphSource, signal,
 }));
 const observer = new MutationObserver(() => {
   if (scheduled) return;

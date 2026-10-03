@@ -1,7 +1,7 @@
 import {createNativeImageModules} from "./native-image-modules.mjs";
 
 // 原生呈现与上下文只在此适配；构建产物发现由专用模块提供。
-export function createNativeImageSource(codex, { requestHostAction, libraryApi, createCloudImageActions, signal, modules = createNativeImageModules() } = {}) {
+export function createNativeImageSource(codex, { requestHostAction, libraryApi, createCloudImageActions, promptGlyphSource, signal, modules = createNativeImageModules() } = {}) {
   const connect = modules.gallery;
   const opened = new Map();
 
@@ -82,6 +82,7 @@ export function createNativeImageSource(codex, { requestHostAction, libraryApi, 
     const context = environment(anchor);
     const {React, ReactDOM} = native;
     const h = React.createElement;
+    const promptIcon=h("span",{className:"inline-flex size-4 items-center justify-center","aria-hidden":true,dangerouslySetInnerHTML:{__html:promptGlyphSource}});
     let failure, currentContent, folderDialog, removeDialog, canvasImage, disposed=false, batchBusy=false;
     let currentImages=[],currentLoading=true,selectedIds=new Set(),selectionAnchor=null,openRevision=0;
     const scope = context.libraryScope;
@@ -251,7 +252,7 @@ export function createNativeImageSource(codex, { requestHostAction, libraryApi, 
         imageId:image.imageGenerationItemId, sourceConversationId:image.threadId,
         imageSourceContext:{conversationId:image.threadId, hostId:"local"}, imageSource:"generated",
         readOnly, openInEditor:true,
-        renderHeaderMenuActions:({renderMenu}) => renderMenu(h(native.Menu.Item, {onSelect:() => onPrompt(image), children:context.intl.formatMessage({id:"minecodex.images.viewPrompts",defaultMessage:"View prompts"})})),
+        renderHeaderMenuActions:({renderMenu}) => renderMenu(h(native.Menu.Item, {leftIcon:promptIcon,onSelect:() => onPrompt(image), children:context.intl.formatMessage({id:"minecodex.images.viewPrompts",defaultMessage:"View prompts"})})),
       }, {addToHistory:false});
       if (!result) throw new Error("Native image preview could not open");
     }
@@ -271,15 +272,28 @@ export function createNativeImageSource(codex, { requestHostAction, libraryApi, 
         h(native.ScopeProvider,{scope:native.composerRouteScope,value:{pathname:"/",routeKind:"home",routeTemplate:"/",search:"",projectContext:null}},
           h(native.ScopeProvider,{scope:native.composerScope,value:composerValue},h(CanvasSurface,{image,resolved,close}))));
       // 原生文件预览占据主内容 viewport，保留导航、二级侧栏和窗口栏。
-      return native.createPortal(h("div",{className:"absolute inset-0 z-40 overflow-hidden", "data-minecodex-image-canvas":image.id,children:content}),viewport);
+      return native.createPortal(h("div",{className:"absolute inset-0 z-40 overflow-hidden", "data-minecodex-image-canvas":image.id,children:[
+        // 画布在主内容内，原生窗口级 overlay 的交通灯避让不适用于此处。
+        h("style",{children:'[data-minecodex-image-canvas] .shrink-0:has(>[data-testid="viewer-header"]){padding-left:0!important;padding-right:0!important}'}),content,
+      ]}),viewport);
     }
     function CanvasSurface({image,resolved,close}) {
       const controller=native.useComposerController();
+      const navigate=native.useFileNavigate();
       const home=native.useHomeComposer({homeComposerController:controller,homeComposerMode:"chat"});
       const [abort]=React.useState(()=>new AbortController());
       const [markup,setMarkup]=React.useState(false);
       const [manualZoomPercent,setManualZoomPercent]=React.useState(null);
       const [submitting,setSubmitting]=React.useState(false);
+      const [composerHeight,setComposerHeight]=React.useState(0);
+      const measureComposer=React.useCallback(node=>{
+        const element=node?.querySelector("[data-codex-composer-root]");
+        if(!element)return;
+        const measure=()=>setComposerHeight(element.getBoundingClientRect().height);
+        const observer=new ResizeObserver(measure);
+        observer.observe(element);measure();
+        return ()=>{observer.disconnect();setComposerHeight(0);};
+      },[]);
       const editorRef=React.useRef(null);
       const attachment=React.useRef(null);
       const submissionAccepted=React.useRef(false);
@@ -319,29 +333,44 @@ export function createNativeImageSource(codex, { requestHostAction, libraryApi, 
         }catch(error){if(!abort.signal.aborted)operationError(error);return false;}
         finally {if(!abort.signal.aborted)setSubmitting(false);}
       };
-      const composer=h(native.ComposerSurface,{placement:{kind:"home"}},h(native.Composer,{
-        ...props,composerController:controller,composerLayoutMode:"auto-single-line",lockedLayout:"single-line",
-        className:"mx-auto w-full max-w-2xl px-toolbar",errorClassName:"p-3",showFilePicker:false,signal:abort.signal,
-        placeholder:message("libraryFilePreview.composerPlaceholder","Ask about this file"),isPrimaryComposer:false,
-        disableSubmit:props.disableSubmit||submitting,
-        attachmentPreparation:{mimeTypes:["image/png"],prepare:async signal=>{signal?.throwIfAborted();return [await prepare()];}},
-        onSubmitAccepted:accepted,
-      }));
+      const composer=h("div",{ref:measureComposer,className:"contents"},h(native.ComposerSurface,{placement:{kind:"home"}},h(native.FileComposer,{
+        composerController:controller,composerLayoutMode:"auto-single-line",
+        className:"mx-auto w-[min(48rem,calc(100vw-2rem))] max-w-full",
+        composerModeAvailability:native.fileComposerAvailability,
+        hideRunLocationDropdownOverride:true,showUtilityBar:false,surfaceVariant:"inline",
+        placeholderText:message("libraryFilePreview.composerPlaceholder","Ask about this file"),
+        submitDisabled:submitting,selectedProject:null,
+        // 原图仅在发送时成为本地附件，不伪造 Library 身份，也不上传云端。
+        prepareLocalConversationAttachments:async ({fileAttachments,hostId})=>{
+          assertCurrent();
+          const file=await reference(image,"upload-file");assertCurrent();
+          const attached=await native.localAttachmentService(context.scope,hostId).createFileAttachment({contents:uploadFile(file),label:file.name});
+          if(abort.signal.aborted||!isCurrent()){
+            await native.deleteLocalAttachment(context.scope,hostId,attached.path);
+            assertCurrent();
+          }
+          return [...fileAttachments,attached];
+        },
+        onLocalFirstTurnAccepted:()=>{submissionAccepted.current=true;},
+        onLocalConversationCreated:(conversationId,state)=>{submissionAccepted.current=true;close();navigate(native.localThreadRoute(conversationId),{state});},
+      })));
       const dataUrl=resolved.dataUrl??resolved.previewSrc;
       const canvas=h(native.Canvas,{
         alt:image.name,title:image.name,src:dataUrl??image.sourcePath,downloadSrc:dataUrl??image.sourcePath,downloadFilename:image.name,
         attachmentId:`image-playground:${image.imageGenerationItemId}`,attachmentSrc:image.sourcePath,
         chatGptConversationId:props.conversationId,
         imageSource:"generated",imageSourceContext:{conversationId:image.threadId,hostId:"local"},
-        readOnly:false,presentation:"dialog",standalone:true,showViewerHeader:true,onClose:requestClose,
+        readOnly:false,presentation:"overlay",standalone:true,showViewerHeader:true,onClose:requestClose,
         markupMode:{active:markup,onActiveChange:setMarkup,editorRef,isSubmitting:submitting,standaloneComposer:true},
         onImageEditSubmit:submitEdit,
         zoom:{manualZoomPercent,onZoomPercentChange:setManualZoomPercent,onZoomToFit:()=>setManualZoomPercent(null)},
         renderComposer:visible=>h(React.Activity,{mode:visible?"visible":"hidden",children:composer}),
-        renderHeaderMenuActions:({renderMenu})=>renderMenu(h(native.Menu.Item,{onSelect:()=>onPrompt(image),children:message("minecodex.images.viewPrompts","View prompts")})),
+        renderHeaderMenuActions:({renderMenu})=>renderMenu(h(native.Menu.Item,{leftIcon:promptIcon,onSelect:()=>onPrompt(image),children:message("minecodex.images.viewPrompts","View prompts")})),
       });
-      // 原生 overlay 负责底部留白、宽度、避让与 Comment 时的输入框显隐。
-      return h(native.CanvasLayout,{assetName:image.name,contentOwnsHeader:true,onClose:requestClose,children:canvas});
+      // 原生 overlay 的 118px 下限属于旧输入框；画布和拖拽边界跟随实际高度。
+      const reserve=composerHeight>0?`calc(${composerHeight}px + var(--spacing)*4)`:"0px";
+      return h("div",{className:"contents",style:{"--right-panel-composer-overlay-reserve":reserve}},
+        h(native.CanvasLayout,{assetName:image.name,contentOwnsHeader:true,onClose:requestClose,children:canvas}));
     }
     async function chatAbout(image) {
       assertAccount();
@@ -389,13 +418,6 @@ export function createNativeImageSource(codex, { requestHostAction, libraryApi, 
         const item = byId.get(id);
         return item && {...item, icon, text:context.intl.formatMessage(message ?? item.message)};
       };
-      const promptGlyph = document.querySelector('[aria-label="Prompts"] svg');
-      const menuGlyph = promptGlyph?.cloneNode(true);
-      if (menuGlyph) {
-        menuGlyph.setAttribute("width","16");menuGlyph.setAttribute("height","16");
-        menuGlyph.style.width="16px";menuGlyph.style.height="16px";
-      }
-      const promptIcon = menuGlyph ? h("span", {className:"inline-flex size-4 items-center justify-center", "aria-hidden":true, dangerouslySetInnerHTML:{__html:menuGlyph.outerHTML}}) : null;
       const menuItems = [
         {id:"chat-about", icon:native.chatIcon, text:context.intl.formatMessage({id:"libraryNext.actions.chatAboutItem",defaultMessage:"Chat about this"}),onSelect:() => {void chatAbout(image).catch(onRetry);}},
         {id:"view-prompts", icon:promptIcon, text:context.intl.formatMessage({id:"minecodex.images.viewPrompts",defaultMessage:"View prompts"}),onSelect:() => {void open(image).then(opened=>{if(opened&&isCurrent())onPrompt(image);}).catch(operationError);}},

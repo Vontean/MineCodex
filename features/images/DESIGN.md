@@ -12,6 +12,8 @@ hover sidebars and the native full-page shell remain owned by Codex.
 
 ## Image Gen
 
+全屏图片查看器使用原生 Canvas 的 `presentation:"overlay"`，由外层 CanvasLayout 的 `bg-surface` 提供背景。Codex 26.930.21537（2026-10-03 源码与 live DOM）：`dialog` / `panel` 分支会在内部画布叠加 `bg-surface-secondary`（当前浅色 #f7f7f7），不能用于这里的全屏画布。保留 standalone、原生 viewer header、底部编辑工具栏和 Composer 接入。
+
 Codex 26.930.21537（2026-10-02 隔离实测）：通过原生 `variant="browse"` 的 Image sources 契约接入。保留原生标签节点及路由，在插件拥有的 React root 中复用同一个原生 Tabs 组件，追加 Image Gen；退出时恢复原节点。原生上下文由 Adapter 从当前已提交的组件祖先读取，业务层不遍历 Fiber。
 
 本地来源复用 ImageLibrary、ThreadMetadataIndex 及文件监听，索引存放在当前 runtime profile；按生成时间倒序，每页 36 张，滚动增量加载，搜索复用原生输入框。稳定身份为 threadId + imageGenerationItemId，不猜测云端 ID 与本地文件的关系。
@@ -20,11 +22,13 @@ Codex 26.930.21537（2026-10-02 隔离实测）：通过原生 `variant="browse"
 
 点击图片进入原生 Library 主内容 viewport 内的图片画布，保留 navbar、Space 二级侧栏和窗口栏；不打开 side panel，也不使用覆盖整窗的 Dialog。画布、缩放、下载、打开、Markup、Comment、Remove BG、Erase、Resize 和底部 “Ask about this file” 输入框复用原生组件。底部直接使用画布的原生 `renderComposer` / overlay 承载，沿用底部留白、居中、避让和工具状态显隐；不得另建 absolute 底部输入框。进入 Comment 时隐藏大输入框，退出时恢复；原生拖拽工具栏保留位置记忆及 Home 居中重置。初始缩放与每张图的 Zoom to fit 使用原生 `zoom` 契约，`manualZoomPercent` 初始为 `null`，不自算比例，也不继承上一张图的手动缩放。关闭回到原列表并恢复交互，标注中的关闭交由原生编辑器处理。
 
-本地来源以真实路径、来源 thread 和生成项 ID 接入；首次发送或提交编辑时才通过原生上传准备临时附件，同一画布复用附件，查看不上传到 Library。附件使用原生返回的 `id`；不得把本地 ID 伪装为 cloud file ID。生成编辑调用原生提交能力，接受后沿用原生会话导航。View prompts 通过原生菜单扩展进入已有的 File info 风格面板。以上组件契约已按 Codex 26.930.21537 的产物与隔离窗口检查；实际云端生成结果须单独验证。
+2026-10-03 跟进原生文件预览：底部复用当前 File Composer 的本地任务分支，宽度 `min(48rem, calc(100vw - 2rem))`、`auto-single-line`、`surfaceVariant:"inline"`、隐藏 utility bar 和运行位置控件，输入布局、模型控件、权限、语音及发送按钮均由原生组件决定，不再固定旧 Chat 的单行组件。画布在主内容 viewport 内，因此只在此画布范围内去掉原生 overlay header 容器的窗口交通灯左右避让，保留原生 header 自身 8px inset。背景、缩放、Open、下载、关闭、菜单及编辑状态使用原生 Canvas；按当前产品要求保留黑色编辑行动条。底部预留区通过 ResizeObserver 读取实际 File Composer 高度，加原生 `spacing × 4` 底部 inset；不沿用原生旧输入框的 118px 最小预留。行动条默认位置与拖拽下边界共用此画布尺寸，输入框展开、收起或隐藏时同步更新；默认紧凑输入框 44px 时预留为 60px，行动条与输入框间距为 16px。
 
-发送准备保持用户点击发送后才上传，不在开始输入时预上传；本地字节转换直接填充 typed array，避免大图片经字符串迭代器生成中间数组。该优化只减少本地准备成本，不代表上传或原生提交网络等待已经缩短。
+本地来源以真实路径、来源 thread 和生成项 ID 接入；底部输入框首次发送时通过原生文件服务准备本地临时附件，不上传云端、不伪造 Library 身份。关闭或切换账号后晚到的附件会释放；提交接受后沿用原生本地会话导航。黑色行动条的生成编辑仍在明确提交编辑时通过原生上传准备临时附件，同一画布复用编辑附件，查看不上传到 Library。附件使用原生返回的 `id`；不得把本地 ID 伪装为 cloud file ID。生成编辑调用原生提交能力，接受后沿用原生会话导航。View prompts 通过原生菜单扩展进入已有的 File info 风格面板。以上组件契约已按 Codex 26.930.21537 的产物与隔离窗口检查；实际云端生成结果须单独验证。
 
-图库菜单复用原生 mediaOverlay More Button、Dropdown、Menu.Item 与原生图标，按 Chat about this、View prompts、Add to Favorites／Remove from Favorites、Download、Add to folder、Delete 排列。View prompts 的图标约束为菜单使用的 16px，不继承导航栏尺寸。
+发送准备只在用户点击发送后进行，不在开始输入时预准备；本地字节转换直接填充 typed array，避免大图片经字符串迭代器生成中间数组。该优化只减少本地准备成本，不代表上传或原生提交网络等待已经缩短。
+
+图库菜单复用原生 mediaOverlay More Button、Dropdown、Menu.Item 与原生图标，按 Chat about this、View prompts、Add to Favorites／Remove from Favorites、Download、Add to folder、Delete 排列。View prompts 的图标约束为菜单使用的 16px，不继承导航栏尺寸。项目现有 Lucide book-open 的合并路径图形随 Images 注入，资源位于 `src/assets/prompts-menu.svg`；图库 More、大图菜单和云端菜单共用此资源，不从 Prompts 导航节点临时取图，也不依赖 Notes 功能启用。
 
 只有用户点击收藏或文件夹操作时，通过原生 Library upload（required persistence）上传所选 PNG；取得真实 Library ID 后保存账号、用户、本地图片 ID、SHA-256 内容指纹对应关系。收藏调用原生 setLibraryFavorite 并以服务器状态切换，文件夹使用原生 MoveLibraryItemsDialog；不在本地保存收藏或文件夹关系。云端节点读取采用原生 `/files/library/files/{library_file_id}/node` 契约，不能把上传返回的 Library ID 当普通内容 file ID。
 
