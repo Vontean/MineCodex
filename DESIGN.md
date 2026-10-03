@@ -64,7 +64,7 @@ Token 名称是实现依据；括号内数值是本版本观测值。读取实�
 
 Dropdown 的 `--shadow-dropdown-overlay` 当前指向 `--shadow-xl-spread`，该 token 自身含0.5px边缘。普通Popover的 `--shadow-popover-overlay` 当前指向 `--shadow-lg`。不要给所有浮层固定附加4px blur或同一个shadow。
 
-Composer菜单的锚点是实际输入框主体（当前语义标记 `data-composer-body`），不是包含diff和请求队列的外层Root。home 输入框的 ComposerMenu 向下展开，已有会话向上展开；方向使用原生 `data-composer-placement`，间隔4px，按该方向计算可用高度。挂载位置、zoom与碰撞行为沿用对应原生组件，不为修复坐标问题盲目提高z-index。
+Composer菜单的锚点是实际输入框主体（当前语义标记 `data-composer-body`），不是包含diff和请求队列的外层Root。Chat／Work 空白新会话的 ComposerMenu 跟随原生 Add 向下展开，Codex 模式新会话与已有会话向上展开；home 场景读取原生 `data-dropdown-overlay-side`，仅值为 bottom 时向下，缺失时保留向上。间隔4px，按该方向计算可用高度。挂载位置、zoom与碰撞行为沿用对应原生组件，不为修复坐标问题盲目提高z-index。
 
 ## Viewer 附属信息面板
 

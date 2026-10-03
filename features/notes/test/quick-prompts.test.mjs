@@ -238,7 +238,7 @@ test("Quick Prompts anchors to the composer body when diff and request stacks ex
   const panel = { style:{} };
   let bodyRect = { left:100, top:600, width:720 };
   const root = { isConnected:true, getBoundingClientRect:()=>{ throw new Error("Outer stack must not be used as the anchor"); } };
-  const add = { closest:selector=>selector === "[data-composer-body]" ? { getBoundingClientRect:()=>bodyRect } : {getAttribute:()=>"thread"} };
+  const add = { closest:selector=>selector === "[data-composer-body]" ? { getBoundingClientRect:()=>bodyRect } : selector.includes("composer-root") ? {getAttribute:()=>"thread"} : null };
   const menu = new Function("getComputedStyle", `return (${installComposerMenu.toString()})(null, {surface:()=>{},layer:()=>{}});`)(()=>({zoom:"1"}));
   const position = new Function("panel", "composerRoot", "addButton", "config", `${positioning}; return position;`)(panel, root, add, {ui:menu});
   position();
@@ -252,11 +252,11 @@ test("Quick Prompts anchors to the composer body when diff and request stacks ex
 });
 
 
-test("home Quick Prompts opens below like Add, accounts for zoom and resets on thread placement", () => {
-  let placement="home",zoom="1";
+test("Chat and Work home follow native bottom placement while Codex home stays above", () => {
+  let placement="home",nativeSide="bottom",zoom="1";
   const body={getBoundingClientRect:()=>({left:100,top:300,bottom:460,width:720})};
   const root={getAttribute:()=>placement};
-  const add={closest:selector=>selector === "[data-composer-body]" ? body : root};
+  const add={closest:selector=>selector === "[data-composer-body]" ? body : selector === "[data-dropdown-overlay-side]" ? {getAttribute:()=>nativeSide} : root};
   const panel={style:{}};
   const menu=new Function("getComputedStyle","innerHeight",`return (${installComposerMenu.toString()})(null,{surface:()=>{},layer:()=>{}});`)(()=>({zoom}),800);
   menu.composerMenu(panel,add);
@@ -264,7 +264,13 @@ test("home Quick Prompts opens below like Add, accounts for zoom and resets on t
   zoom="2";menu.composerMenu(panel,add);
   assert.equal(panel.style.top,"232px");
   assert.equal(panel.style.maxHeight,"160px");
-  placement="thread";menu.composerMenu(panel,add);
+  // 同为 home，Codex 原生向上；方向缺失时保留原有向上行为。
+  for (nativeSide of ["top",null]) {
+    menu.composerMenu(panel,add);
+    assert.equal(panel.style.top,"148px");
+    assert.equal(panel.style.transform,"translateY(-100%)");
+  }
+  nativeSide="bottom";placement="thread";menu.composerMenu(panel,add);
   assert.equal(panel.style.top,"148px");
   assert.equal(panel.style.transform,"translateY(-100%)");
   assert.equal(panel.style.maxHeight,"142px");

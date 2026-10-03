@@ -8,8 +8,9 @@ export function installComposerMenu(signal, ui) {
       ui.layer(node, "floating");
       const rect = body.getBoundingClientRect();
       const root = anchor.closest("[data-codex-composer-root], [data-chatgpt-composer]");
-      // 首页 Add 向下展开；已有会话保留向上的输入框菜单。
-      const below = root?.getAttribute("data-composer-placement") === "home";
+      const nativeSide = anchor.closest("[data-dropdown-overlay-side]")?.getAttribute("data-dropdown-overlay-side");
+      // 新会话跟随原生 Add 方向，不能仅凭 home 将 Codex 模式改为向下。
+      const below = root?.getAttribute("data-composer-placement") === "home" && nativeSide === "bottom";
       const zoom = Number.parseFloat(getComputedStyle(node).zoom) || 1;
       node.style.left = `${rect.left / zoom}px`;
       node.style.top = `${(below ? rect.bottom + gap : rect.top - gap) / zoom}px`;
