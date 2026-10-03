@@ -2,7 +2,10 @@
 export function tokenRequirements(source, bindings) {
   const nativeNames=new Map(Object.entries(bindings).map(([native,project])=>[project,native]));
   const requirements=new Map();
+  const localNames=new Set([...source.matchAll(/(--mcx-[a-z0-9-]+)\s*:/g)].map(match=>match[1]));
   for (const match of source.matchAll(/var\((--mcx-[a-z0-9-]+)\s*([,)])/g)) {
+    // 插件声明的局部变量不属于原生映射；其消费的共享变量仍独立检查。
+    if (!nativeNames.has(match[1]) && localNames.has(match[1])) continue;
     const name=nativeNames.get(match[1]) ?? match[1];
     requirements.set(name,{name,required:match[2] === ")" || requirements.get(name)?.required === true,
       ...(nativeNames.has(match[1]) ? {} : {unmapped:true})});

@@ -105,3 +105,12 @@ test("target discovery does not repeat probes; document reload invalidates the s
   await runtime.refreshTargets();
   assert.equal(checks,2);
 });
+
+
+test("feature-owned CSS variables do not become missing native tokens", () => {
+  const bindings={"--color-text-primary":"--mcx-color-text-primary"};
+  const source=".panel { --mcx-purple:var(--app-block-accent-purple, purple); --mcx-local:var(--mcx-color-text-primary); } .bar { color:var(--mcx-purple); background:var(--mcx-local); outline:var(--mcx-unknown); }";
+  assert.deepEqual(tokenRequirements(source,bindings),[
+    {name:"--color-text-primary",required:true},{name:"--mcx-unknown",required:true,unmapped:true},
+  ]);
+});
