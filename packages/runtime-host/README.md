@@ -207,3 +207,7 @@ Model Slider 的模型规则、原生控制器适配和专有呈现位于插件 
 Runtime Host 在账号菜单 Settings 下挂载 MineCodex 项目入口，不属于可开关的插件。`minecodex/open-control-panel` 是独立 builtin action，必须通过对应 renderer 的 binding token 验证；它不接受任意 URL 或 shell 参数，固定调用包内 CLI 的 `gui` 命令。组件的项目图标、外链箭头与菜单模板由共享 UI 提供。
 
 CLI 继续通过一次性 browser exchange 打开控制台。macOS 默认 Safari 与 Chrome/Chromium、Edge、Brave、Vivaldi 支持查找现有控制台标签页并激活；没有匹配页才调用系统默认浏览器打开登录地址。自动化权限被拒绝时返回错误，不用重复开页掩盖失败。其他浏览器和 Windows 保留系统 URL 打开行为，目前不保证标签页复用。
+
+### 暂停功能的接入
+
+`codex-feature.json` 的 `disabled:true` 表示保留源码但暂停运行时接入。发现阶段在加载 Adapter、资源和注入源码之前跳过该功能，显式启用 ID 也不能恢复它。Task Toast（`unread-inbox`）于 2026-10-03 暂停；CLI／控制台已移除其注册入口，配置归一化清除旧启用项。恢复时须同时重新评估注入场景并恢复 manifest 与用户入口。

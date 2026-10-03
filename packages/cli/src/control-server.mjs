@@ -328,6 +328,10 @@ export async function createControlServer({
       const featureMatch = url.pathname.match(/^\/api\/features\/([a-z-]+)$/);
       if (request.method === "PATCH" && featureMatch) {
         requireMutationOrigin(request, host, boundPort);
+        if (!FEATURE_IDS.includes(featureMatch[1])) {
+          json(response, 404, { error: "NOT_FOUND" });
+          return;
+        }
         const body = await readJson(request);
         await updateFeature(paths.configPath, featureMatch[1], body.enabled);
         const features = await featureStatuses(paths, runtimeManager, locale);

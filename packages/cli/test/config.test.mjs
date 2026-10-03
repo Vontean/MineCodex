@@ -23,7 +23,6 @@ test("config defaults every known plugin on and preserves unknown fields", async
     "hide-upsell-banner": true,
     "session-status": true,
     "usage-meter": true,
-    "unread-inbox": true,
     "sidebar-focus": true,
     sites: true,
   });
@@ -69,4 +68,11 @@ test("concurrent feature updates serialize the read-modify-write seam", async ()
 
   assert.equal(value.features.notes, false);
   assert.equal(value.features.images, false);
+});
+
+test("retired Task notifications cannot be restored by old config or feature updates", async () => {
+  const config=normalizeConfig({features:{"unread-inbox":true,"future-plugin":true}});
+  assert.equal("unread-inbox" in config.features,false);
+  assert.equal(config.features["future-plugin"],true);
+  await assert.rejects(updateFeature("/unused/config.json","unread-inbox",true),/Unknown MineCodex plugin/);
 });

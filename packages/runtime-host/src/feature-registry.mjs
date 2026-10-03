@@ -334,6 +334,7 @@ export async function discoverFeatures(featuresRoot, { env = process.env } = {})
     }
     try {
       const manifest = JSON.parse(source);
+      if (manifest.disabled === true) continue;
       features.push(await normalizeFeature(manifest, projectDir, env));
     } catch (error) {
       throw new Error(`Invalid ${entry.name}/${MANIFEST_NAME}: ${error.message}`);

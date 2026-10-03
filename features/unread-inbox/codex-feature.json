@@ -1,6 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "unread-inbox",
+  "disabled": true,
   "version": "0.1.0",
   "label": {
     "en": "Task Switcher",

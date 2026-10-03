@@ -209,6 +209,8 @@ function findPluginCard(featureId) {
 }
 
 function renderPluginCards(features) {
+  // Task 暂停接入，旧版服务返回的卡片也不展示。
+  features = features.filter(feature => feature.id !== "unread-inbox");
   for (const child of [...elements.pluginList.children]) {
     if (!child.dataset.featureId) child.remove();
   }
