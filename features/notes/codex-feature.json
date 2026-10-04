@@ -17,7 +17,8 @@
     "script": "src/frontend/entry.mjs",
     "resources": {
       "icons": "src/frontend/icons.json",
-      "styles": "src/frontend/styles.css"
+      "styles": "src/frontend/styles.css",
+      "previews": "assets/prompt-previews.json"
     }
   },
   "placement": {

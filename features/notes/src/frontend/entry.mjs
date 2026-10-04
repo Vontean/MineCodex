@@ -25,6 +25,7 @@ function appearanceLabel(key) {
 }
 function errorMessage(error) {
   const messages = {
+    "Open a chat before using a prompt.": "请先打开一个对话，再使用提示词。",
     "Category was not found": "未找到该分类",
     "Prompt was not found": "未找到该提示词",
     "Choose one emoji or leave it empty": "请选择一个 Emoji，或留空以继承分类图标",
@@ -292,6 +293,9 @@ let page = null;
 let pageGeneration = 0;
 let activeCategory = "all";
 let pageSort = "manual";
+let pageView = "cards";
+try { pageView = localStorage.getItem("minecodex.prompts.view") === "list" ? "list" : "cards"; } catch {}
+let cardResizeObserver = null;
 let searchText = "";
 let editor = null;
 let pageFocus = null;
@@ -329,6 +333,8 @@ function restoreNavigationSelection() {
 }
 function closePage(restoreFocus = false, restoreNavigation = true) {
   dragState?.cancel();
+  closeImagePreview();
+  cardResizeObserver?.disconnect();
   pageGeneration++;
   closePagePopup();
   closeEditor(false);
@@ -381,7 +387,7 @@ function openPage() {
   syncNavigationSelection();
   positionPage();
   page.append(element("div", "pm-empty", text("Loading…", "加载中…")));
-  void loadPage();
+  return loadPage();
 }
 let pagePopup = null;
 let popupTrigger = null;
@@ -541,6 +547,7 @@ function renderPage() {
   actions.append(
     sortButton,
     pageIcon(text("Edit categories", "编辑分类"), "settings", manageCategories),
+    viewSwitcher(),
     searchField,
     pageControl(text("New prompt", "新建提示词"), () => editPrompt(), true),
   );
@@ -594,7 +601,10 @@ function renderPage() {
   renderRows(list);
 }
 function renderRows(list) {
+  closeImagePreview();
+  cardResizeObserver?.disconnect();
   list.replaceChildren();
+  list.dataset.view = pageView;
   const query = searchText.trim().toLocaleLowerCase();
   const groups = [...categories, { id: null, name: text("Other", "其他") }];
   let shown = items.filter(
@@ -617,21 +627,28 @@ function renderRows(list) {
   if (pageSort === "recent")
     shown.sort((a, b) => (b.calledAt ?? 0) - (a.calledAt ?? 0));
   const sections =
-    pageSort === "manual"
+    (pageSort === "manual" || pageView === "cards")
       ? groups
           .map((c) => ({
             name: c.name,
-            items: orderedItems(c.id).filter((p) => shown.includes(p)),
+            items: pageSort === "manual"
+              ? orderedItems(c.id).filter((p) => shown.includes(p))
+              : shown.filter((p) => p.categoryId === c.id),
           }))
           .filter((c) => c.items.length)
       : [{ items: shown }];
   for (const section of sections) {
     if (section.name && activeCategory === "all")
       list.append(element("h2", "", section.name));
+    if (pageView === "cards") {
+      list.append(renderCardSection(section));
+      continue;
+    }
     for (const item of section.items) {
       const row = element("div", "pm-row");
       row.dataset.promptId = item.id;
-      const info = control(item.summary, () => editPrompt(item), "pm-info");
+      const use = control(text(`Use ${item.summary}`, `使用 ${item.summary}`), () => void usePagePrompt(item, use), "pm-list-use");
+      const info = element("div", "pm-info");
       info.replaceChildren(
         element("div", "pm-title", item.summary),
         element("div", "pm-preview", item.body.replace(/\s+/g, " ")),
@@ -650,7 +667,8 @@ function renderRows(list) {
             : text(`${item.useCount} ${item.useCount === 1 ? "call" : "calls"}`, `${item.useCount} 次调用`),
         ),
       );
-      row.append(categoryIcon(item), info, stats);
+      use.replaceChildren(categoryIcon(item), info, stats);
+      row.append(use, pageIcon(text("Edit prompt", "编辑提示词"), "square-pen", () => editPrompt(item)));
       if (pageSort === "manual" && !query)
         row.append(
           orderControls(item, orderedItems(item.categoryId), false, row),
@@ -658,6 +676,241 @@ function renderRows(list) {
       list.append(row);
     }
   }
+}
+function viewSwitcher() {
+  const group = element("div", "pm-view-switch");
+  group.setAttribute("role", "group");
+  group.setAttribute("aria-label", text("View", "视图"));
+  for (const [value, label] of [["cards", text("Cards", "卡片")], ["list", text("List", "列表")]]) {
+    const button = control(label, () => {
+      pageView = value;
+      try { localStorage.setItem("minecodex.prompts.view", value); } catch {}
+      for (const child of group.children) child.setAttribute("aria-pressed", String(child === button));
+      renderRows(page.querySelector(".pm-list"));
+    }, "pm-view-option", value === "cards" ? "layout-grid" : "list");
+    button.setAttribute("aria-pressed", String(pageView === value));
+    group.append(button);
+  }
+  return group;
+}
+function cardPreview(item) {
+  // 当前只有分类语义，占位图不写入用户提示词，也不冒充生成结果。
+  const category = categories.find((c) => c.id === item.categoryId);
+  if (!/^(生图|图像生成|图片生成|image generation|images?)$/i.test(category?.name?.trim() ?? "")) return null;
+  const previews = config.resources.previews ?? [];
+  const index = orderedItems(item.categoryId).findIndex((p) => p.id === item.id);
+  return previews[index % previews.length] ?? null;
+}
+async function usePagePrompt(item, trigger) {
+  trigger.disabled = true;
+  closePage();
+  try {
+    // Page 归还原路由后等待输入框挂载；不自动发送消息。
+    let editable = null;
+    for (let attempt = 0; attempt < 40 && !signal.aborted; attempt++) {
+      editable = config.codex.composer(null, { purpose: "insertion" })?.editable;
+      if (editable) break;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    if (signal.aborted) return;
+    if (!editable) throw new Error("Open a chat before using a prompt.");
+    window.__codexPersonalRuntime.insertText(item.body, editable);
+  } catch (error) {
+    await openPage();
+    pageError(error);
+    return;
+  }
+  try {
+    await api(`/api/prompts/${encodeURIComponent(item.id)}/use`, {
+      method: "POST", body: { action: "insert", success: true },
+    });
+  } catch (error) {
+    // 正文已插入，计数失败不能再次插入。
+    console.warn("[Prompts] Usage could not be saved", error);
+  }
+}
+let imagePreview = null;
+let imagePreviewAnchor = null;
+let imagePreviewTimer = null;
+let imagePreviewSpotlight = null;
+let imagePreviewExitTimer = null;
+const previewReducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+function tweenPreview(node, target, duration) {
+  if (!node) return;
+  const computed = getComputedStyle(node);
+  const from = { opacity:computed.opacity, transform:computed.transform };
+  node.getAnimations().forEach((animation) => animation.cancel());
+  node.animate([from, target], { duration, easing:"cubic-bezier(.22,1,.36,1)", fill:"forwards" });
+}
+function retainImagePreview() {
+  clearTimeout(imagePreviewTimer);
+  if (imagePreviewExitTimer === null) return;
+  clearTimeout(imagePreviewExitTimer);
+  imagePreviewExitTimer = null;
+  tweenPreview(imagePreview, { opacity:1, transform:"none" }, 180);
+  tweenPreview(imagePreviewSpotlight?.overlay, { opacity:1, transform:"none" }, 180);
+}
+function dismissImagePreview() {
+  clearTimeout(imagePreviewTimer);
+  if (!imagePreview || previewReducedMotion()) { closeImagePreview(); return; }
+  if (imagePreviewExitTimer !== null) return;
+  tweenPreview(imagePreview, { opacity:0, transform:"scale(.97)" }, 160);
+  tweenPreview(imagePreviewSpotlight?.overlay, { opacity:0, transform:"none" }, 180);
+  imagePreviewExitTimer = setTimeout(closeImagePreview, 180);
+}
+function closeImagePreview() {
+  clearTimeout(imagePreviewExitTimer);
+  imagePreviewExitTimer = null;
+  clearTimeout(imagePreviewTimer);
+  imagePreviewAnchor?.removeAttribute("aria-describedby");
+  imagePreview?.remove();
+  if (imagePreviewSpotlight) {
+    const { card, placeholder, layer, overlay, cssText } = imagePreviewSpotlight;
+    card.style.cssText = cssText;
+    placeholder.replaceWith(card);
+    layer.remove();
+    overlay.remove();
+    imagePreviewSpotlight = null;
+  }
+  imagePreview = null;
+  imagePreviewAnchor = null;
+}
+function deferImagePreviewClose() {
+  if (document.activeElement === imagePreviewAnchor) return;
+  clearTimeout(imagePreviewTimer);
+  imagePreviewTimer = setTimeout(dismissImagePreview, 100);
+}
+function showImagePreview(anchor, preview, title) {
+  if (imagePreviewAnchor === anchor && imagePreview) {
+    retainImagePreview();
+    return;
+  }
+  closeImagePreview();
+  imagePreviewAnchor = anchor;
+  imagePreviewTimer = setTimeout(() => {
+    if (!anchor.isConnected || !page || signal.aborted) return;
+    const panel = element("div", "pm-image-preview");
+    panel.id = "mcx-prompt-image-preview";
+    panel.setAttribute("role", "tooltip");
+    config.ui.surface(panel, "popover");
+    const image = element("img");
+    image.alt = text(`Full image: ${title}`, `完整图片：${title}`);
+    const position = () => {
+      if (imagePreview !== panel || !image.naturalWidth) return;
+      const r = anchor.getBoundingClientRect();
+      const scale = Math.min(520 / image.naturalWidth, (innerHeight - 40) / image.naturalHeight, (innerWidth - 40) / image.naturalWidth, 640 / image.naturalHeight);
+      const width = image.naturalWidth * scale;
+      const height = image.naturalHeight * scale;
+      panel.style.width = `${width}px`;
+      panel.style.height = `${height}px`;
+      const right = r.right + 12;
+      const left = r.left - width - 12;
+      panel.style.left = `${Math.max(14, Math.min(right + width <= innerWidth - 14 ? right : left >= 14 ? left : r.left + (r.width - width) / 2, innerWidth - width - 14))}px`;
+      panel.style.top = `${Math.max(14, Math.min(r.top + (r.height - height) / 2, innerHeight - height - 14))}px`;
+      panel.style.transformOrigin = `${Math.max(0, Math.min(width, r.left + r.width / 2 - parseFloat(panel.style.left)))}px ${Math.max(0, Math.min(height, r.top + r.height / 2 - parseFloat(panel.style.top)))}px`;
+      panel.style.visibility = "visible";
+      if (!panel.dataset.entered && !previewReducedMotion()) {
+        panel.animate([{ opacity:0, transform:"scale(.96)" }, { opacity:1, transform:"none" }], { duration:240, easing:"cubic-bezier(.22,1,.36,1)", fill:"forwards" });
+      }
+      panel.dataset.entered = "true";
+    };
+    image.addEventListener("load", position, { once: true });
+    image.src = preview.data;
+    panel.append(image);
+    panel.addEventListener("pointerenter", retainImagePreview);
+    panel.addEventListener("pointerleave", deferImagePreviewClose);
+    imagePreview = panel;
+    // 原卡片移入浮层，避开书架的 mask / overflow；占位保持页面不跳动。
+    const card = anchor.closest(".pm-card");
+    const rect = card.getBoundingClientRect();
+    const placeholder = element("div");
+    placeholder.style.width = `${rect.width}px`;
+    placeholder.style.height = `${rect.height}px`;
+    const overlay = element("div", "pm-preview-overlay");
+    config.ui.overlay(overlay);
+    config.ui.layer(overlay, "floating");
+    overlay.addEventListener("pointerdown", dismissImagePreview);
+    const layer = element("div", "pm-preview-spotlight");
+    layer.setAttribute(MARKER, "page");
+    config.ui.layer(layer, "floating");
+    const cssText = card.style.cssText;
+    imagePreviewSpotlight = { card, placeholder, layer, overlay, cssText };
+    card.replaceWith(placeholder);
+    Object.assign(card.style, { position:"absolute", left:`${rect.left}px`, top:`${rect.top}px`, width:`${rect.width}px`, height:`${rect.height}px`, pointerEvents:"auto" });
+    layer.append(card);
+    document.body.append(overlay, layer);
+    if (!previewReducedMotion()) overlay.animate([{ opacity:0 }, { opacity:1 }], { duration:220, easing:"cubic-bezier(.22,1,.36,1)", fill:"forwards" });
+    anchor.setAttribute("aria-describedby", panel.id);
+    document.body.append(panel);
+    position();
+  }, 200);
+}
+window.addEventListener("scroll", closeImagePreview, { capture:true, signal });
+window.addEventListener("resize", closeImagePreview, { signal });
+window.addEventListener("blur", closeImagePreview, { signal });
+window.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && imagePreviewAnchor) {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    dismissImagePreview();
+  }
+}, { capture:true, signal });
+signal.addEventListener("abort", closeImagePreview, { once:true });
+function renderCardSection(section) {
+  const shelf = element("div", activeCategory === "all" ? "pm-card-shelf" : "pm-card-grid");
+  if (activeCategory === "all") {
+    shelf.tabIndex = 0;
+    shelf.setAttribute("role", "region");
+    shelf.setAttribute("aria-label", section.name);
+    const updateEdges = () => {
+      shelf.dataset.left = String(shelf.scrollLeft > 3);
+      shelf.dataset.right = String(shelf.scrollLeft + shelf.clientWidth < shelf.scrollWidth - 3);
+    };
+    shelf.addEventListener("scroll", updateEdges, { passive: true });
+    cardResizeObserver ??= new ResizeObserver((entries) => {
+      for (const { target } of entries) target.dispatchEvent(new Event("scroll"));
+    });
+    cardResizeObserver.observe(shelf);
+    requestAnimationFrame(updateEdges);
+  }
+  for (const item of section.items) {
+    const preview = cardPreview(item);
+    const card = element("article", `pm-card${preview ? " pm-card-image" : ""}`);
+    card.dataset.promptId = item.id;
+    card.addEventListener("pointerenter", () => {
+      if (imagePreviewSpotlight?.card === card) retainImagePreview();
+    });
+    card.addEventListener("pointerleave", () => {
+      if (imagePreviewSpotlight?.card === card) deferImagePreviewClose();
+    });
+    if (preview) {
+      const cover = control(text("Edit prompt", "编辑提示词"), () => editPrompt(item), "pm-card-cover");
+      const image = element("img");
+      image.src = preview.data;
+      image.alt = "";
+      image.loading = "lazy";
+      cover.replaceChildren(image);
+      cover.addEventListener("pointerenter", (event) => {
+        if (event.pointerType !== "touch") showImagePreview(cover, preview, item.summary);
+      });
+      cover.addEventListener("pointerleave", (event) => {
+        if (!card.contains(event.relatedTarget)) deferImagePreviewClose();
+      });
+      cover.addEventListener("focus", () => showImagePreview(cover, preview, item.summary));
+      cover.addEventListener("blur", deferImagePreviewClose);
+      cover.addEventListener("click", closeImagePreview);
+      card.append(cover);
+    }
+    const content = control(item.summary, () => editPrompt(item), "pm-card-content");
+    content.replaceChildren(categoryIcon(item), element("h3", "pm-card-title", item.summary), element("p", "pm-card-body", item.body));
+    const footer = element("div", "pm-card-footer");
+    const use = pageControl(text("Use", "使用"), () => void usePagePrompt(item, use));
+    use.setAttribute("aria-label", text(`Use ${item.summary}`, `使用 ${item.summary}`));
+    footer.append(element("span", "pm-count", text(`${item.useCount} ${item.useCount === 1 ? "call" : "calls"}`, `${item.useCount} 次调用`)), use);
+    card.append(content, footer);
+    shelf.append(card);
+  }
+  return shelf;
 }
 function emptyState(searching) {
   const empty = element("div", "pm-empty-state");
@@ -876,6 +1129,7 @@ function editorShell(title, back = null) {
   return editor;
 }
 function editPrompt(item = null) {
+  closeImagePreview();
   const target = editorShell(
     item ? text("Edit prompt", "编辑提示词") : text("New prompt", "新建提示词"),
   );
