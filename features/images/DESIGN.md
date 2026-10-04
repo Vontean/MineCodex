@@ -153,3 +153,5 @@ Delete 在单张 More 与批量动作条共用一条隐藏流程，复用原生 
 ## 自检适用场景
 
 2026-10-03 在 Codex 26.930.21537 的独立 profile 通过原生 Images 按钮确认：当前路由为 `/space/files?tab=images`，来源标签的 `variant:"browse"` 与 `generated/uploaded` 契约保持有效。适用场景由 Images Adapter 解释，不按功能名称猜 `/space/images`。未在图库但存在可识别图片 viewer 时，单独检查提示词入口；无图库或图片 viewer 时不判定版本不兼容。
+
+2026-10-05，Codex 26.930.51102：图库切换模式和图片附件调用的局部变量已变化。按调用结构识别导入角色，不固定压缩变量名。原生 navigation、gallery、canvas 模块发现已在当前构建验证；显示与实际操作验收单独记录。

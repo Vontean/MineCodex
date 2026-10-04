@@ -1,3 +1,14 @@
+// 以调用位置和参数结构识别角色，不绑定压缩后的局部变量名。
+export function discoverImageActionBinding(source, role) {
+  const patterns = {
+    switchMode: /([\w$]+)\([\w$]+,[\w$]+\);let [\w$]+=[\w$]+\.length===1/,
+    attachChatImages: /await ([\w$]+)\([\w$]+,[\w$]+,\[[\w$]+\],\{isTemporaryChat:/,
+  };
+  const match = source.match(patterns[role]);
+  if (!match) throw new Error(`Native Images action contract changed: ${role}`);
+  return match[1];
+}
+
 // 按文件预览的调用关系读取角色，不依赖构建时分配的短变量名。
 export function discoverFilePreviewComposerBindings(source) {
   const starts = [...source.matchAll(/function [\w$]+\(/g)].map(match => match.index);
@@ -111,7 +122,7 @@ export function createNativeImageModules({read = async url => (await fetch(url))
       const [moveDialog,dialogs]=await Promise.all([module("library-move-dialog",selection.source),module("library-item-dialogs",selection.source)]);
       const routerLocal = selection.source.match(/get\(([\w$]+)\)\.prepareNavigation\(/)?.[1];
       const routerAtom = await binding(selection.source, selection.url, routerLocal);
-      const switchLocal = selection.source.match(/([\w$]+)\(e,i\);let _=t.length===1/)?.[1];
+      const switchLocal = discoverImageActionBinding(selection.source, "switchMode");
       const switchMode = await binding(selection.source, selection.url, switchLocal);
       const draftLocal = selection.source.match(/let u=([\w$]+)\(e,\[\]\);e.set/)?.[1];
       const createChatDraft = await binding(selection.source, selection.url, draftLocal);
@@ -140,7 +151,7 @@ export function createNativeImageModules({read = async url => (await fetch(url))
       const imageActions = component(menu.exports,source=>/onOpenedInNewTab:/.test(source),"image actions");
       const imageActionSource = String(imageActions);
       const imageFileLocal = imageActionSource.match(/let\{file:[\w$]+\}=([\w$]+)\(/)?.[1];
-      const attachLocal = imageActionSource.match(/await ([\w$]+)\(e,i,\[n\],/)?.[1];
+      const attachLocal = discoverImageActionBinding(imageActionSource, "attachChatImages");
       const downloadLocal = imageActionSource.match(/await ([\w$]+)\(\{downloadSrc:/)?.[1];
       const [imageFile,attachChatImages,downloadImage] = await Promise.all([imageFileLocal,attachLocal,downloadLocal].map(local=>binding(menuCoreSource,menuCoreUrl,local)));
       const toolbarClass = selection.source.match(/className:`(pointer-events-auto flex h-toolbar[^`]+)`/)?.[1];

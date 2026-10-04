@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import {createNativeImageModules,discoverFilePreviewComposerBindings} from "../src/adapters/codex/native-image-modules.mjs";
+import {createNativeImageModules,discoverImageActionBinding,discoverFilePreviewComposerBindings} from "../src/adapters/codex/native-image-modules.mjs";
 
 // 26.930.21537 文件预览调用关系的最小样例，省略 React memo 缓存。
 const preview = 'function scope(e){let{draftId:i,imageDataUrl:a}=e,g=kr(),_=ke,v=ke,S=P,C=route,b=hn,x=tn(e,r==null?i:i??r.id);return jsx)(_,{scope:b,value:x,children:jsx)(v,{scope:S,value:C,composerController:g})})}function home(e){let h={homeComposerController:n,homeComposerMode:p};let g=Qn(h),_=g?.composerProps;}function composer(e){return jsx)(rr,{placement:f,children:jsx)($n,{...r,className:`mx-auto w-full max-w-2xl px-toolbar`,composerLayoutMode:`auto-single-line`,lockedLayout:`single-line`})})}function local(e){let nav=Te();return jsx)(Yn,{...surface,aboveComposerContent:warning,composerModeAvailability:tr,prepareLocalConversationAttachments:async e=>{const file=await oe(scope,host).createFileAttachment({contents:bytes});signal.aborted&&(Vt(scope,host,file.path));nav(rt(id),{state:state});}})}';
@@ -33,4 +33,17 @@ test("missing editor assets fail only canvas discovery; navigation remains avail
   const previous=reads;
   assert.deepEqual(await modules.navigation(),navigation);assert.equal(reads,previous);
   await assert.rejects(modules.canvas(),/image-side-panel/);
+});
+
+
+test("image actions survive local variable renaming in Codex 26.930.51102", () => {
+  for (const source of [
+    'switchMode(e,i);let _=t.length===1?files[0]:void 0',
+    'switchMode(scope,mode);let selected=items.length===1&&extra.length===0?files[0]:void 0',
+  ]) assert.equal(discoverImageActionBinding(source,"switchMode"),"switchMode");
+  for (const source of [
+    'await attach(e,i,[n],{isTemporaryChat:temporary})',
+    'await attach(scope,chatId,[file],{isTemporaryChat:temporary})',
+  ]) assert.equal(discoverImageActionBinding(source,"attachChatImages"),"attach");
+  assert.throws(()=>discoverImageActionBinding('await attach(scope,chatId,[file],{changed:true})',"attachChatImages"),/attachChatImages/);
 });
