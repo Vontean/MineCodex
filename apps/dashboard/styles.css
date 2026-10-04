@@ -224,7 +224,7 @@ h2 { font-size: 14px; font-weight: 620; }
 .diagnostics .button { display: inline-flex; align-items: center; gap: 7px; font-weight: 400; }
 .diagnostics .ui-icon { width: 15px; height: 15px; flex-basis: 15px; }
 .diagnostics dl { display: flex; flex-wrap: wrap; gap: 10px 24px; margin: 0; }
-.diagnostics dl div { display: flex; gap: 6px; }
+.diagnostics dl div { display: flex; align-items: baseline; gap: 6px; }
 .diagnostics dt { color: var(--ink-tertiary); }
 .diagnostics dd { margin: 0; color: var(--ink-secondary); }
 
