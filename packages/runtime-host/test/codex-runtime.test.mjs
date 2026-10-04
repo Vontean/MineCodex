@@ -1514,7 +1514,7 @@ test("emits an isolated conversation-toolbar Adapter with strict Surface and Hos
   assert.match(source, /event\.data\.type === "codex-personal:prompt-preview"/);
   assert.match(source, /--color-token-input-background/);
   assert.match(source, /--color-token-input-border/);
-  assert.match(source, /--color-token-button-background/);
+  assert.doesNotMatch(source, /--color-token-button-background/);
   assert.match(source, /--color-text-button-tertiary/);
   assert.match(source, /--spacing-token-button-composer/);
   assert.match(source, /"overlayLabel":"Toggle notes"/);

@@ -67,5 +67,6 @@ export function createNativeThemeAdapter(themeTokenNames,themeTokenAliases,theme
       }
     };
   }
-  return {read,dispose,checkTokens,bindScope,diagnostics:() => checkTokens(document.documentElement,themeTokenNames)};
+  // 根清单仅展示已定义变量；必要值缺失仍由控件作用域检查报告。
+  return {read,dispose,checkTokens,bindScope,diagnostics:() => checkTokens(document.documentElement,themeTokenNames).filter(token => token.available)};
 }

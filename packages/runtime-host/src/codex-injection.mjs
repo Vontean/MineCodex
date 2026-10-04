@@ -737,7 +737,7 @@ export function createInjectionSource(features, {
         "--codex-summary-row-line-height": "24px",
         "--codex-summary-label-font-size": tokens["--text-base"] ?? "14px",
         "--codex-summary-label-line-height": tokens["--text-base--line-height"] ?? "1.5",
-        "--codex-summary-font-weight": tokens["--vscode-font-weight"] ?? (style.fontWeight || "445"),
+        "--codex-summary-font-weight": style.fontWeight || "445",
         "--codex-summary-icon-size": "18px",
         "--codex-summary-icon-stroke-width": "1.5px",
         "--codex-summary-panel-radius": panelRadius,

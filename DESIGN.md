@@ -221,3 +221,7 @@ Codex 26.930.21537 的 Chat Markdown 表格、代码块与可视化块共用公�
 ### 文件路径导航中的原生文件行
 
 Codex 26.930.21537（2026-10-05 源码与隔离窗口）：文件 breadcrumb 使用原生 capsule / controlSurface；入口 hover 采用原生文字角色变化，不额外叠加按钮底色。菜单中的 BaseFileTree `surface=dropdown` 提供文件类型图标、行 hover、选中、focus、长名称截断与虚拟滚动，直接复用该 React 组件，不在功能 CSS 中重建行材质。外层使用共享 opaque Popover。字体中等字重通过共享 `--font-weight-medium` → `--mcx-font-weight-medium` 映射；分列布局与路径压缩规则见 File Navigation DESIGN.md。
+
+### Token 诊断范围
+
+2026-10-05，Codex 26.930.51102：根作用域缺失不等于官方删除。全局诊断只展示根已定义的值；插件实际作用域继续检查必要 token 与映射。清除无消费的旧 summary / button 登记项；summary 字重直接读取原生计算样式。SuggestionMenu 的可选变量及 fallback 保留。
