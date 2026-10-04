@@ -198,3 +198,22 @@ Codex 26.930.21537（2026-10-03 安装包源码与隔离 DOM）：`profile-dropd
 功能的检查名单由当前源码／样式中消费的项目 token 派生。有明确 fallback 的变量缺失可继续使用既有默认值，但必须在诊断中标记；必需变量缺失或作用域映射不一致显示外观适配降级。自检不擅自换主题、改 token 值或修改原生布局。
 
 插件样式显式声明的局部 `--mcx-*` 变量不属于宿主原生映射清单；局部变量引用的共享 token 仍单独检查，未声明且没有映射的变量仍报告缺失。
+
+## 文档正文角色与局部映射
+
+Codex 26.930.21537（2026-10-04 Pages 源码与文件预览作用域 token 实测）：Pages 文档正文使用 `--font-content`、`--text-document`（当前 14px）与 `--leading-relaxed`（当前 1.625）。这些角色区别于工具栏 / 页面主标题，不将其应用到所有控件。原生文件 Preview 当前正文行高为 1.4；Markdown Reading 选择 Pages 正文分支，面板宽度与留白由功能 DESIGN.md 记录。
+
+需要跟随组件局部 token 的直接注入内容，使用共享 `ui.theme.bindScope(element, names)`，映射保留原生变量引用，随作用域与主题生效；返回清理函数，恢复先前 inline 值。不要用根节点的快照覆盖局部排版 token，也不要在插件维护原生名称兼容表。
+
+## Pages 浮动目录分支
+
+Codex 26.930.21537 安装包源码（2026-10-04）：Pages 目录使用 floating-navigation-rail 浮层，底色 surface-elevated-secondary、radius-xl、shadow-xl-spread 与 .5px color-border ring；直接使用原生目录 `Panel` 和交互式 `Tooltip` 组件。隔离窗口 live computed：目录宽度 320px、padding 8px、text-sm（当前 13px）/ leading-5（20px）；行 radius-lg、padding 6px 8px，hover / focus 使用 background-primary-ghost-hover 的 50% 混色。此分支不是普通文字 Tooltip，不使用 Tooltip 的圆角、字重或材质。
+
+原生短线栏距阅读容器左缘 8px、top 50%，宽 44px；标题按钮高 10px，短线高 2px、最大宽 26px。折叠／展开列表最高 min(70vh, 640px)，超过时自身滚动。原生仅在正文左缘距阅读区域左缘至少 112px 时显示；至少两个文内标题才显示目录。悬浮延迟 200ms，离开延迟 100ms，右侧零间距展开、垂直居中。位置与可用空间归功能处理，材质归共享 UI；不能把屏幕左缘当成分栏阅读面板左缘。
+
+短线直接使用原生 `Marker` 及其 CSS module。H1 / H2 / H3 默认实际线长为 12 / 8 / 4px；悬浮目标达到 26px，相邻三级使用 .7 / .4 / .2 进度。过渡为 160ms 的原生 linear 分段曲线；拖动期间禁用过渡，减少动态效果时禁用过渡。默认当前章节使用 text 角色与 .6 opacity，悬浮目标使用 text 与 1 opacity，其余使用 codex-description 与 .4 opacity。2026-10-04 在真实 Pages 与 MD Preview 的五标题样例逐项比对 computed 值一致。
+
+
+### 原生文档块悬浮操作
+
+Codex 26.930.21537 的 Chat Markdown 表格、代码块与可视化块共用公开 `data-block-actions` React 操作栏：surface 背景、full 圆角、2px padding、4px gap，hover / focus-within / data-visible / open-popover 状态可达，粗指针显示。控件使用原生 Button 的 `blockAction`、`full`、`inputIcon` 分支，Tooltip 和 CopyButton 反馈由原生组件管理。功能负责块的内容、状态与回调，Adapter 负责公开角色发现与 context 接入；不要复制这一分支的按钮或 Tooltip 材质。

@@ -43,3 +43,18 @@ test("current native theme aliases fill the editor contract without replacing ex
   assert.equal(assigned.has("--mcx-color-border-focus"),false);
   adapter.dispose();assert.equal(assigned.size,0);
 });
+
+test('scoped bindings retain local native references and restore only owned values',()=>{
+  const values=new Map([['--mcx-text-document','18px']]);
+  const priorities=new Map([['--mcx-text-document','important']]);
+  const element={style:{getPropertyValue:k=>values.get(k)??'',getPropertyPriority:k=>priorities.get(k)??'',
+    setProperty:(k,v,p='')=>{values.set(k,v);priorities.set(k,p);},removeProperty:k=>{values.delete(k);priorities.delete(k);}}};
+  const theme=createNativeThemeAdapter(CODEX_THEME_TOKENS,CODEX_THEME_TOKEN_ALIASES,MINECODEX_THEME_BINDINGS);
+  const cleanup=theme.bindScope(element,['--text-document','--font-content']);
+  assert.equal(values.get('--mcx-text-document'),'var(--text-document)');
+  assert.equal(values.get('--mcx-font-content'),'var(--font-content)');
+  cleanup();assert.equal(values.get('--mcx-text-document'),'18px');
+  assert.equal(priorities.get('--mcx-text-document'),'important');assert.equal(values.has('--mcx-font-content'),false);
+  const next=theme.bindScope(element,['--text-document']);values.set('--mcx-text-document','20px');
+  next();assert.equal(values.get('--mcx-text-document'),'20px');
+});

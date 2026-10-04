@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-export const FEATURE_IDS = Object.freeze(["model-slider", "notes", "images", "hide-upsell-banner", "session-status", "usage-meter", "sidebar-focus", "sites"]);
+export const FEATURE_IDS = Object.freeze(["model-slider", "notes", "images", "hide-upsell-banner", "session-status", "usage-meter", "sidebar-focus", "sites", "markdown-reading"]);
 export const DEFAULT_CONFIG = Object.freeze({
   schemaVersion: 1,
   features: Object.freeze({
@@ -14,6 +14,7 @@ export const DEFAULT_CONFIG = Object.freeze({
     "usage-meter": true,
     "sidebar-focus": true,
     sites: true,
+    "markdown-reading": false,
   }),
 });
 
@@ -22,7 +23,7 @@ const configQueues = new Map();
 function normalizeFeatures(features) {
   return Object.fromEntries(FEATURE_IDS.map((id) => [
     id,
-    typeof features?.[id] === "boolean" ? features[id] : true,
+    typeof features?.[id] === "boolean" ? features[id] : DEFAULT_CONFIG.features[id],
   ]));
 }
 

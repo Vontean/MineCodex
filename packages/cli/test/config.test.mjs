@@ -5,7 +5,7 @@ import path from "node:path";
 import test from "node:test";
 import { ensureControlToken, normalizeConfig, readConfig, updateFeature, writeConfig } from "../src/config.mjs";
 
-test("config defaults every known plugin on and preserves unknown fields", async () => {
+test("config keeps established defaults and opts new reading feature out and preserves unknown fields", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "minecodex-config-"));
   const configPath = path.join(root, "config.json");
   await writeFile(configPath, JSON.stringify({
@@ -25,6 +25,7 @@ test("config defaults every known plugin on and preserves unknown fields", async
     "usage-meter": true,
     "sidebar-focus": true,
     sites: true,
+    "markdown-reading": false,
   });
   assert.deepEqual(config.future, { channel: "preview" });
 

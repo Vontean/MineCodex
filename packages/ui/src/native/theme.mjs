@@ -46,5 +46,26 @@ export function createNativeThemeAdapter(themeTokenNames,themeTokenAliases,theme
           : projectName && projectValue !== value ? "scope-mapping-mismatch" : null};
     });
   }
-  return {read,dispose,checkTokens,diagnostics:() => checkTokens(document.documentElement,themeTokenNames)};
+  // 局部组件的映射保留原生变量引用，随作用域和主题变化，不复制根节点的快照值。
+  function bindScope(element, names) {
+    const bindings = names.map(name => {
+      const projectName = themeBindings[name];
+      if (!projectName) throw new Error(`Unknown theme binding: ${name}`);
+      const candidates = [name, ...(themeTokenAliases[name] ?? [])].flatMap(candidate => candidate.startsWith("--color-")
+        ? [candidate, candidate.replace("--color-", "--app-color-")] : [candidate]);
+      const reference = candidates.reduceRight((value, candidate) => value ? `var(${candidate}, ${value})` : `var(${candidate})`, "");
+      const previous = element.style.getPropertyValue(projectName);
+      const priority = element.style.getPropertyPriority(projectName);
+      element.style.setProperty(projectName, reference);
+      return {projectName, reference, previous, priority};
+    });
+    return () => {
+      for (const {projectName, reference, previous, priority} of bindings) {
+        if (element.style.getPropertyValue(projectName) !== reference) continue;
+        if (previous) element.style.setProperty(projectName, previous, priority);
+        else element.style.removeProperty(projectName);
+      }
+    };
+  }
+  return {read,dispose,checkTokens,bindScope,diagnostics:() => checkTokens(document.documentElement,themeTokenNames)};
 }

@@ -45,6 +45,7 @@ flowchart TB
 | Images | 图片身份、Library 来源、提示词溯源、导入与查看 | `features/images/src/`，外部协议在 `src/adapters/codex/`，本地 Image Gen 编排在 `src/backend/local-image-source.mjs`，历史命令编排在 `src/backend/cloud-library.mjs` |
 | Sites | 站点来源、地址分类、项目归属、收录、发现与启动 | `features/sites/src/domain/site.mjs`、`src/backend/`、`src/frontend/` |
 | Model Slider | 模型身份、品牌、目录别名、真实档位、收藏与原生选择器增强 | `features/model-slider/src/domain/`、`src/frontend/`、`src/injection-source.mjs` |
+| Markdown Reading | 文件 Markdown Preview 的识别、正文排版、脚注编号、原生目录衔接与恢复；不改变文档内容 | `features/markdown-reading/src/domain/`、`src/adapters/codex/`、`src/markdown-reading.mjs` |
 | 其他紧凑增强 | 各自的原生插入点与交互 | 保持本功能简单结构，不为统一外观创建空目录 |
 
 同为“会话”或“图片”的数据，不代表不同领域共享同一业务模型。业务结果通过明确的数据对象与动作传递；共享 UI 不解释 token 用量、提示词使用次数或站点启动状态。

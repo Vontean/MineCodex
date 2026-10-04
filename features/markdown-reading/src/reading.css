@@ -1,0 +1,346 @@
+/* Pages 正文角色；仅标记的原生 Preview 生效。布局尺寸是本功能的面板适配规则。 */
+.cm-editor[data-minecodex-markdown-reading] .mcx-reading-link {
+  color: var(--color-text-accent, var(--color-token-text-link-foreground));
+  text-decoration: underline;
+  cursor: var(--cursor-interaction, pointer);
+  overflow-wrap: anywhere;
+}
+.cm-editor[data-minecodex-markdown-reading] .mcx-reading-link-definition {
+  font-size: 0;
+  line-height: 0;
+  padding: 0;
+  min-height: 0;
+}
+.cm-editor[data-minecodex-markdown-reading] {
+  --file-editor-font-size: var(--mcx-text-document, 14px);
+  --mcx-reading-width: 800px;
+  --mcx-reading-gutter: clamp(16px, 4cqi, 40px);
+  --mcx-reading-table-reading-width: calc(var(--thread-content-max-width, 768px) - var(--padding-toolbar, 16px) * 2);
+  --mcx-reading-table-wide-margin: min(calc(var(--spacing, .25rem) * 16), max(0px, (100cqi - var(--mcx-reading-table-reading-width)) / 2));
+  container-type: inline-size;
+}
+.cm-editor[data-minecodex-markdown-reading] > .cm-scroller {
+  font-family: var(--mcx-font-content, sans-serif);
+  font-size: var(--mcx-text-document, 14px);
+  line-height: var(--mcx-leading-relaxed, 1.625);
+  padding-block: calc(24px + var(--mcx-reading-metadata-height, 0px)) 64px;
+  padding-inline: max(var(--mcx-reading-gutter), calc((100% - var(--mcx-reading-width)) / 2));
+}
+[data-mcx-reading-metadata-frame] {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+}
+[data-mcx-reading-metadata-frame] > [data-mcx-reading-metadata] {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 1;
+  max-height: none;
+  overflow: visible;
+}
+.cm-editor[data-minecodex-markdown-reading] > .cm-scroller > .cm-content {
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  padding: 0;
+}
+.cm-editor[data-minecodex-markdown-reading] .cm-line {
+  padding-block: 0;
+}
+/* 空行继续占位，保留原生文档位置和光标契约；不插入或删除段落。 */
+.cm-editor[data-minecodex-markdown-reading] .cm-line:has(> br:only-child) {
+  line-height: 1em;
+}
+.cm-editor[data-minecodex-markdown-reading] .cm-line:has(.file-editor-heading) {
+  padding-block-start: 1em;
+}
+.cm-editor[data-minecodex-markdown-reading] .cm-line:first-child:has(.file-editor-heading) {
+  padding-block-start: 0;
+}
+.cm-editor[data-minecodex-markdown-reading] .file-editor-heading {
+  font-weight: var(--mcx-font-weight-semibold, 600);
+}
+.cm-editor[data-minecodex-markdown-reading] .file-editor-heading-1 {
+  font-size: calc(var(--mcx-text-document, 14px) * 1.5);
+  line-height: calc(var(--mcx-text-document, 14px) * 2);
+}
+.cm-editor[data-minecodex-markdown-reading] .file-editor-heading-2 {
+  font-size: calc(var(--mcx-text-document, 14px) * 1.25);
+  line-height: calc(var(--mcx-text-document, 14px) * 1.75);
+}
+.cm-editor[data-minecodex-markdown-reading] .file-editor-heading-3 {
+  font-size: calc(var(--mcx-text-document, 14px) * 1.125);
+  line-height: calc(var(--mcx-text-document, 14px) * 1.75);
+}
+.cm-editor[data-minecodex-markdown-reading] :is(.file-editor-heading-4, .file-editor-heading-5, .file-editor-heading-6) {
+  font-size: var(--mcx-text-document, 14px);
+  line-height: calc(var(--mcx-text-document, 14px) * 1.5);
+}
+.cm-editor[data-minecodex-markdown-reading] .cm-markdown-list-item {
+  padding-block: .125em;
+}
+.cm-editor[data-minecodex-markdown-reading] .cm-markdown-blockquote {
+  padding-block: .25em;
+}
+/* 代码内部继续使用原生等宽与高亮，不随正文行高扩张。 */
+.cm-editor[data-minecodex-markdown-reading] .cm-markdown-code-line {
+  line-height: 20px;
+}
+.cm-editor[data-minecodex-markdown-reading] .cm-markdown-code-line-first {
+  padding-block-start: 12px;
+}
+.cm-editor[data-minecodex-markdown-reading] .cm-markdown-code-line-last {
+  padding-block-end: 12px;
+}
+.cm-editor[data-minecodex-markdown-reading] .cm-markdown-table-cell {
+  padding: 8px 12px;
+}
+/* 原生分隔行必须保持零高，避免覆盖 CodeMirror 的表格语义装饰。 */
+.cm-editor[data-minecodex-markdown-reading] .cm-markdown-table-separator {
+  padding: 0;
+  line-height: 0;
+}
+/* Pages 列表的标记列与正文列；装饰由原生 CodeMirror 持有。 */
+.cm-editor[data-minecodex-markdown-reading] .cm-line.mcx-reading-list-row {
+  position: relative;
+  padding-inline-start: calc(var(--mcx-list-indent) + var(--mcx-list-marker-width));
+  padding-block: .125em;
+}
+/* 标记固定在首行的 1lh 容器中居中，不随整项的多行高度移动。 */
+.cm-editor[data-minecodex-markdown-reading] .mcx-reading-list-marker {
+  display: inline-flex;
+  inline-size: var(--mcx-list-marker-width);
+  position: absolute;
+  inset-inline-start: var(--mcx-list-indent);
+  inset-block-start: .125em;
+  block-size: 1lh;
+  justify-content: flex-start;
+  align-items: center;
+  color: inherit;
+  user-select: none;
+}
+.cm-editor[data-minecodex-markdown-reading] .mcx-reading-list-marker:is(.mcx-reading-disc,.mcx-reading-circle,.mcx-reading-square)::before {
+  content: '';
+  inline-size: 5px;
+  block-size: 5px;
+  margin-inline-start: 7px;
+  align-self: center;
+  background: currentColor;
+  border-radius: 50%;
+}
+.cm-editor[data-minecodex-markdown-reading] .mcx-reading-list-marker.mcx-reading-circle::before {
+  background: transparent;
+  border: 1px solid currentColor;
+}
+.cm-editor[data-minecodex-markdown-reading] .mcx-reading-list-marker.mcx-reading-square::before { border-radius: 0; }
+.cm-editor[data-minecodex-markdown-reading] .mcx-reading-list-marker:is(.mcx-reading-task-empty,.mcx-reading-task-checked) {
+  color: var(--color-text-tertiary);
+}
+.cm-editor[data-minecodex-markdown-reading] .mcx-reading-list-marker:is(.mcx-reading-task-empty,.mcx-reading-task-checked) > span {
+  box-sizing: border-box;
+  inline-size: 16px;
+  block-size: 16px;
+  border: .9px solid var(--color-text-tertiary);
+  border-radius: 2px;
+  display: inline-grid;
+  place-content: center;
+}
+.cm-editor[data-minecodex-markdown-reading] .mcx-reading-list-marker.mcx-reading-task-checked > span { background: currentColor; border-color: currentColor; }
+.cm-editor[data-minecodex-markdown-reading] .mcx-reading-task-checked > span::before {
+  content: '';
+  inline-size: 4px;
+  block-size: 8px;
+  border-inline-end: 2px solid var(--color-text-inverse);
+  border-block-end: 2px solid var(--color-text-inverse);
+  transform: translateY(-1px) rotate(45deg);
+}
+.cm-editor[data-minecodex-markdown-reading] .mcx-reading-task-done {
+  color: var(--color-text-tertiary);
+  text-decoration: line-through;
+}
+
+/* Pages 细网格与顶对齐；宽表格只在本表内浏览，各行横向位置由 Adapter 同步。 */
+.cm-editor[data-minecodex-markdown-reading] .cm-line.cm-markdown-table-row.mcx-reading-table-row {
+  position: relative;
+  overflow-x: hidden;
+  scroll-behavior: auto;
+  animation-range: 1px calc(100% - 1px);
+  scrollbar-width: none;
+  border-block-start: 0;
+  border-inline-start: var(--border-width-hairline, .5px) solid transparent;
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--font-weight-normal, 400);
+  font-feature-settings: "liga" 0;
+  align-items: stretch;
+}
+.cm-editor[data-minecodex-markdown-reading] .cm-line.cm-markdown-table-header.mcx-reading-table-row {
+  border-block-start: var(--border-width-hairline, .5px) solid transparent;
+  --mcx-table-top-inset: 16px;
+}
+/* 边框只包住单元格，顶部操作区和底部滚动条留白不属于表格。 */
+.cm-editor[data-minecodex-markdown-reading] .mcx-reading-table-row::before {
+  content: '';
+  position: absolute;
+  inset: var(--mcx-table-top-inset, 0px) 0 var(--mcx-table-bottom-inset, 0px);
+  border-inline-start: var(--border-width-hairline, .5px) solid var(--color-border);
+  pointer-events: none;
+}
+.cm-editor[data-minecodex-markdown-reading] .cm-markdown-table-header.mcx-reading-table-row::before {
+  border-block-start: var(--border-width-hairline, .5px) solid var(--color-border);
+}
+.cm-editor[data-minecodex-markdown-reading] .mcx-reading-table-row::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto auto 0;
+  width: var(--mcx-table-scroll-width, 0px);
+  height: 1px;
+  pointer-events: none;
+}
+.cm-editor[data-minecodex-markdown-reading] .mcx-reading-table-row > span[contenteditable=false]:empty:not(.cm-markdown-table-cell) {
+  display: none;
+}
+.cm-editor[data-minecodex-markdown-reading] .mcx-reading-table-row .cm-markdown-table-cell {
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  white-space: break-spaces;
+  overflow-wrap: break-word;
+  word-break: normal;
+  border-inline-end: var(--border-width-hairline, .5px) solid var(--color-border);
+  border-block-end: 1px solid var(--color-border);
+  text-align: start;
+}
+.cm-editor[data-minecodex-markdown-reading] .cm-markdown-table-header .cm-markdown-table-cell {
+  font-weight: var(--mcx-font-weight-semibold, 600);
+}
+.cm-editor[data-minecodex-markdown-reading] .cm-line.mcx-reading-table-last {
+  padding-block-end: 12px;
+  --mcx-table-bottom-inset: 12px;
+}
+
+/* Pages full-width 表格：正文宽度不限制宽表，测量层不参与滚动和选区。 */
+.cm-editor[data-minecodex-markdown-reading] .mcx-reading-table-measure {
+  position: absolute;
+  width: calc(100cqi - var(--mcx-reading-table-wide-margin) * 2);
+  inset: 0 auto auto 0;
+  visibility: hidden;
+  pointer-events: none;
+  font-weight: var(--font-weight-normal, 400);
+  font-feature-settings: "liga" 0;
+  contain: layout style;
+  overflow: hidden;
+  font-family: var(--mcx-font-content, sans-serif);
+  font-size: var(--mcx-text-document, 14px);
+  line-height: var(--mcx-leading-relaxed, 1.625);
+}
+.cm-editor[data-minecodex-markdown-reading] .mcx-reading-table-measure table {
+  inline-size: max-content;
+  min-inline-size: 100%;
+  max-inline-size: none;
+  border-collapse: separate;
+  border-spacing: 0;
+  border-inline-start: var(--border-width-hairline, .5px) solid var(--color-border);
+  font-variant-numeric: tabular-nums;
+}
+.cm-editor[data-minecodex-markdown-reading] .mcx-reading-table-measure :is(td, th) {
+  padding: 8px 12px;
+  border-inline-end: var(--border-width-hairline, .5px) solid var(--color-border);
+  border-block-end: 1px solid var(--color-border);
+  white-space: break-spaces;
+  overflow-wrap: break-word;
+  word-break: normal;
+  vertical-align: top;
+  text-align: start;
+}
+.cm-editor[data-minecodex-markdown-reading] .mcx-reading-table-measure th { font-weight: var(--mcx-font-weight-semibold, 600); }
+
+.cm-editor[data-minecodex-markdown-reading] .mcx-reading-table-scrollbar {
+  position: absolute;
+  height: 12px;
+  overflow-x: scroll;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-text-tertiary) transparent;
+  z-index: 1;
+}
+.cm-editor[data-minecodex-markdown-reading] .mcx-reading-table-scrollbar > div { height: 1px; }
+.cm-editor[data-minecodex-markdown-reading] .mcx-reading-table-measure code {
+  font-family: var(--font-mono);
+  font-size: .92em;
+  font-weight: 400;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--color-background-primary-ghost-hover) 60%, var(--color-text) 6%);
+  box-decoration-break: clone;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.cm-editor[data-minecodex-markdown-reading] .mcx-reading-table-measure strong { font-weight: var(--mcx-font-weight-semibold, 600); }
+
+.cm-editor[data-minecodex-markdown-reading] .mcx-reading-table-scrollbar:focus-visible { outline: 2px solid var(--color-text); outline-offset: 1px; }
+
+/* 滚动条跟随整张表的 hover；操作区与聚焦时可达。 */
+.cm-editor[data-minecodex-markdown-reading] .mcx-reading-table-scrollbar {
+  opacity: 0;
+  pointer-events: none;
+}
+.cm-editor[data-minecodex-markdown-reading] .mcx-reading-table-scrollbar:is([data-visible=true], :hover, :focus-within) {
+  opacity: 1;
+  pointer-events: auto;
+}
+.cm-editor[data-minecodex-markdown-reading] [data-mcx-reading-table-actions] { position: absolute; inset: 0 auto auto 0; width: 100%; height: 0; pointer-events: none; z-index: 3; }
+@media (hover:none) {
+  .cm-editor[data-minecodex-markdown-reading] .mcx-reading-table-scrollbar { opacity:1;pointer-events:auto; }
+}
+
+
+/* 快捷操作放在表头上方，避免适配宽度时遮住最后一列标题。 */
+/* 留白必须计入 CodeMirror 的行高，外边距会造成点击坐标累积偏移。 */
+.cm-editor[data-minecodex-markdown-reading] .cm-markdown-table-header.mcx-reading-table-row { padding-block-start:16px; }
+
+/* 语法标记行的隐藏不能留下正文行高。 */
+.cm-editor[data-minecodex-markdown-reading] .cm-line.mcx-reading-syntax-line {
+  padding: 0; min-height: 0; height: 0; font-size: 0; line-height: 0;
+}
+.cm-editor[data-minecodex-markdown-reading] .cm-line.mcx-reading-quote {
+  border-inline-start: 0;
+  padding-inline-start: calc(var(--mcx-quote-indent) + 8px);
+  background-image: repeating-linear-gradient(to right, var(--color-border) 0 2px, transparent 2px 20px);
+  background-size: var(--mcx-quote-indent) 100%;
+  background-repeat: no-repeat;
+  color: var(--color-text-secondary);
+}
+.cm-editor[data-minecodex-markdown-reading] .cm-line.mcx-reading-quote.mcx-reading-list-row {
+  padding-inline-start: calc(var(--mcx-list-indent) + var(--mcx-list-marker-width));
+}
+.cm-editor[data-minecodex-markdown-reading] .mcx-reading-alert-title {font-weight:var(--font-weight-semibold,600); color:var(--color-text-primary);}
+.cm-editor[data-minecodex-markdown-reading] .mcx-reading-rich-code {margin-block:16px; max-width:100%;}
+.cm-editor[data-minecodex-markdown-reading] .mcx-reading-code-block {position:relative; min-width:0;}
+.cm-editor[data-minecodex-markdown-reading] .mcx-reading-code-block [data-block-actions] {top:4px; right:4px; transform:none; transition:opacity 120ms linear;}
+.cm-editor[data-minecodex-markdown-reading] .mcx-reading-code-block:focus-within [data-block-actions],
+.cm-editor[data-minecodex-markdown-reading] .mcx-reading-code-block:hover [data-block-actions] {opacity:1; pointer-events:auto;}
+.cm-editor[data-minecodex-markdown-reading] .mcx-reading-code-scroll {max-width:100%; scrollbar-width:thin;}
+.cm-editor[data-minecodex-markdown-reading] .mcx-reading-rich-html-block {margin-block:1em;}
+.cm-editor[data-minecodex-markdown-reading] .mcx-reading-rich mark {background:color-mix(in srgb, var(--color-content-yellow) 25%, transparent); color:inherit; border-radius:2px; padding-inline:2px;}
+.cm-editor[data-minecodex-markdown-reading] .mcx-reading-rich kbd {font-family:var(--font-mono,monospace); font-size:.9em; background:var(--color-token-bg-secondary); border:1px solid var(--color-border); border-radius:4px; padding:1px 4px;}
+.cm-editor[data-minecodex-markdown-reading] .mcx-reading-rich a,
+.cm-editor[data-minecodex-markdown-reading] :is(.mcx-reading-rich-footnote-ref,.mcx-reading-footnote-body) button {color:var(--color-text-accent, var(--color-token-text-link-foreground)); cursor:var(--cursor-interaction,pointer);}
+.cm-editor[data-minecodex-markdown-reading] .mcx-reading-rich-footnote-ref button {font:inherit; padding:0 2px; background:transparent; border:0;}
+.cm-editor[data-minecodex-markdown-reading] .mcx-reading-footnote-body {font-size:.9em; color:var(--color-text-secondary);}
+.cm-editor[data-minecodex-markdown-reading] .mcx-reading-footnote-body button {margin-inline-start:8px; background:transparent; border:0;}
+.cm-editor[data-minecodex-markdown-reading] .mcx-reading-definition-term {font-weight:var(--font-weight-semibold,600);}
+.cm-editor[data-minecodex-markdown-reading] .mcx-reading-definition-body {padding-inline-start:1.75em;}
+.cm-editor[data-minecodex-markdown-reading] .mcx-reading-footnote-content > div,
+.cm-editor[data-minecodex-markdown-reading] .mcx-reading-rich-html span > div {display:inline;}
+
+.cm-editor[data-minecodex-markdown-reading] .mcx-reading-code-scroll::-webkit-scrollbar {height:6px;}
+.cm-editor[data-minecodex-markdown-reading] .mcx-reading-code-scroll::-webkit-scrollbar-thumb {background:transparent; border-radius:99px;}
+.cm-editor[data-minecodex-markdown-reading] .mcx-reading-code-block:hover .mcx-reading-code-scroll::-webkit-scrollbar-thumb,
+.cm-editor[data-minecodex-markdown-reading] .mcx-reading-code-block:focus-within .mcx-reading-code-scroll::-webkit-scrollbar-thumb {background:var(--color-text-tertiary);}
+
+.cm-editor[data-minecodex-markdown-reading] .cm-line.mcx-reading-callout {
+  background:var(--color-token-bg-secondary); padding-inline:16px; color:var(--color-text-primary);
+}
+.cm-editor[data-minecodex-markdown-reading] .mcx-reading-callout-first {padding-block-start:12px; border-start-start-radius:12px; border-start-end-radius:12px;}
+.cm-editor[data-minecodex-markdown-reading] .mcx-reading-callout-last {padding-block-end:12px; border-end-start-radius:12px; border-end-end-radius:12px;}
+.cm-editor[data-minecodex-markdown-reading] .mcx-reading-footnote-content > div {font-size:inherit; line-height:inherit;}
+.cm-editor[data-minecodex-markdown-reading] .mcx-reading-footnote-body button {font:inherit; vertical-align:baseline; padding:0;}

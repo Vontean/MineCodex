@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "id": "markdown-reading",
+  "version": "0.1.0",
+  "label": {
+    "en": "Markdown Reading",
+    "zh-CN": "Markdown 阅读排版"
+  },
+  "description": {
+    "en": "Read Markdown previews with Pages typography, spacing, and native outline.",
+    "zh-CN": "用 Pages 的正文排版、舒适留白与原生目录阅读 Markdown 预览。"
+  },
+  "entry": {
+    "kind": "page-script",
+    "script": "src/markdown-reading.mjs",
+    "sourceFactory": "src/injection-source.mjs",
+    "resources": {
+      "styles": "src/reading.css"
+    }
+  },
+  "icon": {
+    "resource": "assets/book-open.svg"
+  },
+  "placement": {
+    "order": 90
+  }
+}
