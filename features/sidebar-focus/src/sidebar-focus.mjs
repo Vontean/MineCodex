@@ -4,7 +4,7 @@ const EXPAND_GLYPH = "<svg aria-hidden=\"true\"\n  xmlns=\"http://www.w3.org/200
 
 
 const states = new Map();
-let active = false, restoring = false, button, timer, disposed = false;
+let active = false, restoring = false, button, timer = null, disposed = false;
 const text = (en, cn) => (document.documentElement.lang || navigator.language).startsWith("zh") ? cn : en;
 
 
@@ -74,8 +74,8 @@ function reconcile() {
   if (change) { change.toggle(); schedule(); }
 }
 function schedule() {
-  clearTimeout(timer);
-  timer = setTimeout(reconcile, 40);
+  if (disposed || timer !== null) return;
+  timer = requestAnimationFrame(() => { timer = null; reconcile(); });
 }
 document.addEventListener("click", event => {
   if (!active || !event.isTrusted) return;
@@ -83,7 +83,15 @@ document.addEventListener("click", event => {
     active = false; states.clear(); schedule();
   }
 }, { capture:true, signal });
-const observer = new MutationObserver(schedule);
+const observer = new MutationObserver(records => {
+  // 流式回复等侧栏外更新不应推迟或重复触发布局整理。
+  if (records.some(record =>
+    record.target.closest?.("#app-shell-sidebar")
+    || record.type === "attributes" && ["data-above-composer-conversation-id", "lang"].includes(record.attributeName)
+    || [...record.addedNodes ?? [], ...record.removedNodes ?? []].some(node =>
+      node.matches?.("#app-shell-sidebar") || node.querySelector?.("#app-shell-sidebar"))
+  )) schedule();
+});
 observer.observe(document.documentElement, { subtree:true, childList:true, attributes:true, attributeFilter:[
   "aria-expanded", "aria-pressed", "data-app-action-sidebar-thread-selected",
   "data-app-action-sidebar-section-collapsed", "data-above-composer-conversation-id", "lang"
@@ -97,4 +105,4 @@ config.registerSelfCheck?.(() => {
   return {state:available ? "available" : "unavailable",reason:available ? null : "sidebar-focus-anchor-unavailable",
     checks:[{name:"sidebar-focus-anchor",available}],scopes:[{name:"sidebar",element:sidebar}]};
 });
-return () => { disposed = true; clearTimeout(timer); observer.disconnect(); button?.remove(); };
+return () => { disposed = true; cancelAnimationFrame(timer); observer.disconnect(); button?.remove(); };
