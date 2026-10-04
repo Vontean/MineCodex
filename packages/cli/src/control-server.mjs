@@ -14,6 +14,7 @@ import { createDataTransfer, MAX_TRANSFER_BYTES } from "./data-transfer/service.
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const packageMetadata = JSON.parse(await readFile(path.join(packageRoot, "package.json"), "utf8"));
 const MAX_BODY_BYTES = 64 * 1024;
+const DASHBOARD_FEATURE_ORDER = ["model-slider", "notes", "usage-meter", "session-status", "markdown-reading", "file-navigation", "images", "sites", "sidebar-focus", "hide-upsell-banner"];
 const CONTENT_TYPES = new Map([
   [".css", "text/css; charset=utf-8"],
   [".html", "text/html; charset=utf-8"],
@@ -93,7 +94,7 @@ function acceptedHealth(featureId, health) {
 }
 
 async function loadFeatureDefinitions(paths, locale = "en") {
-  return Promise.all(FEATURE_IDS.map(async (id) => {
+  return Promise.all([...FEATURE_IDS].sort((a, b) => DASHBOARD_FEATURE_ORDER.indexOf(a) - DASHBOARD_FEATURE_ORDER.indexOf(b)).map(async (id) => {
     const manifestPath = path.join(paths.featuresRoot, id, "codex-feature.json");
     const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
     return {
@@ -206,11 +207,15 @@ async function iconResponse(id, paths, response) {
     iconPath = path.join(paths.featuresRoot, id, "assets", "icons", "book-open.svg");
   } else if (FEATURE_IDS.includes(id)) {
     const manifest = JSON.parse(await readFile(path.join(paths.featuresRoot, id, "codex-feature.json"), "utf8"));
-    const viewBox = manifest.icon?.viewBox ?? "0 0 24 24";
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">${manifest.icon.markup}</svg>`;
-    response.writeHead(200, { "Content-Type": "image/svg+xml", "Cache-Control": "public, max-age=3600" });
-    response.end(svg);
-    return;
+    if (manifest.icon?.resource) {
+      iconPath = path.resolve(paths.featuresRoot, id, manifest.icon.resource);
+    } else {
+      const viewBox = manifest.icon?.viewBox ?? "0 0 24 24";
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">${manifest.icon.markup}</svg>`;
+      response.writeHead(200, { "Content-Type": "image/svg+xml", "Cache-Control": "public, max-age=3600" });
+      response.end(svg);
+      return;
+    }
   } else {
     json(response, 404, { error: "NOT_FOUND" });
     return;

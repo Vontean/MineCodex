@@ -10,16 +10,16 @@ MineCodex 给 Codex Desktop 增加一组轻量、本地优先的扩展功能。�
 
 | 插件 | 说明 |
 | --- | --- |
-| **Model Slider** | 更清晰、更顺滑的模型切换面板：具备品牌标识、常用收藏与流畅交互 |
-| **Prompts** | 专页分类管理提示词与调用统计，输入框 Quick Prompts 快速调用 |
-| **Usage Meter** | 在 Help 与 Account 之间显示剩余额度环，悬浮查看周 / 五小时额度，点击进入 Usage 设置 |
-| **Images** | 在原生 Images 中浏览本地 Image Gen 图片，查看并复制提示词 |
-| **Hide Upsell Banner** | 隐藏输入框上方的用量提示横幅，仅优化界面展示，不影响正常的用量统计 |
-| **Session Status** | 在输入框下方查看当前任务的步骤、观测速度、Token 用量与上下文明细 |
-| **Sidebar Focus** | 展开侧栏时聚焦当前任务路径，再次点击恢复布局 |
-| **Sites** | 在原生 Sites 中收录项目网页与自定义网址，按需打开或启动 |
-| **Markdown Reading** | 用 Pages 正文排版、自适应留白与原生目录阅读文件面板的 Markdown Preview，保留原生工具栏与文字选择；默认关闭 |
-| **File Navigation** | 精简路径与分列文件浏览；在 Markdown 阅读卡片内独立勾选，支持单独启用，默认关闭 |
+| **模型窗口** · Model Panel | 快速切换模型和思考强度，收藏常用模型。 |
+| **提示词库** · Prompt Library | 分类保存常用提示词，需要时一键填入输入框。 |
+| **额度环** · Usage Ring | 在侧栏查看五小时和每周剩余额度，点击打开用量详情。 |
+| **会话状态** · Session Status | 查看回复速度、Token 用量和上下文占用，了解对话消耗。 |
+| **Markdown 阅读增强** · Markdown Reader | 让 Markdown 文档更易读，支持章节目录、表格展开和代码复制。 |
+| **文件级联浏览** · Cascading File Browser | 点击文件顶部路径，分列浏览文件夹并快速切换文件。 |
+| **图片集合** · Image Collection | 集中浏览生成的图片，查看提示词并复用创作思路。 |
+| **站点收藏** · Saved Sites | 发现项目正在运行的网页，收藏常用网址，随时打开。 |
+| **侧栏聚焦** · Sidebar Focus | 一键收起侧栏中的其他分组，再次点击恢复原来的展开状态。 |
+| **隐藏额度推广** · Hide Usage Promotions | 隐藏输入框上方的套餐升级推广，让对话更清爽。 |
 
 ## 安装
 

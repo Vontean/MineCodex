@@ -2,10 +2,13 @@
   "schemaVersion": 1,
   "id": "usage-meter",
   "version": "0.1.0",
-  "label": { "en": "Usage Meter", "zh-CN": "额度环" },
+  "label": {
+    "en": "Usage Ring",
+    "zh-CN": "额度环"
+  },
   "description": {
-    "en": "Check your remaining weekly and five-hour allowance.",
-    "zh-CN": "随时查看每周与五小时剩余额度。"
+    "en": "Check your five-hour and weekly allowance in the sidebar; click for details.",
+    "zh-CN": "在侧栏查看五小时和每周剩余额度，点击打开用量详情。"
   },
   "entry": { "kind": "page-script", "script": "src/usage-meter.mjs", "sourceFactory": "src/injection-source.mjs" },
   "icon": { "viewBox": "0 0 24 24", "markup": "<circle cx=\"12\" cy=\"12\" r=\"9\"></circle><circle cx=\"12\" cy=\"12\" r=\"5\"></circle>" },

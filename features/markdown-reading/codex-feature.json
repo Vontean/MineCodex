@@ -3,12 +3,12 @@
   "id": "markdown-reading",
   "version": "0.1.0",
   "label": {
-    "en": "Markdown Reading",
-    "zh-CN": "Markdown 阅读排版"
+    "en": "Markdown Reader",
+    "zh-CN": "Markdown 阅读增强"
   },
   "description": {
-    "en": "Read Markdown previews with Pages typography, spacing, and native outline.",
-    "zh-CN": "用 Pages 的正文排版、舒适留白与原生目录阅读 Markdown 预览。"
+    "en": "Read Markdown with a chapter outline, expandable tables, and copyable code blocks.",
+    "zh-CN": "让 Markdown 文档更易读，支持章节目录、表格展开和代码复制。"
   },
   "entry": {
     "kind": "page-script",

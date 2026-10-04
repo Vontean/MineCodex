@@ -2,10 +2,13 @@
   "schemaVersion": 1,
   "id": "session-status",
   "version": "0.1.0",
-  "label": { "en": "Session Status", "zh-CN": "会话状态" },
+  "label": {
+    "en": "Session Status",
+    "zh-CN": "会话状态"
+  },
   "description": {
-    "en": "See response speed, token usage and context space.",
-    "zh-CN": "查看输出速度、Token 用量与上下文占用。"
+    "en": "See response speed, token usage, and how much context your chat uses.",
+    "zh-CN": "查看回复速度、Token 用量和上下文占用，了解对话消耗。"
   },
   "entry": { "kind": "page-script", "script": "src/session-status.mjs", "sourceFactory": "src/injection-source.mjs" },
   "icon": {

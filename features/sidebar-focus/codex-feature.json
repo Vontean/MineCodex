@@ -7,8 +7,8 @@
     "zh-CN": "侧栏聚焦"
   },
   "description": {
-    "en": "Fold unrelated branches to keep the current task in view.",
-    "zh-CN": "收起无关分支，专注当前任务路径。"
+    "en": "Collapse other sidebar groups with one click, then click again to restore them.",
+    "zh-CN": "一键收起侧栏中的其他分组，再次点击恢复原来的展开状态。"
   },
   "entry": {
     "kind": "page-script",

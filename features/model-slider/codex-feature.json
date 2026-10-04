@@ -3,12 +3,12 @@
   "id": "model-slider",
   "version": "0.1.12",
   "label": {
-    "en": "Model Slider",
-    "zh-CN": "模型滑条"
+    "en": "Model Panel",
+    "zh-CN": "模型窗口"
   },
   "description": {
-    "en": "Switch models and thinking levels. Keep favorites within reach.",
-    "zh-CN": "切换模型与思考强度，快速找到常用收藏。"
+    "en": "Switch models and thinking levels, and keep favorites close at hand.",
+    "zh-CN": "快速切换模型和思考强度，收藏常用模型。"
   },
   "entry": {
     "kind": "composer-model-selector"

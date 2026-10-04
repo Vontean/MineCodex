@@ -3,12 +3,12 @@
   "id": "sites",
   "version": "0.1.0",
   "label": {
-    "en": "Local & Self-hosted Sites",
-    "zh-CN": "本地与自托管站点"
+    "en": "Saved Sites",
+    "zh-CN": "站点收藏"
   },
   "description": {
-    "en": "Find project web services and open your saved sites.",
-    "zh-CN": "发现项目网页服务，收藏并打开常用站点。"
+    "en": "Find running project sites and save useful links for quick access.",
+    "zh-CN": "发现项目正在运行的网页，收藏常用网址，随时打开。"
   },
   "entry": {
     "kind": "page-script",

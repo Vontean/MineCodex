@@ -1,6 +1,6 @@
 # Markdown Reading
 
-通用视觉和 token 映射遵循根 `DESIGN.md`。本功能默认关闭，经 MineCodex 控制台启用；配置更改沿用现有 Runtime 重启应用流程。
+通用视觉和 token 映射遵循根 `DESIGN.md`。本功能默认开启，可在 MineCodex 控制台关闭；已有显式关闭设置保留；配置更改沿用现有 Runtime 重启应用流程。
 
 ## 用户边界
 

@@ -211,35 +211,9 @@ function createPluginCard(feature) {
   return card;
 }
 
-function createPluginOption(feature) {
-  const option = element("div", "plugin-option");
-  option.dataset.featureId = feature.id;
-  const label = element("label");
-  const input = element("input");
-  input.type = "checkbox";
-  input.name = `feature-${feature.id}`;
-  const name = element("span", "plugin-option-name");
-  const dot = element("span", "status-dot");
-  label.append(input, name, dot);
-  option.append(label);
-  return option;
-}
-
 function updatePluginCard(card, feature) {
   for (const button of elements.languageButtons) button.disabled = pendingFeatureIds.size > 0;
   const status = featureState(feature);
-  if (card.classList.contains("plugin-option")) {
-    const input = card.querySelector("input");
-    input.checked = Boolean(feature.enabled);
-    input.disabled = pendingFeatureIds.has(feature.id);
-    input.setAttribute("aria-label", feature.label);
-    card.querySelector(".plugin-option-name").textContent = feature.label;
-    const dot = card.querySelector(".status-dot");
-    dot.className = `status-dot ${status.className}`;
-    dot.setAttribute("aria-label", status.label);
-    dot.title = status.label;
-    return;
-  }
   const input = card.querySelector('input[type="checkbox"]');
   const image = card.querySelector(".plugin-icon img");
   const name = card.querySelector(".plugin-name");
@@ -247,7 +221,7 @@ function updatePluginCard(card, feature) {
   const dot = card.querySelector(".plugin-state .status-dot");
   const stateLabel = card.querySelector(".plugin-state-label");
   card.dataset.featureId = feature.id;
-  image.src = `${feature.iconUrl}?v=stroke-2.1`;
+  image.src = `${feature.iconUrl}?v=resource-1`;
   name.textContent = feature.label;
   description.textContent = feature.description;
   input.checked = Boolean(feature.enabled);
@@ -271,16 +245,9 @@ function renderPluginCards(features) {
   for (const feature of features) {
     let card = findPluginCard(feature.id);
     if (!card) {
-      if (feature.id === "file-navigation") {
-        const parent = findPluginCard("markdown-reading");
-        if (!parent) continue;
-        card = createPluginOption(feature);
-        parent.append(card);
-      } else {
-        card = createPluginCard(feature);
-        elements.pluginList.append(card);
-      }
+      card = createPluginCard(feature);
     }
+    elements.pluginList.append(card);
     updatePluginCard(card, feature);
   }
   for (const card of [...elements.pluginList.querySelectorAll("[data-feature-id]")]) {

@@ -89,3 +89,7 @@ Footer version label and value align on their text baseline. Source previously s
 14px normal-line-height Chinese and numeric text boxes; 2026-10-05 preview measurements showed
 1px difference in text top. Baseline alignment matches both text tops and the neighboring actions
 without a positional offset.
+
+Feature names describe user tasks rather than implementation details. Chinese and English descriptions state a concrete benefit in one sentence and avoid claims beyond the feature. Markdown Reader and Cascading File Browser default on; explicit saved opt-outs remain unchanged. File navigation uses its own full card with a folder icon.
+
+卡片顺序：模型窗口、提示词库、额度环、会话状态、Markdown 阅读增强、文件级联浏览、图片集合、站点收藏、侧栏聚焦、隐藏额度推广。API 统一输出此顺序；不改变 Runtime 的加载顺序。

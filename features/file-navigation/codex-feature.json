@@ -3,12 +3,12 @@
   "id": "file-navigation",
   "version": "0.1.0",
   "label": {
-    "en": "Compact file navigation",
-    "zh-CN": "精简文件导航"
+    "en": "Cascading File Browser",
+    "zh-CN": "文件级联浏览"
   },
   "description": {
-    "en": "Browse folders in columns from a compact file path.",
-    "zh-CN": "精简文件路径，使用分列列表浏览文件夹并切换文件。"
+    "en": "Click the path above a file to browse folders in columns and open another file.",
+    "zh-CN": "点击文件顶部路径，分列浏览文件夹并快速切换文件。"
   },
   "entry": {
     "kind": "page-script",
@@ -19,7 +19,7 @@
     }
   },
   "icon": {
-    "resource": "assets/book-open.svg"
+    "resource": "assets/folder-tree.svg"
   },
   "placement": {
     "order": 91

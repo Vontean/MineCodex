@@ -103,7 +103,7 @@ test("Quick Prompts manifest retires toolbar surfaces and script compiles as an 
     await readFile(new URL("../codex-feature.json", import.meta.url), "utf8"),
   );
   assert.equal(manifest.entry.kind, "page-script");
-  assert.equal(manifest.label.en, "Prompts");
+  assert.equal(manifest.label.en, "Prompt Library");
   assert.equal(manifest.pinnedSummary, undefined);
   assert.equal(manifest.detailTabs, undefined);
   assert.deepEqual(manifest.hostActions, ["quick-prompts"]);

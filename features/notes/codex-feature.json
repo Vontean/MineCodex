@@ -3,12 +3,12 @@
   "id": "notes",
   "version": "0.1.11",
   "label": {
-    "en": "Prompts",
-    "zh-CN": "提示词"
+    "en": "Prompt Library",
+    "zh-CN": "提示词库"
   },
   "description": {
-    "en": "Organize reusable prompts and insert them with one click.",
-    "zh-CN": "整理常用提示词，一键填入输入框。"
+    "en": "Save prompts by category and insert them into your message with one click.",
+    "zh-CN": "分类保存常用提示词，需要时一键填入输入框。"
   },
   "surfaceUrl": "http://127.0.0.1:47832/",
   "healthUrl": "http://127.0.0.1:47832/api/health",

@@ -3,12 +3,12 @@
   "id": "hide-upsell-banner",
   "version": "0.1.11",
   "label": {
-    "en": "Hide Upsell Banner",
-    "zh-CN": "隐藏用量横幅"
+    "en": "Hide Usage Promotions",
+    "zh-CN": "隐藏额度推广"
   },
   "description": {
-    "en": "Hide usage upsell banners above the composer.",
-    "zh-CN": "隐藏输入框上方的额度推广横幅。"
+    "en": "Hide plan upgrade banners above the message box for a cleaner chat.",
+    "zh-CN": "隐藏输入框上方的套餐升级推广，让对话更清爽。"
   },
   "entry": {
     "kind": "page-script",

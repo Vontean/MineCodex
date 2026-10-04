@@ -186,8 +186,8 @@ h2 { font-size: 14px; font-weight: 620; }
 .plugin-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--grid-gap); }
 .plugin-card { display: flex; flex-direction: column; align-items: stretch; min-width: 0; min-height: 216px; padding: var(--card-padding); border: 1px solid var(--border); border-radius: var(--card-radius); background: var(--surface); box-shadow: 0 3px 0 var(--block-shadow); }
 .plugin-topline { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
-.plugin-icon { display: grid; place-items: center; width: 28px; height: 28px; }
-.plugin-icon img { width: 24px; height: 24px; opacity: 0.75; }
+.plugin-icon { display: grid; place-items: center; width: 28px; height: 28px; flex: none; }
+.plugin-icon img { display: block; width: 24px; height: 24px; object-fit: contain; opacity: 0.75; }
 .plugin-copy { flex: 1; }
 .plugin-name { font-size: 16px; font-weight: 600; line-height: 1.5; letter-spacing: -0.01em; }
 .plugin-description { margin-top: 8px; font-size: 14px; line-height: 1.65; }
@@ -266,10 +266,6 @@ h2 { font-size: 14px; font-weight: 620; }
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
 
-.plugin-option { margin-top:12px; padding-top:12px; border-top:1px solid var(--border); }
-.plugin-option label { display:flex; align-items:center; gap:8px; font-size:13px; }
-.plugin-option input { margin:0; accent-color:var(--ink); }
-.plugin-option .status-dot { margin-left:auto; }
 
 /* 数据迁移沿用控制台的不透明表面与卡片尺寸。 */
 .data-dialog { width: min(520px, calc(100vw - 32px)); max-height: calc(100dvh - 48px); padding: 24px; border: 1px solid var(--border); border-bottom: 3px solid var(--block-shadow); border-radius: var(--card-radius); background: var(--surface); color: var(--ink); box-shadow: var(--shadow); overflow-y: auto; }

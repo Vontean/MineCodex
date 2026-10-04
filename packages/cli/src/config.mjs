@@ -14,8 +14,8 @@ export const DEFAULT_CONFIG = Object.freeze({
     "usage-meter": true,
     "sidebar-focus": true,
     sites: true,
-    "markdown-reading": false,
-    "file-navigation": false,
+    "markdown-reading": true,
+    "file-navigation": true,
   }),
 });
 

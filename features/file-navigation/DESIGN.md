@@ -1,6 +1,6 @@
 # 文件路径导航
 
-通用视觉遵循根 DESIGN.md。独立功能 `file-navigation` 可在 Markdown 阅读关闭时运行；控制台仅将其勾选项放在 Markdown 阅读卡片内，两个配置和生命周期互不依赖。
+通用视觉遵循根 DESIGN.md。独立功能 `file-navigation` 默认开启，保留已有显式关闭设置，可在 Markdown 阅读关闭时运行；控制台使用独立卡片，紧跟 Markdown 阅读增强，两个配置和生命周期互不依赖。
 
 ## 交互
 

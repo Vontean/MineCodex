@@ -3,12 +3,12 @@
   "id": "images",
   "version": "0.1.12",
   "label": {
-    "en": "Images",
-    "zh-CN": "图片"
+    "en": "Image Collection",
+    "zh-CN": "图片集合"
   },
   "description": {
-    "en": "Browse generated images and copy their prompts.",
-    "zh-CN": "浏览本地生成图片，查看与复制提示词。"
+    "en": "Browse generated images in one place and revisit their prompts.",
+    "zh-CN": "集中浏览生成的图片，查看提示词并复用创作思路。"
   },
   "icon": {
     "viewBox": "0 0 24 24",

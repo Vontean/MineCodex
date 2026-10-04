@@ -27,7 +27,7 @@
 | 注入组装、主题传递、host bridge | `packages/runtime-host/src/codex-injection.mjs`、`host-actions.mjs` | Runtime Host；不在这里继续堆积视觉组件 |
 | 注入UI源码组装 | `packages/ui/src/install.mjs` | UI组件库；宿主调用并注入 |
 | Markdown Preview 阅读排版与识别 | `features/markdown-reading/src/reading.css`、`src/domain/footnotes.mjs`、`src/adapters/codex/preview.mjs`、`reading-runtime.mjs` | Markdown Reading；领域管脚注规则，Adapter 管原生协议与会话生命周期 |
-| 文件路径导航与分列浏览 | `features/file-navigation/src/domain/`、`src/adapters/codex/`、`src/frontend/` | File Navigation；独立开关，控制台归组到 Markdown 阅读卡片 |
+| 文件路径导航与分列浏览 | `features/file-navigation/src/domain/`、`src/adapters/codex/`、`src/frontend/` | File Navigation；独立开关与卡片，控制台紧跟 Markdown 阅读增强 |
 | 模型规则与专有原生控制器适配 | `features/model-slider/src/domain/`、`src/adapters/codex/`、`src/frontend/`、`src/injection-source.mjs` | Model Slider；宿主只负责组装和调度 |
 | 会话指标与日志 | `features/session-status/src/domain/`、`src/adapters/codex/` | Session Status |
 | 站点规则、发现和启动 | `features/sites/src/domain/`、`src/backend/` | Sites |

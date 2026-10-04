@@ -5,7 +5,7 @@ import path from "node:path";
 import test from "node:test";
 import { ensureControlToken, normalizeConfig, readConfig, updateFeature, writeConfig } from "../src/config.mjs";
 
-test("config keeps established defaults and opts new reading feature out and preserves unknown fields", async () => {
+test("config keeps established defaults and enables reading by default and preserves unknown fields", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "minecodex-config-"));
   const configPath = path.join(root, "config.json");
   await writeFile(configPath, JSON.stringify({
@@ -25,8 +25,8 @@ test("config keeps established defaults and opts new reading feature out and pre
     "usage-meter": true,
     "sidebar-focus": true,
     sites: true,
-    "markdown-reading": false,
-    "file-navigation": false,
+    "markdown-reading": true,
+    "file-navigation": true,
   });
   assert.deepEqual(config.future, { channel: "preview" });
 
@@ -77,4 +77,9 @@ test("retired Task notifications cannot be restored by old config or feature upd
   assert.equal("unread-inbox" in config.features,false);
   assert.equal(config.features["future-plugin"],true);
   await assert.rejects(updateFeature("/unused/config.json","unread-inbox",true),/Unknown MineCodex plugin/);
+});
+
+test("explicit reading and navigation opt-outs are preserved", () => {
+  for (const id of ["markdown-reading","file-navigation"])
+    assert.equal(normalizeConfig({features:{[id]:false}}).features[id],false);
 });

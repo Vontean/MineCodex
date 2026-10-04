@@ -7,7 +7,7 @@ const t = (cn, en) => zh ? cn : en;
 const dialog = document.querySelector('#data-dialog');
 const entry = document.querySelector('#data-button');
 const list = document.querySelector('#data-list');
-const featureNames = { notes: 'Prompts', sites: 'Sites', 'model-slider': t('模型滑条', 'Model Slider') };
+const featureNames = { notes: t('提示词库', 'Prompt Library'), sites: t('站点收藏', 'Saved Sites'), 'model-slider': t('模型窗口', 'Model Panel') };
 const status = document.querySelector('#data-status');
 const exportButton = document.querySelector('#data-export');
 const importButton = document.querySelector('#data-import');
@@ -69,7 +69,7 @@ function showInventory(data) {
   for (const feature of data.features.filter(item => item.portable)) {
     const detail = feature.id === 'notes' ? t(`${feature.categories} 个分类`, `${feature.categories} categories`) : '';
     const hint = feature.id === 'model-slider' && !feature.initialized
-      ? t('旧收藏在新版模型滑条首次启动后收录。', 'Legacy favorites are collected when the updated slider first starts.') + ' ' + featureHints[feature.id]
+      ? t('旧收藏在新版模型窗口首次启动后收录。', 'Legacy favorites are collected when the updated slider first starts.') + ' ' + featureHints[feature.id]
       : featureHints[feature.id];
     row(featureNames[feature.id] || feature.id, detail, t(`${feature.count} 项`, `${feature.count} items`), hint);
   }
