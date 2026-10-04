@@ -155,3 +155,19 @@
 
 .pm-preview-overlay { position:fixed; inset:0; }
 [data-minecodex-quick-prompts=page].pm-preview-spotlight { position:fixed; inset:0; overflow:visible; pointer-events:none; }
+
+/* Quick Prompts：固定分类栏，箭头覆盖渐隐尾端，列表保持原生单行密度。 */
+[data-minecodex-quick-prompts=panel] .qp-tabs-bar { position:relative; flex:none; padding:4px 4px 8px; border-bottom:1px solid var(--mcx-color-border); margin-bottom:4px; }
+[data-minecodex-quick-prompts=panel] .qp-tabs { display:flex; gap:2px; overflow-x:auto; scrollbar-width:none; padding-right:var(--qp-arrow-space,0px); }
+[data-minecodex-quick-prompts=panel] .qp-tabs::-webkit-scrollbar { display:none; }
+[data-minecodex-quick-prompts=panel] .qp-tabs-bar[data-overflow=true] .qp-tabs { mask-image:linear-gradient(to right,#000 calc(100% - 90px),transparent calc(100% - 60px)); }
+[data-minecodex-quick-prompts=panel] .qp-tab { flex:none; white-space:nowrap; padding:6px 12px; border-radius:var(--mcx-radius-full); color:var(--mcx-color-text-secondary); }
+[data-minecodex-quick-prompts=panel] .qp-tab[aria-selected=true], [data-minecodex-quick-prompts=panel] .qp-tab:hover, [data-minecodex-quick-prompts=panel] .qp-tab-arrow:hover, [data-minecodex-quick-prompts=panel] .qp-select[data-preview=true] { background:var(--mcx-color-background-primary-ghost-hover); color:var(--mcx-color-text-primary); }
+[data-minecodex-quick-prompts=panel] .qp-tab-arrows { position:absolute; right:4px; top:4px; display:flex; gap:2px; }
+[data-minecodex-quick-prompts=panel] .qp-tab-arrow { display:flex; align-items:center; justify-content:center; width:28px; height:30px; border-radius:var(--mcx-radius-full); }
+[data-minecodex-quick-prompts=panel] .qp-tab-previous svg { transform:rotate(90deg); }
+[data-minecodex-quick-prompts=panel] .qp-tab-next svg { transform:rotate(-90deg); }
+[data-minecodex-quick-prompts=panel] [hidden] { display:none!important; }
+[data-minecodex-quick-prompts=panel] .qp-title { max-width:55%; flex-shrink:0; }
+.qp-image-preview { position:fixed; visibility:hidden; padding:0; overflow:hidden; border-radius:var(--mcx-radius-2xl); transform-origin:left center; }
+.qp-image-preview img { display:block; width:100%; height:100%; object-fit:contain; }

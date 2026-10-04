@@ -75,6 +75,8 @@ function position() {
   config.ui.composerMenu(panel, addButton);
 }
 function close(restoreFocus = false) {
+  clearQuickPreview(true);
+  quickTabsObserver?.disconnect();
   generation++;
   panel?.remove();
   panel = null;
@@ -83,6 +85,108 @@ function close(restoreFocus = false) {
   button?.setAttribute("data-state", "closed");
   if (restoreFocus) button?.focus({ preventScroll: true });
 }
+let quickCategory = "all";
+let quickTabsObserver = null;
+let quickPreview = null;
+let quickPreviewTimer = null;
+let quickExitTimer = null;
+function clearQuickPreview(immediate = false, shift = 0) {
+  clearTimeout(quickPreviewTimer);
+  clearTimeout(quickExitTimer);
+  const current = quickPreview;
+  if (!current) return;
+  current.anchor.removeAttribute("data-preview");
+  if (immediate || previewReducedMotion()) {
+    current.node.remove();
+    quickPreview = null;
+    return;
+  }
+  current.node.style.pointerEvents = "none";
+  tweenPreview(current.node, { opacity:0, transform:`translateY(${Math.max(-10, Math.min(10, shift))}px) scale(.98)` }, 150);
+  quickExitTimer = setTimeout(() => {
+    current.node.remove();
+    if (quickPreview === current) quickPreview = null;
+  }, 150);
+}
+function showQuickPreview(item, anchor) {
+  clearQuickPreview(true);
+  const preview = cardPreview(item);
+  if (!preview) return;
+  quickPreviewTimer = setTimeout(() => {
+    if (!panel || !anchor.isConnected) return;
+    const node = element("div", "qp-image-preview");
+    config.ui.surface(node, "popover");
+    config.ui.mount(node, "floating");
+    const image = element("img");
+    image.alt = text(`Full image: ${item.summary}`, `完整图片：${item.summary}`);
+    const place = () => {
+      if (quickPreview?.node !== node || !image.naturalWidth) return;
+      const r = anchor.getBoundingClientRect(), p = panel.getBoundingClientRect();
+      const right = innerWidth - p.right - 24, left = p.left - 24;
+      const available = Math.max(right, left);
+      if (available < 96) { clearQuickPreview(true); return; }
+      const scale = Math.min(280 / image.naturalWidth, available / image.naturalWidth, 360 / image.naturalHeight, (innerHeight - 24) / image.naturalHeight);
+      const width = image.naturalWidth * scale, height = image.naturalHeight * scale;
+      node.style.width = `${width}px`;
+      node.style.height = `${height}px`;
+      node.style.left = `${right >= width ? p.right + 12 : p.left - width - 12}px`;
+      node.style.top = `${Math.max(12, Math.min(r.top + (r.height - height) / 2, innerHeight - height - 12))}px`;
+      node.style.visibility = "visible";
+      if (!previewReducedMotion()) node.animate([{opacity:0,transform:"translateX(-4px) scale(.98)"},{opacity:1,transform:"none"}],{duration:180,easing:"cubic-bezier(.22,1,.36,1)"});
+    };
+    node.append(image);
+    quickPreview = {node, anchor};
+    anchor.dataset.preview = "true";
+    node.addEventListener("pointerenter", () => clearTimeout(quickPreviewTimer));
+    node.addEventListener("pointerleave", () => clearQuickPreview());
+    image.onload = place;
+    image.src = preview.data;
+    if (image.complete) place();
+  }, 160);
+}
+function quickCategoryTabs() {
+  const bar = element("div", "qp-tabs-bar");
+  const tabs = element("div", "qp-tabs");
+  tabs.setAttribute("role", "tablist");
+  tabs.setAttribute("aria-label", text("Prompt categories", "提示词分类"));
+  const choices = [{id:"all",name:text("All","全部")}, ...categories.filter(c => orderedItems(c.id).length), ...(orderedItems(null).length ? [{id:"other",name:text("Other","其他")}] : [])];
+  if (!choices.some(c => c.id === quickCategory)) quickCategory = "all";
+  for (const category of choices) {
+    const tab = control(category.name, () => { quickCategory = category.id; renderList(); panel.querySelector('[aria-selected="true"]')?.focus({preventScroll:true}); }, "qp-tab");
+    tab.setAttribute("role", "tab");
+    tab.setAttribute("aria-selected", String(category.id === quickCategory));
+    tab.setAttribute("aria-controls", "mcx-quick-results");
+    tabs.append(tab);
+  }
+  const arrows = element("div", "qp-tab-arrows");
+  const move = direction => tabs.scrollBy({left:direction * Math.max(100,tabs.clientWidth - 90), behavior:previewReducedMotion() ? "instant" : "smooth"});
+  const previous = control(text("Previous categories","前面的分类"), () => move(-1), "qp-tab-arrow qp-tab-previous", "chevron");
+  const next = control(text("More categories","后面的分类"), () => move(1), "qp-tab-arrow qp-tab-next", "chevron");
+  arrows.append(previous,next);
+  bar.append(tabs,arrows);
+  const update = () => {
+    const naturalWidth = [...tabs.children].reduce((width, tab) => width + tab.offsetWidth + 2, -2);
+    const overflow = naturalWidth > tabs.clientWidth + 1;
+    previous.hidden = !overflow || tabs.scrollLeft <= 1;
+    next.hidden = !overflow || tabs.scrollLeft + tabs.clientWidth >= tabs.scrollWidth - 1;
+    arrows.hidden = !overflow;
+    bar.dataset.overflow = String(overflow);
+    tabs.style.setProperty("--qp-arrow-space", `${overflow ? 68 : 0}px`);
+  };
+  tabs.addEventListener("scroll", update, {passive:true});
+  tabs.addEventListener("keydown", event => {
+    if (!["ArrowLeft","ArrowRight"].includes(event.key)) return;
+    event.preventDefault();
+    const buttons = [...tabs.children], i = buttons.indexOf(document.activeElement);
+    const target = buttons[Math.max(0,Math.min(buttons.length-1,i+(event.key === "ArrowRight" ? 1 : -1)))];
+    target?.focus();
+  });
+  quickTabsObserver = new ResizeObserver(update);
+  quickTabsObserver.observe(tabs);
+  requestAnimationFrame(() => { if (!bar.isConnected) return; update(); const selected=tabs.querySelector('[aria-selected="true"]'); if(selected) tabs.scrollLeft = Math.max(0,selected.offsetLeft-tabs.offsetLeft-tabs.clientWidth+selected.offsetWidth+68); update(); });
+  return bar;
+}
+
 // 输入框 Popover：只浏览与插入
 async function loadList() {
   const current = ++generation;
@@ -144,6 +248,8 @@ function orderedItems(categoryId) {
     );
 }
 function renderList() {
+  clearQuickPreview(true);
+  quickTabsObserver?.disconnect();
   panel.replaceChildren();
   const list = element("div", "qp-scroll");
   if (!items.length)
@@ -154,15 +260,19 @@ function renderList() {
     .filter((item) => item.useCount > 0)
     .sort((a, b) => b.calledAt - a.calledAt || a.id.localeCompare(b.id))
     .slice(0, 3);
+  panel.append(quickCategoryTabs());
+  list.id = "mcx-quick-results";
+  let lastScroll = 0;
+  list.addEventListener("scroll", () => { const delta = lastScroll - list.scrollTop; lastScroll = list.scrollTop; clearQuickPreview(false, delta); }, {passive:true});
   const sections = [
-    { name: text("Recently used", "最近使用"), prompts: recent },
+    { id:"recent", name: text("Recently used", "最近使用"), prompts: recent },
     ...categories.map((category) => ({
-      name: category.name,
+      id: category.id, name: category.name,
       prompts: orderedItems(category.id),
     })),
-    { name: text("Other", "其他"), prompts: orderedItems(null) },
+    { id:"other", name: text("Other", "其他"), prompts: orderedItems(null) },
   ];
-  for (const section of sections.filter((section) => section.prompts.length)) {
+  for (const section of sections.filter((section) => section.prompts.length && (quickCategory === "all" || section.id === quickCategory))) {
     list.append(element("div", "qp-header", section.name));
     for (const item of section.prompts) {
       const row = element("div", "qp-row");
@@ -193,10 +303,15 @@ function renderList() {
         insert.append(
           element("span", "qp-preview", item.body.replace(/\s+/g, " ")),
         );
+      insert.addEventListener("pointerenter", () => showQuickPreview(item, insert));
+      insert.addEventListener("focus", () => showQuickPreview(item, insert));
+      insert.addEventListener("pointerleave", () => { clearTimeout(quickPreviewTimer); quickPreviewTimer = setTimeout(() => clearQuickPreview(), 100); });
+      insert.addEventListener("blur", () => clearQuickPreview());
       row.append(insert);
       list.append(row);
     }
   }
+  if (!list.children.length) list.append(element("div", "qp-empty", text("No prompts yet", "还没有提示词")));
   panel.append(list);
   position();
 }
@@ -1599,6 +1714,7 @@ document.addEventListener(
     if (
       panel &&
       !panel.contains(event.target) &&
+      !quickPreview?.node.contains(event.target) &&
       !button?.contains(event.target)
     )
       close();
@@ -1627,7 +1743,7 @@ document.addEventListener(
   },
   { signal, capture: true },
 );
-window.addEventListener("resize", position, { signal });
+window.addEventListener("resize", () => { clearQuickPreview(true); position(); }, { signal });
 window.addEventListener("scroll", position, { signal, capture: true });
 sync();
 
