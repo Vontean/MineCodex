@@ -65,7 +65,7 @@ test("control server exchanges a short-lived one-time value for a cookie and pro
 
     const status = await fetch(`${origin}/api/status`, { headers: { Cookie: cookie, "Accept-Language": "zh-CN" } });
     const initial = await status.json();
-    assert.equal(initial.features.length, 9);
+    assert.equal(initial.features.length, 10);
     assert.equal(initial.features.some(feature=>feature.id==="unread-inbox"),false);
     const retiredIcon=await fetch(`${origin}/api/icons/unread-inbox.svg`,{headers:{Cookie:cookie}});
     assert.equal(retiredIcon.status,404);
@@ -74,11 +74,12 @@ test("control server exchanges a short-lived one-time value for a cookie and pro
     });
     assert.equal(retiredEnable.status,404);
     assert.equal(initial.features.find((feature) => feature.id === "usage-meter").label, "额度环");
-    assert.equal(initial.features.filter(feature=>feature.id!=="markdown-reading").every((feature) => feature.enabled), true);
+    assert.equal(initial.features.filter(feature=>!["markdown-reading", "file-navigation"].includes(feature.id)).every((feature) => feature.enabled), true);
     assert.equal(initial.features.find((feature) => feature.id === "images").label, "图片");
     assert.equal(initial.features.find((feature) => feature.id === "session-status").label, "会话状态");
 
     assert.equal(initial.features.find(feature=>feature.id==="markdown-reading").enabled,false);
+    assert.equal(initial.features.find(feature=>feature.id==="file-navigation").enabled,false);
     assert.equal(initial.features.find(feature=>feature.id==="markdown-reading").label,"Markdown 阅读排版");
 
     const english = await (await fetch(`${origin}/api/features`, {
@@ -154,7 +155,7 @@ test("control server exchanges a short-lived one-time value for a cookie and pro
     assert.equal(usageIcon.status, 200);
     assert.match(await usageIcon.text(), /<circle/);
 
-    for (const id of ["sidebar-focus", "sites", "markdown-reading"]) {
+    for (const id of ["sidebar-focus", "sites", "markdown-reading", "file-navigation"]) {
       const response = await fetch(`${origin}/api/icons/${id}.svg`, { headers: { Cookie: cookie } });
       assert.equal(response.status, 200, `${id} must have a dashboard icon`);
       assert.match(await response.text(), /<svg[^>]+viewBox="0 0 24 24"/);

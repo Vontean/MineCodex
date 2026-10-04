@@ -81,6 +81,7 @@ export const CODEX_THEME_TOKENS = Object.freeze([
   "--text-document",
   "--leading-relaxed",
   "--font-weight-normal",
+  "--font-weight-medium",
   "--vscode-font-weight",
   "--default-mono-font-family",
   "--text-heading-lg",

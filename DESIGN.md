@@ -217,3 +217,7 @@ Codex 26.930.21537 安装包源码（2026-10-04）：Pages 目录使用 floating
 ### 原生文档块悬浮操作
 
 Codex 26.930.21537 的 Chat Markdown 表格、代码块与可视化块共用公开 `data-block-actions` React 操作栏：surface 背景、full 圆角、2px padding、4px gap，hover / focus-within / data-visible / open-popover 状态可达，粗指针显示。控件使用原生 Button 的 `blockAction`、`full`、`inputIcon` 分支，Tooltip 和 CopyButton 反馈由原生组件管理。功能负责块的内容、状态与回调，Adapter 负责公开角色发现与 context 接入；不要复制这一分支的按钮或 Tooltip 材质。
+
+### 文件路径导航中的原生文件行
+
+Codex 26.930.21537（2026-10-05 源码与隔离窗口）：文件 breadcrumb 使用原生 capsule / controlSurface；入口 hover 采用原生文字角色变化，不额外叠加按钮底色。菜单中的 BaseFileTree `surface=dropdown` 提供文件类型图标、行 hover、选中、focus、长名称截断与虚拟滚动，直接复用该 React 组件，不在功能 CSS 中重建行材质。外层使用共享 opaque Popover。字体中等字重通过共享 `--font-weight-medium` → `--mcx-font-weight-medium` 映射；分列布局与路径压缩规则见 File Navigation DESIGN.md。

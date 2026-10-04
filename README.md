@@ -19,6 +19,7 @@ MineCodex 给 Codex Desktop 增加一组轻量、本地优先的扩展功能。�
 | **Sidebar Focus** | 展开侧栏时聚焦当前任务路径，再次点击恢复布局 |
 | **Sites** | 在原生 Sites 中收录项目网页与自定义网址，按需打开或启动 |
 | **Markdown Reading** | 用 Pages 正文排版、自适应留白与原生目录阅读文件面板的 Markdown Preview，保留原生工具栏与文字选择；默认关闭 |
+| **File Navigation** | 精简路径与分列文件浏览；在 Markdown 阅读卡片内独立勾选，支持单独启用，默认关闭 |
 
 ## 安装
 

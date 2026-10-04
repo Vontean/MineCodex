@@ -26,6 +26,7 @@ test("config keeps established defaults and opts new reading feature out and pre
     "sidebar-focus": true,
     sites: true,
     "markdown-reading": false,
+    "file-navigation": false,
   });
   assert.deepEqual(config.future, { channel: "preview" });
 
