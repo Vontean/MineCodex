@@ -38,3 +38,15 @@ for (const [environment, rules] of [
     assert.equal(rules.modelWithOpenCodexEfforts(identity, {}, model), model);
   });
 }
+
+test('portable favorites keep provider identity and never remap an authoritative model by display name', () => {
+  const { favoriteModelId } = createModelRules();
+  const saved = new Set(['provider-a/shared-model', 'native-model', 'missing-model']);
+  const localModels = ['provider-b/shared-model', 'native-model'];
+  const active = localModels.filter(id => saved.has(favoriteModelId(id, { authoritative: true, catalogSlug: 'provider-a/shared-model' })));
+  assert.deepEqual(active, ['native-model']);
+  assert.equal(favoriteModelId('provider-b/shared-model', { catalogSlug: 'provider-a/shared-model' }), 'provider-b/shared-model');
+  localModels.push('missing-model');
+  assert.deepEqual(localModels.filter(id => saved.has(favoriteModelId(id, { authoritative: true }))), ['native-model', 'missing-model']);
+  assert.equal(saved.size, 3);
+});

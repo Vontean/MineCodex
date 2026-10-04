@@ -110,6 +110,11 @@ export function createModelRules() {
     return formatIdentifier(identity.backend).toLowerCase() === nativeLabel ? native : thirdParty;
   }
 
+  function favoriteModelId(raw, { authoritative = false, nativeSlug, catalogSlug } = {}) {
+    // 控制器 ID 和 provider/model 不经过显示名称别名匹配，跨机器只认同一完整标识。
+    return authoritative || modelIdentity(raw).provider ? raw : nativeSlug ?? catalogSlug ?? raw;
+  }
+
   function nativeGptSortRank(rawValue) {
     const known = new Map([
       ["gpt-6-astra", 1], ["gpt-5.6-sol", 2], ["gpt-5.6-terra", 3], ["gpt-5.6-luna", 4],
@@ -139,5 +144,5 @@ export function createModelRules() {
         );
     });
   }
-  return { modelIdentity, formatIdentifier, providerLabel, compactModelLabel, brandForModel, comparableModelLabel, catalogModelFor, resolveModelAlias, modelWithOpenCodexEfforts, nativeGptSortRank, visibleControllerModels };
+  return { favoriteModelId, modelIdentity, formatIdentifier, providerLabel, compactModelLabel, brandForModel, comparableModelLabel, catalogModelFor, resolveModelAlias, modelWithOpenCodexEfforts, nativeGptSortRank, visibleControllerModels };
 }

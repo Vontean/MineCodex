@@ -270,3 +270,49 @@ h2 { font-size: 14px; font-weight: 620; }
 .plugin-option label { display:flex; align-items:center; gap:8px; font-size:13px; }
 .plugin-option input { margin:0; accent-color:var(--ink); }
 .plugin-option .status-dot { margin-left:auto; }
+
+/* 数据迁移沿用控制台的不透明表面与卡片尺寸。 */
+.data-dialog { width: min(520px, calc(100vw - 32px)); max-height: calc(100dvh - 48px); padding: 24px; border: 1px solid var(--border); border-bottom: 3px solid var(--block-shadow); border-radius: var(--card-radius); background: var(--surface); color: var(--ink); box-shadow: var(--shadow); overflow-y: auto; }
+.data-dialog::backdrop { background: #10172280; }
+.data-header { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 20px; }
+.data-header h2 { margin: 0; font-size: 20px; line-height: 28px; font-weight: 600; }
+.data-header #data-close { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 32px; padding: 0; width: 32px; height: 32px; min-height: 32px; }
+.data-header #data-close svg { display: block; width: 16px; height: 16px; }
+.data-list { display: grid; gap: 10px; }
+.data-card { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 16px; border: 1px solid var(--border); border-radius: var(--card-radius); background: var(--surface); }
+.data-card-heading { display: flex; align-items: center; gap: 6px; }
+.data-card strong { font-size: 14px; font-weight: 600; line-height: 22px; }
+.data-card p { margin: 4px 0 0; font-size: 12px; line-height: 1.6; color: var(--ink-tertiary); }
+.data-count { white-space: nowrap; font-size: 13px; font-variant-numeric: tabular-nums; }
+.data-info { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: var(--ink-tertiary); cursor: pointer; }
+.data-info .ui-icon { width: 14px; height: 14px; flex-basis: 14px; }
+.data-info:hover, .data-info[aria-expanded="true"] { background: var(--surface-muted); color: var(--ink-secondary); }
+.data-tooltip { inset: auto; margin: 0; width: max-content; max-width: min(320px, calc(100vw - 16px)); text-align: center; overflow-wrap: anywhere; }
+.data-policy { margin: 14px 0 0; color: var(--ink-tertiary); font-size: 11px; line-height: 1.6; }
+.data-status { margin: 12px 0 0; font-size: 12px; line-height: 1.6; color: var(--ink-secondary); overflow-wrap: anywhere; }
+.data-status:empty { display: none; }
+.data-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px; }
+.data-actions .button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-width: 88px; }
+.data-actions .ui-icon { width: 16px; height: 16px; flex-basis: 16px; }
+.download-icon { --icon: url("/assets/download.svg"); }
+.upload-icon { --icon: url("/assets/upload.svg"); }
+@media (max-width: 600px) { .data-dialog { padding: 20px; } .data-card { gap: 12px; } }
+
+/* 独立控制台没有原生主题桥，只映射 token；Tooltip 材质由共享组件安装。 */
+:root {
+  --mcx-spacing: 4px;
+  --mcx-radius-2xl: 16px;
+  --mcx-codex-corner-shape: round;
+  --mcx-color-background-tooltip: var(--ink);
+  --mcx-color-text-tooltip: var(--surface);
+  --mcx-color-border-tooltip: color-mix(in oklab, var(--mcx-color-text-tooltip) 5%, transparent);
+  --mcx-shadow-tooltip: 0 8px 18px #0f172a33;
+  --mcx-font-sans-default: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mcx-text-sm: 13px;
+  --mcx-tooltip-compact-font-weight: 400;
+  --mcx-tracking-tooltip: -.15px;
+}
+:root[data-theme="dark"] { --mcx-color-background-tooltip: var(--surface); --mcx-color-text-tooltip: var(--ink); }
+@supports (corner-shape: superellipse(1.5)) {
+  :root { --mcx-codex-corner-shape: superellipse(1.5); --mcx-radius-2xl: 24px; }
+}

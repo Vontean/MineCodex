@@ -1,3 +1,4 @@
+import path from "node:path";
 import { spawn } from "node:child_process";
 import { mkdir, open, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { ChatGPTLaunchCoordinator } from "./chatgpt-launch-coordinator.mjs";
@@ -189,6 +190,8 @@ export class RuntimeManager {
       MINECODEX_CODEX_BUILD: codexBuild ?? "",
       CODEX_IMAGE_HOST_DATA_DIR: this.paths.imagesDataDir,
       CODEX_NOTES_DATA_DIR: this.paths.notesDataDir,
+      MINECODEX_MODEL_DATA_FILE: process.env.MINECODEX_MODEL_DATA_FILE || path.join(this.paths.supportDir, "model-slider", "favorites.sqlite"),
+      MINECODEX_SITES_DATA_DIR: process.env.MINECODEX_SITES_DATA_DIR || path.join(this.paths.supportDir, "sites"),
       MINECODEX_ENABLED_FEATURES: features.join(","),
       MINECODEX_CODEX_PID_FILE: this.paths.codexPidPath,
       MINECODEX_RUNTIME_READY_FILE: this.paths.runtimeReadyPath,

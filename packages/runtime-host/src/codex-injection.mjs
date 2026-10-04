@@ -254,6 +254,7 @@ export function createInjectionSource(features, {
     try {
       modelSlider = installModelSliderFeature(lifetime.signal, {
         feature: modelSelectorFeature, codex, ui: featureUI, createIcon: createMarkupIcon, requestRefresh: queueEnsure, locale,
+        requestAction: payload => requestPageHostAction(modelSelectorFeature.id, "model-favorites", payload),
       });
       if (modelSelectorFeature) {
         selfCheck.register(modelSelectorFeature.id, () => modelSlider.selfCheck());

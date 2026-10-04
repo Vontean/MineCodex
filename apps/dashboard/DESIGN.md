@@ -68,3 +68,24 @@ axis once every 240 seconds, rendered at at most 20 fps and device pixel ratio c
 The world stays behind opaque cards; text and controls never rotate. Reduced motion freezes
 the view, hidden tabs pause the animation. The terrain module has no external dependency
 or network request and does not consume user or session data.
+
+## Data transfer
+
+The footer includes a quiet Transfer data action. A native modal dialog (520px maximum,
+24px padding, existing opaque surface and 8px radius) shows only portable features as bordered
+cards. Feature-specific explanations live behind a small info button. The native auto popover
+uses the shared `installFeatureTooltips().tooltipSurface` material through `/assets/ui-tooltip.js`,
+with local theme token mapping only; its geometry, keyboard activation and Escape remain
+owned by this click-triggered hint. No separate tooltip material lives in dashboard CSS.
+Close uses the shared Dialog SVG, centered as a 16px block inside a 32px flex hit area.
+Non-portable features and generic file/platform explanations are omitted from this dialog.
+The merge policy is one 11px tertiary line, without a filled notice surface. Export and Import
+are equal outline surface buttons, each with an official Lucide icon and a text label. Labels
+can change for confirmation/retry without replacing the icons. Empty status text takes no space.
+Selecting a file shows added/duplicate/conflict counts before confirmation. Busy states prevent
+duplicate submissions and closing; native dialog focus restoration is preserved.
+
+Footer version label and value align on their text baseline. Source previously stretched
+14px normal-line-height Chinese and numeric text boxes; 2026-10-05 preview measurements showed
+1px difference in text top. Baseline alignment matches both text tops and the neighboring actions
+without a positional offset.

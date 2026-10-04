@@ -36,6 +36,7 @@ import {
   attachFilesToComposer,
   createImageEditThread,
 } from "./host-actions.mjs";
+import { ModelFavorites } from "../../../features/model-slider/src/backend/favorites.mjs";
 import { SitesService } from "../../../features/sites/src/backend/sites-service.mjs";
 import { SessionStatusReader, threadIdFromLocation } from "../../../features/session-status/src/adapters/codex/session-reader.mjs";
 import { createCodexEnvironment } from "../../codex-adapter/src/renderer/environment.mjs";
@@ -573,6 +574,16 @@ export class CodexRuntime {
         await this.resolveHostAction(client, request.requestId, {ok:true,result});
       } catch (error) {
         await this.resolveHostAction(client, request.requestId, {ok:false,error:{code:"LOCAL_IMAGE_SOURCE_FAILED",message:error.message}});
+      }
+      return;
+    }
+    if (feature.id === "model-slider" && request.action === "model-favorites") {
+      try {
+        this.modelFavorites ??= new ModelFavorites();
+        const result = this.modelFavorites.action(request.payload);
+        await this.resolveHostAction(client, request.requestId, { ok: true, result });
+      } catch (error) {
+        await this.resolveHostAction(client, request.requestId, { ok: false, error: { code: "MODEL_FAVORITES_FAILED", message: error.message } });
       }
       return;
     }

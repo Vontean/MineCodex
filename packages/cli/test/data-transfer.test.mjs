@@ -1,0 +1,115 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtemp, rm, mkdir, readFile } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
+import { migratePromptSchema } from '../../../features/notes/src/backend/prompt-schema.mjs';
+import { SitesService } from '../../../features/sites/src/backend/sites-service.mjs';
+import { createDataTransfer } from '../src/data-transfer/service.mjs';
+import { createControlServer } from '../src/control-server.mjs';
+
+async function setup(t) {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'mcx-transfer-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const paths = { notesDataDir: path.join(root,'notes'), supportDir: root, dashboardDir: path.resolve('apps/dashboard') };
+  await mkdir(paths.notesDataDir);
+  const db = new DatabaseSync(path.join(paths.notesDataDir, 'codex-notes.sqlite')); migratePromptSchema(db);
+  db.prepare("INSERT INTO prompts(id,title,body,created_at,updated_at,last_used_at,category_id) VALUES (?,?,?,?,?,?,?)").run('a','标题','原始正文',1,1,1,'code'); db.close();
+  return { paths, service: createDataTransfer({ paths, version: 'test' }) };
+}
+test('portable round trip preserves categories and text; duplicates and conflicts keep destination', async t => {
+  const source = await setup(t), target = await setup(t);
+  const bundle = await source.service.export();
+  bundle.features.notes.prompts.push({ ...bundle.features.notes.prompts[0], id: 'b', title: '新增', body: '新正文' });
+  bundle.features.notes.prompts[0].body = '另一台修改';
+  const preview = await target.service.preview(bundle);
+  assert.deepEqual(preview.features[0], { id: 'notes', added: 1, duplicate: 0, conflict: 1, categoriesAdded: 0 });
+  assert.equal((await target.service.import(bundle)).complete, true);
+  const exported = await target.service.export();
+  assert.equal(exported.features.notes.prompts.find(row => row.id === 'a').body, '原始正文');
+  assert.equal(exported.features.notes.prompts.find(row => row.id === 'b').body, '新正文');
+  assert.equal((await target.service.import(bundle)).features[0].added, 0);
+  bundle.features.notes.prompts.push({ ...bundle.features.notes.prompts[1], id: 'c' });
+  assert.equal((await target.service.preview(bundle)).features[0].duplicate, 2);
+});
+test('Sites excludes device references, deduplicates URLs, serializes simultaneous writers', async t => {
+  const { paths, service } = await setup(t);
+  const first = new SitesService({ dataDir: path.join(paths.supportDir,'sites') });
+  const second = new SitesService({ dataDir: path.join(paths.supportDir,'sites') });
+  await Promise.all([first.mutate(sites => sites.push({ id:'public',title:'Public',url:'https://example.com/',origin:{kind:'project',projectId:'private'},directory:'/private/project' })), second.mutate(sites => sites.push({id:'local',title:'Local',url:'http://127.0.0.1:3000',origin:{kind:'external'}}))]);
+  const bundle = await service.export();
+  assert.deepEqual(bundle.features.sites.sites, [{id:'public',title:'Public',url:'https://example.com/'}]);
+  assert.equal((await service.inventory()).features.find(row => row.id === "sites").excluded, 1);
+  bundle.features.sites.sites.push({id:'copy',title:'Other title',url:'https://example.com/'});
+  assert.equal((await service.import(bundle)).features[1].duplicate, 2);
+  assert.equal((await first.read()).length, 2);
+});
+test('validate every feature before writing; reject unsupported formats and local URLs', async t => {
+  const { service } = await setup(t);
+  const bundle = await service.export();
+  bundle.features.notes.prompts[0].id = 'new';
+  bundle.features.sites.sites = [{id:'bad',title:'Bad',url:'http://localhost:3000'}];
+  await assert.rejects(service.import(bundle));
+  assert.equal((await service.export()).features.notes.prompts.length,1);
+  await assert.rejects(service.import({...bundle, version: 2}));
+  await assert.rejects(service.import({...bundle, features: {unknown: {}}}));
+  bundle.features.sites.sites = [];
+  bundle.features.notes.prompts[0].category_id = 'missing';
+  await assert.rejects(service.import(bundle));
+});
+test('fresh destination has no read side effects and supports transfer', async t => {
+  const { paths, service } = await setup(t);
+  const fresh = { supportDir: path.join(paths.supportDir,'fresh'), notesDataDir: path.join(paths.supportDir,'fresh','notes') };
+  const target = createDataTransfer({ paths: fresh, version: 'test' });
+  assert.equal((await target.inventory()).features.find(row => row.id === "notes").count, 0);
+  await assert.rejects(readFile(path.join(fresh.notesDataDir,'codex-notes.sqlite')), {code:'ENOENT'});
+  assert.equal((await target.import(await service.export())).complete,true);
+  assert.equal((await target.inventory()).features.find(row => row.id === "notes").count, 1);
+});
+test('HTTP authentication, Origin, preview and import use the real backend', async t => {
+  const { paths } = await setup(t);
+  const server = await createControlServer({ paths, token:'test-token', runtimeManager:{}, port:0, logger:{error(){}} });
+  t.after(() => server.close());
+  assert.equal((await fetch(`${server.url}/api/data`)).status,401);
+  const tooltipModule = await fetch(`${server.url}/assets/ui-tooltip.js`);
+  assert.equal(tooltipModule.status, 200);
+  assert.match(tooltipModule.headers.get('content-type'), /text\/javascript/);
+  assert.match(await tooltipModule.text(), /export function installFeatureTooltips/);
+  const headers = { Authorization:'Bearer test-token' };
+  const exported = await fetch(`${server.url}/api/data/export`,{headers});
+  assert.match(exported.headers.get('content-disposition'),/mcx.json/);
+  const bundle = await exported.json(); bundle.features.notes.prompts[0].id = 'http-new'; bundle.features.notes.prompts[0].body = 'HTTP';
+  const options = {method:'POST',headers:{...headers,'Content-Type':'application/json'},body:JSON.stringify(bundle)};
+  assert.equal((await fetch(`${server.url}/api/data/import`,options)).status,403);
+  options.headers.Origin = server.url;
+  const preview = await fetch(`${server.url}/api/data/preview`,options);
+  assert.equal((await preview.json()).features[0].added,1);
+  const imported = await fetch(`${server.url}/api/data/import`,options);
+  assert.equal((await imported.json()).complete,true);
+  assert.equal((await (await fetch(`${server.url}/api/data`,{headers})).json()).features.find(row => row.id === "notes").count,2);
+});
+test('partial failure is explicit and successful adapters remain retryable', async () => {
+  const good = {id:'good',validate:data=>data,apply:async()=>({added:1})};
+  const bad = {id:'bad',validate:data=>data,apply:async()=>{throw new Error('disk full');}};
+  const service = createDataTransfer({paths:{},version:'test',adapters:[good,bad]});
+  const result = await service.import({format:'minecodex-data',version:1,features:{good:{},bad:{}}});
+  assert.equal(result.complete,false); assert.equal(result.features[0].status,'imported'); assert.equal(result.features[1].status,'failed');
+});
+test('model favorites migrate legacy once, merge portably, and retain removals', async t => {
+  const { ModelFavorites } = await import('../../../features/model-slider/src/backend/favorites.mjs');
+  const { paths, service } = await setup(t);
+  const store = new ModelFavorites(path.join(paths.supportDir,'model-slider','favorites.sqlite'));
+  assert.equal(store.read().initialized, false);
+  store.action({operation:'initialize',add:['gpt-a','provider/model-b']});
+  store.action({operation:'change',remove:['gpt-a']});
+  store.action({operation:'initialize',add:['gpt-a']});
+  assert.deepEqual(store.read().favorites,['provider/model-b']);
+  const bundle = await service.export();
+  bundle.features['model-slider'].favorites.push('gpt-c');
+  assert.equal((await service.preview(bundle)).features.find(row=>row.id==='model-slider').added,1);
+  await service.import(bundle);
+  assert.deepEqual(store.read().favorites,['gpt-c','provider/model-b']);
+  assert.equal((await service.import(bundle)).features.find(row=>row.id==='model-slider').added,0);
+  assert.equal((await service.inventory()).features.length,10);
+});

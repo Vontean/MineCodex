@@ -9,6 +9,8 @@ import { BrowserExchangeStore } from "./browser-exchange.mjs";
 import { FEATURE_IDS, readConfig, updateFeature } from "./config.mjs";
 import { normalizeRuntimeReady } from "./runtime-manager.mjs";
 
+import { createDataTransfer, MAX_TRANSFER_BYTES } from "./data-transfer/service.mjs";
+
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const packageMetadata = JSON.parse(await readFile(path.join(packageRoot, "package.json"), "utf8"));
 const MAX_BODY_BYTES = 64 * 1024;
@@ -16,6 +18,7 @@ const CONTENT_TYPES = new Map([
   [".css", "text/css; charset=utf-8"],
   [".html", "text/html; charset=utf-8"],
   [".js", "text/javascript; charset=utf-8"],
+  [".mjs", "text/javascript; charset=utf-8"],
   [".svg", "image/svg+xml"],
   [".ttf", "font/ttf"],
 ]);
@@ -51,12 +54,12 @@ function json(response, statusCode, value) {
   response.end(body);
 }
 
-async function readJson(request) {
+async function readJson(request, maxBytes = MAX_BODY_BYTES) {
   let size = 0;
   const chunks = [];
   for await (const chunk of request) {
     size += chunk.length;
-    if (size > MAX_BODY_BYTES) throw Object.assign(new Error("Request body is too large"), { statusCode: 413 });
+    if (size > maxBytes) throw Object.assign(new Error("Request body is too large"), { statusCode: 413 });
     chunks.push(chunk);
   }
   let value;
@@ -220,8 +223,9 @@ async function iconResponse(id, paths, response) {
 
 async function staticResponse(url, paths, response) {
   const requested = url.pathname === "/" ? "index.html" : url.pathname.slice(1);
-  const absolute = path.resolve(paths.dashboardDir, requested);
-  if (absolute !== paths.dashboardDir && !absolute.startsWith(`${paths.dashboardDir}${path.sep}`)) {
+  const sharedTooltip = requested === "assets/ui-tooltip.js";
+  const absolute = sharedTooltip ? path.join(packageRoot, "packages/ui/src/components/tooltip.mjs") : path.resolve(paths.dashboardDir, requested);
+  if (!sharedTooltip && absolute !== paths.dashboardDir && !absolute.startsWith(`${paths.dashboardDir}${path.sep}`)) {
     json(response, 404, { error: "NOT_FOUND" });
     return;
   }
@@ -251,6 +255,8 @@ export async function createControlServer({
   logger = console,
   exchangeStore = new BrowserExchangeStore(),
 }) {
+  let transfer;
+  const dataTransfer = () => transfer ??= createDataTransfer({ paths, version: packageMetadata.version });
   let boundPort = port;
   const server = createServer(async (request, response) => {
     try {
@@ -327,6 +333,19 @@ export async function createControlServer({
         await readJson(request);
         json(response, 200, { exchange: exchangeStore.issue(token), expiresInMs: exchangeStore.ttlMs });
         return;
+      }
+      if (request.method === "GET" && url.pathname === "/api/data") {
+        json(response, 200, await dataTransfer().inventory()); return;
+      }
+      if (request.method === "GET" && url.pathname === "/api/data/export") {
+        const bundle = await dataTransfer().export();
+        response.setHeader("Content-Disposition", 'attachment; filename="minecodex-data.mcx.json"');
+        json(response, 200, bundle); return;
+      }
+      if (request.method === "POST" && ["/api/data/preview", "/api/data/import"].includes(url.pathname)) {
+        requireMutationOrigin(request, host, boundPort);
+        const bundle = await readJson(request, MAX_TRANSFER_BYTES);
+        json(response, 200, await dataTransfer()[url.pathname.endsWith("/import") ? "import" : "preview"](bundle)); return;
       }
       const featureMatch = url.pathname.match(/^\/api\/features\/([a-z-]+)$/);
       if (request.method === "PATCH" && featureMatch) {

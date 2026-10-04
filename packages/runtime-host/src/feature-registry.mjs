@@ -8,6 +8,7 @@ import { pathToFileURL } from "node:url";
 const MANIFEST_NAME = "codex-feature.json";
 const HOST_ACTIONS = new Set([
   "sites",
+  "model-favorites",
   "quick-prompts",
   "insert-text",
   "attach-file",

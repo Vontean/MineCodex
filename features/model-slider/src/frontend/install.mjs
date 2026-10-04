@@ -1,8 +1,8 @@
 // 专有原生控制器适配与呈现由插件维护；宿主只提供刷新和共用 UI。
-export function installModelSlider(signal, { feature, ui, createIcon, requestRefresh, locale, codex }, rules, createModelControllerAdapter) {
+export function installModelSlider(signal, { feature, ui, createIcon, requestRefresh, locale, codex, requestAction }, rules, createModelControllerAdapter) {
   const modelSelectorFeature = feature;
   const featureUI = ui, createMarkupIcon = createIcon, queueEnsure = requestRefresh;
-  const { modelIdentity, formatIdentifier, providerLabel, compactModelLabel, brandForModel, comparableModelLabel, catalogModelFor, resolveModelAlias, modelWithOpenCodexEfforts, nativeGptSortRank, visibleControllerModels } = rules;
+  const { favoriteModelId, modelIdentity, formatIdentifier, providerLabel, compactModelLabel, brandForModel, comparableModelLabel, catalogModelFor, resolveModelAlias, modelWithOpenCodexEfforts, nativeGptSortRank, visibleControllerModels } = rules;
   const modelSelectorOriginalToggleLabels = new Map();
   const modelSelectorGenericContainers = new Map();
   const modelSelectorNativeToggleHandlers = new Map();
@@ -374,7 +374,17 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
     }
   }
 
+  let favoritesWrite = Promise.resolve();
+  let favoritesEpoch = 0;
   function saveModelFavorites(selector, favorites) {
+    const previous = loadModelFavorites(selector);
+    favoritesEpoch++;
+    if (requestAction) {
+      const add = [...favorites].filter(id => !previous.has(id));
+      const remove = [...previous].filter(id => !favorites.has(id));
+      favoritesWrite = favoritesWrite.catch(() => {}).then(() => requestAction({ operation: 'change', add, remove }));
+      void favoritesWrite.catch(error => console.warn('Model favorites could not be saved for transfer', error));
+    }
     try {
       localStorage.setItem(selector.favoriteStorageKey, JSON.stringify(Array.from(favorites)));
     } catch {
@@ -733,7 +743,7 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
     const observedIdentity = modelIdentity(observedRaw);
     const nativeDescriptor = nativeModelDescriptorForItem(item, observedRaw);
     const catalogModel = catalogModelFor(observedIdentity, selector);
-    const raw = catalogModel?.slug ?? nativeDescriptor?.slug ?? observedRaw;
+    const raw = favoriteModelId(observedRaw, { authoritative: rawValue !== null, nativeSlug: nativeDescriptor?.slug, catalogSlug: catalogModel?.slug });
     // 先刷新 dataset：React 原地复用菜单节点时，raw/排序/收藏键不能基于过期值。
     item.dataset.codexModelSliderRaw = raw;
     item.dataset.codexModelSliderItem = "";
@@ -2165,6 +2175,17 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
       && !modelSelectorControllerMenu.menu.contains(event.target)
       && !modelSelectorControllerMenu.button.contains(event.target)) closeControllerModelMenu();
   }, {capture:true, signal});
+  if (modelSelectorFeature && requestAction) {
+    const selector = modelSelectorFeature.modelSelector;
+    const legacy = [...loadModelFavorites(selector)];
+    // 仅首次接入时迁移旧收藏；后续以后端为准，避免取消收藏后被旧窗口恢复。
+    favoritesWrite = requestAction({ operation: 'initialize', add: legacy }).then(result => {
+      if (signal.aborted) return;
+      if (favoritesEpoch === 0) localStorage.setItem(selector.favoriteStorageKey, JSON.stringify(result.favorites));
+      queueEnsure();
+    });
+    void favoritesWrite.catch(error => console.warn('Model favorites transfer store unavailable', error));
+  }
   if (modelSelectorFeature) {
     // 启动阶段就解析 Fast 图标：先读持久化的原生克隆，再从 app bundle 静态提取兜底，
     // 避免首次会话必须等用户点开弹窗后 DOM 里才出现图标。

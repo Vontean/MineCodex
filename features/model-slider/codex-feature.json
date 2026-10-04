@@ -13,6 +13,7 @@
   "entry": {
     "kind": "composer-model-selector"
   },
+  "hostActions": ["model-favorites"],
   "modelSelector": {
     "maxVisibleItems": 6,
     "favoriteStorageKey": "codex-model-slider:favorites:v1",

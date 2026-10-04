@@ -34,4 +34,11 @@ Composer 触发器区分两种状态：占位态（"Select model" / "Select effo
 
 ## 代码归属
 
-模型身份、品牌与别名、目录匹配、路由去重及档位交集由 `src/domain/model-rules.mjs` 维护，不读取 DOM 或收藏存储。`src/frontend/install.mjs` 维护原生控制器适配、收藏存储、菜单、滑条与节点恢复，使用共享 Dropdown 材质。`src/injection-source.mjs` 将两者组装为自包含 Renderer 安装函数；宿主只提供配置、locale、共享 UI、图标工厂与刷新调度，调用 ensure/dispose。
+模型身份、品牌与别名、目录匹配、路由去重及档位交集由 `src/domain/model-rules.mjs` 维护，不读取 DOM 或收藏存储。`src/frontend/install.mjs` 维护原生控制器适配、收藏缓存、菜单、滑条与节点恢复，使用共享 Dropdown 材质。`src/injection-source.mjs` 将两者组装为自包含 Renderer 安装函数；宿主只提供配置、locale、共享 UI、图标工厂与刷新调度，调用 ensure/dispose。
+
+模型收藏由 `src/backend/favorites.mjs` 持久化；Renderer 首次接入通过 `model-favorites`
+host action 收录旧 localStorage 收藏，之后以后端为准。当前窗口保留本地缓存以维持菜单响应；
+修改提交为增删操作，避免覆盖其他窗口收藏。迁移导入按 ID 合并，下一次 Codex 启动载入。
+Fast 图标 localStorage 仍只属于可再生成缓存，不进入迁移包。
+
+跨机器收藏按完整模型 ID 匹配：本机缺少的模型保留收藏记录但不创建可选项；不同服务商的同名模型不自动对应，也不改变当前选中模型与思考档位。

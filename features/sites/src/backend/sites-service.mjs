@@ -3,6 +3,8 @@ import { localListeners, probePage } from "./discovery.mjs";
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile, realpath } from "node:fs/promises";
 import os from "node:os";
+import { readFileSync, writeFileSync, renameSync, rmSync } from "node:fs";
+import { DatabaseSync } from "node:sqlite";
 import path from "node:path";
 import { CodexCatalog } from "../adapters/codex/catalog.mjs";
 
@@ -21,17 +23,30 @@ export class SitesService {
     this.catalogReader = catalog; this.listeners = listeners; this.probe = probe; this.queue = Promise.resolve();
   }
   catalog() { return this.catalogReader.snapshot(); }
-  async read() {
-    try { const data = JSON.parse(await readFile(this.file, "utf8")); if (data.schemaVersion !== 1 || !Array.isArray(data.sites)) throw new Error("Unsupported sites data."); return data.sites.map(site => site.url ? { ...site, hosting: isLocalAddress(new URL(site.url).hostname) ? "local" : "self-hosted" } : site); }
+  readStoredSites() {
+    try { const data = JSON.parse(readFileSync(this.file, "utf8")); if (data.schemaVersion !== 1 || !Array.isArray(data.sites)) throw new Error("Unsupported sites data."); return data.sites.map(site => site.url ? { ...site, hosting: isLocalAddress(new URL(site.url).hostname) ? "local" : "self-hosted" } : site); }
     catch (error) { if (error.code === "ENOENT") return []; throw error; }
   }
+  async read() { return this.readStoredSites(); }
   async mutate(operation) {
     const task = this.queue.catch(() => {}).then(async () => {
-      const sites = await this.read(); const result = operation(sites);
       await mkdir(path.dirname(this.file), { recursive: true, mode: 0o700 });
+      // SQLite 仅协调跨进程写锁，进程退出自动释放；业务数据仍在 sites.json。
+      const lock = new DatabaseSync(path.join(path.dirname(this.file), "sites-write-lock.sqlite"));
       const temporary = `${this.file}.${randomUUID()}.tmp`;
-      await writeFile(temporary, JSON.stringify({ schemaVersion: 1, sites }, null, 2) + "\n", { mode: 0o600 });
-      await rename(temporary, this.file); return result;
+      try {
+        lock.exec("PRAGMA busy_timeout=3000; BEGIN IMMEDIATE");
+        // 锁内不让出事件循环，避免同进程另一个写入等待自己。
+        const sites = this.readStoredSites(); const result = operation(sites);
+        writeFileSync(temporary, JSON.stringify({ schemaVersion: 1, sites }, null, 2) + "\n", { mode: 0o600 });
+        renameSync(temporary, this.file);
+        lock.exec("COMMIT");
+        return result;
+      } finally {
+        if (lock.isTransaction) lock.exec("ROLLBACK");
+        lock.close();
+        rmSync(temporary, { force: true });
+      }
     });
     this.queue = task; return task;
   }

@@ -831,7 +831,7 @@ test("emits a fail-closed native Composer model selector Adapter", () => {
   assert.match(source, /return resolveModelAlias\(aliases, identity\)/);
   assert.match(source, /function resolveModelAlias\(aliases, identity\)/);
   assert.match(source, /function nativeModelDescriptorForItem\(item, observedRaw\)/);
-  assert.match(source, /const raw = catalogModel\?\.slug \?\? nativeDescriptor\?\.slug \?\? observedRaw/);
+  assert.match(source, /const raw = favoriteModelId\(observedRaw, \{ authoritative: rawValue !== null/);
   assert.match(source, /item\.dataset\.codexModelSliderIdentitySource = catalogModel \? "catalog" : nativeDescriptor \? "native" : "visible"/);
   // Reused menu rows must refresh dataset before the row-exists shortcut.
   assert.match(source, /item\.dataset\.codexModelSliderIdentitySource = catalogModel \? "catalog" : nativeDescriptor \? "native" : "visible";\s+if \(item\.querySelector\("\[data-codex-model-slider-row\]"\)\) return;/);
@@ -2960,4 +2960,17 @@ test("local image source requests require the enabled Images declaration and bin
   await send("wrong");assert.equal(reads,0);
   await send("expected","disabled");assert.equal(reads,0);assert.equal(responses[0].error.code,"ACTION_NOT_ALLOWED");
   await send("expected");assert.equal(reads,1);assert.deepEqual(responses[1],{ok:true,result:{text:"recorded",kind:"generation"}});
+});
+
+test('model favorite writes require the enabled feature allowlist and binding token', async () => {
+  const runtime = new CodexRuntime({features:[{id:'model-slider',hostActions:['model-favorites']}],profileDir:'/tmp/mcx-favorites-test'});
+  let writes = 0;
+  const responses = [];
+  runtime.modelFavorites = { action: payload => { writes++; assert.deepEqual(payload.add,['provider/model']); return {favorites:['provider/model']}; } };
+  runtime.resolveHostAction = async (_client,_id,response) => responses.push(response);
+  runtime.bindingTokens.set('target','expected');
+  const send = (token,featureId='model-slider') => runtime.handleBindingCalled('target',{}, {name:HOST_BINDING_NAME,payload:JSON.stringify({token,featureId,requestId:'request',action:'model-favorites',payload:{operation:'change',add:['provider/model']}})});
+  await send('wrong'); assert.equal(writes,0);
+  await send('expected','notes'); assert.equal(writes,0);
+  await send('expected'); assert.equal(writes,1); assert.equal(responses.at(-1).ok,true);
 });

@@ -99,3 +99,11 @@ Model Slider 的领域规则与原生控制器适配归插件，`src/injection-s
 安装证据、后台服务健康、必要原生能力、用户操作结果与构建验收分别记录。功能定义必要锚点和适用场景，UI 主题 Adapter 负责实际作用域的 token 读取，Runtime Host 负责每个文档完成注入后的一次观测、窗口与 session 归属、重载／重连后的重检、失效清理及汇总；不持续轮询锚点和 token。domain 不解释 DOM、CSS 或原始自检协议。
 
 `selfCheck()` 仅确认当前可观测条件，不将缺少场景误报为不兼容，也不将全局脚本安装成功当成逐功能成功。静态源码消费清单用于定位 token，实际可用性必须读取当前计算样式。已知 CSS fallback 的缺失项仍记录；无 fallback 的必需值缺失或作用域映射不一致标为 degraded。用户操作和完整构建验收仍有独立证据边界。
+
+## 用户数据迁移
+
+CLI 的 `src/data-transfer/service.mjs` 只组合功能适配器与文件格式，领域解析、去重与写入
+仍归功能 backend。适配契约及全功能边界见 `packages/cli/DATA-TRANSFER.md`。
+导入采取非破坏性合并、全量预检与逐领域事务。Model Slider 收藏由专有后端存储维护，
+Renderer 经 allowlist 的 model-favorites host action 迁移旧收藏与提交增删；localStorage
+只用于当前窗口呈现，不直接读写 Electron profile 数据库。

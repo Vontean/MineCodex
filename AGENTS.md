@@ -58,3 +58,7 @@
 Git 保留开发与运行源码、必要资源、测试、构建／发布脚本、依赖清单与锁文件、许可证，以及当前 README、AGENTS、ARCHITECTURE、DESIGN、PRODUCT、DEVELOPMENT 等项目规范和模块说明。
 
 调研、阶段计划、历史交接、一次性验收记录与截图留在本机的 `docs/research/`、`docs/history/`、`docs/verification/` 等已忽略位置；压缩产物和图标对比预览不提交。仍有效的规则须提炼到所属规范，不让代码、测试或公开文档依赖被忽略的本地材料。取消跟踪使用仅移除 Git 索引的方式，保留本地文件；不为此重写历史。GitHub 源码范围与 npm 运行包名单分别维护。
+
+数据迁移入口：`packages/cli/DATA-TRANSFER.md` 定义格式、接口、全功能盘点与
+事务边界；各功能 `src/backend/transfer.mjs`（模型收藏为 `favorites.mjs`）拥有业务合并。
+GUI `apps/dashboard/assets/data-transfer.js` 只处理清单、文件选择、预检与结果，不直接读业务文件。
