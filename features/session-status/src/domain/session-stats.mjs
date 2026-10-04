@@ -7,6 +7,7 @@ function addSections(target, sections) {
 export function createSessionState() {
   return {
     turns: new Set(),
+    currentTurnId: null,
     runningTurns: new Set(),
     responses: new Set(),
     hasResponseUsage: false,
@@ -58,13 +59,15 @@ export function applySessionStatusEvent(state, event) {
       state.hasVisibleHistory=event.sections !== null;
       break;
     case "history-added": addSections(state.visibleSections,event.sections); state.hasVisibleHistory=true; break;
-    case "turn-observed": state.turns.add(event.id); break;
+    case "turn-observed":
+      if (state.currentTurnId !== event.id) reset();
+      state.currentTurnId=event.id; state.turns.add(event.id); break;
     case "session-configured":
       if (Number.isFinite(event.contextWindow)) state.contextWindow=event.contextWindow;
       state.baseInstructionTokens=event.instructionTokens; break;
     case "context-reset": state.compactionEvents++; state.last=null; reset(); break;
-    case "turn-started": reset(); state.turns.add(event.id); state.runningTurns.add(event.id); break;
-    case "turn-ended": reset(); if (event.id) state.runningTurns.delete(event.id); else state.runningTurns.clear(); break;
+    case "turn-started": reset(); state.currentTurnId=event.id; state.turns.add(event.id); state.runningTurns.add(event.id); break;
+    case "turn-ended": reset(); state.currentTurnId=null; if (event.id) state.runningTurns.delete(event.id); else state.runningTurns.clear(); break;
     case "first-token-measured": state.ttftTotalMs+=event.elapsed; state.ttftSamples++; break;
     case "compaction-finished": state.compactionCompleted++; break;
     case "output-observed":
@@ -88,7 +91,7 @@ export function applySessionStatusEvent(state, event) {
         state.responses.add(event.id);
         const output=event.last?.output;
         if (Number.isFinite(output) && output > 0 && state.firstOutputAt != null && Number.isFinite(event.end) && event.end > state.firstOutputAt)
-          state.speedMeasurements.push({ start:state.firstOutputAt,end:event.end,output,
+          state.speedMeasurements.push({ turnId:state.currentTurnId,start:state.firstOutputAt,end:event.end,output,
             outputs:state.pendingOutputIntervals.slice(),tools:state.pendingToolIntervals.slice() });
       }
       reset();
@@ -103,12 +106,23 @@ export function sessionStatusSnapshot(state, threadId) {
   let decodeTokens = 0;
   let decodeMs = 0;
   let speedSamples = 0;
+  const turnSpeeds = new Map();
   for (const sample of state.speedMeasurements) {
     const elapsed = sample.end - sample.start - boundedToolWaitMs(sample.tools, sample.start, sample.end, sample.outputs);
-    if (elapsed <= 0 || elapsed >= 600_000) continue;
-    decodeTokens += sample.output;
-    decodeMs += elapsed;
-    speedSamples += 1;
+    if (!sample.turnId || elapsed <= 0 || elapsed >= 600_000) continue;
+    const turn = turnSpeeds.get(sample.turnId) ?? { tokens:0, ms:0, samples:0 };
+    turn.tokens += sample.output;
+    turn.ms += elapsed;
+    turn.samples += 1;
+    turnSpeeds.set(sample.turnId, turn);
+  }
+  // 按回合顺序取最近三个有效回合；同轮多步合并，无数据的回合不占名额。
+  const recentTurns = [...state.turns].filter(id => turnSpeeds.has(id)).slice(-3);
+  for (const id of recentTurns) {
+    const turn = turnSpeeds.get(id);
+    decodeTokens += turn.tokens;
+    decodeMs += turn.ms;
+    speedSamples += turn.samples;
   }
   const total = state.total;
   const input = total?.input ?? 0;

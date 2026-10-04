@@ -48,6 +48,7 @@ test("reads unique turns and model steps, then incrementally updates token and s
   assert.equal(first.averageFirstTokenMs, 900);
 
   await appendFile(filePath, [
+    line("1970-01-01T00:00:04Z", "event_msg", { type:"task_started", turn_id:"turn-2" }),
     line("1970-01-01T00:00:04.200Z", "event_msg", {
       type: "item_completed", item: { type: "AgentMessage" }, started_at_ms: 4000, completed_at_ms: 4200,
     }),
@@ -70,6 +71,7 @@ test("excludes overlapping tool execution from model TPS without double subtract
   await mkdir(sessionsDir);
   const filePath = path.join(sessionsDir, `rollout-test-${THREAD_ID}.jsonl`);
   await writeFile(filePath, [
+    line("1970-01-01T00:00:00Z", "turn_context", { turn_id:"turn-1" }),
     line("1970-01-01T00:00:01.100Z", "event_msg", {
       type: "item_completed", item: { type: "Reasoning" }, started_at_ms: 1000, completed_at_ms: 1100,
     }),
@@ -307,6 +309,7 @@ test("late tool completion corrects TPS and duplicate usage does not consume the
     response_id: "one", usage: usage(100, 0, 140),
   });
   await writeFile(file, [
+    line("1970-01-01T00:00:00Z", "turn_context", { turn_id:"turn-1" }),
     line("1970-01-01T00:00:01.100Z", "event_msg", {
       type: "item_completed", item: { type: "Reasoning" }, started_at_ms: 1000, completed_at_ms: 1100,
     }), response,

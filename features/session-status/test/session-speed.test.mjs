@@ -15,6 +15,7 @@ function apply(state, ...records) {
 test('background completion cannot retroactively erase a response or produce 88444 TPS', () => {
   for (const end of [18956, 20000]) {
     const state=createSessionState();
+    applySessionStatusEvent(state, {kind:"turn-started", id:"turn"});
     const before=apply(state,item('Reasoning',1000,11000),response(18965,796));
     const after=apply(state,item('CommandExecution',0,end));
     assert.equal(after.observedTps,44);
@@ -25,12 +26,14 @@ test('background completion cannot retroactively erase a response or produce 884
 
 test('background completion already present before usage must not shorten the response', () => {
   const state=createSessionState();
+    applySessionStatusEvent(state, {kind:"turn-started", id:"turn"});
   const snapshot=apply(state,item('Reasoning',1000,11000),item('CommandExecution',0,18956),response(18965,796));
   assert.equal(snapshot.observedTps,44);
 });
 
 test('tool launched during model output is concurrent even when contained within the response', () => {
   const state=createSessionState();
+    applySessionStatusEvent(state, {kind:"turn-started", id:"turn"});
   const snapshot=apply(state,item('Reasoning',1000,2000),item('AgentMessage',2500,5000),
     item('CommandExecution',1500,4500),response(6000,200));
   assert.equal(snapshot.observedModelMs,5000);
@@ -39,6 +42,7 @@ test('tool launched during model output is concurrent even when contained within
 
 test('tool that continues beyond the response is background, including in later responses', () => {
   const state=createSessionState();
+    applySessionStatusEvent(state, {kind:"turn-started", id:"turn"});
   apply(state,item('Reasoning',1000,1100),response(3000,100,'one'),
     item('AgentMessage',4000,4500),response(6000,100,'two'));
   const snapshot=apply(state,item('CommandExecution',1200,10000));
@@ -50,6 +54,7 @@ test('tool that continues beyond the response is background, including in later 
 test('bounded tool waits are still deducted once, including late completion records', () => {
   for (const late of [false,true]) {
     const state=createSessionState();
+    applySessionStatusEvent(state, {kind:"turn-started", id:"turn"});
     const tools=[item('CommandExecution',1200,2200),item('McpToolCall',1800,2800)];
     apply(state,item('Reasoning',1000,1100));
     if (!late) apply(state,...tools);
@@ -62,9 +67,55 @@ test('bounded tool waits are still deducted once, including late completion reco
 
 test('missing output end cannot establish that a tool did not overlap generation', () => {
   const state=createSessionState();
+    applySessionStatusEvent(state, {kind:"turn-started", id:"turn"});
   const output=item('Reasoning',1000,1100);
   delete output.payload.completed_at_ms;
   const snapshot=apply(state,output,item('CommandExecution',1200,2800),response(4000,150));
   assert.equal(snapshot.observedModelMs,3000);
   assert.equal(snapshot.observedTps,50);
+});
+
+const turnRecord = (id, at=0) => ({type:'turn_context',timestamp:new Date(at).toISOString(),payload:{turn_id:id}});
+function measuredTurn(state, id, start, output, duration=1000) {
+  return apply(state,turnRecord(id,start),item('AgentMessage',start,start+duration),response(start+duration,output,id));
+}
+
+test('latest three valid turns use total tokens over total time and keep all steps in each turn', () => {
+  const state=createSessionState();
+  measuredTurn(state,'old',1000,9000);
+  measuredTurn(state,'one',3000,100);
+  apply(state,item('AgentMessage',5000,6000),response(6000,200,'one-extra'));
+  measuredTurn(state,'two',7000,300,3000);
+  const snapshot=measuredTurn(state,'three',11000,600);
+  assert.equal(snapshot.observedTps,200); // (100+200+300+600) / (1+1+3+1)
+  assert.equal(snapshot.speedSamples,4);
+  assert.equal(snapshot.observedModelMs,6000);
+  assert.equal(snapshot.turns,4);
+  assert.equal(snapshot.steps,5);
+});
+
+test('empty and invalid turns do not evict valid turns; current turn joins when data arrives', () => {
+  const state=createSessionState();
+  assert.equal(sessionStatusSnapshot(state,'thread').observedTps,null);
+  assert.equal(measuredTurn(state,'one',1000,100).observedTps,100);
+  assert.equal(measuredTurn(state,'two',3000,300).observedTps,200);
+  measuredTurn(state,'three',5000,500);
+  apply(state,turnRecord('empty'),response(7000,500,'no-timing'));
+  measuredTurn(state,'invalid',8000,9000,600_000);
+  applySessionStatusEvent(state,{kind:'turn-started',id:'current'});
+  assert.equal(sessionStatusSnapshot(state,'thread').observedTps,300);
+  const snapshot=apply(state,item('AgentMessage',610000,611000),response(611000,700,'current-response'));
+  assert.equal(snapshot.observedTps,500);
+  assert.equal(snapshot.speedSamples,3);
+  assert.equal(snapshot.isRunning,true);
+});
+
+test('unknown turn timing is excluded and turn context changes cannot carry pending output', () => {
+  const state=createSessionState();
+  assert.equal(apply(state,item('AgentMessage',1000,2000),response(2000,100)).observedTps,null);
+  apply(state,turnRecord('one'),item('Reasoning',3000,4000),turnRecord('two'),response(5000,100,'two'));
+  assert.equal(sessionStatusSnapshot(state,'thread').observedTps,null);
+  measuredTurn(state,'three',6000,100);
+  applySessionStatusEvent(state,{kind:'turn-ended',id:'three'});
+  assert.equal(apply(state,item('AgentMessage',8000,9000),response(9000,900,'orphan')).observedTps,100);
 });
