@@ -1,14 +1,16 @@
 export function createModelControllerAdapter(codex,comparableModelLabel) {
 function controllerView(props) {const view=Object.fromEntries(["models","model","reasoningEffort","powerSelections","selectedPowerSelection","fallbackPowerSelection","serviceTierOptions","selectedServiceTier","onSelectModel","onSelectReasoningEffort","onSelectPower","onCommitPower","onSelectServiceTier"].map(key=>[key,props[key]]));codex.report('model-controller',true);return view;}
-function nativeComposerTrigger() {
-    const triggers = Array.from(document.querySelectorAll("[data-codex-intelligence-trigger]"))
+function nativeComposerTriggers() {
+    return Array.from(document.querySelectorAll("[data-codex-intelligence-trigger]"))
       .filter((trigger) => trigger.checkVisibility({ checkVisibilityCSS: true, checkOpacity: true }));
+  }
+function nativeComposerTrigger() {
+    const triggers = nativeComposerTriggers();
     return triggers.find((trigger) => trigger.getAttribute("data-state") === "open")
       ?? triggers[0] ?? null;
   }
-function nativeComposerModelController() {
+function nativeComposerModelController(trigger = nativeComposerTrigger()) {
     codex.report("model-controller",false,"task-controller-unavailable");
-    const trigger = nativeComposerTrigger();
     let fiber = codex.currentFiber(trigger);
     let powerController = null;
     for (let depth = 0; fiber && depth < 40; depth += 1, fiber = fiber.return) {
@@ -102,5 +104,5 @@ function selfCheck() {
   return {state:available ? "available" : "unavailable",reason:available ? null : "model-controller-unavailable",
     scopes:[{name:"model-trigger",element:trigger}],checks:[{name:"model-trigger",available:true},{name:"model-controller",available}]};
 }
-return {selfCheck,fastIcons,trigger:nativeComposerTrigger,read:nativeComposerModelController,descriptor:nativeModelDescriptorForItem,setOpen:setReactControlledMenuOpen,selectItem:invokeNativeMenuItemSelect};
+return {selfCheck,fastIcons,trigger:nativeComposerTrigger,triggers:nativeComposerTriggers,read:nativeComposerModelController,descriptor:nativeModelDescriptorForItem,setOpen:setReactControlledMenuOpen,selectItem:invokeNativeMenuItemSelect};
 }

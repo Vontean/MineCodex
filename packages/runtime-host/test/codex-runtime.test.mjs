@@ -885,7 +885,9 @@ test("emits a fail-closed native Composer model selector Adapter", () => {
     /if \(visibleBlockingDialog\(\)\) \{[\s\S]*?closeNativeModelPickerSubmenus\(\);[\s\S]*?return;?[\s\S]*?\}/,
   );
   assert.match(source, /function closeNativeModelPickerSubmenus\(\)/);
-  assert.match(source, /function enhanceComposerModelTrigger\(selector\)/);
+  assert.match(source, /function enhanceComposerModelTrigger\(trigger, selector\)/);
+  assert.match(source, /for \(const trigger of triggers\) enhanceComposerModelTrigger\(trigger, selector\)/);
+  assert.match(source, /:has\(\+ \[data-codex-model-slider-trigger-label\]\)/);
   assert.match(source, /data-codex-model-slider-trigger/);
   assert.match(source, /max-width: 110px/);
   assert.match(source, /overflow: hidden; text-overflow: ellipsis/);
@@ -901,7 +903,7 @@ test("emits a fail-closed native Composer model selector Adapter", () => {
   assert.match(source, /const canUpgradeFallback = Boolean/);
   assert.match(source, /if \(efforts\.length < 2\) \{\s*panel\.append\(viewControls\);\s*return shell;/);
   assert.doesNotMatch(source, /if \(!model \|\| efforts\.length < 2\) return false/);
-  assert.match(source, /modelSelectorTriggerObserver\.observe\(trigger, \{ childList: true, subtree: true, characterData: true \}\)/);
+  assert.match(source, /observer\.observe\(trigger, \{ childList: true, subtree: true, characterData: true \}\)/);
   assert.match(
     source,
     /modelSelectorPendingReturn[\s\S]*?nativeModelPickerSubmenus\(\)\.length === 0[\s\S]*?clearTimeout\(modelSelectorReturnTimer\)[\s\S]*?returnToNativeModelSlider\(\)/,

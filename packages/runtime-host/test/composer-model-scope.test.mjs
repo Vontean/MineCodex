@@ -7,7 +7,7 @@ import { createModelControllerAdapter } from "../../../features/model-slider/src
 import { createCodexEnvironment } from "../../codex-adapter/src/renderer/environment.mjs";
 function inspect(triggers) {
   const adapter=vm.runInNewContext(`(${createModelControllerAdapter.toString()})(({...(${createCodexEnvironment.toString()})()}),x=>x)`,{document:{querySelectorAll:()=>triggers}});
-  return {trigger:adapter.trigger(),controller:adapter.read()};
+  return {trigger:adapter.trigger(),controller:adapter.read(),controllers:adapter.triggers().map(t=>adapter.read(t))};
 }
 function trigger(props, { visible = true, open = false, parent = null } = {}) {
   return {
@@ -66,4 +66,25 @@ test("ignores a hidden preloaded Chat composer and follows the open task picker"
 
 test("missing composer does not enable enhancement", () => {
   assert.equal(inspect([]).controller, null);
+});
+
+
+test("main and side chat read their own model controllers while menu follows the open picker", () => {
+  const mainProps = { ...taskController(), model: "gpt-6.1-sol" };
+  const sideProps = { ...taskController(), model: "gpt-6-astra" };
+  const main = trigger(mainProps);
+  const side = trigger(sideProps, { open: true });
+  const result = inspect([main, side]);
+  assert.equal(result.trigger, side);
+  assert.deepEqual(Array.from(result.controllers, c => c.model), [mainProps.model, sideProps.model]);
+});
+
+test("side chat discovery excludes hidden composers and generic Chat controllers", () => {
+  const main = trigger(taskController());
+  const hidden = trigger(taskController(), { visible: false });
+  const generic = trigger({ selectedModel: {}, onModelChange() {} });
+  const result = inspect([main, hidden, generic]);
+  assert.equal(result.controllers.length, 2);
+  assert.equal(result.controllers[0].onSelectModel, result.controller.onSelectModel);
+  assert.equal(result.controllers[1], null);
 });

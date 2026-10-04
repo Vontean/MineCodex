@@ -13,8 +13,7 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
   let modelSelectorEffortTransactionTimer = null;
   let modelSelectorPendingOutsideDismiss = false;
   let modelSelectorSuppressOutsidePointerSequence = false;
-  let modelSelectorTriggerObserver = null;
-  let modelSelectorObservedTrigger = null;
+  const modelSelectorTriggerObservers = new Map();
   let modelSelectorControllerMenu = null;
   let modelSelectorNativeFastIcons = null;
   // 持久化脏标记：仅在图标实际变化时写一次 localStorage。
@@ -44,7 +43,7 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
     }
     html[data-codex-model-slider-catalog-ready]
     [data-codex-model-slider-trigger]
-    [class*="_ModelPickerTriggerModelText_"]:not([data-codex-model-slider-trigger-label]) {
+    [class*="_ModelPickerTriggerModelText_"]:not([data-codex-model-slider-trigger-label]):has(+ [data-codex-model-slider-trigger-label]) {
       display: none !important;
     }
     [data-codex-model-slider-trigger-label] {
@@ -1990,14 +1989,11 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
     return /^(select\s+(model|effort)|选择\s*(模型|思考强度))$/i.test(String(value ?? "").trim());
   }
 
-  function enhanceComposerModelTrigger(selector) {
-    const trigger = nativeComposerTrigger();
-    if (!trigger) return;
-    if (modelSelectorObservedTrigger !== trigger) {
-      modelSelectorTriggerObserver?.disconnect();
-      modelSelectorObservedTrigger = trigger;
-      modelSelectorTriggerObserver = new MutationObserver(queueEnsure);
-      modelSelectorTriggerObserver.observe(trigger, { childList: true, subtree: true, characterData: true });
+  function enhanceComposerModelTrigger(trigger, selector) {
+    if (!modelSelectorTriggerObservers.has(trigger)) {
+      const observer = new MutationObserver(queueEnsure);
+      observer.observe(trigger, { childList: true, subtree: true, characterData: true });
+      modelSelectorTriggerObservers.set(trigger, observer);
     }
     const nativeLabels = Array.from(trigger.querySelectorAll(
       '[class*="_ModelPickerTriggerModelText_"]:not([data-codex-model-slider-trigger-label])',
@@ -2060,7 +2056,14 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
     pruneGenericModelPickerContainers();
     document.documentElement.setAttribute("data-codex-model-slider-catalog-ready", "");
     if (!modelSelectorStyle.isConnected) document.head?.append(modelSelectorStyle);
-    enhanceComposerModelTrigger(selector);
+    // 主会话与 side chat 同时维护标签；菜单动作仍跟随原生打开的按钮。
+    const triggers = nativeModel.triggers().filter(trigger => nativeModel.read(trigger));
+    for (const [trigger, observer] of modelSelectorTriggerObservers) {
+      if (triggers.includes(trigger)) continue;
+      observer.disconnect();
+      modelSelectorTriggerObservers.delete(trigger);
+    }
+    for (const trigger of triggers) enhanceComposerModelTrigger(trigger, selector);
     const parentMenu = nativeModelPickerMenu();
     if (modelSelectorControllerMenu && modelSelectorControllerMenu.parentMenu !== parentMenu) {
       closeControllerModelMenu({ immediate: true });
@@ -2092,7 +2095,8 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
     closeControllerModelMenu({ immediate: true });
     clearTimeout(modelSelectorReturnTimer);
     clearTimeout(modelSelectorEffortTransactionTimer);
-    modelSelectorTriggerObserver?.disconnect();
+    for (const observer of modelSelectorTriggerObservers.values()) observer.disconnect();
+    modelSelectorTriggerObservers.clear();
     for (const record of modelSelectorPositionObservers.values()) {
       record.observer.disconnect();
       record.resizeObserver.disconnect();
@@ -2100,8 +2104,6 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
     modelSelectorPositionObservers.clear();
     for (const frame of modelSelectorMenuSizeFrames.values()) cancelAnimationFrame(frame);
     modelSelectorMenuSizeFrames.clear();
-    modelSelectorTriggerObserver = null;
-    modelSelectorObservedTrigger = null;
     modelSelectorReturnTimer = null;
     modelSelectorEffortTransactionTimer = null;
     modelSelectorPendingOutsideDismiss = false;

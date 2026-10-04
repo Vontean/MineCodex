@@ -19,6 +19,7 @@ Composer 触发器区分两种状态：占位态（"Select model" / "Select effo
 
 ## 4. Component Stylings
 
+- **多输入框同步：** 主 chat 与 side chat 的可见任务输入框分别维护模型标签和宽度测量；只有对应替换标签存在时才隐藏原生名称，节点重建期间保留原生名称。菜单操作继续跟随当前打开的原生按钮。
 - **Composer Trigger:** 占位态恢复原生 160px Content 宽度；真实模型态 HUG 完整名称，头部保留原生可点击 chevron。
 - **Slider Header:** 模型名最多两行，容器高度随内容自然撑开；effort 与 chevron 不收缩。无 Fast 时移除原生 12px 预留占位，让按钮与面板严格居中。
 - **Model List:** 保持 264px 原生宽度、Provider 副文本、收藏与最多六项可视高度；收藏与未收藏之间保留分隔线，弹窗内容四周保留约 6px 内边距；模型弹窗与原生 Slider 一致地水平居中于触发器。列表打开期间，Composer 占位文案从 `Select effort` 切为原生语义 `Select model`，关闭后恢复。
