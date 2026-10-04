@@ -109,6 +109,7 @@ export class CodexRuntime {
     this.rendererTargetIds = new Set();
     this.targetFailures = new Map();
     this.targetChecks = new Map();
+    this.targetCheckDeadlines = new Map();
     this.clients = new Map();
     this.scriptIds = new Map();
     this.bindingTokens = new Map();
@@ -245,6 +246,7 @@ export class CodexRuntime {
     this.rendererTargetIds.clear();
     this.targetFailures.clear();
     this.targetChecks.clear();
+    this.targetCheckDeadlines.clear();
     this.rendererDiscovered = false;
     this.browserClient?.socket.close();
     this.browserClient = null;
@@ -714,6 +716,7 @@ export class CodexRuntime {
       this.scriptIds.delete(id);
       this.bindingTokens.delete(id);
       this.targetChecks.delete(id);
+      this.targetCheckDeadlines.delete(id);
       this.hostActionChains.delete(id);
       this.injectedTargets.delete(id);
       this.targetFailures.delete(id);
@@ -735,6 +738,7 @@ export class CodexRuntime {
         this.bindingTokens.delete(target.id);
         this.injectedTargets.delete(target.id);
         this.targetChecks.delete(target.id);
+        this.targetCheckDeadlines.delete(target.id);
       }
       if (target.type !== "page" || target.url !== "app://-/index.html" || this.injectedTargets.has(target.id)) {
         continue;
@@ -759,6 +763,7 @@ export class CodexRuntime {
           if (this.clients.get(target.id) !== client) return;
           // 新文档撤销启动检查，下一次接入周期重新检查一次。
           this.targetChecks.delete(target.id);
+          this.targetCheckDeadlines.delete(target.id);
           this.notifyStatusChange();
         });
         client.on?.("Runtime.bindingCalled", (params) => {
@@ -825,7 +830,12 @@ export class CodexRuntime {
   async checkTarget(targetId) {
     const client=this.clients.get(targetId);
     if (!client || this.stopping) return false;
-    if (this.targetChecks.has(targetId)) return true;
+    const previous = this.targetChecks.get(targetId);
+    const needsRetry = !previous?.checkedAt || previous.plugins.some(plugin =>
+      ["unknown", "unavailable", "degraded"].includes(plugin.state));
+    if (previous && (!needsRetry || Date.now() >= this.targetCheckDeadlines.get(targetId))) return true;
+    // 页面启动时锚点尚未就绪：借用发现周期有限重试，稳定后停止检查。
+    if (!this.targetCheckDeadlines.has(targetId)) this.targetCheckDeadlines.set(targetId, Date.now() + 30_000);
     try {
       const response=await client.send("Runtime.evaluate", {
         expression:`(() => { const runtime=window.__codexPersonalRuntime; return runtime?.version === ${RUNTIME_VERSION} && runtime.sessionId === ${JSON.stringify(this.runtimeSessionId)} ? runtime.selfCheck() : null; })()`,
@@ -876,6 +886,7 @@ export class CodexRuntime {
             client.socket.close();
             this.injectedTargets.delete(targetId);
             this.targetChecks.delete(targetId);
+            this.targetCheckDeadlines.delete(targetId);
             this.notifyStatusChange();
           }
         }
@@ -920,6 +931,7 @@ export class CodexRuntime {
       this.rendererTargetIds.clear();
       this.targetFailures.clear();
     this.targetChecks.clear();
+    this.targetCheckDeadlines.clear();
       this.rendererDiscovered = false;
       this.notifyStatusChange();
       this.monitorPromise = null;

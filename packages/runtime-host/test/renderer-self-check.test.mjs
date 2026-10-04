@@ -76,7 +76,7 @@ test("self-check runs once per document and rechecks after evidence is invalidat
   fail=true;await runtime.checkTarget("target");
   assert.deepEqual(runtime.targetChecks.get("target").plugins,[]);
   await runtime.checkTarget("target");
-  assert.equal(reads,2);
+  assert.equal(reads,3);
   runtime.targetChecks.delete("target");
   fail=false;await runtime.checkTarget("target");
   assert.equal(runtime.targetChecks.get("target").plugins.length,1);
@@ -113,4 +113,27 @@ test("feature-owned CSS variables do not become missing native tokens", () => {
   assert.deepEqual(tokenRequirements(source,bindings),[
     {name:"--color-text-primary",required:true},{name:"--mcx-unknown",required:true,unmapped:true},
   ]);
+});
+
+
+test("startup retries incomplete evidence, then freezes recovered or timed-out results", async () => {
+  const runtime=new CodexRuntime({features:[],profileDir:"/tmp/mcx-startup-retry",runtimeSessionId:"session"});
+  let state="unknown", reads=0;
+  runtime.clients.set("target",{async send(){
+    reads++;
+    return {result:{value:{sessionId:"session",checkedAt:Date.now(),plugins:[{featureId:"notes",state}]}}};
+  }});
+  await runtime.checkTarget("target");
+  state="available";
+  await runtime.checkTarget("target");
+  assert.equal(runtime.targetChecks.get("target").plugins[0].state,"available");
+  await runtime.checkTarget("target");
+  assert.equal(reads,2);
+  runtime.targetChecks.delete("target");
+  state="unavailable";
+  await runtime.checkTarget("target");
+  runtime.targetCheckDeadlines.set("target",0);
+  await runtime.checkTarget("target");
+  assert.equal(reads,3);
+  assert.equal(runtime.targetChecks.get("target").plugins[0].state,"unavailable");
 });
