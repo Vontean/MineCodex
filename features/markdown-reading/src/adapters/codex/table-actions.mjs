@@ -1,6 +1,17 @@
 import { loadNativeMarkdownRenderer } from './markdown-native.mjs';
 import { captureMarkdownProviders } from './providers.mjs';
 
+export function markdownExportAlias(source, name) {
+  const start = source.lastIndexOf('export{');
+  if (start < 0) return undefined;
+  const entries = source.slice(start + 7).split('}')[0].split(',');
+  for (const entry of entries) {
+    const [local, alias = local] = entry.trim().split(/\s+as\s+/);
+    if (local === name) return alias;
+  }
+  return undefined;
+}
+
 // 从 Chat Markdown 的公开组件发现悬浮操作栏和控件，不绑定构建 hash。
 export async function loadNativeMarkdownTableActions(native) {
   const url = [...document.querySelectorAll('link[rel="modulepreload"],script[src]')]
@@ -21,7 +32,7 @@ export async function loadNativeMarkdownTableActions(native) {
   const exported = source.slice(source.lastIndexOf('export{'));
   const module = await import(url);
   const publicBinding = (name) => {
-    const alias = exported.match(new RegExp(`\\b${name} as ([\\w$]+)`))?.[1];
+    const alias = markdownExportAlias(exported, name);
     if (!alias || !module[alias]) throw new Error('native-table-actions-export-unavailable');
     return module[alias];
   };
@@ -56,7 +67,7 @@ export async function loadNativeMarkdownTableActions(native) {
   );
   if (wrapAt < 0 || !wrapPair) throw new Error('native-code-wrap-icons-unavailable');
   const sharedExports = sharedSource.slice(sharedSource.lastIndexOf('export{'));
-  const sharedBinding = (name) => shared[sharedExports.match(new RegExp(`\\b${name} as ([\\w$]+)`))?.[1]];
+  const sharedBinding = (name) => shared[markdownExportAlias(sharedExports, name)];
   const assignment = sharedSource.indexOf(`${wrapPair[1]}=`);
   const initialize = sharedSource
     .slice(sharedSource.lastIndexOf('function ', assignment))

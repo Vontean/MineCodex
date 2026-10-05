@@ -7,6 +7,7 @@ import {
 } from './adapters/codex/reading-runtime.mjs';
 import { loadNativeMarkdownRichText, installMarkdownRichText } from './adapters/codex/rich-text.mjs';
 import {
+  markdownExportAlias,
   loadNativeMarkdownTableActions,
   installMarkdownTableActions,
 } from './adapters/codex/table-actions.mjs';
@@ -32,6 +33,7 @@ export async function createPageScriptSource() {
     loadNativeMarkdownToc,
     installMarkdownToc,
     loadNativeMarkdownRenderer,
+    markdownExportAlias,
     loadNativeMarkdownTableActions,
     installMarkdownTableActions,
     loadNativeMarkdownRichText,
