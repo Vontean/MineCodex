@@ -32,6 +32,6 @@ stdio 初始化后发送 tools/list_changed，要求宿主刷新入口元数据�
 稳定版本 URI 的升级模板同样只提供当前页面，并要求宿主重新发现入口；不保存历史
 页面、不接受任意资源路径，也不保留旧 GUI 实现。
 
-Prompt 是同一 MCX MCP 服务下的第二个 global 入口，使用 `features/notes/assets/icons/prompt-entry.svg`。工具级图标经公开 tools/list handler 返回，以补齐 SDK 高层注册未转发 icons 的限制。控制台使用 MCX 品牌图标，Prompt 不继承它。
+Prompt 是同一 MCX MCP 服务下的第二个 global 入口，同时声明 thread 入口，使用 `features/notes/assets/icons/prompt-entry.svg`。Codex 26.930.51102 安装包源码确认，panel 的 New tab → More tools → Plugins and MCPs 从 thread 入口生成菜单；两种入口共用工具、版本资源、图标和页面，不新增服务。工具级图标经公开 tools/list handler 返回，以补齐 SDK 高层注册未转发 icons 的限制。控制台使用 MCX 品牌图标，Prompt 不继承它。
 
 Prompt App 在构建时包装现有 notes frontend 为管理模式，共用 CRUD、分类、卡片与编辑器；输入框模式只负责快捷填入。MCP 代理遵守 notes Adapter 的路由白名单和 MCX 功能开关，不启动独立 notes 实例。一次性填入通过 MessagePort 绑定 App 的来源窗口，由 notes Renderer Adapter 执行。原生 Adapter 核对 iframe 资源与 MCX 所有权；全页面必要时恢复本窗口原聊天路由。4 秒截止、用户导航、输入框变化或失焦不重放；没有全局队列和轮询。

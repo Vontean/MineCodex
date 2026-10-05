@@ -46,7 +46,7 @@ export function createPluginServer({ promptsClient, paths = resolvePaths(), clie
   registerAppTool(server,"minecodex_prompts_open",{
     title:"Prompt",description:"Manage MineCodex prompts, categories and usage.",inputSchema:{},
     annotations:{readOnlyHint:true,openWorldHint:false},
-    _meta:{ui:promptsUi,"openai/ui":{entrypoints:[{type:"global"}]}},
+    _meta:{ui:promptsUi,"openai/ui":{entrypoints:[{type:"global"},{type:"thread"}]}},
   },async()=>({content:[],structuredContent:{view:"prompts"}}));
   for (const write of [false,true]) registerAppTool(server,write ? "minecodex_prompts_write" : "minecodex_prompts_read",{
     description:write ? "Apply an explicit Prompts edit or record successful usage." : "Read MineCodex Prompts.",

@@ -86,7 +86,7 @@ test("real MCP discovery advertises a native global entry and serves an offline 
     assert.equal(Buffer.from(entry.icons[0].src.split(",")[1],"base64").toString("utf8"),brand);
     assert.equal(promptsEntry._meta.ui.resourceUri,PROMPTS_URI);
     assert.equal(PROMPTS_URI,`ui://minecodex/${RELEASE_VERSION}/prompts.html`);
-    assert.deepEqual(promptsEntry._meta["openai/ui"].entrypoints,[{type:"global"}]);
+    assert.deepEqual(promptsEntry._meta["openai/ui"].entrypoints,[{type:"global"},{type:"thread"}]);
     const promptOpen=await client.callTool({name:"minecodex_prompts_open",arguments:{}});
     assert.equal(promptOpen.structuredContent.view,"prompts");
     const promptsResource=await client.readResource({uri:PROMPTS_URI});
