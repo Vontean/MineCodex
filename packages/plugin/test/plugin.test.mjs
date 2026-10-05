@@ -11,6 +11,7 @@ import { createPromptsClient } from "../src/prompts-client.mjs";
 import { installPlugin } from "../src/install.mjs";
 import { resolvePaths, PACKAGE_ROOT } from "../../cli/src/paths.mjs";
 import { createControlServer } from "../../cli/src/control-server.mjs";
+import { RELEASE_VERSION } from "../src/version.mjs";
 import { writeConfig, readConfig } from "../../cli/src/config.mjs";
 
 test("MCP bridge saves through the real HTTP control service without weakening browser authentication", async () => {
@@ -70,6 +71,8 @@ test("real MCP discovery advertises a native global entry and serves an offline 
     const entry = tools.find(tool => tool.name === "minecodex_open");
     assert.deepEqual(entry._meta["openai/ui"].entrypoints, [{ type: "global" }]);
     assert.equal(entry._meta.ui.resourceUri, APP_URI);
+    assert.equal(APP_URI, `ui://minecodex/${RELEASE_VERSION}/control-panel.html`);
+    assert.equal(client.getServerVersion().version, RELEASE_VERSION);
     assert.deepEqual(entry._meta.ui.visibility, ["app"]);
     const brand = await readFile(path.join(PACKAGE_ROOT, "assets/brand/minecodex-icon.svg"), "utf8");
     assert.equal(Buffer.from(client.getServerVersion().icons[0].src.split(",")[1], "base64").toString("utf8"), brand);
@@ -115,6 +118,8 @@ test("installation uses official CLI commands and a dedicated marketplace, prese
     } });
     assert.deepEqual(calls[1].args, ["plugin", "add", "minecodex@minecodex-local", "--json"]);
     const config = JSON.parse(await readFile(path.join(installed.root, "plugins/minecodex/.mcp.json"), "utf8"));
+    const manifest = JSON.parse(await readFile(path.join(installed.root, "plugins/minecodex/.codex-plugin/plugin.json"), "utf8"));
+    assert.equal(manifest.version, RELEASE_VERSION);
     assert.equal(config.mcpServers.minecodex.command, "/node with spaces/node");
     assert.deepEqual(config.mcpServers.minecodex.args, [path.join(PACKAGE_ROOT, "packages/cli/bin/mcx.mjs"), "plugin", "serve"]);
     assert.equal(JSON.stringify(config).includes("control-token"), false);

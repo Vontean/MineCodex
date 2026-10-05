@@ -1,6 +1,6 @@
 import { App } from "@modelcontextprotocol/ext-apps";
 
-const app = new App({ name: "MineCodex", version: "0.1.0" });
+const app = new App({ name: "MineCodex", version: __MCX_RELEASE_VERSION__ });
 app.ontoolresult = () => {};
 await app.connect();
 window.minecodexMcpApp = app;

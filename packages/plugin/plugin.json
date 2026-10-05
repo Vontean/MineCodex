@@ -1,6 +1,5 @@
 {
   "name": "minecodex",
-  "version": "0.1.0",
   "description": "Manage local MineCodex enhancements without changing their runtime.",
   "author": { "name": "Vontean" },
   "mcpServers": "./.mcp.json",

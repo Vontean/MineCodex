@@ -2,6 +2,7 @@ import { mkdir, readFile, writeFile, copyFile } from "node:fs/promises";
 import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { RELEASE_VERSION } from "./version.mjs";
 const execute = promisify(execFile);
 
 export async function installPlugin({ paths, execFileImpl = execute, codex = "codex", node = process.execPath }) {
@@ -11,6 +12,7 @@ export async function installPlugin({ paths, execFileImpl = execute, codex = "co
   await mkdir(path.join(plugin, "assets"), { recursive: true });
   await mkdir(path.join(root, ".agents/plugins"), { recursive: true });
   const manifest = JSON.parse(await readFile(path.join(paths.packageRoot, "packages/plugin/plugin.json"), "utf8"));
+  manifest.version = RELEASE_VERSION;
   await writeFile(path.join(plugin, ".codex-plugin/plugin.json"), JSON.stringify(manifest, null, 2) + "\n");
   await copyFile(path.join(paths.packageRoot, "assets/brand/minecodex-icon.svg"), path.join(plugin, "assets/icon.svg"));
   await writeFile(path.join(plugin, ".mcp.json"), JSON.stringify({ mcpServers: { minecodex: {

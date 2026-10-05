@@ -9,12 +9,13 @@ import { resolvePaths } from "../../cli/src/paths.mjs";
 import { createControlClient } from "./control-client.mjs";
 import { createPromptsClient } from "./prompts-client.mjs";
 import { createAppHtml, createPromptsHtml } from "./ui-resource.mjs";
+import { RELEASE_VERSION, CONTROL_RESOURCE_URI } from "./version.mjs";
 
-export const APP_URI = "ui://minecodex/control-panel.html";
+export const APP_URI = CONTROL_RESOURCE_URI;
 export const PROMPTS_URI = "ui://minecodex/prompts.html";
 export function createPluginServer({ promptsClient, paths = resolvePaths(), client = createControlClient({ paths, port: Number(process.env.MINECODEX_CONTROL_PORT ?? 47830) }) } = {}) {
   const icons = [{ src: `data:image/svg+xml;base64,${readFileSync(path.join(paths.packageRoot, "assets/brand/minecodex-icon.svg")).toString("base64")}`, mimeType: "image/svg+xml" }];
-  const server = new McpServer({ name: "minecodex", version: "0.1.0", icons });
+  const server = new McpServer({ name: "minecodex", version: RELEASE_VERSION, icons });
   const promptIcons = [{src:`data:image/svg+xml;base64,${readFileSync(path.join(paths.packageRoot,"features/notes/assets/icons/prompt-entry.svg")).toString("base64")}`,mimeType:"image/svg+xml",sizes:["20x20"]}];
   const tools = [];
   // 使用公开 tools/list 协议补齐 SDK 高层注册尚未转发的工具图标。
