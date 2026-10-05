@@ -7,7 +7,7 @@ Prompts 页面负责新增、编辑、分类、Emoji、排序和统计；Quick P
 
 ## 原生依据
 2026-09-27 在隔离 Codex 实测导航扩展区、Library 页面及 Add files and more。
-- Prompt 管理页由 MCX 官方 MCP 插件注册 global 入口，使用现有 book-open 图标；名称为 Prompt，不注入 navbar。侧栏固定与收纳由 Codex 管理。
+- Prompt 管理页由 MCX 官方 MCP 插件注册 global 入口，使用现有 book-open 图标；名称为 Prompt，不注入 navbar。侧栏固定与收纳由 Codex 管理。默认与填充图标共用原生 20px 容器；填充资源通过 viewBox 留白对齐可见宽度，选中时不放大。
 - Quick Prompts 位于 Add 与 Change permissions 之间，克隆 Add 的按钮 classes 与响应式图标容器。入口采用 Lucide book-open；保留 16 / 20px 图标容器，viewBox 扩为 27，将图形缩小约 11%；non-scaling-stroke 保持 1.5px 笔画，热区仍为 28px。
 - 页面沿用 Library 的大标题和胶囊 Tabs；分类图标取自当前 Codex 原生 SymbolBrowser / project appearance catalogue，记录于 `assets/native-prompt-icons.json`，不手绘路径。
 
