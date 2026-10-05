@@ -26,6 +26,9 @@ MCP 的 read/write 工具仅对 App 可见，global 入口由用户直接打开�
 安装生成的 manifest、MCP server 与控制台 App 使用同一发布版本。Codex 26.930
 保留沙箱的装载 effect 不直接监听 HTML 内容变化，因此控制台发布时必须改变资源
 URI，不能只在旧 URI 下换内容。Prompt 资源身份保持稳定，保留其输入框来源校验契约。
+stdio 初始化后发送 tools/list_changed，要求宿主刷新入口元数据。Codex 已打开的旧
+入口仍会请求无版本 URI，因此它暂时共用当前控制台资源，并再次发送刷新通知；
+不注册历史版本资源，也不保留旧 GUI 实现。
 
 Prompt 是同一 MCX MCP 服务下的第二个 global 入口，使用 `features/notes/assets/icons/prompt-entry.svg`。工具级图标经公开 tools/list handler 返回，以补齐 SDK 高层注册未转发 icons 的限制。控制台使用 MCX 品牌图标，Prompt 不继承它。
 

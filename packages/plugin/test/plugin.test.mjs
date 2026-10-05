@@ -4,6 +4,7 @@ import { mkdtemp, writeFile, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { ToolListChangedNotificationSchema } from "@modelcontextprotocol/sdk/types.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { assertControlRequest, createControlClient } from "../src/control-client.mjs";
 import { createPluginServer, APP_URI, PROMPTS_URI } from "../src/server.mjs";
@@ -64,6 +65,8 @@ test("real MCP discovery advertises a native global entry and serves an offline 
     calls.push(input); return { status: 200, body: { saved: true } };
   } } });
   const client = new Client({ name: "test", version: "1" });
+  let listChanges = 0;
+  client.setNotificationHandler(ToolListChangedNotificationSchema, () => { listChanges++; });
   const [front, back] = InMemoryTransport.createLinkedPair();
   await server.connect(back); await client.connect(front);
   try {
@@ -95,6 +98,9 @@ test("real MCP discovery advertises a native global entry and serves an offline 
     const initial = await client.callTool({ name: "minecodex_open", arguments: {} });
     assert.equal(initial.isError, undefined); assert.equal(initial.structuredContent.view,"control-panel"); assert.equal(calls.length, 0);
     const resource = await client.readResource({ uri: APP_URI });
+    const previous = await client.readResource({ uri: "ui://minecodex/control-panel.html" });
+    assert.equal(previous.contents[0].text, resource.contents[0].text);
+    assert.ok(listChanges >= 2, "startup and an old resource request must refresh cached tools");
     const html = resource.contents[0].text;
     assert.match(html, /id="plugin-list"/);
     assert.doesNotMatch(html,/pm-card-footer/);

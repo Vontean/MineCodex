@@ -62,11 +62,19 @@ export function createPluginServer({ promptsClient, paths = resolvePaths(), clie
     _meta:{ui:{csp:{connectDomains:[],resourceDomains:["data:","blob:"]}}},
   }]}));
   let html;
-  registerAppResource(server, "control-panel", APP_URI, {}, async () => ({ contents: [{
-    uri: APP_URI, mimeType: RESOURCE_MIME_TYPE, text: html ??= await createAppHtml(paths.packageRoot),
+  const controlResource = async uri => ({ contents: [{
+    uri, mimeType: RESOURCE_MIME_TYPE, text: html ??= await createAppHtml(paths.packageRoot),
     _meta: { ui: { csp: { connectDomains: [], resourceDomains: ["data:", "blob:"] } } },
-  }] }));
+  }] });
+  registerAppResource(server, "control-panel", APP_URI, {}, () => controlResource(APP_URI));
+  // 已打开的 Codex 入口仍可能保存旧 URI；通知重新发现，期间共用当前资源。
+  const previousUri = "ui://minecodex/control-panel.html";
+  registerAppResource(server, "control-panel-upgrade", previousUri, {}, async () => {
+    server.sendToolListChanged();
+    return controlResource(previousUri);
+  });
   server.server.setRequestHandler(ListToolsRequestSchema, async () => ({tools}));
+  server.server.oninitialized = () => server.sendToolListChanged();
   return server;
 }
 export async function servePlugin(options) {
