@@ -1,6 +1,6 @@
 {
   "name": "minecodex",
-  "version": "2.0.20",
+  "version": "2.0.21",
   "description": "Lightweight, local-first plugins for the Codex desktop app.",
   "license": "MIT",
   "type": "module",
