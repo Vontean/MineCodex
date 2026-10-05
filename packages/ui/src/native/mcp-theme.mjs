@@ -8,7 +8,7 @@ export function applyMcpTheme(context) {
     'color-surface':'--color-background-primary', 'color-surface-elevated-secondary':'--color-background-secondary',
     'color-text-primary':'--color-text-primary', 'color-text-secondary':'--color-text-secondary', 'color-text-tertiary':'--color-text-tertiary',
     'color-border':'--color-border-primary', 'color-border-subtle':'--color-border-secondary', 'color-border-primary-outline':'--color-border-primary',
-    'color-background-primary-ghost-hover':'--color-background-tertiary', 'color-background-primary-outline-hover':'--color-background-tertiary',
+    'color-background-primary-ghost-hover':'--color-background-primary-ghost-hover', 'color-background-primary-outline-hover':'--color-background-primary-ghost-hover',
     'color-background-primary-solid':'--color-text-primary', 'color-text-primary-solid':'--color-background-primary',
     'color-background-primary-solid-hover':'--color-text-secondary', 'color-ring':'--color-border-info', 'color-text-danger':'--color-text-danger',
     'font-sans-default':'--font-sans', 'text-sm':'--font-text-sm-size', 'text-base':'--font-text-md-size', 'text-xs':'--font-text-xs-size',

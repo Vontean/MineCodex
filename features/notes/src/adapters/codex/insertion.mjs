@@ -34,7 +34,7 @@ export function installPromptInsertion(signal, {codex, api, insertText}) {
   async function receive(event) {
     if (event.data?.type !== 'minecodex:insert-prompt' || typeof event.data.promptId !== 'string') return;
     const port = event.ports?.[0];
-    const source = codex.mcpAppSource(event.source,{server:'minecodex',pluginId:'minecodex@minecodex-local',resourceUri:'ui://minecodex/prompts.html'});
+    const source = codex.mcpAppSource(event.source,{server:'minecodex',pluginId:'minecodex@minecodex-local',resourceUri:/^ui:\/\/minecodex\/(?:\d+\.\d+\.\d+\/)?prompts\.html$/});
     if (!source || !port) return;
     if (busy || !document.hasFocus()) {port.postMessage({error:'Input changed before insertion'});port.close();return;}
     busy = true;

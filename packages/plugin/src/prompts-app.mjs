@@ -10,7 +10,7 @@ import { installDialog } from '../../ui/src/components/dialog.mjs';
 import { installButton } from '../../ui/src/components/button.mjs';
 import { installFeatureTooltips } from '../../ui/src/components/tooltip.mjs';
 
-const app = new App({name:'Prompt',version:'0.1.0'});
+const app = new App({name:'Prompt',version:__MCX_RELEASE_VERSION__});
 app.ontoolresult = () => {};
 await app.connect();
 applyMcpTheme(app.getHostContext());

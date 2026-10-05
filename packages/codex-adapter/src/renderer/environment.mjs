@@ -89,7 +89,9 @@ export function createCodexEnvironment() {
       }
       if (!matches) continue;
       const view = props(frame, value => value.view?.resourceUri != null)?.view;
-      if (view?.resourceUri === resourceUri && (view.server === server || view.pluginId === pluginId))
+      const matchesResource = typeof resourceUri === 'string' ? view?.resourceUri === resourceUri
+        : typeof view?.resourceUri === 'string' && resourceUri.test(view.resourceUri);
+      if (matchesResource && (view.server === server || view.pluginId === pluginId))
         return {connected:() => frame.isConnected};
     }
     return null;

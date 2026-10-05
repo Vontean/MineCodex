@@ -10,6 +10,10 @@
 
 Token 名称是实现依据；括号内数值是本版本观测值。读取实际生效作用域，不仅仅读 documentElement；原生窗口、主题、局部组件均可能覆盖 token。iframe 需要宿主传递 token，不能假设自动继承 Renderer CSS。
 
+Codex 26.930.51102 安装源码：Library / Images 的 browse Tabs 选中底使用
+`--color-background-primary-ghost-hover`；desktop 浅色为前景 5% 透明混合，深色为白色 8%。
+官方 MCP iframe 的 `--color-background-tertiary` 是独立层级底色，不等于该交互 token。
+
 ## 基础视觉与交互
 
 - 字体与字号引用原生 `--font-sans-default`、`--text-base`、`--text-sm`、`--text-xs`；标题按实际角色使用 `--text-heading-lg`、`--text-heading-md`。字重使用 `--font-weight-normal`、`--font-weight-medium`、`--font-weight-semibold`。功能特殊的信息密度与尺寸在本级文档记录。

@@ -85,10 +85,15 @@ test("real MCP discovery advertises a native global entry and serves an offline 
     assert.equal(Buffer.from(promptsEntry.icons[0].src.split(",")[1],"base64").toString("utf8"),await readFile(path.join(PACKAGE_ROOT,"features/notes/assets/icons/prompt-entry.svg"),"utf8"));
     assert.equal(Buffer.from(entry.icons[0].src.split(",")[1],"base64").toString("utf8"),brand);
     assert.equal(promptsEntry._meta.ui.resourceUri,PROMPTS_URI);
+    assert.equal(PROMPTS_URI,`ui://minecodex/${RELEASE_VERSION}/prompts.html`);
     assert.deepEqual(promptsEntry._meta["openai/ui"].entrypoints,[{type:"global"}]);
     const promptOpen=await client.callTool({name:"minecodex_prompts_open",arguments:{}});
     assert.equal(promptOpen.structuredContent.view,"prompts");
     const promptsResource=await client.readResource({uri:PROMPTS_URI});
+    const previousPrompts=await client.readResource({uri:"ui://minecodex/prompts.html"});
+    assert.equal(previousPrompts.contents[0].text,promptsResource.contents[0].text);
+    const cachedPrompts=await client.readResource({uri:"ui://minecodex/2.0.17/prompts.html"});
+    assert.equal(cachedPrompts.contents[0].text,promptsResource.contents[0].text);
     assert.match(promptsResource.contents[0].text,/pm-heading/);
     assert.doesNotMatch(promptsResource.contents[0].text,/<script[^>]+src=/);
     const state=await client.callTool({name:"minecodex_prompts_read",arguments:{route:"/api/state"}});
@@ -100,6 +105,9 @@ test("real MCP discovery advertises a native global entry and serves an offline 
     const resource = await client.readResource({ uri: APP_URI });
     const previous = await client.readResource({ uri: "ui://minecodex/control-panel.html" });
     assert.equal(previous.contents[0].text, resource.contents[0].text);
+    const cachedControl=await client.readResource({uri:"ui://minecodex/2.0.17/control-panel.html"});
+    assert.equal(cachedControl.contents[0].text,resource.contents[0].text);
+    await assert.rejects(()=>client.readResource({uri:"ui://minecodex/unknown/control-panel.html"}));
     assert.ok(listChanges >= 2, "startup and an old resource request must refresh cached tools");
     const html = resource.contents[0].text;
     assert.match(html, /id="plugin-list"/);

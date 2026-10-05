@@ -1,5 +1,5 @@
 import { ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { registerAppResource, registerAppTool as registerSdkAppTool, RESOURCE_MIME_TYPE } from "@modelcontextprotocol/ext-apps/server";
 import { z } from "zod";
@@ -9,10 +9,10 @@ import { resolvePaths } from "../../cli/src/paths.mjs";
 import { createControlClient } from "./control-client.mjs";
 import { createPromptsClient } from "./prompts-client.mjs";
 import { createAppHtml, createPromptsHtml } from "./ui-resource.mjs";
-import { RELEASE_VERSION, CONTROL_RESOURCE_URI } from "./version.mjs";
+import { RELEASE_VERSION, CONTROL_RESOURCE_URI, PROMPT_RESOURCE_URI } from "./version.mjs";
 
 export const APP_URI = CONTROL_RESOURCE_URI;
-export const PROMPTS_URI = "ui://minecodex/prompts.html";
+export const PROMPTS_URI = PROMPT_RESOURCE_URI;
 export function createPluginServer({ promptsClient, paths = resolvePaths(), client = createControlClient({ paths, port: Number(process.env.MINECODEX_CONTROL_PORT ?? 47830) }) } = {}) {
   const icons = [{ src: `data:image/svg+xml;base64,${readFileSync(path.join(paths.packageRoot, "assets/brand/minecodex-icon.svg")).toString("base64")}`, mimeType: "image/svg+xml" }];
   const server = new McpServer({ name: "minecodex", version: RELEASE_VERSION, icons });
@@ -57,10 +57,16 @@ export function createPluginServer({ promptsClient, paths = resolvePaths(), clie
     return {content:[],structuredContent:{result:await promptsClient.request(route,method,body)}};
   });
   let promptsHtml;
-  registerAppResource(server,"prompts",PROMPTS_URI,{},async()=>({contents:[{
-    uri:PROMPTS_URI,mimeType:RESOURCE_MIME_TYPE,text:promptsHtml ??= await createPromptsHtml(paths.packageRoot),
+  const promptsResource = async uri => ({contents:[{
+    uri,mimeType:RESOURCE_MIME_TYPE,text:promptsHtml ??= await createPromptsHtml(paths.packageRoot),
     _meta:{ui:{csp:{connectDomains:[],resourceDomains:["data:","blob:"]}}},
-  }]}));
+  }]});
+  registerAppResource(server,"prompts",PROMPTS_URI,{},()=>promptsResource(PROMPTS_URI));
+  const previousPromptsUri = "ui://minecodex/prompts.html";
+  registerAppResource(server,"prompts-upgrade",previousPromptsUri,{},async()=>{
+    server.sendToolListChanged();
+    return promptsResource(previousPromptsUri);
+  });
   let html;
   const controlResource = async uri => ({ contents: [{
     uri, mimeType: RESOURCE_MIME_TYPE, text: html ??= await createAppHtml(paths.packageRoot),
@@ -73,6 +79,15 @@ export function createPluginServer({ promptsClient, paths = resolvePaths(), clie
     server.sendToolListChanged();
     return controlResource(previousUri);
   });
+  // 升级中宿主可能仍请求上版 URI；只提供当前页面并要求重新发现入口。
+  for (const [name, read] of [["control-panel", controlResource], ["prompts", promptsResource]]) {
+    server.registerResource(`${name}-version-upgrade`, new ResourceTemplate(`ui://minecodex/{release}/${name}.html`, {list:undefined}),
+      {mimeType:RESOURCE_MIME_TYPE}, async (uri, {release}) => {
+        if (typeof release !== "string" || !/^\d+\.\d+\.\d+$/.test(release)) throw new Error("Invalid release resource");
+        server.sendToolListChanged();
+        return read(uri.href);
+      });
+  }
   server.server.setRequestHandler(ListToolsRequestSchema, async () => ({tools}));
   server.server.oninitialized = () => server.sendToolListChanged();
   return server;

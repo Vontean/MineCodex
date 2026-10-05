@@ -39,7 +39,7 @@ Self-check states distinguish checking, available, partially available across wi
   Track is 36×21px with a 32px-high label hit area. Pending requests disable only their switch;
   failures restore the previous value and focus. Enabled and active remain distinct facts.
 - Language uses a compact 中文 / EN capsule with aria-pressed. It follows the browser initially; manual choices persist locally and reload localized card content. Switching is disabled during feature saves. Healthy and injected share the same visible Active in Codex label; backend health remains diagnostic data.
-- Appearance uses the VPN reference’s two-segment sun/moon capsule (32px segments, 4px gap and padding). A sliding selected circle and aria-pressed expose selection. It initially follows the system; manual choices persist locally.
+- Appearance uses the VPN reference’s two-segment sun/moon capsule (32px segments, 4px gap and padding). A sliding selected circle and aria-pressed expose selection. Browser entry follows the system and persists manual choices locally. The official App initially follows Codex, allows a temporary manual choice, and follows the next explicit host theme change. Its full-height content surface owns the dashboard palette because the official sandbox overrides html/body backgrounds.
 - Restart and error notices use a neutral card, colored left edge, status icon, compact copy and trailing action; toast errors share that material. Restart notice appears only for a pending restart. No automatic restart.
 - Update checks retain loading, result and retryable failure states; installation stays with
   the existing `mcx update` flow.

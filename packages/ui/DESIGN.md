@@ -11,6 +11,7 @@
 ## 组件职责
 
 - 原生适配层：解析实际token、主题、zoom和能力状态；共享锚点仅包含真实跨插件需求。原生事实遵循根规范，不在每个组件重新猜测。
+- MCP 主题 Adapter 将官方 iframe 变量映射到共享 token；宿主没有提供 ghost-hover 时使用根规范的 desktop browse Tabs 配方，不将 background-tertiary 当作 hover 的同义变量。
 - 材质与层级基础：按Dialog、Dropdown、Popover、ComposerMenu、Page的原生分支提供有限选项，将遮罩与Portal规则同所选组件匹配。
 - Dialog：提供容器、标题、Close及操作区的结构；插件填表单、列表或确认内容。
 - Button：通过 `action(node, "danger-solid")` 提供原生实色警戒分支，保留既有 `danger` soft 分支；通用 token 与适用规则见根 DESIGN.md。表达操作角色和状态，保留Cancel ghost、实际次级outline与主操作solid的语义区分；业务动作由插件传入。

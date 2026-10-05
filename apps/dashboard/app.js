@@ -421,7 +421,9 @@ elements.updateButton.addEventListener("click", async () => {
 
 const systemTheme = matchMedia("(prefers-color-scheme: dark)");
 let selectedTheme = null;
-try { selectedTheme = localStorage.getItem("minecodex-appearance"); } catch { /* 存储不可用时仍允许本次切换。 */ }
+if (!window.minecodexMcpApp) {
+  try { selectedTheme = localStorage.getItem("minecodex-appearance"); } catch { /* 存储不可用时仍允许本次切换。 */ }
+}
 function applyTheme() {
   const hostDark = window.minecodexHostTheme ? window.minecodexHostTheme === "dark" : systemTheme.matches;
   const dark = selectedTheme === "dark" || (selectedTheme !== "light" && hostDark);
@@ -436,7 +438,9 @@ elements.themeToggle.addEventListener("click", (event) => {
   const button = event.target.closest("[data-theme-choice]");
   if (!button) return;
   selectedTheme = button.dataset.themeChoice;
-  try { localStorage.setItem("minecodex-appearance", selectedTheme); } catch { /* 保留内存中的选择。 */ }
+  if (!window.minecodexMcpApp) {
+    try { localStorage.setItem("minecodex-appearance", selectedTheme); } catch { /* 保留内存中的选择。 */ }
+  }
   applyTheme();
 });
 elements.languageToggle.addEventListener("click", (event) => {
@@ -449,7 +453,10 @@ elements.languageToggle.addEventListener("click", (event) => {
   location.reload();
 });
 systemTheme.addEventListener("change", applyTheme);
-window.addEventListener("minecodex-host-theme", applyTheme);
+window.addEventListener("minecodex-host-theme", () => {
+  selectedTheme = null;
+  applyTheme();
+});
 document.addEventListener("keydown", () => { document.documentElement.dataset.input = "keyboard"; });
 document.addEventListener("pointerdown", () => { document.documentElement.dataset.input = "pointer"; });
 applyStaticCopy();

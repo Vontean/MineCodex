@@ -91,6 +91,14 @@ test('MCP source validates resource ownership through direct and sandbox proxy f
     const codex=createCodexEnvironment();
     const expected={server:'minecodex',pluginId:'minecodex@minecodex-local',resourceUri:'ui://minecodex/prompts.html'};
     assert.ok(codex.mcpAppSource(resource,expected));assert.ok(codex.mcpAppSource(proxy,expected));
+    const versioned={...expected,resourceUri:/^ui:\/\/minecodex\/(?:\d+\.\d+\.\d+\/)?prompts\.html$/};
+    view.resourceUri='ui://minecodex/2.0.19/prompts.html';
+    assert.ok(codex.mcpAppSource(resource,versioned));
+    view.resourceUri='ui://minecodex/2.0.19/control-panel.html';
+    assert.equal(codex.mcpAppSource(resource,versioned),null);
+    view.resourceUri='ui://other/2.0.19/prompts.html';
+    assert.equal(codex.mcpAppSource(resource,versioned),null);
+    view.resourceUri=expected.resourceUri;
     assert.equal(codex.mcpAppSource(unrelated,expected),null);
     view.resourceUri='ui://minecodex/control-panel.html';assert.equal(codex.mcpAppSource(resource,expected),null);
     view.resourceUri=expected.resourceUri;view.server='other';assert.equal(codex.mcpAppSource(resource,expected),null);

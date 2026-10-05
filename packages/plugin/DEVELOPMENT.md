@@ -8,7 +8,7 @@
 - `src/install.mjs`：生成独立 marketplace，调用 `codex plugin marketplace add` 和
   `codex plugin add`；不直接改 Codex 配置，不重启 GUI。
 - `src/server.mjs`：stdio MCP server、global entrypoint 与 UI resource。
-- `src/version.mjs`：以根 package.json 为发布版本来源；控制台资源 URI 带版本。
+- `src/version.mjs`：以根 package.json 为发布版本来源；控制台与 Prompt 资源 URI 带版本。
 - `src/navigation-icons.mjs`：入口默认／选中资源；Runtime 将资源交给共享 UI 原生导航 Adapter，不拥有导航状态。
 - `src/control-client.mjs`：固定 loopback origin、操作白名单、Node 侧鉴权与图标转换。
 - `src/app.mjs`：官方 MCP Apps SDK 初始化，然后加载原有 Dashboard。
@@ -23,12 +23,14 @@ MCP 的 read/write 工具仅对 App 可见，global 入口由用户直接打开�
 安装命令将当前包的 Node 与 CLI 绝对路径写入专属本地 marketplace；开发安装因此
 引用当前 checkout。发布／全局安装时再次执行 `mcx plugin install`，更新路径并刷新
 插件安装。MCP 进程只依赖已安装的 MCX 服务；服务不可用时面板显示现有错误状态。
-安装生成的 manifest、MCP server 与控制台 App 使用同一发布版本。Codex 26.930
-保留沙箱的装载 effect 不直接监听 HTML 内容变化，因此控制台发布时必须改变资源
-URI，不能只在旧 URI 下换内容。Prompt 资源身份保持稳定，保留其输入框来源校验契约。
+安装生成的 manifest、MCP server 与两个 App 使用同一发布版本。Codex 26.930
+保留沙箱的装载 effect 不直接监听 HTML 内容变化，因此发布时必须改变两个资源
+URI，不能只在旧 URI 下换内容。Prompt 输入框来源校验同时接受所属服务的无版本
+和稳定版本资源路径，仍核对 MCX 所有权及具体来源窗口。
 stdio 初始化后发送 tools/list_changed，要求宿主刷新入口元数据。Codex 已打开的旧
-入口仍会请求无版本 URI，因此它暂时共用当前控制台资源，并再次发送刷新通知；
-不注册历史版本资源，也不保留旧 GUI 实现。
+入口仍会请求无版本 URI，因此它暂时共用对应当前资源，并再次发送刷新通知；
+稳定版本 URI 的升级模板同样只提供当前页面，并要求宿主重新发现入口；不保存历史
+页面、不接受任意资源路径，也不保留旧 GUI 实现。
 
 Prompt 是同一 MCX MCP 服务下的第二个 global 入口，使用 `features/notes/assets/icons/prompt-entry.svg`。工具级图标经公开 tools/list handler 返回，以补齐 SDK 高层注册未转发 icons 的限制。控制台使用 MCX 品牌图标，Prompt 不继承它。
 
