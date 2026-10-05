@@ -222,7 +222,7 @@ function updatePluginCard(card, feature) {
   const dot = card.querySelector(".plugin-state .status-dot");
   const stateLabel = card.querySelector(".plugin-state-label");
   card.dataset.featureId = feature.id;
-  image.src = `${feature.iconUrl}?v=resource-1`;
+  image.src = feature.iconUrl.startsWith("data:") ? feature.iconUrl : `${feature.iconUrl}?v=resource-1`;
   name.textContent = feature.label;
   description.textContent = feature.description;
   input.checked = Boolean(feature.enabled);

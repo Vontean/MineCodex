@@ -11,8 +11,9 @@ export async function createAppHtml(packageRoot) {
   }
   const script = await readFile(path.join(packageRoot, "packages/plugin/assets/app.js"), "utf8");
   html = html.replace(/\s*<link[^>]+>/g, "").replace(/\s*<script[\s\S]*?<\/script>/g, "");
-  return html.replace("</head>", `<style>${css}</style></head>`)
-    .replace("</body>", `<script type="module">${script.replaceAll("</script", "<\\/script")}</script></body>`);
+  // 回调保留资源中的 $&、$` 等字面量，避免被 replace 当成替换指令。
+  return html.replace("</head>", () => `<style>${css}</style></head>`)
+    .replace("</body>", () => `<script type="module">${script.replaceAll("</script", "<\\/script")}</script></body>`);
 }
 
 export async function createPromptsHtml(packageRoot) {

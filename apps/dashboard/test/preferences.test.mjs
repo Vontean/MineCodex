@@ -32,3 +32,16 @@ test("language change persists without changing appearance or saving feature set
   app.nodes.get(".language-toggle").handlers.click({target:{closest:()=>app.languages[0]}});
   assert.equal(app.reloads(),1);
 });
+
+test("feature cards preserve offline data icons and retain HTTP cache versioning",()=>{
+  const app=dashboard();
+  const image={setAttribute(){}};
+  app.context.card={dataset:{},querySelector:()=>image};
+  const data="data:image/svg+xml;base64,PHN2Zy8+";
+  app.context.feature={id:"notes",iconUrl:data,label:"Prompt",description:"",state:"healthy",enabled:true};
+  vm.runInContext("updatePluginCard(card,feature)",app.context);
+  assert.equal(image.src,data);
+  app.context.feature.iconUrl="/api/icons/notes.svg";
+  vm.runInContext("updatePluginCard(card,feature)",app.context);
+  assert.equal(image.src,"/api/icons/notes.svg?v=resource-1");
+});
