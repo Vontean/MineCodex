@@ -146,3 +146,9 @@ TOC 的纵向中心以整个 File Panel（包含文件 Toolbar）的边界计算
 - 单美元公式接入宿主同一 KaTeX。定义列表提供术语与缩进正文；提示块采用宿主背景、文本 token 与明确标题。图片失败状态继续沿用用户确认的原生表现。
 
 原生模块按语义调用关系与公开 exports 发现，缺失契约单独报告 rich-text unavailable。组件和控件沿用 Provider；根、监听和观察器随 widget / 功能生命周期释放。验收关注源码保持、代码区内容隔离、控件真实切换、脚注往返及宽／窄面板，而不是只检查 CSS 是否存在。
+
+2026-10-05，Codex 26.930.51102：表格预览的导出局部名称包含 `$`。组件别名按 export 列表完整名称匹配，不把名称当正则表达式；同一规则用于表格与换行图标。隔离窗口中已加载当前源码并检查真实代码高亮、复制与换行、表格复制／适配／扩展、脚注往返与 Source/Preview 切换；用户视觉与交互确认仍待完成。
+
+脚注引用按钮显式使用 `line-height:1`，避免继承上标的零行高而失去点击区域。同名脚注沿用最后一条定义，所有定义区间都排除引用扫描，早期定义在 Preview 隐藏。返回位置保存原生 CodeMirror `scrollSnapshot()`，恢复文档锚点及视口偏移，不保存会受虚拟段落重新测量影响的裸 `scrollTop`。
+
+代码与 HTML 块 widget 的纵向留白使用 padding，分别保持 16px 与 1em；不使用原生高度模型无法计入的外部 margin。原生 Source 在本版本采用带 Shadow DOM 的 `diffs-container`，不再以 `.cm-content` 作为 Source 验收入口；Source 内容与磁盘源码、Preview 文档分别核对。隔离交互验收保持窗口可见，隐藏窗口中的 requestAnimationFrame 暂停不能作为导航失效证据。

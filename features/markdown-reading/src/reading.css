@@ -313,18 +313,18 @@
   padding-inline-start: calc(var(--mcx-list-indent) + var(--mcx-list-marker-width));
 }
 .cm-editor[data-minecodex-markdown-reading] .mcx-reading-alert-title {font-weight:var(--font-weight-semibold,600); color:var(--color-text-primary);}
-.cm-editor[data-minecodex-markdown-reading] .mcx-reading-rich-code {margin-block:16px; max-width:100%;}
+.cm-editor[data-minecodex-markdown-reading] .mcx-reading-rich-code {padding-block:16px; max-width:100%;}
 .cm-editor[data-minecodex-markdown-reading] .mcx-reading-code-block {position:relative; min-width:0;}
 .cm-editor[data-minecodex-markdown-reading] .mcx-reading-code-block [data-block-actions] {top:4px; right:4px; transform:none; transition:opacity 120ms linear;}
 .cm-editor[data-minecodex-markdown-reading] .mcx-reading-code-block:focus-within [data-block-actions],
 .cm-editor[data-minecodex-markdown-reading] .mcx-reading-code-block:hover [data-block-actions] {opacity:1; pointer-events:auto;}
 .cm-editor[data-minecodex-markdown-reading] .mcx-reading-code-scroll {max-width:100%; scrollbar-width:thin;}
-.cm-editor[data-minecodex-markdown-reading] .mcx-reading-rich-html-block {margin-block:1em;}
+.cm-editor[data-minecodex-markdown-reading] .mcx-reading-rich-html-block {padding-block:1em;}
 .cm-editor[data-minecodex-markdown-reading] .mcx-reading-rich mark {background:color-mix(in srgb, var(--color-content-yellow) 25%, transparent); color:inherit; border-radius:2px; padding-inline:2px;}
 .cm-editor[data-minecodex-markdown-reading] .mcx-reading-rich kbd {font-family:var(--font-mono,monospace); font-size:.9em; background:var(--color-token-bg-secondary); border:1px solid var(--color-border); border-radius:4px; padding:1px 4px;}
 .cm-editor[data-minecodex-markdown-reading] .mcx-reading-rich a,
 .cm-editor[data-minecodex-markdown-reading] :is(.mcx-reading-rich-footnote-ref,.mcx-reading-footnote-body) button {color:var(--color-text-accent, var(--color-token-text-link-foreground)); cursor:var(--cursor-interaction,pointer);}
-.cm-editor[data-minecodex-markdown-reading] .mcx-reading-rich-footnote-ref button {font:inherit; padding:0 2px; background:transparent; border:0;}
+.cm-editor[data-minecodex-markdown-reading] .mcx-reading-rich-footnote-ref button {font:inherit; line-height:1; padding:0 2px; background:transparent; border:0;}
 .cm-editor[data-minecodex-markdown-reading] .mcx-reading-footnote-body {font-size:.9em; color:var(--color-text-secondary);}
 .cm-editor[data-minecodex-markdown-reading] .mcx-reading-footnote-body button {margin-inline-start:8px; background:transparent; border:0;}
 .cm-editor[data-minecodex-markdown-reading] .mcx-reading-definition-term {font-weight:var(--font-weight-semibold,600);}

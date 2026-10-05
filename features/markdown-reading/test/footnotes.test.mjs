@@ -52,3 +52,14 @@ test('an even escape prefix preserves a reference', () => {
   assert.equal(result.references.length, 1);
   assert.equal(result.references[0].number, 1);
 });
+
+test('all duplicate definition ranges stay outside references while the last body wins', () => {
+  const text = 'first[^a]\n[^a]: earlier [^b]\n    continuation [^a]\nagain[^a]\n[^a]: latest\n[^b]: other';
+  const result = collectMarkdownFootnotes(text, []);
+  assert.deepEqual(result.references.map(({ id }) => id), ['a', 'a']);
+  assert.equal(result.definitions.get('a').body, 'latest');
+  assert.deepEqual(result.definitionRanges.map(({ id }) => id), ['a', 'a', 'b']);
+  assert.equal(text.slice(result.definitionRanges[0].from, result.definitionRanges[0].to),
+    '[^a]: earlier [^b]\n    continuation [^a]');
+  assert.ok(result.references.every(ref => ref.definitionFrom === text.indexOf('[^a]: latest')));
+});

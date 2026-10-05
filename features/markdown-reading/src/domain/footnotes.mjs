@@ -8,6 +8,7 @@ export function collectMarkdownFootnotes(text, excludedRanges) {
   });
   const excluded = (position) => excludedRanges.some(([from, to]) => position >= from && position < to);
   const definitions = new Map();
+  const definitionRanges = [];
   for (let index = 0; index < lines.length; index++) {
     const line = lines[index];
     const match = line.text.match(/^ {0,3}\[\^([^\]]+)\]:\s*(.*)$/);
@@ -25,6 +26,7 @@ export function collectMarkdownFootnotes(text, excludedRanges) {
       refs: [],
       number: 0,
     });
+    definitionRanges.push({ id: match[1], from: line.from, to: lines[end].to });
     index = end;
   }
   const notes = [...definitions.values()];
@@ -37,7 +39,7 @@ export function collectMarkdownFootnotes(text, excludedRanges) {
       escaped ||
       !note ||
       excluded(match.index) ||
-      notes.some((note) => match.index >= note.from && match.index < note.to)
+      definitionRanges.some((note) => match.index >= note.from && match.index < note.to)
     )
       continue;
     if (!note.number) note.number = ++number;
@@ -52,5 +54,5 @@ export function collectMarkdownFootnotes(text, excludedRanges) {
   }
   // 没有引用的定义仍保留，沿用正文末尾的连续编号。
   for (const note of notes) if (!note.number) note.number = ++number;
-  return { definitions, references };
+  return { definitions, references, definitionRanges };
 }

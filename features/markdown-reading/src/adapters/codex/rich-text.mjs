@@ -176,7 +176,8 @@ export function installMarkdownRichText(view, api, native, codex) {
         button.dataset.mcxFootnoteRef = this.options.id;
         button.addEventListener('click', (event) => {
           event.preventDefault();
-          footnoteReturns.set(this.options.id, view.scrollDOM.scrollTop);
+          // 虚拟段落重新测量后像素高度会变化，使用原生文档锚点恢复阅读位置。
+          footnoteReturns.set(this.options.id, view.scrollSnapshot());
           jump(this.options.to);
         });
         sup.append(button);
@@ -201,8 +202,7 @@ export function installMarkdownRichText(view, api, native, codex) {
           const previous = footnoteReturns.get(this.options.id);
           if (previous === undefined) jump(this.options.to);
           else {
-            view.scrollDOM.scrollTop = previous;
-            view.requestMeasure();
+            view.dispatch({ effects: previous });
           }
         });
         element.append(back);
@@ -478,7 +478,14 @@ export function installMarkdownRichText(view, api, native, codex) {
         );
       }
     }
-    const { definitions: footnotes, references } = collectMarkdownFootnotes(text, protectedRanges);
+    const { definitions: footnotes, references, definitionRanges } = collectMarkdownFootnotes(text, protectedRanges);
+    // 同名定义沿用最后一条；早期定义不再被误作引用或普通正文。
+    for (const note of definitionRanges) {
+      if (footnotes.get(note.id).from === note.from) continue;
+      replace(note.from, note.to);
+      for (let i = doc.lineAt(note.from).number; i <= doc.lineAt(note.to).number; i++)
+        hiddenLines.add(doc.line(i).from);
+    }
     for (const reference of references)
       replace(
         reference.from,
@@ -505,7 +512,7 @@ export function installMarkdownRichText(view, api, native, codex) {
       const line = doc.line(i);
       if (
         protectedAt(line.from) ||
-        [...footnotes.values()].some((n) => line.from >= n.from && line.from <= n.to)
+        definitionRanges.some((n) => line.from >= n.from && line.from <= n.to)
       )
         continue;
       for (const m of line.text.matchAll(/(?<![\\$])\$(?![\s$])([^$\n]+?)(?<![\s\\])\$(?!\$)/g)) {
