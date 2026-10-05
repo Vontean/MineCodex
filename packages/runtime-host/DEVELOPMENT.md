@@ -204,7 +204,9 @@ Model Slider 的模型规则、原生控制器适配和专有呈现位于插件 
 
 ## 项目控制台入口
 
-Runtime Host 在账号菜单 Settings 下挂载 MineCodex 项目入口，不属于可开关的插件。`minecodex/open-control-panel` 是独立 builtin action，必须通过对应 renderer 的 binding token 验证；它不接受任意 URL 或 shell 参数，固定调用包内 CLI 的 `gui` 命令。组件的项目图标、外链箭头与菜单模板由共享 UI 提供。
+项目入口由 `packages/plugin` 通过官方 MCP Apps 的 global entrypoint 注册，
+不再由 Runtime Host 注入账号菜单。插件控制台经 MCP 调用既有 CLI 本地控制服务；
+增强运行时独立维护生命周期，关闭面板或退出插件不停止注入。
 
 CLI 继续通过一次性 browser exchange 打开控制台。macOS 默认 Safari 与 Chrome/Chromium、Edge、Brave、Vivaldi 支持查找现有控制台标签页并激活；没有匹配页才调用系统默认浏览器打开登录地址。自动化权限被拒绝时返回错误，不用重复开页掩盖失败。其他浏览器和 Windows 保留系统 URL 打开行为，目前不保证标签页复用。
 

@@ -38,8 +38,8 @@ packages/ui/
       tokens.mjs                      # token 与别名的权威名单
       theme.mjs                       # 原生别名到项目变量、主题更新与卸载恢复
       navigation-rail.mjs              # 原生导航资源的 DOM 适配
+      mcp-navigation.mjs               # 所属 MCP 导航的选中图片与恢复
       page.mjs                         # 原生无上下文侧栏页面壳与恢复
-      account-menu.mjs                 # 原生账号菜单 Settings 行与关闭句柄
     foundation/
       surfaces.mjs                    # Dialog / Dropdown / Popover / Composer / Page 材质
       layers.mjs                      # 角色层级与挂载
@@ -49,7 +49,6 @@ packages/ui/
       tooltip.mjs                     # 声明式 Tooltip 与清理
       navigation-rail.mjs             # 导航选中、恢复与图标展示
       page.mjs                        # 页面外壳
-      account-menu.mjs                # 菜单入口副本、键盘导航与清理
       composer-menu.mjs               # 输入框主体锚点与 zoom 定位
     install.mjs                       # 注入安装源码组装
   test/                               # 真实接口、源码自包含、架构依赖

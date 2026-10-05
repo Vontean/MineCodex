@@ -10,6 +10,7 @@ let addButton = null;
 let composerRoot = null;
 let composerThread = null;
 let composerEditable = null;
+let focusedEditable = null;
 let panel = null;
 let items = [];
 let generation = 0;
@@ -25,6 +26,9 @@ function appearanceLabel(key) {
 }
 function errorMessage(error) {
   const messages = {
+    "No available input in the focused window": "当前窗口没有可用输入框，请先打开聊天并确认 MCX 增强服务已开启。",
+    "Input changed before insertion": "输入框已切换，请重新选择提示词。",
+    "Enable Prompts in MineCodex first": "请先在 MineCodex 中开启提示词。",
     "Open a chat before using a prompt.": "请先打开一个对话，再使用提示词。",
     "Category was not found": "未找到该分类",
     "Prompt was not found": "未找到该提示词",
@@ -281,6 +285,8 @@ function renderList() {
         async () => {
           const current = generation;
           try {
+            if (!composerEditable?.isConnected || !config.codex.composer(composerEditable,{purpose:"insertion"}))
+              throw new Error("Input changed before insertion");
             window.__codexPersonalRuntime.insertText(item.body, composerEditable);
             // 插入同步成功后再记一次调用；失败和单纯浏览不计数。
             close();
@@ -338,10 +344,15 @@ function isOpenComposerMenu(node) {
     && (node.getAttribute("data-composer-navigation-target") === "add-context"
       || node.getAttribute("aria-haspopup") === "menu");
 }
+function insertionComposer() {
+  // 官方 App 获得 iframe 焦点时，保留用户最后操作的同窗口输入框。
+  const target = document.activeElement?.tagName === "IFRAME" ? focusedEditable : null;
+  return config.codex.composer(target,{purpose:"insertion"});
+}
 function sync() {
   if (disposed || signal.aborted) return;
-  syncNavigation();
-  const nativeComposer = config.codex.composer(null,{purpose:"insertion"});
+  if (config.management) return;
+  const nativeComposer = panel ? config.codex.composer(composerEditable,{purpose:"insertion"}) : insertionComposer();
   const add = nativeComposer?.add;
   const card = nativeComposer?.root;
   const thread = nativeComposer?.threadId ?? null;
@@ -357,6 +368,7 @@ function sync() {
     composerRoot = card;
   }
   composerEditable = nativeComposer?.editable ?? null;
+  insertionBridge?.remember(nativeComposer);
   if (!add) return;
   if (
     panel &&
@@ -402,8 +414,6 @@ function sync() {
 }
 // 页面与快捷调用面板共享数据；所有编辑只存在于页面。
 // 管理页面与编辑弹窗
-let navButton = null;
-let ownNavGroup = null;
 let page = null;
 let pageGeneration = 0;
 let activeCategory = "all";
@@ -414,8 +424,6 @@ let cardResizeObserver = null;
 let searchText = "";
 let editor = null;
 let pageFocus = null;
-const hiddenSurfaces = new Map();
-let navigationRail = null;
 
 function pageControl(label, handler, primary = false, tone = "secondary") {
   return config.ui.action(control(label, handler, `pm-command${primary ? " pm-primary" : ""}`), primary ? "primary" : tone);
@@ -428,23 +436,7 @@ function pageError(error) {
   (editor ?? page.querySelector(".pm-wrap") ?? page).append(message);
 }
 function positionPage() {
-  if (!page) return;
-  const rail = config.codex.rail();
-  if (!rail) {
-    closePage();
-    return;
-  }
-  const rect = rail.getBoundingClientRect();
-  page.style.left = `${rect.right}px`;
-  page.style.top = `${rect.top}px`;
-  page.style.right = "4px";
-  page.style.bottom = "4px";
-}
-function syncNavigationSelection() {
-  navigationRail?.select(Boolean(page));
-}
-function restoreNavigationSelection() {
-  navigationRail?.select(false);
+  if (page) Object.assign(page.style, {inset:"0",borderRadius:"0"});
 }
 function closePage(restoreFocus = false, restoreNavigation = true) {
   dragState?.cancel();
@@ -456,12 +448,7 @@ function closePage(restoreFocus = false, restoreNavigation = true) {
   if (page) config.ui.releasePage(page, { restoreNavigation });
   page?.remove();
   page = null;
-  restoreNavigationSelection();
   editor = null;
-  for (const [surface, inert] of hiddenSurfaces) surface.inert = inert;
-  hiddenSurfaces.clear();
-  navButton?.removeAttribute("data-selected");
-  navButton?.removeAttribute("aria-current");
   document.documentElement.removeAttribute("data-mcx-prompts-open");
   if (restoreFocus && pageFocus?.isConnected)
     pageFocus.focus({ preventScroll: true });
@@ -487,19 +474,9 @@ function openPage() {
   page = element("section");
   page.setAttribute(MARKER, "page");
   config.ui.page(page, { sidebar:"none", onNavigate:() => closePage(false, false) });
-  page.setAttribute("aria-label", text("Prompts", "提示词"));
+  page.setAttribute("aria-label", text("Prompt", "提示词"));
   document.body.append(page);
-  // 只隔离主内容的焦点，保留导航栏与原生窗口控件。
-  for (const surface of document.querySelectorAll(
-    '[class*="_PageSurface_"], [class*="_Workspace_"]',
-  )) {
-    hiddenSurfaces.set(surface, surface.inert);
-    surface.inert = true;
-  }
   document.documentElement.setAttribute("data-mcx-prompts-open", "");
-  navButton?.setAttribute("data-selected", "");
-  navButton?.setAttribute("aria-current", "page");
-  syncNavigationSelection();
   positionPage();
   page.append(element("div", "pm-empty", text("Loading…", "加载中…")));
   return loadPage();
@@ -666,7 +643,7 @@ function renderPage() {
     searchField,
     pageControl(text("New prompt", "新建提示词"), () => editPrompt(), true),
   );
-  heading.append(element("h1", "", text("Prompts", "提示词")), actions);
+  heading.append(element("h1", "", text("Prompt", "提示词")), actions);
   const tabs = element("div", "pm-tabs");
   tabs.setAttribute("role", "tablist");
   tabs.setAttribute("aria-label", text("Categories", "分类"));
@@ -818,31 +795,9 @@ function cardPreview(item) {
 }
 async function usePagePrompt(item, trigger) {
   trigger.disabled = true;
-  closePage();
-  try {
-    // Page 归还原路由后等待输入框挂载；不自动发送消息。
-    let editable = null;
-    for (let attempt = 0; attempt < 40 && !signal.aborted; attempt++) {
-      editable = config.codex.composer(null, { purpose: "insertion" })?.editable;
-      if (editable) break;
-      await new Promise((resolve) => setTimeout(resolve, 50));
-    }
-    if (signal.aborted) return;
-    if (!editable) throw new Error("Open a chat before using a prompt.");
-    window.__codexPersonalRuntime.insertText(item.body, editable);
-  } catch (error) {
-    await openPage();
-    pageError(error);
-    return;
-  }
-  try {
-    await api(`/api/prompts/${encodeURIComponent(item.id)}/use`, {
-      method: "POST", body: { action: "insert", success: true },
-    });
-  } catch (error) {
-    // 正文已插入，计数失败不能再次插入。
-    console.warn("[Prompts] Usage could not be saved", error);
-  }
+  try { await config.insertPrompt(item.id); if (!signal.aborted) await loadPage(); }
+  catch (error) { if (!signal.aborted) pageError(error); }
+  finally { trigger.disabled = false; }
 }
 let imagePreview = null;
 let imagePreviewAnchor = null;
@@ -1031,7 +986,7 @@ function emptyState(searching) {
   const empty = element("div", "pm-empty-state");
   const art = element("span", "pm-empty-art", searching ? "🔎" : "📖");
   art.setAttribute("role", "img");
-  art.setAttribute("aria-label", text("Prompts", "提示词"));
+  art.setAttribute("aria-label", text("Prompt", "提示词"));
   empty.append(
     art,
     element(
@@ -1620,69 +1575,15 @@ function editCategory(category = null) {
   name.focus();
 }
 // 原生导航挂载与卸载
-function syncNavigation() {
-  const rail = config.codex.rail();
-  if (!rail) {
-    navButton?.remove();
-    navButton = null;
-    if (page) closePage();
-    return;
-  }
-  const slot = config.codex.railSlot(ownNavGroup);
-  if (!slot) return;
-  const { template:source, scroll } = slot;
-  let group = slot.group;
-  if (!group) {
-    if (!ownNavGroup) {
-      ownNavGroup = element("div", "flex shrink-0 flex-col items-center gap-2");
-      ownNavGroup.setAttribute(MARKER, "nav-group");
-    }
-    if (ownNavGroup.parentElement !== scroll) scroll.append(ownNavGroup);
-    group = ownNavGroup;
-  }
-  if (!navButton?.isConnected) {
-    navigationRail?.restore();
-    navButton = source.cloneNode(false);
-    navButton.removeAttribute("id");
-    navButton.removeAttribute("title");
-    navButton.removeAttribute("aria-describedby");
-    navButton.removeAttribute("data-sidebar-destination");
-    navButton.removeAttribute("data-selected");
-    navButton.removeAttribute("aria-current");
-    navButton.removeAttribute("data-suppress-active-style");
-    navButton.setAttribute(MARKER, "nav");
-    navButton.setAttribute("aria-label", text("Prompts", "提示词"));
-    navButton.setAttribute("data-minecodex-tooltip", text("Prompts", "提示词"));
-    const inner = element("span", source.firstElementChild?.className ?? "");
-    const glyph = icon("prompt-nav");
-    glyph.setAttribute("aria-hidden", "true");
-    inner.append(glyph, element("span", "sr-only", text("Prompts", "提示词")));
-    navButton.append(inner);
-    navigationRail = config.ui.navigationRail(navButton, {
-      defaultIcon:glyph, selectedIcon:icon("prompt-nav-selected"),
-    });
-    navButton.addEventListener("click", openPage);
-  }
-  if (navButton.parentElement !== group || navButton !== group.lastElementChild)
-    group.append(navButton);
-  if (group !== ownNavGroup) ownNavGroup?.remove();
-  syncNavigationSelection();
-  positionPage();
-}
-document.addEventListener(
-  "click",
-  (event) => {
-    if (
-      page &&
-      event.target.closest("[data-app-navigation-rail] button") &&
-      !navButton?.contains(event.target)
-    )
-      closePage(false, false);
-  },
-  { signal, capture: true },
-);
-window.addEventListener("popstate", () => closePage(false, false), { signal });
 window.addEventListener("resize", positionPage, { signal });
+
+document.addEventListener("focusin", event => {
+  if (config.management) return;
+  const target = event.target.closest?.('[contenteditable="true"]');
+  const focused = target ? config.codex.composer(target,{purpose:"insertion"}) : null;
+  if (focused) focusedEditable = focused.editable;
+  sync();
+}, {signal});
 
 const observer = new MutationObserver(() => {
   if (syncQueued) return;
@@ -1692,7 +1593,7 @@ const observer = new MutationObserver(() => {
     sync();
   });
 });
-observer.observe(document.documentElement, {
+if (!config.management) observer.observe(document.documentElement, {
   childList: true,
   subtree: true,
   attributes: true,
@@ -1745,24 +1646,25 @@ document.addEventListener(
 );
 window.addEventListener("resize", () => { clearQuickPreview(true); position(); }, { signal });
 window.addEventListener("scroll", position, { signal, capture: true });
-sync();
+const insertionBridge = config.management ? null : installPromptInsertion(signal, {
+  codex:config.codex, api, insertText:(body,editable) => window.__codexPersonalRuntime.insertText(body,editable),
+});
+if (config.management) openPage(); else sync();
 
 config.registerSelfCheck?.(() => {
-  const rail=config.codex.railSlot(ownNavGroup), composer=config.codex.composer(null,{purpose:"insertion"});
-  const checks=[{name:"prompts-navigation-anchor",available:Boolean(rail && navButton?.isConnected)}];
-  if (composer) checks.push({name:"quick-prompts-anchor",available:Boolean(composer.add && button?.isConnected && composerRoot === composer.root)});
+  const composer=config.codex.composer(null,{purpose:"insertion"});
+  const checks=composer ? [{name:"quick-prompts-anchor",available:Boolean(composer.add && button?.isConnected && composerEditable === composer.editable)}] : [];
   const available=checks.every(check=>check.available);
-  return {state:available ? "available" : "unavailable",reason:available ? null : "prompts-anchor-unavailable",checks,
-    scopes:[{name:"navigation",element:navButton},{name:"composer",element:composer?.root},{name:"prompts-page",element:page},{name:"prompts-popup",element:pagePopup},{name:"quick-prompts",element:panel}]};
+  return {state:composer ? available ? "available" : "unavailable" : "not-applicable",reason:available ? null : "prompts-anchor-unavailable",checks,
+    scopes:[{name:"composer",element:composer?.root},{name:"quick-prompts",element:panel}]};
 });
 
 return () => {
   disposed = true;
+
   observer.disconnect();
   close();
   button?.remove();
   closePage();
-  navButton?.remove();
-  ownNavGroup?.remove();
   style.remove();
 };

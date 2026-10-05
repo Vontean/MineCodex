@@ -31,6 +31,18 @@ if (packageMetadata.license !== "MIT") {
 
 const files = report.files.map(({ path: filePath }) => filePath).sort();
 const requiredFiles = [
+  "packages/plugin/src/server.mjs",
+  "features/notes/assets/icons/prompt-entry.svg",
+  "features/notes/assets/icons/prompt-entry-selected.svg",
+  "assets/brand/minecodex-icon-selected.svg",
+  "packages/plugin/src/navigation-icons.mjs",
+  "packages/plugin/assets/prompts.js",
+  "packages/ui/src/native/mcp-theme.css",
+  "packages/plugin/src/install.mjs",
+  "packages/plugin/src/control-client.mjs",
+  "packages/plugin/assets/app.js",
+  "packages/plugin/plugin.json",
+  "apps/dashboard/transport.js",
   "features/sites/codex-feature.json",
   "features/sites/src/frontend/entry.mjs",
   "features/sites/src/backend/sites-service.mjs",
@@ -89,9 +101,6 @@ const requiredFiles = [
   "packages/cli/native/MineCodex.app/Contents/Resources/MineCodexServiceHost",
   "packages/runtime-host/src/main.mjs",
   "packages/ui/src/install.mjs",
-  "packages/ui/src/native/account-menu.mjs",
-  "packages/ui/src/components/account-menu.mjs",
-  "packages/ui/assets/arrow-up-right.svg",
   "packages/ui/assets/lucide-LICENSE.txt",
   "packages/cli/src/browser-control-panel.mjs",
   "packages/ui/src/native/tokens.mjs",

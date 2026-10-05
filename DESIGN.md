@@ -181,38 +181,12 @@ Codex 26.930.21537（2026-10-02 原生源码与隔离窗口）：Library 选中�
 
 macOS 后台服务 App 在明确的原生资源修订 1.0.1 中接入实心图标，采用浅色圆角底板，保证在明暗系统表面均可辨认。ICNS 来自同一项目几何。安装器先注销旧后台项，再验证并替换 bundle，最后重新注册；不能直接修改已安装的签名资源。后续普通 JavaScript 发布保留此原生 bundle 的签名身份，升级流程与验收边界见 `packages/cli/native/DEVELOPMENT.md`。
 
-### 账号菜单中的 MineCodex 入口
+### 官方插件中的 MineCodex 入口
 
-Codex 26.930.21537（2026-10-03 安装包源码与隔离 DOM）：`profile-dropdown-items` 的 Settings 使用原生菜单行，紧接 Help 前的 Separator；`onOpenSettings` / `settingsShortcut` 标识其行为，外层 `onClose` 关闭账号面板。MineCodex 行插在 Settings 与 Separator 之间，复制脱离 React 的原生行，保留原始 Settings 及其所属层级。左侧使用实心项目标识，右侧使用 Lucide ArrowUpRight；右侧沿用快捷键区域的间距，图标使用原生 Help 右侧箭头的 `text-tertiary` 色与 opacity 1（当前浅色为 rgba(13,13,13,0.482)），不套左侧图标的 0.75 / hover、focus 时 1 的透明度。隔离 DOM 确认左侧普通态与 Settings 同为 rgb(13,13,13)、opacity 0.75，hover / focus 时为 1。
-
-左侧保留原生 CompactSource / LeadingSource 两套结构，只替换其中 SVG；分别继承原生 SVG 的 width、height、class 和 style。菜单标识复用当前 `codex-light-16` / `codex-light-20` 的真实填充外圈路径，引用存于 `assets/brand/references/codex-menu-16.svg` / `codex-menu-20.svg`；内部镐子仍从品牌源生成，由 `npm run build:icons` 输出两套 `packages/ui/assets/minecodex-menu-*.svg`。不能将 24px 品牌外圈缩小代替原生菜单的路径粗细。账号图标沿用原生 `currentColor` 与 `--profile-menu-icon-opacity`（桌面默认 0.75，行 hover / focus 时为 1），不另设固定灰色。此项为安装包源码核对，实际窗口视觉仍待手动验收。
-
-右侧箭头的两段几何合并在单个 SVG path 中一次描边，避免 `currentColor` 自带 alpha 时，两个独立 path 在交叉点重复叠色。保留原资源的形状与端点规则；24px viewBox 中 stroke-width 为 1.575，在 16px 显示时实际线宽 1.05px，与原生 Help 箭头的线条粗细对齐。
-
-入口随账号菜单重建恢复且只出现一次；补齐 Settings → MineCodex → Help 的上下键导航与 Enter/Space，保留原生 Escape 关闭行为。点击经已认证 Host bridge 调用 `mcx gui`；成功后关闭菜单，失败时显示实际错误。原生 UI 手动验收本次因 Computer Use 拒绝操作应用而未完成；隔离 DOM 契约页验证了位置、明暗颜色、点击、键盘、重建去重与清理。
-
-## 更新后的 token 自检
-
-自检按实际控件所在作用域读取 token 的原生名称与已知别名，记录来源、计算值和对应 `--mcx-*` 值，核对映射是否与当前作用域一致。原生值消失时不能因旧项目变量仍存在而判定通过。根节点全量诊断只是观察，不能代替控件作用域检查。
-
-功能的检查名单由当前源码／样式中消费的项目 token 派生。有明确 fallback 的变量缺失可继续使用既有默认值，但必须在诊断中标记；必需变量缺失或作用域映射不一致显示外观适配降级。自检不擅自换主题、改 token 值或修改原生布局。
-
-插件样式显式声明的局部 `--mcx-*` 变量不属于宿主原生映射清单；局部变量引用的共享 token 仍单独检查，未声明且没有映射的变量仍报告缺失。
-
-## 文档正文角色与局部映射
-
-Codex 26.930.21537（2026-10-04 Pages 源码与文件预览作用域 token 实测）：Pages 文档正文使用 `--font-content`、`--text-document`（当前 14px）与 `--leading-relaxed`（当前 1.625）。这些角色区别于工具栏 / 页面主标题，不将其应用到所有控件。原生文件 Preview 当前正文行高为 1.4；Markdown Reading 选择 Pages 正文分支，面板宽度与留白由功能 DESIGN.md 记录。
-
-需要跟随组件局部 token 的直接注入内容，使用共享 `ui.theme.bindScope(element, names)`，映射保留原生变量引用，随作用域与主题生效；返回清理函数，恢复先前 inline 值。不要用根节点的快照覆盖局部排版 token，也不要在插件维护原生名称兼容表。
-
-## Pages 浮动目录分支
-
-Codex 26.930.21537 安装包源码（2026-10-04）：Pages 目录使用 floating-navigation-rail 浮层，底色 surface-elevated-secondary、radius-xl、shadow-xl-spread 与 .5px color-border ring；直接使用原生目录 `Panel` 和交互式 `Tooltip` 组件。隔离窗口 live computed：目录宽度 320px、padding 8px、text-sm（当前 13px）/ leading-5（20px）；行 radius-lg、padding 6px 8px，hover / focus 使用 background-primary-ghost-hover 的 50% 混色。此分支不是普通文字 Tooltip，不使用 Tooltip 的圆角、字重或材质。
-
-原生短线栏距阅读容器左缘 8px、top 50%，宽 44px；标题按钮高 10px，短线高 2px、最大宽 26px。折叠／展开列表最高 min(70vh, 640px)，超过时自身滚动。原生仅在正文左缘距阅读区域左缘至少 112px 时显示；至少两个文内标题才显示目录。悬浮延迟 200ms，离开延迟 100ms，右侧零间距展开、垂直居中。位置与可用空间归功能处理，材质归共享 UI；不能把屏幕左缘当成分栏阅读面板左缘。
-
-短线直接使用原生 `Marker` 及其 CSS module。H1 / H2 / H3 默认实际线长为 12 / 8 / 4px；悬浮目标达到 26px，相邻三级使用 .7 / .4 / .2 进度。过渡为 160ms 的原生 linear 分段曲线；拖动期间禁用过渡，减少动态效果时禁用过渡。默认当前章节使用 text 角色与 .6 opacity，悬浮目标使用 text 与 1 opacity，其余使用 codex-description 与 .4 opacity。2026-10-04 在真实 Pages 与 MD Preview 的五标题样例逐项比对 computed 值一致。
-
+项目入口使用官方 MCP Apps global entrypoint，交由原生导航管理固定、收纳、
+焦点和页面壳，不再克隆账号菜单行。品牌图标来自唯一 SVG 源；控制台内容沿用
+apps/dashboard/DESIGN.md，通过 MCP bridge 跟随宿主主题，保留用户手动外观选择。
+此接口已在 Codex 26.930.51102 源码确认；真实原生面板交互仍须独立验收。
 
 ### 原生文档块悬浮操作
 
@@ -225,3 +199,11 @@ Codex 26.930.21537（2026-10-05 源码与隔离窗口）：文件 breadcrumb 使
 ### Token 诊断范围
 
 2026-10-05，Codex 26.930.51102：根作用域缺失不等于官方删除。全局诊断只展示根已定义的值；插件实际作用域继续检查必要 token 与映射。清除无消费的旧 summary / button 登记项；summary 字重直接读取原生计算样式。SuggestionMenu 的可选变量及 fallback 保留。
+
+## 官方 MCP App 主题桥
+
+Prompt 官方页面使用 `packages/ui/src/native/mcp-theme.mjs` 将 MCP Apps 宿主 `styles.variables` 映射为共享 `--mcx-*` token；宿主更新 theme / locale 时同步。iframe 初始 fallback 与结构尺寸在同目录 `mcp-theme.css`，复用根规范中的控件、圆角和间距；共享材质仍由原有 surfaces / dialog / button 安装器负责。Prompt 使用自己的 book-open 图标，MCX 控制台使用品牌图标。
+
+Codex 26.930 官方侧栏 MCP icon 的 leading 容器为 `icon-base`（20×20px），菜单 compact 为 `icon-xs`（16px）。Prompt 资源按20px、27单位viewBox留白与1.8单位笔画提供，不改原生容器或热区。`packages/ui/src/native/mcp-app.mjs` 通过原生 GlobalView 的 source.server 识别 MCX 页，保留 header 节点，仅隐藏重复的宿主标题；切换到其他插件或卸载时恢复。
+
+Codex 26.930.51102 源码：MCP 导航的默认与选中资源相同，图标经 SVG mask 使用原生 `currentColor`。MCX 的选中资源由共享 `mcp-navigation.mjs` 按原生 `aria-current`／`data-selected` 切换，仅修改 mask image 的 href，不替换 React 节点。Prompt 复用原有 Phosphor 填充书本；MineCodex 由品牌源生成填充六瓣外圈与透明镐子。颜色、尺寸、热区与选中底色全部由原生组件决定，不反转主题色。其他插件、取消选中、节点复用与卸载均恢复原生资源。

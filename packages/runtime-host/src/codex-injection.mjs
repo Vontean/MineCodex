@@ -1,5 +1,4 @@
 import { createRendererSelfCheck, tokenRequirements } from "./renderer-self-check.mjs";
-import { readFileSync } from "node:fs";
 import { createCodexEnvironment } from "../../codex-adapter/src/renderer/environment.mjs";
 // 注入源生成：createInjectionSource 产出注入到 Codex Renderer 的自包含脚本字符串。
 // 该字符串经 CDP 注入后独立执行，因此 install 函数体必须自包含；
@@ -7,14 +6,11 @@ import { createCodexEnvironment } from "../../codex-adapter/src/renderer/environ
 
 import { createModelSliderInstallerSource } from "../../../features/model-slider/src/injection-source.mjs";
 import { createUIInstallerSource } from "../../ui/src/install.mjs";
+import { MCP_NAVIGATION_ICONS } from "../../plugin/src/navigation-icons.mjs";
 import { randomBytes } from "node:crypto";
 import { CODEX_THEME_TOKENS, CODEX_THEME_TOKEN_ALIASES, MINECODEX_THEME_BINDINGS } from "../../ui/src/native/tokens.mjs";
 
-export const RUNTIME_VERSION = 109;
-const PROJECT_ICON = Object.fromEntries([16, 20].map(size => [size,
-  readFileSync(new URL(`../../ui/assets/minecodex-menu-${size}.svg`, import.meta.url), "utf8"),
-]));
-const EXTERNAL_ICON = readFileSync(new URL("../../ui/assets/arrow-up-right.svg", import.meta.url), "utf8");
+export const RUNTIME_VERSION = 113;
 export const HOST_BINDING_NAME = "__codexPersonalHostAction";
 export const CSP_BOOTSTRAP_VERSION = 1;
 export const CSP_BOOTSTRAP_KEY = "__mineCodexCspBootstrapVersion";
@@ -148,7 +144,7 @@ export function createInjectionSource(features, {
 
     const lifetime = new AbortController();
     const codex = createCodexEnvironment();
-    const featureUI = installUI(lifetime.signal, {codex,themeTokens:config.themeTokens,themeTokenAliases:config.themeTokenAliases,themeBindings:config.themeBindings});
+    const featureUI = installUI(lifetime.signal, {codex,mcpServer:"minecodex",mcpPluginId:"minecodex@minecodex-local",mcpNavigationIcons:config.mcpNavigationIcons,themeTokens:config.themeTokens,themeTokenAliases:config.themeTokenAliases,themeBindings:config.themeBindings});
     const rightPanelRouteKinds = new Set(config.rightPanelRouteKinds);
 
     const entryMarker = "data-codex-personal-feature";
@@ -210,8 +206,6 @@ export function createInjectionSource(features, {
       } : null,
       hostActions: new Set(feature.hostActions ?? []),
     }));
-    featureUI.accountMenuEntry?.({ label:"MineCodex", icon:config.projectIcon, externalIcon:config.externalIcon,
-      onOpen:() => requestPageHostAction("minecodex", "open-control-panel", {}) });
     const selfCheck = createRendererSelfCheck(features, config.sessionId, featureUI.theme);
     const featureById = new Map(features.map((feature) => [feature.id, feature]));
     const sidebarFeatures = features.filter((feature) => feature.entry?.kind === "sidebar");
@@ -2193,7 +2187,7 @@ export function createInjectionSource(features, {
     }
 
     function requestPageHostAction(featureId, action, payload) {
-      if (!(featureId === "minecodex" && action === "open-control-panel") && !featureById.get(featureId)?.hostActions.has(action)) return Promise.reject(new Error("Host action is not registered"));
+      if (!featureById.get(featureId)?.hostActions.has(action)) return Promise.reject(new Error("Host action is not registered"));
       if (typeof globalThis[config.bindingName] !== "function") return Promise.reject(new Error("Host bridge is unavailable"));
       return new Promise((resolve, reject) => {
         const requestId = crypto.randomUUID();
@@ -2463,8 +2457,6 @@ export function createInjectionSource(features, {
     } : null,
   }));
   return `(${install.toString()})(${JSON.stringify({
-    projectIcon: PROJECT_ICON,
-    externalIcon: EXTERNAL_ICON,
     version: RUNTIME_VERSION,
     sessionId: runtimeSessionId,
     bindingName,
@@ -2474,6 +2466,7 @@ export function createInjectionSource(features, {
     themeTokens: CODEX_THEME_TOKENS,
     themeTokenAliases: CODEX_THEME_TOKEN_ALIASES,
     themeBindings: MINECODEX_THEME_BINDINGS,
+    mcpNavigationIcons: MCP_NAVIGATION_ICONS,
     features: runtimeFeatures,
   })}, ${createUIInstallerSource()}, ${createModelSliderInstallerSource()}, ${createCodexEnvironment.toString()}, ${createRendererSelfCheck.toString()})`;
 }

@@ -1,7 +1,9 @@
 # MineCodex Dashboard Design System
 
 The standalone control panel follows the root DESIGN.md semantic color and interaction
-contract. It uses local light/dark tokens because no Codex renderer theme bridge exists here.
+contract. It uses local light/dark tokens. In an official MCP App panel, the initial appearance follows
+the host theme and tracks host changes; a manual appearance choice retains precedence.
+The browser and MCP panel share the same dashboard source, controls and state semantics.
 
 ## Layout and reference
 

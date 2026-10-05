@@ -50,10 +50,17 @@ mcx open
 | `mcx uninstall [--purge]` | 移除扩展；默认保留个人数据，带 `--purge` 参数才会清理 |
 | `mcx update` | 更新到最新的稳定版本 |
 | `mcx open` | 打开 MineCodex 控制台 |
+| `mcx plugin install` | 通过官方插件机制注册 Codex 内的 MineCodex 控制台入口 |
 | `mcx status [--json]` | 查看安装与插件运行状态 |
 | `mcx restart` | 重启 Codex 并应用插件开启/关闭状态 |
 
 关闭某项功能仅停用对应的扩展服务，不会删除任何个人数据；修改设置后运行 `mcx restart` 即可应用更改。
+
+运行 `mcx plugin install` 后，在 Codex 的 Explore／探索中打开 MineCodex，也可按原生
+导航设置固定到侧栏。该本地插件使用官方 MCP Apps 入口与面板，复用原有控制台。
+关闭面板不会停止增强；各项功能继续由 MineCodex 本地服务和注入运行时提供。
+当前正在运行的窗口若未刷新插件目录，下次正常启动后查看。安装命令不会重启 Codex。
+插件卸载使用 `codex plugin remove minecodex@minecodex-local`，不删除增强配置或数据。
 
 运行 `mcx uninstall` 会移除名为 MineCodex 的后台项目，并默认保留配置设置、Notes 笔记和 Images 图片索引；只有显式加上 `--purge` 参数，才会清理 MineCodex 产生的本地配置。MineCodex 绝不会删除 `~/.codex/generated_images` 中的原始图片或 Notes 引用的本地文件。
 
@@ -106,3 +113,5 @@ MineCodex 是非官方独立扩展项目，与 OpenAI 无关联。项目自有�
 支持 Prompts 与分类、公网 Sites、模型收藏。模型旧收藏在新版模型滑条首次启动后收录，
 导入收藏在下次启动 Codex 后载入。图片文件、本地站点、账号信息与设备设置不包含在文件中；
 可迁移功能的特殊说明可通过 info 查看。这是手动迁移，不是自动云同步。文件包含提示词正文，请妥善保管。
+
+官方插件提供 MineCodex 控制台与 **Prompt** 两个入口，分别使用 MCX 品牌图标与 Prompt 图标。Prompt 仍由 MCX 管理，沿用原有提示词数据；输入框里的快捷提示词继续只填入、不发送。

@@ -7,7 +7,7 @@ Prompts 页面负责新增、编辑、分类、Emoji、排序和统计；Quick P
 
 ## 原生依据
 2026-09-27 在隔离 Codex 实测导航扩展区、Library 页面及 Add files and more。
-- Prompts 导航项位于固定扩展区末尾，顺序跟随扩展区而非硬编码 Projects。仅定位 `data-app-navigation-rail`，不匹配设置菜单。
+- Prompt 管理页由 MCX 官方 MCP 插件注册 global 入口，使用现有 book-open 图标；名称为 Prompt，不注入 navbar。侧栏固定与收纳由 Codex 管理。
 - Quick Prompts 位于 Add 与 Change permissions 之间，克隆 Add 的按钮 classes 与响应式图标容器。入口采用 Lucide book-open；保留 16 / 20px 图标容器，viewBox 扩为 27，将图形缩小约 11%；non-scaling-stroke 保持 1.5px 笔画，热区仍为 28px。
 - 页面沿用 Library 的大标题和胶囊 Tabs；分类图标取自当前 Codex 原生 SymbolBrowser / project appearance catalogue，记录于 `assets/native-prompt-icons.json`，不手绘路径。
 
@@ -92,3 +92,9 @@ All 按分类呈现单行横向书架，排序仍在各分类内生效；超出�
 分类栏固定在 ComposerMenu 顶部，All / 非空分类用于筛选；最近使用仅在 All 列表内分组展示，不占独立 Tab；列表单独纵向滚动，保持原生单行行高与摘要省略。分类不换行、不显示横向滚动条；溢出时右端渐隐，两枚相邻箭头覆盖在右侧，按左右剩余内容分别显隐，全部可见时隐藏整个箭头区。支持触控板及键盘分类导航。
 
 生图条目悬停／聚焦160ms后在面板右侧显示原比例图片，不附带标题或白边，当前条目保留高亮。预览垂直中心对齐条目并避开窗口边界；右侧不足向左展开，两侧均不足96px时省略非必要预览，插入始终可用。沿用本功能现有本地占位资源与共享 Popover 材质、floating 挂载角色，不读取新原生协议。列表滚动时图片顺滚动方向最多位移10px并于150ms内淡出，进入180ms淡入／轻微缩放；支持减少动态效果。关闭、切换分类、窗口变化和卸载清理预览及观察器。点击条目仍只插入，不发送。
+
+## 官方页面与输入框
+
+官方 Prompt 页面复用 `src/frontend/entry.mjs` 的管理模式与共享 UI 安装器，经 MCP 工具访问由 MCX 管理的 notes 服务；沿用 SQLite、分类、排序与统计。iframe 通过 MCP 宿主变量映射主题，不读取父窗口 DOM。
+
+输入框模式只保留 Quick Prompts，不注册 navbar 入口。普通聊天、home、浮动聊天与侧面板使用 Codex Adapter 的 insertion 能力，捕获具体 editable；重建或切换时重新定位。官方页面的使用动作只发往来源窗口，保留 iframe 获焦前的输入框；全页面卸载输入框时恢复该窗口原聊天路由。填入前复核焦点、路由、4 秒截止时间与目标身份。成功后才记使用次数；用户导航、失焦或输入框变化时中止，所有路径都不自动发送。

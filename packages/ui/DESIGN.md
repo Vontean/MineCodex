@@ -15,6 +15,7 @@
 - Dialog：提供容器、标题、Close及操作区的结构；插件填表单、列表或确认内容。
 - Button：通过 `action(node, "danger-solid")` 提供原生实色警戒分支，保留既有 `danger` soft 分支；通用 token 与适用规则见根 DESIGN.md。表达操作角色和状态，保留Cancel ghost、实际次级outline与主操作solid的语义区分；业务动作由插件传入。
 - Navbar：使用成对 default/selected 图标管理展示状态；原生图标与选中状态适配集中在 native 层，保留原生路由与 sidebar hover。退出注入页面时按当前 committed 原生状态恢复选中属性，不回放进入时的旧状态；原生目的地变化时及时移除替身图标，原节点复用或重渲染后仍保证只显示一个图标。
+- 官方 MCP Navbar：`native/mcp-navigation.mjs` 按原生 item 中的来源与工具路径选择宿主提供的 default/selected 资源，仅修改原生 SVG mask image 的 href。选中态来自原生 aria-current/data-selected；保留根 SVG、currentColor、尺寸与点击行为。React 更新资源、节点复用、非所属插件或卸载时恢复当前原生图片。
 - Tooltip：处理声明式标记、hover/focus、aria关联、关闭与卸载，不接管原生Tooltip。
 - Page 的 `sidebar:"none"` 分支通过 native/page Adapter 取得原生无上下文侧栏页面壳；`releasePage` 释放时区分返回原页面和用户主动导航，禁用时清理。
 - 页面、菜单与浮层：提供对应类型的外壳、挂载和通用交互，不读取提示词、会话或站点业务数据。
@@ -32,7 +33,3 @@ Renderer安装函数经序列化注入，必须自包含。组件代码与Node/C
 ## 验证边界
 
 组件验证关注可注入性、结构与回调、状态清理、挂载/焦点以及所选原生类型的实际行为，不镜像每条CSS写实现测试。布局、材质和原生状态变化按风险做隔离验收；只移动文件时验证导入、序列化、发布名单与已有功能回归。
-
-## 账号菜单接入
-
-`accountMenuEntry({label, icon, externalIcon, onOpen})` 通过 native/account-menu Adapter 获取原生 Settings 模板与关闭句柄。组件只修改脱离 React 的副本，负责重建去重、相邻键盘导航与卸载；回调拥有打开动作，组件不读取控制台 token 或浏览器状态。通用位置与视觉规则见根 DESIGN.md。

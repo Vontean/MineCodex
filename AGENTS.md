@@ -18,7 +18,7 @@
 | 组件库结构与接入 | `packages/ui/ARCHITECTURE.md`、`packages/ui/DESIGN.md` | 已建立的UI组件库 |
 | 共享Dialog、Button、Scrim、Surface | `packages/ui/src/components/dialog.mjs`、`button.mjs`、`foundation/surfaces.mjs` | UI组件库 |
 | 共享Navbar状态与原生图标 | `packages/ui/src/components/navigation-rail.mjs`、`native/navigation-rail.mjs` | UI组件库 |
-| 原生账号菜单项目入口 | `packages/ui/src/native/account-menu.mjs`、`components/account-menu.mjs` | UI 组件库；打开动作归 Runtime Host 与 CLI |
+| 官方插件项目入口与控制台通信 | `packages/plugin/src/`、`packages/plugin/plugin.json` | 官方 MCP Apps 适配；业务与生命周期继续归 CLI／Runtime Host |
 | 共享Tooltip | `packages/ui/src/components/tooltip.mjs` | UI组件库 |
 | token映射、别名、主题变量与恢复 | `packages/ui/src/native/tokens.mjs`、`theme.mjs` | UI组件库 |
 | 共享原生Composer、thread、rail与React读取机制 | `packages/codex-adapter/src/renderer/environment.mjs`、`packages/codex-adapter/DEVELOPMENT.md` | Codex环境Adapter；不放插件业务 |
@@ -28,6 +28,7 @@
 | 注入UI源码组装 | `packages/ui/src/install.mjs` | UI组件库；宿主调用并注入 |
 | Markdown Preview 阅读排版与识别 | `features/markdown-reading/src/reading.css`、`src/domain/footnotes.mjs`、`src/adapters/codex/preview.mjs`、`reading-runtime.mjs` | Markdown Reading；领域管脚注规则，Adapter 管原生协议与会话生命周期 |
 | 文件路径导航与分列浏览 | `features/file-navigation/src/domain/`、`src/adapters/codex/`、`src/frontend/` | File Navigation；独立开关与卡片，控制台紧跟 Markdown 阅读增强 |
+| Prompt 官方页面与输入框 | `packages/plugin/src/prompts-app.mjs`、`features/notes/src/frontend/entry.mjs`、`src/adapters/codex/requests.mjs`、`src/adapters/codex/insertion.mjs` | MCP 管入口与通信；notes 管数据与一次性填入；Adapter 管输入框 |
 | 模型规则与专有原生控制器适配 | `features/model-slider/src/domain/`、`src/adapters/codex/`、`src/frontend/`、`src/injection-source.mjs` | Model Slider；宿主只负责组装和调度 |
 | 会话指标与日志 | `features/session-status/src/domain/`、`src/adapters/codex/` | Session Status |
 | 站点规则、发现和启动 | `features/sites/src/domain/`、`src/backend/` | Sites |

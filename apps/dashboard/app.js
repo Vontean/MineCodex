@@ -1,4 +1,5 @@
 import {diagnosticReport} from "./assets/diagnostics.js";
+import {dashboardFetch} from "./transport.js";
 let savedLocale;
 try { savedLocale = localStorage.getItem("minecodex-language"); } catch { /* 存储不可用时跟随浏览器语言。 */ }
 const locale = ["en", "zh-CN"].includes(savedLocale) ? savedLocale
@@ -310,7 +311,7 @@ function replaceFeatureInState(featureId, patch) {
 async function load() {
   elements.loadError.hidden = true;
   try {
-    const response = await fetch("/api/status", { headers: { "Accept-Language": locale } });
+    const response = await dashboardFetch("/api/status", { headers: { "Accept-Language": locale } });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const fresh = await response.json();
     if (pendingFeatureIds.size && state) fresh.features = fresh.features.map(feature =>
@@ -339,7 +340,7 @@ elements.pluginList.addEventListener("change", async (event) => {
   updatePluginCard(card, state.features.find((feature) => feature.id === featureId));
   elements.saveState.textContent = copy.saving;
   try {
-    const response = await fetch(`/api/features/${encodeURIComponent(featureId)}`, {
+    const response = await dashboardFetch(`/api/features/${encodeURIComponent(featureId)}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json", "Accept-Language": locale },
       body: JSON.stringify({ enabled: input.checked }),
@@ -369,7 +370,7 @@ elements.restartButton.addEventListener("click", async () => {
   elements.restartButton.disabled = true;
   elements.restartButton.querySelector(".button-label").textContent = copy.restarting;
   try {
-    const response = await fetch("/api/restart", {
+    const response = await dashboardFetch("/api/restart", {
       method: "POST",
       headers: { "Content-Type": "application/json", "Accept-Language": locale },
       body: "{}",
@@ -404,7 +405,7 @@ elements.updateButton.addEventListener("click", async () => {
   elements.updateButton.querySelector(".button-label").textContent = copy.checkingUpdates;
   elements.updateResult.hidden = true;
   try {
-    const response = await fetch("/api/update");
+    const response = await dashboardFetch("/api/update");
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const update = await response.json();
     elements.updateResult.textContent = update.available ? copy.updateAvailable(update.latest) : copy.current;
@@ -422,7 +423,8 @@ const systemTheme = matchMedia("(prefers-color-scheme: dark)");
 let selectedTheme = null;
 try { selectedTheme = localStorage.getItem("minecodex-appearance"); } catch { /* 存储不可用时仍允许本次切换。 */ }
 function applyTheme() {
-  const dark = selectedTheme === "dark" || (selectedTheme !== "light" && systemTheme.matches);
+  const hostDark = window.minecodexHostTheme ? window.minecodexHostTheme === "dark" : systemTheme.matches;
+  const dark = selectedTheme === "dark" || (selectedTheme !== "light" && hostDark);
   document.documentElement.dataset.theme = dark ? "dark" : "light";
   elements.themeToggle.setAttribute("aria-label", locale === "zh-CN" ? "外观" : "Appearance");
   for (const button of elements.themeButtons) {
@@ -447,6 +449,7 @@ elements.languageToggle.addEventListener("click", (event) => {
   location.reload();
 });
 systemTheme.addEventListener("change", applyTheme);
+window.addEventListener("minecodex-host-theme", applyTheme);
 document.addEventListener("keydown", () => { document.documentElement.dataset.input = "keyboard"; });
 document.addEventListener("pointerdown", () => { document.documentElement.dataset.input = "pointer"; });
 applyStaticCopy();

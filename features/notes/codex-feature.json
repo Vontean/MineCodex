@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "notes",
-  "version": "0.1.11",
+  "version": "0.1.12",
   "label": {
     "en": "Prompt Library",
     "zh-CN": "提示词库"
@@ -19,7 +19,8 @@
       "icons": "src/frontend/icons.json",
       "styles": "src/frontend/styles.css",
       "previews": "assets/prompt-previews.json"
-    }
+    },
+    "sourceFactory": "src/injection-source.mjs"
   },
   "placement": {
     "order": 20

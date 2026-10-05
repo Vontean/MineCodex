@@ -1,4 +1,5 @@
 import { installFeatureTooltips } from './ui-tooltip.js';
+import {dashboardFetch} from '../transport.js';
 const tooltipLifetime = new AbortController();
 const { tooltipSurface } = installFeatureTooltips(tooltipLifetime.signal);
 window.addEventListener('pagehide', event => { if (!event.persisted) tooltipLifetime.abort(); });
@@ -20,7 +21,7 @@ document.querySelector('#data-close').setAttribute('aria-label', t('关闭', 'Cl
 exportButton.querySelector('.button-label').textContent = t('导出', 'Export');
 importButton.querySelector('.button-label').textContent = t('导入', 'Import');
 async function request(url, data) {
-  const response = await fetch(url, data ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) } : {});
+  const response = await dashboardFetch(url, data ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) } : {});
   if (!response.ok) throw new Error(String(response.status));
   return response.json();
 }

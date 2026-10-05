@@ -4,6 +4,34 @@
 
 ## 领域与架构层
 
+### 官方插件入口与增强运行时
+
+```mermaid
+flowchart TB
+  Entry["Codex 原生插件入口<br/>Explore／探索 · 可固定到侧栏"]
+  Panel["MCX 控制台<br/>官方 MCP App"]
+  Bridge["packages/plugin<br/>UI 资源 · MCP 操作桥"]
+  Service["packages/cli<br/>本地配置 · 数据 · 服务管理"]
+  Runtime["Runtime Host<br/>CDP · 注入 · 生命周期"]
+  Features["features/*<br/>现有增强与交互"]
+  Prompt["Prompt · 官方 MCP App<br/>独立图标"]
+  Notes["MCX notes 服务<br/>原有 SQLite · 分类 · 统计"]
+  Composer["输入框注入<br/>首页 · 聊天 · 面板 · 浮窗"]
+  Entry --> Panel --> Bridge --> Service --> Runtime --> Features
+  Entry --> Prompt --> Bridge --> Notes
+  Runtime --> Composer
+  Prompt -->|来源窗口绑定 · 填入后计数| Composer
+```
+
+官方插件只负责原生入口、面板资源和通信，不拥有增强进程。关闭面板或退出 MCP
+进程不停止本地服务；模型滑杆、阅读、提示词等保留现有注入链路与原生交互。
+`packages/plugin` 通过受限的 MCP 工具调用 CLI 控制服务，不复制业务规则、不把
+控制令牌送给 Renderer，也不放宽现有 HTTP Origin、Cookie 或鉴权要求。
+控制台共用一套源码，浏览器经同源 HTTP，官方面板经 MCP Apps bridge。
+`global` 注册主导航入口，具体固定与收纳遵循 Codex 的用户导航偏好。
+
+### 现有增强领域与架构层
+
 ```mermaid
 flowchart TB
   Host["Runtime Host<br/>发现、注入、CDP、可信消息、生命周期"]

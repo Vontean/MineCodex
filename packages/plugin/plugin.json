@@ -1,0 +1,16 @@
+{
+  "name": "minecodex",
+  "version": "0.1.0",
+  "description": "Manage local MineCodex enhancements without changing their runtime.",
+  "author": { "name": "Vontean" },
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "MineCodex",
+    "shortDescription": "Manage your local Codex enhancements",
+    "developerName": "Vontean",
+    "category": "Developer Tools",
+    "capabilities": ["Interactive", "Read", "Write"],
+    "logo": "./assets/icon.svg",
+    "composerIcon": "./assets/icon.svg"
+  }
+}

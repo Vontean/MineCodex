@@ -79,3 +79,21 @@ test('session surface survives pending input and editor replacement, but clears 
   visible=true;placement='home';assert.equal(adapter.composerSurface(root),null);
   placement='thread';root.isConnected=false;assert.equal(adapter.composerSurface(root),null);
 });
+
+test('MCP source validates resource ownership through direct and sandbox proxy frames',()=>{
+  const previous=globalThis.document;
+  const top={};top.parent=top;
+  const proxy={parent:top}, resource={parent:proxy}, unrelated={parent:top};
+  const view={server:'minecodex',resourceUri:'ui://minecodex/prompts.html'};
+  const frame={contentWindow:proxy,isConnected:true,__reactFiberFixture:{memoizedProps:{view}}};
+  globalThis.document={querySelectorAll:()=>[frame]};
+  try {
+    const codex=createCodexEnvironment();
+    const expected={server:'minecodex',pluginId:'minecodex@minecodex-local',resourceUri:'ui://minecodex/prompts.html'};
+    assert.ok(codex.mcpAppSource(resource,expected));assert.ok(codex.mcpAppSource(proxy,expected));
+    assert.equal(codex.mcpAppSource(unrelated,expected),null);
+    view.resourceUri='ui://minecodex/control-panel.html';assert.equal(codex.mcpAppSource(resource,expected),null);
+    view.resourceUri=expected.resourceUri;view.server='other';assert.equal(codex.mcpAppSource(resource,expected),null);
+    view.pluginId=expected.pluginId;assert.ok(codex.mcpAppSource(resource,expected));
+  } finally {globalThis.document=previous;}
+});

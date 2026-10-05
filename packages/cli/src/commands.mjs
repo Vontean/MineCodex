@@ -85,6 +85,7 @@ Commands:
   mcx uninstall [--purge]  Remove integration; preserve data unless --purge is used
   mcx update               Update to the latest stable npm release
   mcx open                 Open the MineCodex plugin control panel
+  mcx plugin install       Register the official Codex plugin entry
   mcx status [--json]      Show installation and plugin status
   mcx restart              Restart Codex and apply saved plugin switches
   mcx --version             Print the installed version
@@ -447,6 +448,15 @@ export async function runCli(argv, {
   const [command = "--help", ...args] = argv;
   if (["--help", "-h", "help"].includes(command)) return printHelp(output);
   if (["--version", "-v"].includes(command)) return output(packageMetadata.version);
+  if (command === "plugin" && args[0] === "serve") {
+    const { servePlugin } = await import("../../plugin/src/server.mjs");
+    return servePlugin({ paths });
+  }
+  if (command === "plugin" && args[0] === "install") {
+    const { installPlugin } = await import("../../plugin/src/install.mjs");
+    await installPlugin({ paths });
+    return output("MineCodex plugin installed. Open Explore in Codex to find MineCodex.");
+  }
   if (command === "install") return installCommand({ paths, platform, cliPath, output, serviceProbe, fetchImpl, confirmRestart, nodeVersion });
   if (command === "open" || command === "gui") return openCommand({ paths, platform, output, serviceProbe, fetchImpl });
   if (command === "status") return statusCommand({ paths, platform, jsonOutput: args.includes("--json"), output, fetchImpl });

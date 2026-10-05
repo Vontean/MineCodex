@@ -65,12 +65,41 @@ export function createCodexEnvironment() {
     const group = [...(scroll?.children ?? [])].find(child => child !== ownGroup && child.classList.contains('flex-col') && child.classList.contains('shrink-0'));
     return node && template && scroll ? { rail:node, template, scroll, group } : null;
   }
+  // 导航与 MCP iframe 身份在 Adapter 内解释，功能不接触 React props。
+  function navigation() {
+    const scope = props(rail(), value => Boolean((value.router ?? value.value?.router)?.navigate));
+    const router = scope?.router ?? scope?.value?.router;
+    if (!router?.subscribe) return null;
+    const read = () => {
+      const location = router.state.location;
+      return {path:location.pathname + (location.search ?? "") + (location.hash ?? ""), key:location.key};
+    };
+    return {location:read, navigate:path => router.navigate(path, {replace:true}),
+      subscribe:callback => router.subscribe(state => {
+        if (!state.navigation?.state || state.navigation.state === "idle") callback(read());
+      })};
+  }
+  function mcpAppSource(sourceWindow, {server, pluginId, resourceUri}) {
+    for (const frame of document.querySelectorAll('[data-mcp-extension-surface] iframe')) {
+      let source = sourceWindow, matches = false;
+      // 官方 sandbox proxy 包含资源 iframe；WindowProxy.parent 可跨源读取。
+      for (let depth = 0; source && depth < 4; depth++) {
+        if (source === frame.contentWindow) {matches = true;break;}
+        try {if (source.parent === source) break; source = source.parent;} catch {break;}
+      }
+      if (!matches) continue;
+      const view = props(frame, value => value.view?.resourceUri != null)?.view;
+      if (view?.resourceUri === resourceUri && (view.server === server || view.pluginId === pluginId))
+        return {connected:() => frame.isConnected};
+    }
+    return null;
+  }
   function route() {
     const node = rail();
     const scope = node && props(node, value => Boolean((value.router ?? value.value?.router)?.state?.location));
     return (scope?.router ?? scope?.value?.router)?.state?.location?.pathname ?? null;
   }
-  return { composer, composerSurface, rail, railSlot, route, currentThreadId:element => composer(element)?.threadId ?? null,
+  return { composer, composerSurface, rail, railSlot, route, navigation, mcpAppSource, currentThreadId:element => composer(element)?.threadId ?? null,
     // 仅供 UI／插件 native Adapter 使用，交互层不读取 React props。
     currentFiber, props, report, diagnostics:() => [...capabilities.values()].map(item => ({...item})) };
 }

@@ -1,6 +1,4 @@
-import { execFile as execFileCallback } from "node:child_process";
-import { promisify } from "node:util";
-import { fileURLToPath } from "node:url";
+import { assertPromptsRequest } from "../../../features/notes/src/adapters/codex/requests.mjs";
 import { LocalImageSource } from "../../../features/images/src/backend/local-image-source.mjs";
 import { cloudImagesAction } from "../../../features/images/src/backend/cloud-library.mjs";
 // CodexRuntime：Codex Renderer 生命周期与 host action 执行。
@@ -81,9 +79,7 @@ export class CodexRuntime {
     onStatusChange = null,
     sitesService = null,
     onManagedCodexPidChange = null,
-    openControlPanel = () => promisify(execFileCallback)(process.execPath, [fileURLToPath(new URL("../../cli/bin/mcx.mjs", import.meta.url)), "gui"], { timeout:20_000 }),
   }) {
-    this.openControlPanel = openControlPanel;
     this.features = features;
     this.sitesService = sitesService ?? (features.some(feature => feature.id === "sites") ? new SitesService() : null);
     this.localImageSource = features.some(feature => feature.id === "images") ? new LocalImageSource({dataDir:path.join(profileDir,"minecodex-image-gen")}) : null;
@@ -539,11 +535,6 @@ export class CodexRuntime {
       return;
     }
     if (request.token !== this.bindingTokens.get(targetId) || typeof request.requestId !== "string") return;
-    if (request.featureId === "minecodex" && request.action === "open-control-panel") {
-      try { await this.openControlPanel(); await this.resolveHostAction(client, request.requestId, {ok:true,result:{opened:true}}); }
-      catch (error) { await this.resolveHostAction(client, request.requestId, {ok:false,error:{code:"CONTROL_PANEL_FAILED",message:error.stderr?.trim() || error.message}}); }
-      return;
-    }
     const feature = this.features.find((candidate) => candidate.id === request.featureId);
     if (feature?.id === "session-status" && request.action === "refresh-session-status") {
       if (this.sessionStatusReader && this.clients.get(targetId) === client && !this.stopping) {
@@ -601,13 +592,9 @@ export class CodexRuntime {
     if (feature.id === "notes" && request.action === "quick-prompts") {
       try {
         const { route, method = "GET", body } = request.payload ?? {};
-        const allowed = (route === "/api/state" && method === "GET")
-          || (["/api/prompts", "/api/categories", "/api/reorder"].includes(route) && method === "POST")
-          || (/^\/api\/categories\/[a-zA-Z0-9-]+$/.test(route) && ["PATCH", "DELETE"].includes(method))
-          || (/^\/api\/prompts\/[a-zA-Z0-9-]+$/.test(route) && ["PATCH", "DELETE"].includes(method))
-          || (/^\/api\/prompts\/[a-zA-Z0-9-]+\/use$/.test(route) && method === "POST");
+        assertPromptsRequest(route, method);
         const origin = pageScriptServiceOrigin(feature);
-        if (!allowed || !origin) throw new Error("Prompt request is not allowed");
+        if (!origin) throw new Error("Prompt request is not allowed");
         const response = await this.fetchImpl(new URL(route, origin), {
           method, headers: { "Content-Type": "application/json", Origin: CODEX_APP_ORIGIN },
           body: body === undefined ? undefined : JSON.stringify(body),
