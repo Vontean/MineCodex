@@ -38,7 +38,7 @@ export async function loadNativeMarkdownRichText(native) {
   return { ...native, CodeSnippet: sharedBinding(codeName), katex };
 }
 
-export function installMarkdownRichText(view, api, native, codex) {
+export function installMarkdownRichText(view, api, native, codex, wrapState) {
   const { Decoration, StateField, StateEffect, Compartment, WidgetType, Prec } = api;
   const {
     React,
@@ -55,8 +55,7 @@ export function installMarkdownRichText(view, api, native, codex) {
   } = native;
   const h = React.createElement,
     roots = new Set(),
-    footnoteReturns = new Map(),
-    codeStates = new Map();
+    footnoteReturns = new Map();
   const withProviders = captureMarkdownProviders(view.dom, codex);
   const mount = (element, tree) => {
     const root = ReactDOM.createRoot(element);
@@ -64,11 +63,9 @@ export function installMarkdownRichText(view, api, native, codex) {
     root.render(withProviders(React, tree));
     return root;
   };
-  function Code({ content, language, id }) {
-    const [wrap, setWrap] = React.useState(
-        () => (codeStates.get(id)?.source === content && codeStates.get(id).wrap) || false,
-      ),
-      [overflow, setOverflow] = React.useState(false),
+  function Code({ content, language }) {
+    const wrap = React.useSyncExternalStore(wrapState.subscribe, wrapState.get);
+    const [overflow, setOverflow] = React.useState(false),
       ref = React.useRef(null);
     React.useLayoutEffect(() => {
       const element = ref.current?.querySelector('code')?.parentElement;
@@ -84,7 +81,9 @@ export function installMarkdownRichText(view, api, native, codex) {
       check();
       return () => observer.disconnect();
     }, [wrap, content]);
-    const label = wrap ? '关闭代码换行' : '开启代码换行';
+    const label = document.documentElement.lang.startsWith('zh')
+      ? wrap ? '关闭文档换行' : '开启文档换行'
+      : wrap ? 'Disable document word wrap' : 'Enable document word wrap';
     return h(
       'div',
       { ref, className: 'mcx-reading-code-block group/app-widget' },
@@ -112,10 +111,7 @@ export function installMarkdownRichText(view, api, native, codex) {
                   color: 'blockAction',
                   radius: 'full',
                   size: 'inputIcon',
-                  onClick: () => {
-                    codeStates.set(id, { source: content, wrap: !wrap });
-                    setWrap(!wrap);
-                  },
+                  onClick: () => wrapState.toggle(),
                 },
                 h(wrap ? wrapIcons.disable : wrapIcons.enable),
               ),
@@ -159,7 +155,7 @@ export function installMarkdownRichText(view, api, native, codex) {
       else if (this.kind === 'code')
         element._mcxRoot = mount(
           element,
-          h(Code, { content: this.source, language: this.options.language, id: this.options.from }),
+          h(Code, { content: this.source, language: this.options.language }),
         );
       else if (this.kind === 'math')
         element.innerHTML = katex.renderToString(this.source, {

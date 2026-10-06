@@ -6,6 +6,23 @@ import { installMarkdownToc } from './toc.mjs';
 import { loadNativeMarkdownTableActions, installMarkdownTableActions } from './table-actions.mjs';
 import { loadNativeMarkdownRichText, installMarkdownRichText } from './rich-text.mjs';
 
+// 每个 Preview 共用换行状态，虚拟滚动重挂载的块也读取当前值。
+export function createMarkdownWrapState() {
+  let enabled = false;
+  const listeners = new Set();
+  return {
+    get: () => enabled,
+    toggle() {
+      enabled = !enabled;
+      for (const listener of listeners) listener();
+    },
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+  };
+}
+
 // 原生能力加载与会话寿命归 Adapter；入口只持有检查结果和释放动作。
 export function createMarkdownReadingRuntime(
   codex,
@@ -37,6 +54,7 @@ export function createMarkdownReadingRuntime(
   }
   function attach({ editor, content, scroller }) {
     const view = content.cmTile?.view;
+    const wrapState = createMarkdownWrapState();
     const states = new Map([
       ['markdown-reading-layout', 'loading'],
       ['markdown-reading-links', 'loading'],
@@ -71,7 +89,7 @@ export function createMarkdownReadingRuntime(
       await stage('markdown-reading-rich-text', 'native-rich-text-unavailable', async () => {
         const rich = await load('loadNativeMarkdownRichText', actions);
         if (!current()) return;
-        cleanups.push(capabilities.installMarkdownRichText(view, api, rich, codex));
+        cleanups.push(capabilities.installMarkdownRichText(view, api, rich, codex, wrapState));
         report('markdown-reading-rich-text', true);
       });
     }
@@ -102,7 +120,7 @@ export function createMarkdownReadingRuntime(
         const api = await capabilities.loadMarkdownListAPI(view);
         if (!current()) return;
         cleanups.push(capabilities.installMarkdownLists(view, api));
-        const tables = capabilities.installMarkdownTables(view, api);
+        const tables = capabilities.installMarkdownTables(view, api, wrapState);
         cleanups.push(tables);
         report('markdown-reading-layout', true);
         await Promise.all([installLinks(api), installToc(api, tables)]);

@@ -3,6 +3,7 @@ import { collectMarkdownFootnotes } from './domain/footnotes.mjs';
 import { captureMarkdownProviders } from './adapters/codex/providers.mjs';
 import {
   createMarkdownReadingRuntime,
+  createMarkdownWrapState,
   installMarkdownMetadataScroll,
 } from './adapters/codex/reading-runtime.mjs';
 import { loadNativeMarkdownRichText, installMarkdownRichText } from './adapters/codex/rich-text.mjs';
@@ -23,6 +24,7 @@ export async function createPageScriptSource() {
     collectMarkdownFootnotes,
     captureMarkdownProviders,
     createMarkdownReadingRuntime,
+    createMarkdownWrapState,
     createMarkdownPreviewAdapter,
     installMarkdownMetadataScroll,
     loadMarkdownListAPI,

@@ -1,5 +1,5 @@
 // 保留原生逐行表格及选区；每张表的行共享横向位置，不移动正文节点。
-export function installMarkdownTables(view, api) {
+export function installMarkdownTables(view, api, wrapState) {
   const { Decoration, ViewPlugin, StateEffect, Compartment, WidgetType } = api;
   class EmptyCell extends WidgetType {
     eq() {
@@ -82,7 +82,6 @@ export function installMarkdownTables(view, api) {
   view.dom.append(layoutStyle);
   let measuredDoc = null;
   const tables = new Map();
-  const fitted = new Set();
   let hovered = null;
   function inline(state, node, target) {
     let cursor = node.from;
@@ -155,9 +154,9 @@ export function installMarkdownTables(view, api) {
     const inset = (scroller.clientWidth - available) / 2;
     const breakout = Math.max(0, parseFloat(padding.paddingLeft) - inset);
     for (const [id, table] of tables) {
-      table.style.inlineSize = fitted.has(id) ? '100%' : 'max-content';
+      table.style.inlineSize = wrapState.get() ? '100%' : 'max-content';
       for (const cell of table.querySelectorAll('td,th'))
-        cell.style.overflowWrap = fitted.has(id) ? 'anywhere' : 'break-word';
+        cell.style.overflowWrap = wrapState.get() ? 'anywhere' : 'break-word';
     }
     const widths = new Map(
       [...tables].map(([id, table]) => [
@@ -173,7 +172,7 @@ export function installMarkdownTables(view, api) {
       );
       columns.forEach((width, index) =>
         rules.push(
-          `${selector} > .cm-markdown-table-cell:nth-child(${index + 1} of .cm-markdown-table-cell){width:${width}px;overflow-wrap:${fitted.has(id) ? 'anywhere' : 'break-word'}}`,
+          `${selector} > .cm-markdown-table-cell:nth-child(${index + 1} of .cm-markdown-table-cell){width:${width}px;overflow-wrap:${wrapState.get() ? 'anywhere' : 'break-word'}}`,
         ),
       );
     }
@@ -322,7 +321,7 @@ export function installMarkdownTables(view, api) {
         const headerInset = parseFloat(getComputedStyle(rows[0]).paddingTop);
         items.push({
           id,
-          fit: fitted.has(id),
+          fit: wrapState.get(),
           overflow: (scrollLimits.get(id) ?? 0) > 0,
           visible: hovered === id,
           left: (first.left - frameRect.left) / scale,
@@ -435,7 +434,6 @@ export function installMarkdownTables(view, api) {
       update(update) {
         if (update.docChanged) {
           offsets.clear();
-          fitted.clear();
           geometryRows = [];
         }
         if (update.docChanged || update.startState.tree !== update.state.tree) measuredDoc = null;
@@ -456,16 +454,16 @@ export function installMarkdownTables(view, api) {
   const controller = {
     schedule,
     renderActions: null,
-    toggle(id) {
-      if (fitted.has(id)) fitted.delete(id);
-      else fitted.add(id);
-      offsets.delete(id);
-      schedule();
-      view.requestMeasure();
-    },
+    toggle: () => wrapState.toggle(),
   };
+  const unsubscribeWrap = wrapState.subscribe(() => {
+    offsets.clear();
+    schedule();
+    view.requestMeasure();
+  });
   schedule();
   const dispose = () => {
+    unsubscribeWrap();
     view.dom.removeEventListener('pointerover', onHover);
     view.dom.removeEventListener('pointerout', onHover);
     view.dom.removeEventListener('focusin', schedule);

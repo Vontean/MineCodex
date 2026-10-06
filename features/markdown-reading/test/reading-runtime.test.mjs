@@ -1,6 +1,55 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createMarkdownReadingRuntime } from '../src/adapters/codex/reading-runtime.mjs';
+import { createMarkdownReadingRuntime, createMarkdownWrapState } from '../src/adapters/codex/reading-runtime.mjs';
+
+test('wrap subscribers share both toggle directions, late mounts read current state, and cleanup detaches', () => {
+  for (const create of [createMarkdownWrapState, new Function(`return (${createMarkdownWrapState.toString()})()`)]) {
+    const state = create(), seen = [];
+    const unsubscribe = state.subscribe(() => seen.push(state.get()));
+    assert.equal(state.get(), false);
+    state.toggle();
+    assert.equal(state.get(), true);
+    const late = [];
+    const removeLate = state.subscribe(() => late.push(state.get()));
+    state.toggle();
+    assert.deepEqual(seen, [true, false]);
+    assert.deepEqual(late, [false]);
+    unsubscribe();
+    removeLate();
+    state.toggle();
+    assert.deepEqual(seen, [true, false]);
+  }
+});
+
+test('tables and code share one preview state while other previews remain independent', async () => {
+  const tableStates = new Map(), codeStates = new Map(), observed = [];
+  const f = fixture({
+    installMarkdownTables(view, api, state) {
+      tableStates.set(view, state);
+      // 富文本模块尚未接入时，表格操作也能设置文档状态。
+      state.toggle();
+      const cleanup = () => {};
+      cleanup.controller = { toggle: () => state.toggle() };
+      return cleanup;
+    },
+    installMarkdownRichText(view, api, native, codex, state) {
+      codeStates.set(view, state);
+      observed.push(state.get());
+      return () => {};
+    },
+  });
+  const a = f.attach(), b = f.attach();
+  await Promise.all([a.session.ready, b.session.ready]);
+  assert.equal(tableStates.get(a.view), codeStates.get(a.view));
+  assert.equal(tableStates.get(b.view), codeStates.get(b.view));
+  assert.notEqual(tableStates.get(a.view), tableStates.get(b.view));
+  assert.deepEqual(observed, [true, true]);
+  codeStates.get(a.view).toggle();
+  assert.equal(tableStates.get(a.view).get(), false);
+  assert.equal(tableStates.get(b.view).get(), true);
+  a.session.dispose();
+  b.session.dispose();
+});
 
 function deferred() {
   let resolve, reject;

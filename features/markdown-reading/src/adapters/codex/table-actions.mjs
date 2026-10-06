@@ -136,11 +136,11 @@ export function installMarkdownTableActions(view, native, codex, controller) {
     const tokens = React.useMemo(() => (open ? lexer(item.source, undefined) : []), [open, item.source]);
     const wrap = chinese
       ? item.fit
-        ? '恢复自然列宽'
-        : '适配宽度并换行'
+        ? '关闭文档换行'
+        : '开启文档换行'
       : item.fit
-        ? 'Use natural table width'
-        : 'Fit table width and wrap';
+        ? 'Disable document word wrap'
+        : 'Enable document word wrap';
     const copy = chinese ? '复制表格' : 'Copy table';
     const expand = chinese ? '展开表格' : 'Expand table';
     const preview = chinese ? '表格预览' : 'Table preview';
@@ -186,7 +186,7 @@ export function installMarkdownTableActions(view, native, codex, controller) {
                     color: 'blockAction',
                     radius: 'full',
                     size: 'inputIcon',
-                    onClick: () => controller.toggle(item.id),
+                    onClick: () => controller.toggle(),
                   },
                   h(item.fit ? wrapIcons.disable : wrapIcons.enable),
                 ),

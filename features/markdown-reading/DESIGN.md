@@ -110,7 +110,7 @@ Preview 使用其所属原生 CodeMirror 的 ViewPlugin / Decoration / Compartme
 
 复用 Codex 26.930.21537 Chat Markdown 的公开 `data-block-actions` React 组件、CopyButton、Button (`color=blockAction` / `radius=full` / `size=inputIcon`)、Tooltip 和消息流 CodeSnippet 原生换行／取消换行图标。Adapter 通过源码语义角色与公开 export 接入，不绑定构建 hash；继承当前 React context。操作栏在表格 hover / focus 内可达，窄面板不越过本面板边缘；操作栏放在表头上方，表头预留 16px 间距，避免遮住适配后的最后一列标题；透明指针桥仅覆盖操作栏及表头顶部留白，让鼠标可连续移入按钮，不拦截正文选区。操作栏和滚动条挂载在原生 cm-scroller 内、cm-content 外，按文档坐标定位，随正文由浏览器同步滚动；不逐帧追随视口坐标，不吸附到视口顶部。纯滚动复用已有列宽与滚动范围，节点、内容或布局变化时才重新测量。操作控件用于本功能表格与代码块，保留 Chat 和 Mermaid 的原生动作。
 
-“复制表格”复制本表 Markdown 源码，由原生 CopyButton 显示反馈。“适配宽度并换行”是每张表的独立 Preview 状态：默认自然列宽；开启后隐藏测量 table 切换为 100% 宽度的原生 auto 布局，单元格 overflow-wrap:anywhere，按内容分配列宽并增长行高；关闭恢复自然宽度。能够适配时移除横向滚动条和渐消；列数过多导致最小单元格尺寸仍超宽时继续提供横向浏览。状态不写入 Markdown，不影响其他表；Source 切换或关闭 Preview 后恢复默认状态。
+“复制表格”复制本表 Markdown 源码，由原生 CopyButton 显示反馈。“开启／关闭文档换行”是当前 Preview 文档中所有表格与普通代码块共用的状态：默认关闭、表格使用自然列宽；开启后隐藏测量 table 切换为 100% 宽度的原生 auto 布局，单元格 overflow-wrap:anywhere，按内容分配列宽并增长行高；关闭恢复自然宽度。能够适配时移除横向滚动条和渐消；列数过多导致最小单元格尺寸仍超宽时继续提供横向浏览。状态不写入 Markdown，不影响其他文档；Source 切换或关闭 Preview 后恢复默认状态。
 
 表格按钮顺序固定为“换行（适用时）→ 复制 → 扩展”。扩展始终提供，不依赖宽度溢出或换行状态。点击复用消息流表格的原生全屏预览 Dialog、Table 组件、Markdown lexer / renderer、滚动容器与扩展图标，不重建正文编辑器。全屏内容来自当前表格 Markdown 源码；保留原生预览的遮罩、关闭按钮、Escape 与主题样式，关闭后焦点返回触发按钮。功能卸载同时释放 Dialog portal 及其页面锁定。
 
@@ -128,7 +128,7 @@ TOC 的纵向中心以整个 File Panel（包含文件 Toolbar）的边界计算
 
 各表格行使用 overflow-x:hidden 禁止浏览器对单行独立横向滚动或弹性回弹；横向输入由表级共享偏移处理。无真实溢出（含不超过 1px 的取整误差）时统一偏移为零，面板变宽或切换适配模式时同时清除旧偏移。原生底部滚动条仍是唯一可直接操作的横向滚动容器。
 
-表格换行按钮复用消息流 CodeSnippet 的 Enable/Disable word wrap 原生图标组件：点击改变表格布局，同时切换为相反操作的图标；不显示持续选中底色。自然列宽无溢出时只显示复制按钮；已开启适配换行时保留取消操作，避免无法切回。
+表格换行按钮复用消息流 CodeSnippet 的 Enable/Disable word wrap 原生图标组件：点击同步切换当前文档全部表格与普通代码块的换行状态，同时切换所有已显示按钮为相反操作的图标；不显示持续选中底色。自然列宽无溢出时只显示复制按钮；已开启适配换行时保留取消操作，避免无法切回。
 
 ### 链接渲染补全
 
@@ -152,3 +152,7 @@ TOC 的纵向中心以整个 File Panel（包含文件 Toolbar）的边界计算
 脚注引用按钮显式使用 `line-height:1`，避免继承上标的零行高而失去点击区域。同名脚注沿用最后一条定义，所有定义区间都排除引用扫描，早期定义在 Preview 隐藏。返回位置保存原生 CodeMirror `scrollSnapshot()`，恢复文档锚点及视口偏移，不保存会受虚拟段落重新测量影响的裸 `scrollTop`。
 
 代码与 HTML 块 widget 的纵向留白使用 padding，分别保持 16px 与 1em；不使用原生高度模型无法计入的外部 margin。原生 Source 在本版本采用带 Shadow DOM 的 `diffs-container`，不再以 `.cm-content` 作为 Source 验收入口；Source 内容与磁盘源码、Preview 文档分别核对。隔离交互验收保持窗口可见，隐藏窗口中的 requestAnimationFrame 暂停不能作为导航失效证据。
+
+## 文档换行状态
+
+每个 Preview 会话拥有一个换行状态，由 `reading-runtime.mjs` 创建并传给表格与富文本 Adapter。点击任意表格或普通代码块的按钮，统一切换当前文档所有支持此逻辑的块；按钮提示为“开启／关闭文档换行”。虚拟滚动、块重挂载及异步加载沿用当前状态，不按块位置或内容分别保存。其他文档独立；关闭 Preview 后释放订阅，不写入文件或全局偏好。math / mermaid 保留原生能力。
