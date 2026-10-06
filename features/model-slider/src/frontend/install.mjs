@@ -1331,18 +1331,14 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
     particles.setAttribute("aria-hidden", "true");
     particles.setAttribute("data-animation-active", "true");
     const travelDuration = 1.9;
-    const stagger = travelDuration / 14;
     const valueMax = Number(rail.getAttribute("aria-valuemax") ?? 0);
     const valueNow = Number(rail.getAttribute("aria-valuenow") ?? 0);
-    const initialStartPercent = valueMax > 0 ? (valueNow / valueMax) * 100 : 0;
-    const remainingTravel = 1 - Math.min(Math.max(initialStartPercent, 0), 100) / 100;
     particles.append(...Array.from({ length: 14 }, (_, index) => {
-      const speed = 1 + (nativeParticleSeed(index, 21) - 0.5) * 0.4;
-      const duration = travelDuration / speed;
       const path = document.createElement("span");
       path.className = pathClass;
-      path.style.animationDelay = `${index * stagger - duration * remainingTravel}s`;
-      path.style.animationDuration = `${duration}s`;
+      // 等速、等间距铺满完整路径；档位只裁剪可见范围，不压缩运动或聚集粒子。
+      path.style.animationDelay = `${-((index + 0.5) / 14) * travelDuration}s`;
+      path.style.animationDuration = `${travelDuration}s`;
       path.style.top = `${12 + nativeParticleSeed(index, 23) * 76}%`;
       const particle = document.createElement("span");
       particle.className = particleClass;
@@ -1354,6 +1350,8 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
     clip.append(particles);
     const tickRail = Array.from(track.children).find((element) => String(element.className).includes("_TickRail_"));
     track.insertBefore(clip, tickRail ?? null);
+    // 重建粒子层后按当前档位恢复裁剪，避免重开面板时覆盖整条滑轨。
+    setGenericSliderVisual(rail, valueNow, valueMax + 1);
     if (entering) {
       // 首帧沿用关闭 Fast 时的星点，再渐显流动粒子。
       clip.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 240, easing: "ease-out" });
@@ -1381,7 +1379,6 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
     rail.setAttribute("data-fast-mode", String(enabled));
     rail.setAttribute("data-fast-mode-dot-transition", animate ? (enabled ? "entering" : "exiting") : (enabled ? "active" : "inactive"));
     syncNativeFastParticles(rail, enabled, animate && enabled);
-    setGenericSliderVisual(rail, Number(rail.getAttribute("aria-valuenow") ?? 0), Number(rail.getAttribute("aria-valuemax") ?? 0) + 1);
     if (animate && enabled) {
       shell.setAttribute("data-codex-model-slider-fast-transitioning", "");
       setTimeout(() => {

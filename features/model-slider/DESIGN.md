@@ -27,6 +27,7 @@ Composer 触发器区分两种状态：占位态（"Select model" / "Select effo
 - Slider 与模型列表切换沿用 Codex 26.930.21537 的动效节奏：底边锚定，高度 320ms（`cubic-bezier(.19,1,.22,1)`）；列表内容 200ms 淡变与 10px 位移（`cubic-bezier(.23,1,.32,1)`），进入延迟 40ms。返回时收缩并淡出，Escape 先返回 Slider；减少动态效果时立即切换。切换与卸载会取消旧动画和清理定时器，不改原生 React 节点。
 - OCX 自动发现的 GPT 路由若与原生模型同名且没有独立推理档位，列表只显示原生项；当前已选中的路由仍显示，避免失去切换入口。有独立档位的 Provider 路由继续显示并标注 Provider。
 - Slider 预览档位时同步 effort 标签与 Fast 控件的 Ultra 状态；离开 Ultra 后立即恢复普通档位颜色。
+- Fast 粒子沿完整滑轨等速、等间距运动；档位只裁剪可见范围，不改变运动周期或将粒子压缩到填充区域。首次开启、重开面板与拖动预览遵循同一规则。
 
 ## 5. Layout Principles
 
