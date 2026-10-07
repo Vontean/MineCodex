@@ -109,15 +109,15 @@ export function sessionStatusSnapshot(state, threadId) {
   const turnSpeeds = new Map();
   for (const sample of state.speedMeasurements) {
     const elapsed = sample.end - sample.start - boundedToolWaitMs(sample.tools, sample.start, sample.end, sample.outputs);
-    if (!sample.turnId || elapsed <= 0 || elapsed >= 600_000) continue;
+    if (!sample.turnId || !Number.isFinite(elapsed) || elapsed <= 0) continue;
     const turn = turnSpeeds.get(sample.turnId) ?? { tokens:0, ms:0, samples:0 };
     turn.tokens += sample.output;
     turn.ms += elapsed;
     turn.samples += 1;
     turnSpeeds.set(sample.turnId, turn);
   }
-  // 按回合顺序取最近三个有效回合；同轮多步合并，无数据的回合不占名额。
-  const recentTurns = [...state.turns].filter(id => turnSpeeds.has(id)).slice(-3);
+  // 按回合顺序取最近五个有效回合；同轮多步合并，无数据的回合不占名额。
+  const recentTurns = [...state.turns].filter(id => turnSpeeds.has(id)).slice(-5);
   for (const id of recentTurns) {
     const turn = turnSpeeds.get(id);
     decodeTokens += turn.tokens;

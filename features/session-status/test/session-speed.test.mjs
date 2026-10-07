@@ -80,18 +80,24 @@ function measuredTurn(state, id, start, output, duration=1000) {
   return apply(state,turnRecord(id,start),item('AgentMessage',start,start+duration),response(start+duration,output,id));
 }
 
-test('latest three valid turns use total tokens over total time and keep all steps in each turn', () => {
+test('latest five valid turns use total tokens over total time and keep all steps in each turn', () => {
   const state=createSessionState();
   measuredTurn(state,'old',1000,9000);
   measuredTurn(state,'one',3000,100);
   apply(state,item('AgentMessage',5000,6000),response(6000,200,'one-extra'));
   measuredTurn(state,'two',7000,300,3000);
-  const snapshot=measuredTurn(state,'three',11000,600);
-  assert.equal(snapshot.observedTps,200); // (100+200+300+600) / (1+1+3+1)
-  assert.equal(snapshot.speedSamples,4);
-  assert.equal(snapshot.observedModelMs,6000);
-  assert.equal(snapshot.turns,4);
-  assert.equal(snapshot.steps,5);
+  measuredTurn(state,'three',11000,600);
+  measuredTurn(state,'four',13000,400);
+  const snapshot=measuredTurn(state,'five',15000,800);
+  assert.equal(snapshot.observedTps,300); // (100+200+300+600+400+800) / (1+1+3+1+1+1)
+  assert.equal(snapshot.speedSamples,6);
+  assert.equal(snapshot.observedModelMs,8000);
+  assert.equal(snapshot.turns,6);
+  assert.equal(snapshot.steps,7);
+  const next=measuredTurn(state,'six',17000,1000);
+  assert.equal(next.observedTps,443); // (300+600+400+800+1000) / (3+1+1+1+1)
+  assert.equal(next.speedSamples,5);
+  assert.equal(next.observedModelMs,7000);
 });
 
 test('empty and invalid turns do not evict valid turns; current turn joins when data arrives', () => {
@@ -100,14 +106,29 @@ test('empty and invalid turns do not evict valid turns; current turn joins when 
   assert.equal(measuredTurn(state,'one',1000,100).observedTps,100);
   assert.equal(measuredTurn(state,'two',3000,300).observedTps,200);
   measuredTurn(state,'three',5000,500);
+  measuredTurn(state,'four',6500,200);
+  measuredTurn(state,'five',8000,400);
   apply(state,turnRecord('empty'),response(7000,500,'no-timing'));
-  measuredTurn(state,'invalid',8000,9000,600_000);
+  measuredTurn(state,'invalid',10000,9000,0);
   applySessionStatusEvent(state,{kind:'turn-started',id:'current'});
   assert.equal(sessionStatusSnapshot(state,'thread').observedTps,300);
-  const snapshot=apply(state,item('AgentMessage',610000,611000),response(611000,700,'current-response'));
-  assert.equal(snapshot.observedTps,500);
-  assert.equal(snapshot.speedSamples,3);
+  const snapshot=apply(state,item('AgentMessage',612000,613000),response(613000,700,'current-response'));
+  assert.equal(snapshot.observedTps,420);
+  assert.equal(snapshot.speedSamples,5);
   assert.equal(snapshot.isRunning,true);
+});
+
+test('complete long responses stay in the window instead of biasing TPS toward faster samples', () => {
+  const state=createSessionState();
+  measuredTurn(state,'one',1000,100);
+  measuredTurn(state,'two',3000,100);
+  measuredTurn(state,'three',5000,100);
+  measuredTurn(state,'four',7000,100);
+  measuredTurn(state,'five',9000,100);
+  const snapshot=measuredTurn(state,'slow',11000,9000,600_000);
+  assert.equal(snapshot.speedSamples,5);
+  assert.equal(snapshot.observedModelMs,604000);
+  assert.equal(snapshot.observedTps,16); // (4*100+9000) / (4+600)
 });
 
 test('unknown turn timing is excluded and turn context changes cannot carry pending output', () => {

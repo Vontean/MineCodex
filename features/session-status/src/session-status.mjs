@@ -7,14 +7,14 @@ const copyByLocale = { "zh-CN": {
   firstToken: "平均首字延迟", input: "输入", cached: "缓存输入", output: "输出",
   sum: "合计", capacity: "窗口容量", contextShare: "上下文占用", compactions: "压缩次数",
   instructions: "指令", messages: "消息", toolHistory: "工具交互", other: "未分类",
-  speedHelp: "关于 TPS", speedInfo: "GPT 等模型不公开完整思考过程及逐 Token 生成时间。TPS 取最近 3 个有有效数据的回合，不足 3 轮时按已有数据计算。它是基于可观测事件估算的体感响应速度，仅供参考，不代表模型真实的 Token 生成速度。",
+  speedHelp: "关于 TPS", speedInfo: "GPT 等模型不公开完整思考过程及逐 Token 生成时间。TPS 取最近 5 个有有效数据的回合，不足 5 轮时按已有数据计算。它是基于可观测事件估算的体感响应速度，仅供参考，不代表模型真实的 Token 生成速度。",
 }, en: {
   turns: "turns", steps: "steps", speed: "TPS", cache: "Cache", cacheDetail: "Cache hit",
   statistics: "Session stats", usage: "Token usage", context: "Context", total: "Total",
   firstToken: "Avg first token", input: "Input", cached: "Cached input", output: "Output",
   sum: "Sum", capacity: "Window size", contextShare: "Context used", compactions: "Compactions",
   instructions: "Instructions", messages: "Messages", toolHistory: "Tool activity", other: "Unclassified",
-  speedHelp: "About TPS", speedInfo: "Models such as GPT do not expose their full reasoning process or per-token generation timing. TPS uses the latest 3 turns with valid timing data, or fewer if unavailable. It estimates perceived response speed from observable events, rather than the model’s actual token generation speed.",
+  speedHelp: "About TPS", speedInfo: "Models such as GPT do not expose their full reasoning process or per-token generation timing. TPS uses the latest 5 turns with valid timing data, or fewer if unavailable. It estimates perceived response speed from observable events, rather than the model’s actual token generation speed.",
 } };
 function selectedCopy() {
   const language = document.documentElement.lang || navigator.languages?.[0] || navigator.language || "en";
