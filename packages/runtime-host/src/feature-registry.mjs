@@ -152,7 +152,7 @@ async function normalizeModelSelector(modelSelector, projectDir) {
     throw new Error("modelSelector.icons requires fallback, star, and unstar");
   }
   const strings = {};
-  for (const key of ["star", "unstar"]) {
+  for (const key of new Set(["star", "unstar", ...Object.keys(modelSelector.strings ?? {})])) {
     const localized = normalizeLocalizedText(modelSelector.strings?.[key], `modelSelector.strings.${key}`);
     strings[key] = { value: localized.value, locales: localized.locales };
   }

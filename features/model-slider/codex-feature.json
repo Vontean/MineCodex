@@ -7,8 +7,8 @@
     "zh-CN": "模型窗口"
   },
   "description": {
-    "en": "Switch models and thinking levels, and keep favorites close at hand.",
-    "zh-CN": "快速切换模型和思考强度，收藏常用模型。"
+    "en": "Search and switch models and thinking levels, and keep favorites close at hand.",
+    "zh-CN": "搜索与切换模型和思考强度，收藏常用模型。"
   },
   "entry": {
     "kind": "composer-model-selector"
@@ -28,6 +28,14 @@
       "openai": "OpenAI"
     },
     "strings": {
+      "searchPlaceholder": {
+        "en": "Search model",
+        "zh-CN": "搜索模型"
+      },
+      "noResults": {
+        "en": "No models found",
+        "zh-CN": "未找到模型"
+      },
       "star": {
         "en": "Star {model}",
         "zh-CN": "收藏 {model}"

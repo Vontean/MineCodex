@@ -878,8 +878,8 @@ test("emits a fail-closed native Composer model selector Adapter", () => {
   assert.match(source, /for \(const type of \["mousedown", "pointerup", "mouseup"\]\)/);
   assert.match(source, /function sizeModelMenuViewport\(menu, maxVisibleItems\)/);
   assert.match(source, /const lastVisibleItem = items\[maxVisibleItems - 1\]/);
-  assert.match(source, /const starred = items\.filter/);
-  assert.match(source, /const ordinary = items\.filter/);
+  assert.match(source, /const starred = visible\.filter/);
+  assert.match(source, /const ordinary = visible\.filter/);
   assert.match(
     source,
     /if \(visibleBlockingDialog\(\)\) \{[\s\S]*?closeNativeModelPickerSubmenus\(\);[\s\S]*?return;?[\s\S]*?\}/,
@@ -971,7 +971,7 @@ test("keeps the generic model menu on the Composer controller lifecycle", () => 
 
   assert.match(source, /function openControllerModelMenu\(parentMenu, modelButton, selector\)/);
   assert.match(source, /currentController\.onSelectModel\(raw, reasoningEffort\)/);
-  assert.match(source, /querySelector\('\[data-codex-model-slider-selected\]'\)\s*\?\? menu\.querySelector\('\[role="menuitem"\]'\)/);
+  assert.match(source, /search\.focus\(\{ preventScroll: true \}\)/);
 });
 
 test("hides effortless OCX aliases of native GPT models while retaining distinct routes", async () => {

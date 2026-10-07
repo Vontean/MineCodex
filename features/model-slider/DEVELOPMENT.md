@@ -9,6 +9,7 @@ Codex Composer 原生模型选择器的轻量增强功能。它通过同级
 - 为第三方模型显示厂商图标、格式化模型名和 Provider 副文本；
 - 收藏常用 `provider/model`，保持原目录顺序；
 - 较长的模型列表保持紧凑、可滚动；
+- 模型列表顶部默认聚焦搜索框，按模型名与 Provider 筛选；滚动时搜索框固定，筛选时底边不动、高度平滑变化；
 - 所有模型共用 Slider，动态读取模型支持的思考档位；
 - 同时兼容旧版 reasoning 回调与新版 power selection 控制器契约；
 - 沿用原生面板的间距、重置入口；仅实际支持 Fast 时显示闪电按钮；
@@ -42,4 +43,4 @@ node packages/runtime-host/src/main.mjs
 ```
 
 这是非官方 CDP / DOM Adapter 的功能声明。Codex 私有 DOM 的适配实现统一留在
-`CodexRuntimeHost`。
+对应功能的 `src/adapters/codex/`。

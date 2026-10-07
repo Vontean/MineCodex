@@ -310,6 +310,7 @@ test("normalizes a service-free Composer model selector and its local assets", a
         strings: {
           star: { en: "Star {model}", "zh-CN": "收藏 {model}" },
           unstar: { en: "Unstar {model}", "zh-CN": "取消收藏 {model}" },
+          searchPlaceholder: { en: "Search model", "zh-CN": "搜索模型" },
         },
         icons: {
           fallback: { resource: "icons/fallback.svg" },
@@ -328,7 +329,8 @@ test("normalizes a service-free Composer model selector and its local assets", a
     assert.equal(feature.healthUrl, null);
     assert.equal(feature.modelSelector.maxVisibleItems, 6);
     assert.equal(feature.modelSelector.providerAliases["opencode-go"], "OpenCode Go");
-    assert.equal(feature.modelSelector.strings.searchPlaceholder, undefined);
+    assert.equal(feature.modelSelector.strings.searchPlaceholder.value, "Search model");
+    assert.equal(feature.modelSelector.strings.searchPlaceholder.locales["zh-CN"], "搜索模型");
     assert.equal(feature.modelSelector.brands[0].keywords[0], "deepseek");
     assert.match(feature.modelSelector.brands[0].icon.markup, /data-icon="deepseek"/);
   } finally {

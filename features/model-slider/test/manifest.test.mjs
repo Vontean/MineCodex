@@ -63,13 +63,15 @@ test("ships every configured SVG resource and localized selector copy", async ()
     ...manifest.modelSelector.brands.map((brand) => brand.icon.resource),
   ];
   await Promise.all(resources.map((resource) => access(path.join(root, resource))));
-  assert.equal(manifest.modelSelector.strings.searchPlaceholder, undefined);
+  assert.equal(manifest.modelSelector.strings.searchPlaceholder.en, "Search model");
+  assert.equal(manifest.modelSelector.strings.searchPlaceholder["zh-CN"], "搜索模型");
+  assert.equal(manifest.modelSelector.strings.noResults["zh-CN"], "未找到模型");
   assert.equal(manifest.modelSelector.strings.unstar.en, "Unstar {model}");
 });
 
-test("does not advertise the removed model search feature", () => {
-  assert.doesNotMatch(manifest.description.en, /\bsearch\b/i);
-  assert.doesNotMatch(manifest.description["zh-CN"], /搜索/);
+test("advertises always available model search without the old catalog threshold", () => {
+  assert.match(manifest.description.en, /\bsearch\b/i);
+  assert.match(manifest.description["zh-CN"], /搜索/);
   assert.doesNotMatch(readme, /模型超过 12 个时显示搜索/);
   assert.doesNotMatch(product, /conditional search/i);
 });

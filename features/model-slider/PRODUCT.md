@@ -10,7 +10,7 @@ Codex desktop users who route work through OpenCodex and routinely switch betwee
 
 ## Product Purpose
 
-Enhance Codex's native model picker with provider-aware model identity, favorites, and a compact scrollable list while preserving Codex's real model, reasoning-effort, Fast-mode, warning, and keyboard state. Success means the enhanced picker feels native and makes a large routed catalog faster to scan and operate.
+Enhance Codex's native model picker with provider-aware model identity, favorites, and a compact scrollable list with an always available, initially focused search field. Keep search visible while scrolling and resize filtered results smoothly around the fixed bottom edge. Preserve Codex's real model, reasoning-effort, Fast-mode, warning, and keyboard state. Success means the enhanced picker feels native and makes a large routed catalog faster to scan and operate.
 
 ## Brand Personality
 

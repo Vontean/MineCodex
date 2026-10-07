@@ -31,6 +31,18 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
       z-index: 10;
       padding: 6px;
     }
+    [data-codex-model-slider-search-header] {
+      position: sticky; top: 0; z-index: 1; flex-shrink: 0; padding: 2px 8px 8px;
+      background: var(--mcx-color-surface-elevated-secondary);
+    }
+    [data-codex-model-slider-search] {
+      width: 100%; height: 28px; border: 0; outline: none; padding: 0;
+      background: transparent; color: var(--mcx-color-text-primary);
+      font: inherit; font-size: var(--mcx-text-sm, 13px);
+    }
+    [data-codex-model-slider-search]::placeholder { color: var(--mcx-color-text-tertiary); }
+    [data-codex-model-slider-empty] { padding: 12px 8px; color: var(--mcx-color-text-secondary); font-size: 13px; }
+    [data-codex-model-slider-item][data-codex-model-slider-keyboard] { background: var(--mcx-color-background-primary-ghost-hover); }
     [data-codex-model-slider-menu][data-codex-model-slider-overflow] {
       max-height: var(--codex-model-slider-menu-max-height) !important;
       overflow-y: auto;
@@ -647,7 +659,12 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
     const items = modelMenuItems(menu).filter((item) => item.dataset.codexModelSliderRaw);
     if (!items.length) return;
     const favorites = loadModelFavorites(selector);
-    items.forEach((item) => { item.style.display = ""; });
+    const query = menu.querySelector('[data-codex-model-slider-search]')?.value.trim().toLocaleLowerCase() ?? "";
+    const terms = query.split(/\s+/).filter(Boolean);
+    items.forEach((item) => {
+      const text = `${item.dataset.codexModelSliderRaw} ${item.querySelector('[data-codex-model-slider-copy]')?.textContent ?? ""}`.toLocaleLowerCase();
+      item.style.display = terms.every((term) => text.includes(term)) ? "" : "none";
+    });
     if (!menu.hasAttribute("data-codex-model-slider-controller-menu")) {
       if (!modelSelectorMenuSizeFrames.has(menu)) {
         const frame = requestAnimationFrame(() => {
@@ -658,8 +675,9 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
       }
       return;
     }
-    const starred = items.filter((item) => favorites.has(item.dataset.codexModelSliderRaw));
-    const ordinary = items.filter((item) => !favorites.has(item.dataset.codexModelSliderRaw));
+    const visible = items.filter((item) => item.style.display !== "none");
+    const starred = visible.filter((item) => favorites.has(item.dataset.codexModelSliderRaw));
+    const ordinary = visible.filter((item) => !favorites.has(item.dataset.codexModelSliderRaw));
     const desired = items.slice().sort((a, b) => compareEnhancedModelItems(a, b, favorites));
     const parent = items[0].parentElement;
     if (!parent || !desired.every((item) => item.parentElement === parent)) return;
@@ -673,13 +691,15 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
         divider.setAttribute("data-codex-model-slider-divider", "");
         divider.setAttribute("role", "separator");
       }
-      const firstOrdinary = desired.find((item) => !favorites.has(item.dataset.codexModelSliderRaw));
+      const firstOrdinary = desired.find((item) => item.style.display !== "none" && !favorites.has(item.dataset.codexModelSliderRaw));
       if (firstOrdinary && divider.nextElementSibling !== firstOrdinary) {
         parent.insertBefore(divider, firstOrdinary);
       }
     } else {
       divider?.remove();
     }
+    const empty = menu.querySelector('[data-codex-model-slider-empty]');
+    if (empty) empty.hidden = visible.length > 0;
 
     if (!modelSelectorMenuSizeFrames.has(menu)) {
       const frame = requestAnimationFrame(() => {
@@ -693,7 +713,20 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
   function sizeModelMenuViewport(menu, maxVisibleItems) {
     if (!menu.isConnected) return;
     if (modelSelectorControllerMenu?.menu === menu && modelSelectorControllerMenu.animations?.length) return;
-    const items = modelMenuItems(menu).filter((item) => item.dataset.codexModelSliderRaw);
+    const items = modelMenuItems(menu).filter((item) => item.dataset.codexModelSliderRaw && item.style.display !== "none");
+    if (menu.hasAttribute("data-codex-model-slider-controller-menu")) {
+      const content = menu.querySelector('[data-codex-model-slider-results]');
+      const header = menu.querySelector('[data-codex-model-slider-search-header]');
+      const style = getComputedStyle(menu);
+      const chrome = [style.paddingTop, style.paddingBottom, style.borderTopWidth, style.borderBottomWidth]
+        .reduce((sum, value) => sum + (Number.parseFloat(value) || 0), 0);
+      const last = items[Math.max(1, maxVisibleItems) - 1];
+      const resultsHeight = last ? last.offsetTop + last.offsetHeight - content.offsetTop : content.offsetHeight;
+      const available = modelSelectorControllerMenu.parentMenu.getBoundingClientRect().bottom - 8;
+      menu.style.height = `${Math.ceil(Math.min(chrome + header.offsetHeight + resultsHeight, available))}px`;
+      menu.style.overflowY = "auto";
+      return;
+    }
     if (items.length <= maxVisibleItems) {
       menu.removeAttribute("data-codex-model-slider-overflow");
       menu.style.removeProperty("--codex-model-slider-menu-max-height");
@@ -1055,7 +1088,20 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
     featureUI.surface(menu, "dropdown", { variant: "opaque" });
     // 切换同一个 picker 视图，不重复播放整个 Dropdown 的入场缩放。
     menu.style.animation = "none";
+    menu.style.boxSizing = "border-box";
+    const header = document.createElement("div");
+    header.setAttribute("data-codex-model-slider-search-header", "");
+    const search = document.createElement("input");
+    search.type = "text";
+    search.setAttribute("data-codex-model-slider-search", "");
+    search.placeholder = selector.strings.searchPlaceholder;
+    search.setAttribute("aria-label", search.placeholder);
+    search.autocomplete = "off";
+    search.spellcheck = false;
+    header.append(search);
+    menu.append(header);
     const content = document.createElement("div");
+    content.setAttribute("data-codex-model-slider-results", "");
     content.style.flexShrink = "0";
     menu.append(content);
     models.forEach((model, index) => {
@@ -1063,6 +1109,7 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
       item.className = "no-drag outline-hidden rounded-lg px-[var(--padding-row-x)] py-[var(--padding-row-y)] text-sm text-default group hover:bg-primary-ghost-hover focus:bg-primary-ghost-hover cursor-interaction flex flex-col";
       item.setAttribute("role", "menuitem");
       item.setAttribute("tabindex", "-1");
+      item.id = `mcx-model-result-${index}`;
       enhanceModelItem(item, menu, selector, index, {
         rawValue: String(model.model),
         selected: String(model.model) === String(controller.model),
@@ -1070,6 +1117,71 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
         owned: true,
       });
       content.append(item);
+    });
+    const empty = document.createElement("div");
+    empty.setAttribute("data-codex-model-slider-empty", "");
+    empty.setAttribute("role", "status");
+    empty.textContent = selector.strings.noResults;
+    empty.hidden = true;
+    content.append(empty);
+    let keyboardItem = null;
+    const resetKeyboard = () => {
+      keyboardItem?.removeAttribute("data-codex-model-slider-keyboard");
+      keyboardItem = null;
+      search.removeAttribute("aria-activedescendant");
+    };
+    search.addEventListener("input", () => {
+      resetKeyboard();
+      const record = modelSelectorControllerMenu;
+      if (!record || record.menu !== menu || record.closing) return;
+      const previousHeight = menu.getBoundingClientRect().height;
+      clearTimeout(record.motionTimer);
+      record.animations?.forEach((animation) => animation.cancel());
+      record.animations = [];
+      menu.scrollTop = 0;
+      renderEnhancedModelMenu(menu, selector);
+      sizeModelMenuViewport(menu, selector.maxVisibleItems);
+      record.listHeight = menu.getBoundingClientRect().height;
+      if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      const motion = menu.animate([{ height: `${previousHeight}px` }, { height: `${record.listHeight}px` }],
+        { duration: 320, easing: "cubic-bezier(.19,1,.22,1)" });
+      record.animations.push(motion);
+      record.motionTimer = setTimeout(() => {
+        if (modelSelectorControllerMenu !== record || record.closing) return;
+        motion.cancel();
+        record.animations = [];
+      }, 320);
+    });
+    // 原生菜单的 typeahead 不应吞掉搜索输入；鼠标操作保留输入焦点。
+    menu.addEventListener("pointerdown", (event) => {
+      if (event.target.closest?.('[data-codex-model-slider-item]')) event.preventDefault();
+    });
+    search.addEventListener("keydown", (event) => {
+      event.stopPropagation();
+      if (event.isComposing) return;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeControllerModelMenu();
+        modelButton.focus();
+      } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        const visible = modelMenuItems(menu).filter((item) => item.style.display !== "none");
+        if (!visible.length) return;
+        const current = visible.indexOf(keyboardItem);
+        const index = current < 0 ? (event.key === "ArrowDown" ? 0 : visible.length - 1)
+          : (current + (event.key === "ArrowDown" ? 1 : -1) + visible.length) % visible.length;
+        resetKeyboard();
+        keyboardItem = visible[index];
+        keyboardItem.setAttribute("data-codex-model-slider-keyboard", "");
+        search.setAttribute("aria-activedescendant", keyboardItem.id);
+        const top = keyboardItem.offsetTop - header.offsetHeight;
+        const bottom = keyboardItem.offsetTop + keyboardItem.offsetHeight - menu.clientHeight;
+        if (top < menu.scrollTop) menu.scrollTop = top;
+        else if (bottom > menu.scrollTop) menu.scrollTop = bottom;
+      } else if (event.key === "Enter") {
+        event.preventDefault();
+        (keyboardItem ?? modelMenuItems(menu).find((item) => item.style.display !== "none"))?.click();
+      }
     });
     menu.addEventListener("click", (event) => {
       const star = event.target.closest?.("[data-codex-model-slider-star]");
@@ -1132,8 +1244,7 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
     parentMenu.append(menu);
     sizeModelMenuViewport(menu, selector.maxVisibleItems);
     modelButton.setAttribute("aria-expanded", "true");
-    (menu.querySelector('[data-codex-model-slider-selected]')
-      ?? menu.querySelector('[role="menuitem"]'))?.focus();
+    search.focus({ preventScroll: true });
     const record = modelSelectorControllerMenu;
     record.listHeight = menu.getBoundingClientRect().height;
     animateControllerModelMenu(record, true, () => {
