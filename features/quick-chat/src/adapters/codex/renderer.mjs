@@ -2,6 +2,13 @@ export function createQuickChatAdapter(codex) {
   const receipts = new WeakMap();
   let nextReceipt = 1;
   const surfaceSelector = '[data-floating-chat-surface]';
+  function historyList(node) {
+    if (Array.isArray(node)) return node.some(historyList);
+    const props = node?.props;
+    if (!props || props.hidden || props.inert || props['aria-hidden']) return false;
+    if (Array.isArray(props.conversations) && typeof props.onConversationSelect === 'function' && typeof props.onNewChat === 'function') return true;
+    return historyList(props.children);
+  }
   function read(surface) {
     if (!surface?.isConnected || surface.closest('[hidden], [inert], [aria-hidden="true"]')) return null;
     const editable = surface.querySelector('[data-chatgpt-composer] [contenteditable="true"]');
@@ -35,9 +42,10 @@ export function createQuickChatAdapter(codex) {
     const project = [...surface.querySelectorAll('[data-composer-rail-item] button')].find(button =>
       codex.props(button, props => props.variant === "composer" && typeof props.onProjectChange === "function"));
     const projectRail = project?.closest('[data-composer-rail-item]') ?? null;
+    const expanded = Boolean(floating.presentation === "expanded" || floating.forceExpanded);
     return {surface, editable, minimize, projectRail, background:!session.hasConversation && floating.forceExpanded ? background : null, sessionId:session.conversationId, hasConversation:session.hasConversation,
       canSubmit:Boolean(state && !state.submitDisabled && !state.submitLoading), receiptId:receipt ? receipts.get(receipt) : 0, receiptPresentation:receipt?.presentation ?? null, emitter:controller?.eventEmitter,
-      expanded:floating.presentation === "expanded" || floating.forceExpanded,
+      expanded, showHistory:Boolean(minimize && !expanded), historyVisible:historyList(floating.renderTranscript?.()),
       expand:() => floating.onPresentationChange("expanded"),
       // 历史动作通过 forceExpanded 临时展开；不要覆盖最小化后的恢复形态。
       history:() => history.onSelect()};

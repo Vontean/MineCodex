@@ -7,6 +7,7 @@ function fixture({work=false,hasConversation=false,page=false,widget=false}={}) 
   const emitter={addListener:(name,fn)=>listeners.add(fn),removeListener:(name,fn)=>listeners.delete(fn)};
   const editable={},session={conversationId:'chat',hasConversation};
   const floating={presentation:'compact',forceExpanded:false,onPresentationChange:value=>{floating.presentation=value;calls.push(value);},renderMenu:()=>({props:{items:[{id:'history',onSelect:()=>{floating.forceExpanded=true;calls.push('history');}}]}})};
+  floating.renderTranscript=()=>({props:{'aria-hidden':!floating.forceExpanded,children:{props:{conversations:[],onConversationSelect:()=>{},onNewChat:()=>{}}}}});
   const owner={memoizedProps:{session},memoizedState:{memoizedState:null,next:null},return:null};
   const buttons=[],projectButtons=[];
   const surface={isConnected:true,closest:()=>null,querySelector:()=>editable,querySelectorAll:selector=>selector==='button'?buttons:projectButtons};
@@ -78,4 +79,17 @@ test('only the project selector composer rail is exposed for hiding',()=>{
 test('submit subscription preserves handled result and is removed',()=>{
   const f=fixture();let count=0;const unsubscribe=f.adapter.subscribe(f.adapter.read(f.surface),()=>count++);
   const listener=[...f.listeners][0];assert.equal(listener(),false);assert.equal(count,1);unsubscribe();assert.equal(f.listeners.size,0);
+});
+
+test('history panel hides its redundant entry while keeping the native Minimize anchor',()=>{
+  const f=fixture(),button={checkVisibility:()=>true,hasAttribute:()=>false};
+  f.buttons.push(button);f.props.set(button,[{onMinimize:()=>{},isCompact:true,standalone:true}]);
+  assert.equal(f.adapter.read(f.surface).showHistory,true);
+  assert.equal(f.adapter.read(f.surface).historyVisible,false);
+  f.adapter.read(f.surface).history();
+  const opened=f.adapter.read(f.surface);
+  assert.equal(opened.showHistory,false);assert.equal(opened.historyVisible,true);
+  assert.equal(opened.minimize,button);
+  f.floating.forceExpanded=false;
+  assert.equal(f.adapter.read(f.surface).showHistory,true);
 });

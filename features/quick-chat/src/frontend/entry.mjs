@@ -6,6 +6,7 @@ const style = document.createElement('style');
 style.textContent = `
   [data-mcx-quick-chat-history]{margin-inline-end:8px;flex-shrink:0}
   [data-mcx-quick-chat-history]>svg{width:16px;height:16px}
+  [data-mcx-quick-chat-minimize]{border-radius:calc(infinity * 1px)}
   [data-mcx-quick-chat-project-rail]{display:none!important}
   /* 隐藏唯一的项目栏时，一并收起原生 rail 的圆角留白与负 margin。 */
   [data-composer-rail]:has(>[data-mcx-quick-chat-project-rail]):not(:has(>:not([data-mcx-quick-chat-project-rail]):not(:empty))){display:none!important}
@@ -18,21 +19,23 @@ function releaseBackground(instance) {
   instance.background = null;
 }
 function releaseProjectRail(instance) { instance.projectRail?.removeAttribute('data-mcx-quick-chat-project-rail'); instance.projectRail = null; }
-function remove(instance) { releaseBackground(instance); releaseProjectRail(instance); instance.unsubscribe(); instance.button?.remove(); instance.tracker.clear(); }
+function remove(instance) { releaseBackground(instance); releaseProjectRail(instance); instance.minimize?.removeAttribute('data-mcx-quick-chat-minimize'); instance.unsubscribe(); instance.button?.remove(); instance.tracker.clear(); instance.historyTracker.clear(); }
 function sync() {
   if (disposed) return;
   const snapshots = native.surfaces(), active = new Set();
   for (const snapshot of snapshots) {
     active.add(snapshot.surface);
     let instance = instances.get(snapshot.surface);
+    const selected = instance?.historyTracker.selected(snapshot);
     if (!instance || instance.sessionId !== snapshot.sessionId || instance.emitter !== snapshot.emitter) {
       if (instance) remove(instance);
-      instance = {sessionId:snapshot.sessionId, emitter:snapshot.emitter, tracker:createSubmissionTracker(), button:null};
+      instance = {sessionId:snapshot.sessionId, emitter:snapshot.emitter, tracker:createSubmissionTracker(), historyTracker:createHistoryTracker(), button:null};
       const begin = () => { const current = native.read(snapshot.surface); if (current) instance.tracker.begin(current); };
       instance.unsubscribe = native.subscribe(snapshot, begin);
       instances.set(snapshot.surface, instance);
     }
-    if (instance.tracker.accepted(snapshot)) snapshot.expand();
+    if (selected || instance.tracker.accepted(snapshot)) snapshot.expand();
+    instance.historyTracker.open(snapshot);
     if (instance.projectRail !== snapshot.projectRail) {
       releaseProjectRail(instance);
       instance.projectRail = snapshot.projectRail;
@@ -46,11 +49,16 @@ function sync() {
       }
     }
     const minimize = snapshot.minimize;
-    if (!minimize) { instance.button?.remove(); instance.button = null; continue; }
+    if (instance.minimize !== minimize) {
+      instance.minimize?.removeAttribute('data-mcx-quick-chat-minimize'); instance.minimize = minimize;
+      minimize?.setAttribute('data-mcx-quick-chat-minimize','');
+    }
+    if (!minimize || !snapshot.showHistory) { instance.button?.remove(); instance.button = null; continue; }
     if (!instance.button?.isConnected || instance.button.parentElement !== minimize.parentElement) {
       instance.button?.remove();
       const button = minimize.cloneNode(false);
       for (const attr of ['id','disabled','aria-disabled','aria-describedby','aria-expanded','title']) button.removeAttribute(attr);
+      button.removeAttribute('data-mcx-quick-chat-minimize');
       button.type = 'button';
       button.setAttribute('data-mcx-quick-chat-history', '');
       button.innerHTML = config.resources.history;
@@ -81,7 +89,7 @@ const observer = new MutationObserver(schedule);
 observer.observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['aria-hidden','inert','hidden','lang']});
 sync();
 config.registerSelfCheck?.(() => {
-  const snapshots = native.surfaces(), anchors = snapshots.filter(item => item.minimize), available = anchors.some(item => instances.get(item.surface)?.button?.isConnected);
+  const snapshots = native.surfaces(), anchors = snapshots.filter(item => item.showHistory), available = anchors.some(item => instances.get(item.surface)?.button?.isConnected);
   return {state:anchors.length ? available ? 'available' : 'unavailable' : 'not-applicable',
     reason:anchors.length ? available ? null : 'quick-chat-history-anchor-unavailable' : 'no-classic-quick-chat-floating-controls',
     checks:[{name:'quick-chat-history',available}],scopes:snapshots.map(item=>({name:'quick-chat',element:item.surface}))};
