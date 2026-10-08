@@ -90,8 +90,9 @@ export function applySessionStatusEvent(state, event) {
       if (event.id) {
         state.responses.add(event.id);
         const output=event.last?.output;
-        if (Number.isFinite(output) && output > 0 && state.firstOutputAt != null && Number.isFinite(event.end) && event.end > state.firstOutputAt)
-          state.speedMeasurements.push({ turnId:state.currentTurnId,start:state.firstOutputAt,end:event.end,output,
+        if (Number.isFinite(output) && output > 0 && Number.isFinite(event.end))
+          state.speedMeasurements.push({ id:event.id,turnId:state.currentTurnId,start:state.firstOutputAt,end:event.end,output,
+            input:event.last.input,cached:event.last.cached,
             outputs:state.pendingOutputIntervals.slice(),tools:state.pendingToolIntervals.slice() });
       }
       reset();
@@ -102,27 +103,38 @@ export function applySessionStatusEvent(state, event) {
   if (state.total || state.turns.size) state.updatedAt=event.at ?? state.updatedAt;
 }
 
-export function sessionStatusSnapshot(state, threadId) {
+export function sessionStatusSnapshot(state, threadId, measurements = new Map()) {
   let decodeTokens = 0;
   let decodeMs = 0;
   let speedSamples = 0;
   const turnSpeeds = new Map();
+  let unavailableSource = "codex", unavailableReason = "timing_missing";
   for (const sample of state.speedMeasurements) {
-    const elapsed = sample.end - sample.start - boundedToolWaitMs(sample.tools, sample.start, sample.end, sample.outputs);
-    if (!sample.turnId || !Number.isFinite(elapsed) || elapsed <= 0) continue;
-    const turn = turnSpeeds.get(sample.turnId) ?? { tokens:0, ms:0, samples:0 };
-    turn.tokens += sample.output;
+    const measurement = measurements.get(sample.id);
+    const source = measurement?.source ?? "codex";
+    const elapsed = measurement ? measurement.elapsed : sample.start == null ? null
+      : sample.end - sample.start - boundedToolWaitMs(sample.tools, sample.start, sample.end, sample.outputs);
+    if (!sample.turnId) continue;
+    unavailableSource=source;
+    unavailableReason=measurement?.reason ?? (Number.isFinite(elapsed) && elapsed > 0 && elapsed < 1000
+      ? "decode_window_too_short" : "timing_missing");
+    if (!Number.isFinite(elapsed) || elapsed < 1000) continue;
+    const turn = turnSpeeds.get(sample.turnId) ?? { tokens:0, ms:0, samples:0, sources:new Set() };
+    turn.tokens += measurement?.output ?? sample.output;
     turn.ms += elapsed;
     turn.samples += 1;
+    turn.sources.add(source);
     turnSpeeds.set(sample.turnId, turn);
   }
   // 按回合顺序取最近五个有效回合；同轮多步合并，无数据的回合不占名额。
   const recentTurns = [...state.turns].filter(id => turnSpeeds.has(id)).slice(-5);
+  const speedSources = new Set();
   for (const id of recentTurns) {
     const turn = turnSpeeds.get(id);
     decodeTokens += turn.tokens;
     decodeMs += turn.ms;
     speedSamples += turn.samples;
+    for (const source of turn.sources) speedSources.add(source);
   }
   const total = state.total;
   const input = total?.input ?? 0;
@@ -144,6 +156,8 @@ export function sessionStatusSnapshot(state, threadId) {
     cacheHitPercent: input > 0 ? Math.round(cached / input * 100) : null,
     observedTps: decodeMs > 0 ? Math.round(decodeTokens / (decodeMs / 1000)) : null,
     speedSamples,
+    speedSource: speedSources.size > 1 ? "mixed" : [...speedSources][0] ?? unavailableSource,
+    speedUnavailableReason: decodeMs > 0 ? null : unavailableReason,
     observedModelMs: decodeMs,
     toolMs: state.toolMs,
     averageFirstTokenMs: state.ttftSamples > 0 ? Math.round(state.ttftTotalMs / state.ttftSamples) : null,

@@ -7,18 +7,32 @@ const copyByLocale = { "zh-CN": {
   firstToken: "平均首字延迟", input: "输入", cached: "缓存输入", output: "输出",
   sum: "合计", capacity: "窗口容量", contextShare: "上下文占用", compactions: "压缩次数",
   instructions: "指令", messages: "消息", toolHistory: "工具交互", other: "未分类",
-  speedHelp: "关于 TPS", speedInfo: "GPT 等模型不公开完整思考过程及逐 Token 生成时间。TPS 取最近 5 个有有效数据的回合，不足 5 轮时按已有数据计算。它是基于可观测事件估算的体感响应速度，仅供参考，不代表模型真实的 Token 生成速度。",
+  speedHelp: "关于 TPS", speedInfo: "根据会话日志估算生成速度，包含推理输出。",
+  speedInfoOcx: "根据 OCX 记录估算生成速度，包含推理输出。",
+  speedInfoMixed: "根据 OCX 记录和会话日志估算生成速度，包含推理输出。",
+  speedWindow: "取最近 5 个有有效数据的回合，不足 5 轮时按已有数据计算，仅供参考。",
+  speedUnavailable: "有效计时不足，暂无法估算。",
 }, en: {
   turns: "turns", steps: "steps", speed: "TPS", cache: "Cache", cacheDetail: "Cache hit",
   statistics: "Session stats", usage: "Token usage", context: "Context", total: "Total",
   firstToken: "Avg first token", input: "Input", cached: "Cached input", output: "Output",
   sum: "Sum", capacity: "Window size", contextShare: "Context used", compactions: "Compactions",
   instructions: "Instructions", messages: "Messages", toolHistory: "Tool activity", other: "Unclassified",
-  speedHelp: "About TPS", speedInfo: "Models such as GPT do not expose their full reasoning process or per-token generation timing. TPS uses the latest 5 turns with valid timing data, or fewer if unavailable. It estimates perceived response speed from observable events, rather than the model’s actual token generation speed.",
+  speedHelp: "About TPS", speedInfo: "Generation speed estimated from session logs, including reasoning output.",
+  speedInfoOcx: "Generation speed estimated from OCX records, including reasoning output.",
+  speedInfoMixed: "Generation speed estimated from OCX records and session logs, including reasoning output.",
+  speedWindow: "Uses the latest 5 turns with valid data, or fewer when unavailable. For reference only.",
+  speedUnavailable: "Not enough valid timing data to estimate speed.",
 } };
 function selectedCopy() {
   const language = document.documentElement.lang || navigator.languages?.[0] || navigator.language || "en";
   return String(language).toLowerCase().startsWith("zh") ? copyByLocale["zh-CN"] : copyByLocale.en;
+}
+
+function speedTooltip(value, copy) {
+  const source = value.speedSource === "ocx" ? copy.speedInfoOcx
+    : value.speedSource === "mixed" ? copy.speedInfoMixed : copy.speedInfo;
+  return `${source} ${value.observedTps == null ? copy.speedUnavailable : copy.speedWindow}`;
 }
 
 // 图标来自 Lucide Static 与 Phosphor Icons；许可见 vendor/。
@@ -365,7 +379,7 @@ function showPanel(kind) {
     const speedLabel = row(dl, copy.speed, snapshot.observedTps == null ? "—" : `${number(snapshot.observedTps)} tok/s`);
     speedLabel.className = "tps-label";
     tpsInfo.setAttribute("aria-label", copy.speedHelp);
-    tpsInfo.setAttribute("data-minecodex-tooltip", copy.speedInfo);
+    tpsInfo.setAttribute("data-minecodex-tooltip", speedTooltip(snapshot, copy));
     speedLabel.append(tpsInfo);
   } else if (kind === "usage") {
     row(dl, copy.total, tokenValue(snapshot.totalTokens));

@@ -140,3 +140,26 @@ test('unknown turn timing is excluded and turn context changes cannot carry pend
   applySessionStatusEvent(state,{kind:'turn-ended',id:'three'});
   assert.equal(apply(state,item('AgentMessage',8000,9000),response(9000,900,'orphan')).observedTps,100);
 });
+
+test('OCX and Codex samples use weighted time without deducting tools from OCX windows', () => {
+  const state=createSessionState();
+  measuredTurn(state,'one',1000,100);
+  measuredTurn(state,'two',3000,300,3000);
+  apply(state,item('CommandExecution',3500,4500));
+  const measurements=new Map([['two',{source:'ocx',output:300,elapsed:1000,reason:null}]]);
+  const snapshot=sessionStatusSnapshot(state,'thread',measurements);
+  assert.equal(snapshot.observedTps,200);
+  assert.equal(snapshot.observedModelMs,2000);
+  assert.equal(snapshot.speedSource,'mixed');
+  assert.equal(snapshot.speedSamples,2);
+});
+
+test('sub-second windows are rejected per response before pooling within a turn', () => {
+  const state=createSessionState();
+  measuredTurn(state,'one',1000,9000,999);
+  apply(state,item('AgentMessage',3000,3500),response(3500,9000,'extra'));
+  assert.equal(sessionStatusSnapshot(state,'thread').observedTps,null);
+  measuredTurn(state,'two',5000,100,1000);
+  assert.equal(sessionStatusSnapshot(state,'thread').observedTps,100);
+  assert.equal(sessionStatusSnapshot(state,'thread').speedSamples,1);
+});

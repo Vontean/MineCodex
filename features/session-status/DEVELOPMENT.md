@@ -2,7 +2,7 @@
 
 在 Codex 输入框下方显示当前任务的回合、模型响应步骤、观测 TPS、累计 token 和缓存命中。点击状态行可查看统计、用量及上下文详情。
 
-Context 直接订阅 Codex 原生会话状态。其他统计由 Runtime Host 只读解析本机 `~/.codex/sessions` 中的 Codex 会话事件，再通过已有 CDP 连接向注入脚本发送数值快照；页面只向 Host 请求刷新，不发送对话内容，也不修改 Codex 会话日志。远程任务或缺少本机日志时，无法取得的指标显示 `—`。
+Context 直接订阅 Codex 原生会话状态。其他统计由 Runtime Host 只读解析本机 `~/.codex/sessions` 中的 Codex 会话事件；TPS 可另从 `~/.opencodex/usage.jsonl`（或 `OPENCODEX_HOME` 指定目录）读取数值记录，再通过已有 CDP 连接向注入脚本发送数值快照；页面只向 Host 请求刷新，不发送对话内容，也不修改 Codex 会话日志。远程任务或缺少本机日志时，无法取得的指标显示 `—`。
 
 同一会话可能有多个 rollout 文件，包括续聊产生的 `<thread-id>_<session-id>.jsonl` 分段。读取器每 2 秒检查分段列表；新增分段时按事件时间重建会话统计，随后按各文件独立的读取位置增量更新。回合及模型响应按 ID 去重，累计 Token 采用日志给出的会话总量，不将不同分段的累计值相加。
 
@@ -17,16 +17,19 @@ Context 直接订阅 Codex 原生会话状态。其他统计由 Runtime Host 只
 - 回合：唯一 `task_started` / `turn_context` 的 `turn_id`。
 - 步骤：有 `token_usage_record` 的唯一 `response_id`，即已记录的模型响应次数。外部模型未提供 `response_id` 时，使用记录的 `session_id` 与 `ordinal` 组合识别响应，避免增量读取及分段重建重复计数；两种身份都缺失时不猜测步骤或 TPS。
 - Token：优先采用逐响应记录的 `thread_token_usage`，旧日志缺少该记录时回退到 `token_count.total_token_usage`；缓存命中为 `cached_input_tokens / input_tokens`。未缓存输入为总输入减缓存读与缓存写。
-- TPS：取最近 5 个有有效计时且可确定归属的回合，合并同轮所有有效响应，计算 `Σ output_tokens / Σ（观测时长 − 其中完整且不与模型输出重叠的工具等待时长）`；重叠工具区间只扣一次，迟到的工具完成事件会回补已有样本，中断或结束回合会清空未配对计时。有效时长须为有限正数；完整的长思考响应不因超过 10 分钟而丢弃。不足 5 轮时使用已有有效轮数，无效回合不占名额，当前回合取得有效样本后即参与。它是最近有效回合按观测时长加权的平均约值，显示为 `N tok/s`，不是实时解码速度。缺少有效计时样本时显示 `—`。
+- TPS：界面保持 `N tok/s` 与详情中的 `TPS`，统一表示估算生成速度，包含推理输出，不展示另一种端到端 TPS。最近 5 个有有效计时且可确定归属的回合按 `Σ output_tokens / Σ 有效生成时长` 加权，同轮所有有效响应合并；不足 5 轮使用已有数据，无效回合不占名额。每个响应的有效窗口至少 1000ms，缺少有效样本显示 `—`；不限制完整长思考响应的最大时长。
+- TPS 数据源：OCX Adapter 只读增量索引 `usage.jsonl`，不读取配置、凭据或对话正文。按 OCX 的 `sha256(threadId)[:32]` 会话标识、输入/缓存/输出用量相等及完成时间相差不超过 2 秒唯一关联；同一 OCX 请求不得归属多个响应，无法唯一匹配时保留 Codex 日志估算。安装 OCX 本身不决定来源；父会话或其他身份归档导致不能匹配的记录不猜测归属。
+- OCX TPS：沿用 OCX 口径，优先 `outputTokens / (lastOutputMs - genStartMs)`，旧记录缺少完整生成窗口时采用 `outputTokens / (durationMs - firstOutputMs)`。单位换算为秒；窗口非正数、不足 1 秒或用量不支持时，该响应不可用，不回退到 Codex 重算。`outputTokens` 已包含推理，不再加 `reasoningOutputTokens`，也不再次扣工具时间。
+- Codex 日志 TPS：没有可关联 OCX 记录的响应使用原有观测时长，扣其中完整且不与模型输出重叠的工具等待；重叠等待只扣一次，迟到的完成事件回补已有样本。中断或结束回合清空未配对计时，并同样拒绝不足 1 秒的有效窗口。OCX 日志迟到时，下次刷新重新关联并替换该响应口径，不重复计数；日志轮转/截断时重建 OCX 数值索引。
 - Token 构成：Total 下的比例条按输出（紫）、其他输入（蓝）、缓存输入（绿）显示三项在会话总用量中的占比；缓存命中率独立放在末尾，仍以总输入为分母。其他输入为总输入减缓存输入，包含缓存写入。
 - 上下文：与当前 Codex 桌面版原生百分环相同，采用原生状态的 `last.totalTokens / modelContextWindow`，裁切至 0–100%。即使关闭原生百分环，本功能仍订阅其用量数据。二级浮窗在进度条下显示日志可见历史的指令、消息、工具交互本地估算，随后显示原生占用合计、窗口容量和压缩次数；`~` 表示估算，合计并非估算分段之和。进度条采用 Codex 原生配色，以紫、蓝、绿分别表示三类，未分类的占用为浅灰；彩色段按需缩放，整条终点对应原生总占用。工具定义因未写入日志而不显示。
 - 压缩次数：读取会话日志中的 `compacted` 记录及其 `window_number`，兼容旧版 `context_compacted` 和 `ContextCompaction` 完成事件；同一次压缩的多种记录只计一次。若 `compacted` 含 `replacement_history`，分段估算以它替换压缩前历史，再累计后续记录。
 
 统计图标使用 Lucide Static v1.31.0 的 Gauge；用量图标使用 Phosphor Icons 的 Database，单路径填充避免半透明色在路径交叠处加深。许可见 [`vendor/lucide-LICENSE`](vendor/lucide-LICENSE) 和 [`vendor/phosphor-LICENSE`](vendor/phosphor-LICENSE)。
 
-会话统计浮窗的 TPS 标签带有同色 Lucide info 图标（Lucide 0.577.0 官方资源）；悬浮或键盘聚焦可查看说明：GPT 等模型不公开完整思考过程及逐 Token 生成时间，TPS 仅为基于可观测事件估算的体感响应速度参考，不代表模型真实的 Token 生成速度。
+会话统计浮窗的 TPS 标签带有同色 Lucide info 图标（Lucide 0.577.0 官方资源）；悬浮或键盘聚焦可查看说明：仅在这个 info tooltip 区分 OCX、会话日志或混合来源，说明包含推理输出、取最近 5 个有效回合且仅供参考；无有效值时说明计时不足。状态行与其他位置不新增来源或口径标签。
 
-2026-10-08 本机 `opencode-go/deepseek-v4.1-flash` 日志实测：用量记录的 `response_id` 为空，但有 `session_id` 与 `ordinal`；输出条目的 `started_at_ms` 接近完成时间。该类计时可能只覆盖集中交付的输出，TPS 会明显高于整轮体感速度，不能据此推断模型解码性能。
+2026-10-08 本机 `opencode-go/deepseek-v4.1-flash` 日志实测：用量记录的 `response_id` 为空，但有 `session_id` 与 `ordinal`；输出条目的 `started_at_ms` 接近完成时间。该类计时可能只覆盖集中交付的输出；实测 51ms、65ms 的 OCX 窗口及不足 1 秒的日志观测窗口均不参与 TPS，不能据此推断模型解码性能。
 
 ## 上下文分类的可行性
 

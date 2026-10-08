@@ -4,7 +4,10 @@ import os from "node:os";
 import path from "node:path";
 
 import { sessionFacts } from "./session-log.mjs";
+import { OpenCodexUsageReader } from "../opencodex/usage-log.mjs";
 import { createSessionState, applySessionStatusEvent, sessionStatusSnapshot } from "../../domain/session-stats.mjs";
+
+const defaultUsageReader = new OpenCodexUsageReader();
 
 const THREAD_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export function threadIdFromLocation(value) {
@@ -35,11 +38,12 @@ async function findLogs(directory, threadId) {
 }
 
 export class SessionStatusReader {
-  constructor({ sessionsDir = path.join(process.env.CODEX_HOME ?? path.join(os.homedir(), ".codex"), "sessions"), now = Date.now } = {}) {
+  constructor({ sessionsDir = path.join(process.env.CODEX_HOME ?? path.join(os.homedir(), ".codex"), "sessions"), now = Date.now, ocxUsagePath } = {}) {
     this.sessionsDir = sessionsDir;
     this.now = now;
     this.states = new Map();
     this.missingChecks = new Map();
+    this.ocxUsage = ocxUsagePath === undefined ? defaultUsageReader : new OpenCodexUsageReader(ocxUsagePath);
   }
 
   retryAfterMs(threadId) {
@@ -101,6 +105,7 @@ export class SessionStatusReader {
     events.sort((left, right) => (Date.parse(left.timestamp) || 0) - (Date.parse(right.timestamp) || 0));
     for (const event of events) for (const fact of sessionFacts(event)) applySessionStatusEvent(state, fact);
     this.states.set(threadId, state);
-    return sessionStatusSnapshot(state, threadId);
+    const measurements = await this.ocxUsage.measurements(threadId, state.speedMeasurements);
+    return sessionStatusSnapshot(state, threadId, measurements);
   }
 }

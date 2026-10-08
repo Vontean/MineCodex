@@ -9,6 +9,19 @@ import { createCodexEnvironment } from "../../../packages/codex-adapter/src/rend
 
 const featureDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
+test("TPS source and unavailable explanations stay inside the localized info tooltip", async () => {
+  const source=await readFile(path.join(featureDir,"src/session-status.mjs"),"utf8");
+  const copies=new Function(`${source.slice(source.indexOf("const copyByLocale"),source.indexOf("function selectedCopy"))};return copyByLocale;`)();
+  const format=new Function(`${source.slice(source.indexOf("function speedTooltip"),source.indexOf("// 图标来自"))};return speedTooltip;`)();
+  for(const copy of Object.values(copies)) {
+    assert.equal(copy.speed,"TPS");
+    assert.equal(format({speedSource:"ocx",observedTps:100},copy),`${copy.speedInfoOcx} ${copy.speedWindow}`);
+    assert.equal(format({speedSource:"codex",observedTps:100},copy),`${copy.speedInfo} ${copy.speedWindow}`);
+    assert.equal(format({speedSource:"mixed",observedTps:100},copy),`${copy.speedInfoMixed} ${copy.speedWindow}`);
+    assert.equal(format({speedSource:"ocx",observedTps:null},copy),`${copy.speedInfoOcx} ${copy.speedUnavailable}`);
+  }
+});
+
 test("context discovery follows the host-aware token usage family rather than unrelated selectors", () => {
   const source = 'pii=yH(`tokenUsageInfo`),mii=Ck(Q,(e,{get:t})=>e==null?null:t(pii,{hostId:t(U3,e),threadId:e})),hii=k3(({requests:e})=>e.length);export{pii as WRONG,mii as TM,hii as OTHER};';
   assert.equal(contextUsageExport(source), "TM");

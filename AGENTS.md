@@ -30,7 +30,7 @@
 | 文件路径导航与分列浏览 | `features/file-navigation/src/domain/`、`src/adapters/codex/`、`src/frontend/` | File Navigation；独立开关与卡片，控制台紧跟 Markdown 阅读增强 |
 | Prompt 官方页面与输入框 | `packages/plugin/src/prompts-app.mjs`、`features/notes/src/frontend/entry.mjs`、`src/adapters/codex/requests.mjs`、`src/adapters/codex/insertion.mjs` | MCP 管入口与通信；notes 管数据与一次性填入；Adapter 管输入框 |
 | 模型规则与专有原生控制器适配 | `features/model-slider/src/domain/`、`src/adapters/codex/`、`src/frontend/`、`src/injection-source.mjs` | Model Slider；宿主只负责组装和调度 |
-| 会话指标与日志 | `features/session-status/src/domain/`、`src/adapters/codex/` | Session Status |
+| 会话指标与日志 | `features/session-status/src/domain/`、`src/adapters/codex/`、`src/adapters/opencodex/` | Session Status；Codex 会话事实与 OCX 数值计时分别适配 |
 | 站点规则、发现和启动 | `features/sites/src/domain/`、`src/backend/` | Sites |
 | 插件业务、特有组件与内容 | `features/<plugin>/src`；Images另有`web`界面 | 对应插件 |
 | CLI、安装与服务管理 | `packages/cli` | CLI |
