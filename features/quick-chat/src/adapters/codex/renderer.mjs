@@ -39,7 +39,8 @@ export function createQuickChatAdapter(codex) {
       canSubmit:Boolean(state && !state.submitDisabled && !state.submitLoading), receiptId:receipt ? receipts.get(receipt) : 0, receiptPresentation:receipt?.presentation ?? null, emitter:controller?.eventEmitter,
       expanded:floating.presentation === "expanded" || floating.forceExpanded,
       expand:() => floating.onPresentationChange("expanded"),
-      history:() => { floating.onPresentationChange("expanded"); history.onSelect(); }};
+      // 历史动作通过 forceExpanded 临时展开；不要覆盖最小化后的恢复形态。
+      history:() => history.onSelect()};
   }
   function surfaces() { return [...document.querySelectorAll(surfaceSelector)].map(read).filter(Boolean); }
   function subscribe(snapshot, listener) {

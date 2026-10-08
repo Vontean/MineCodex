@@ -6,13 +6,13 @@ function fixture({work=false,hasConversation=false,page=false,widget=false}={}) 
   const listeners=new Set(),calls=[];
   const emitter={addListener:(name,fn)=>listeners.add(fn),removeListener:(name,fn)=>listeners.delete(fn)};
   const editable={},session={conversationId:'chat',hasConversation};
-  const floating={presentation:'compact',onPresentationChange:value=>calls.push(value),renderMenu:()=>({props:{items:[{id:'history',onSelect:()=>calls.push('history')}]}})};
+  const floating={presentation:'compact',forceExpanded:false,onPresentationChange:value=>{floating.presentation=value;calls.push(value);},renderMenu:()=>({props:{items:[{id:'history',onSelect:()=>{floating.forceExpanded=true;calls.push('history');}}]}})};
   const owner={memoizedProps:{session},memoizedState:{memoizedState:null,next:null},return:null};
   const buttons=[],projectButtons=[];
   const surface={isConnected:true,closest:()=>null,querySelector:()=>editable,querySelectorAll:selector=>selector==='button'?buttons:projectButtons};
   const props = new Map([[surface,[floating,{session}]],[editable,[{isWorkConversation:work,annotationSubmitTarget:page?'page:1':undefined,isWidgetOverlay:widget,conversationId:'chat'},{submitDisabled:false,submitLoading:false,conversationId:'chat'},{composerController:{eventEmitter:emitter}}]]]);
   const codex={props:(node,predicate)=>props.get(node)?.find(predicate),currentFiber:()=>owner};
-  return {surface,owner,session,listeners,calls,props,buttons,projectButtons,adapter:createQuickChatAdapter(codex)};
+  return {surface,owner,session,floating,listeners,calls,props,buttons,projectButtons,adapter:createQuickChatAdapter(codex)};
 }
 test('native receipt drives first acceptance even with no mounted transcript',()=>{
   const f=fixture(),tracker=createSubmissionTracker();
@@ -32,7 +32,24 @@ test('continuation distinguishes new native records with the same compact value'
   assert.equal(tracker.accepted(f.adapter.read(f.surface)),true);
 });
 test('history before first message invokes original native actions',()=>{
-  const f=fixture();f.adapter.read(f.surface).history();assert.deepEqual(f.calls,['expanded','history']);
+  const f=fixture();f.adapter.read(f.surface).history();assert.deepEqual(f.calls,['history']);
+  assert.equal(f.adapter.read(f.surface).expanded,true);
+  assert.equal(f.floating.presentation,'compact');
+});
+test('viewing history without a message preserves compact restoration after minimize',()=>{
+  const f=fixture();
+  for(let cycle=0;cycle<2;cycle++) {
+    f.adapter.read(f.surface).history();
+    assert.equal(f.floating.forceExpanded,true);
+    // 原生最小化关闭历史，并将 presentation 保存为 restorePresentation。
+    const restorePresentation=f.floating.presentation;
+    f.floating.forceExpanded=false;f.floating.isMinimized=true;
+    f.floating.presentation=restorePresentation;f.floating.isMinimized=false;
+    assert.equal(f.adapter.read(f.surface).expanded,false);
+    assert.equal(f.floating.presentation,'compact');
+    assert.equal(f.session.hasConversation,false);
+  }
+  assert.deepEqual(f.calls,['history','history']);
 });
 test('Work never exposes Quick Chat controls',()=>{
   const f=fixture({work:true});assert.equal(f.adapter.read(f.surface),null);assert.deepEqual(f.calls,[]);
