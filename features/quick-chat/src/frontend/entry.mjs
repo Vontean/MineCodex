@@ -3,7 +3,14 @@ const instances = new Map();
 let scheduled = false, disposed = false;
 const text = (en,zh) => (document.documentElement.lang || navigator.language).startsWith('zh') ? zh : en;
 const style = document.createElement('style');
-style.textContent = '[data-mcx-quick-chat-history]{margin-inline-end:8px;flex-shrink:0}[data-mcx-quick-chat-history]>svg{width:16px;height:16px}[data-mcx-quick-chat-project-rail]{display:none!important}[data-floating-chat-surface]>:has(>[data-mcx-quick-chat-history]){display:flex;align-items:center}';
+style.textContent = `
+  [data-mcx-quick-chat-history]{margin-inline-end:8px;flex-shrink:0}
+  [data-mcx-quick-chat-history]>svg{width:16px;height:16px}
+  [data-mcx-quick-chat-project-rail]{display:none!important}
+  /* 隐藏唯一的项目栏时，一并收起原生 rail 的圆角留白与负 margin。 */
+  [data-composer-rail]:has(>[data-mcx-quick-chat-project-rail]):not(:has(>:not([data-mcx-quick-chat-project-rail]):not(:empty))){display:none!important}
+  [data-floating-chat-surface]>:has(>[data-mcx-quick-chat-history]){display:flex;align-items:center}
+`;
 document.head.append(style);
 function releaseBackground(instance) {
   if (!instance.background) return;
