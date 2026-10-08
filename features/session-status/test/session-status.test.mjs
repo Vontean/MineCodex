@@ -4,10 +4,19 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { createContextUsageAdapter } from "../src/adapters/codex/context-usage.mjs";
+import { contextUsageExport, createContextUsageAdapter } from "../src/adapters/codex/context-usage.mjs";
 import { createCodexEnvironment } from "../../../packages/codex-adapter/src/renderer/environment.mjs";
 
 const featureDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+
+test("context discovery follows the host-aware token usage family rather than unrelated selectors", () => {
+  const source = 'pii=yH(`tokenUsageInfo`),mii=Ck(Q,(e,{get:t})=>e==null?null:t(pii,{hostId:t(U3,e),threadId:e})),hii=k3(({requests:e})=>e.length);export{pii as WRONG,mii as TM,hii as OTHER};';
+  assert.equal(contextUsageExport(source), "TM");
+  assert.equal(contextUsageExport(source.replaceAll('`', '"')), "TM");
+  assert.equal(contextUsageExport('old=k3(({latestTokenUsageInfo:e})=>e);export{old as OLD};'), "OLD");
+  assert.equal(contextUsageExport(source.replace("mii as TM,", "")), null);
+  assert.equal(contextUsageExport('export{unrelated as TM};'), null);
+});
 
 test("session status is a declarative page script with valid renderer syntax", async () => {
   const manifest = JSON.parse(await readFile(path.join(featureDir, "codex-feature.json"), "utf8"));

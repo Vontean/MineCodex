@@ -1,3 +1,10 @@
+export function contextUsageExport(source) {
+  // 新版从宿主感知的 tokenUsageInfo selector 派生 thread atom family。
+  const selector = source.match(/([\w$]+)=[\w$]+\(([`"'])tokenUsageInfo\2\),([\w$]+)=[\w$]+\(/);
+  const local = selector?.[3] ?? source.match(/([\w$]+)=[\w$]+\(\(\{latestTokenUsageInfo:/)?.[1];
+  return local ? [...source.matchAll(/([\w$]+) as ([\w$]+)/g)].find(match => match[1] === local)?.[2] ?? null : null;
+}
+
 // 原生 atom、scope 和 bundle 字段不进入状态栏呈现层。
 export function createContextUsageAdapter(signal, codex, onChange, loadFamily = null) {
   let family=null, thread=null, composer=null, unsubscribe=null;
@@ -34,8 +41,7 @@ export function createContextUsageAdapter(signal, codex, onChange, loadFamily = 
     const url=[...document.querySelectorAll('link[rel=modulepreload]')].map(link=>link.href).find(url=>/\/app-shared-[^/]+\.js(?:$|\?)/.test(url));
     if (!url) throw new Error("context-bundle-unavailable");
     const source=await (await fetch(url,{signal})).text();
-    const local=source.match(/([\w$]+)=[\w$]+\(\(\{latestTokenUsageInfo:/)?.[1];
-    const exported=[...source.matchAll(/([\w$]+) as ([\w$]+)/g)].find(match=>match[1]===local)?.[2];
+    const exported=contextUsageExport(source);
     if (!exported) throw new Error("context-export-unavailable");
     return (await import(url))[exported];
   }

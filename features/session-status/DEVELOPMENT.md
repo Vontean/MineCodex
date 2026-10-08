@@ -42,4 +42,6 @@ Context 直接订阅 Codex 原生会话状态。其他统计由 Runtime Host 只
 
 Context 直接订阅原生会话的 `latestTokenUsageInfo`，与原生指示器共用 `thread/tokenUsage/updated` 数据源；压缩完成后随原生状态刷新，不等待日志轮询。切换会话时取消旧订阅，原生接口或用量不可用时显示 `—`，日志快照不覆盖原生占用。日志仍提供累计统计、压缩次数和历史分段估算；日志读取器也接受压缩后的最新重新计数。
 
+2026-10-08，Codex 26.1002.52244 安装包与当前会话实测：`app-shared` 改为先创建 `tokenUsageInfo` selector，再派生按 thread ID 读取、内部携带 host ID 的 atom family。Adapter 从该声明定位导出，不固定 bundle 哈希或压缩后的导出名；旧版直接解构 `latestTokenUsageInfo` 的声明仍可识别。AppScope 与 store 的读取、订阅接口保持相同，发现失败时保留不可用诊断，不以日志用量覆盖原生状态。
+
 首次安装默认展开输入框下方的会话统计，之后记住用户的展开或收起选择。详情最右侧箭头可收起，收起后点击模型选择左侧的 context 环重新展开；展开时隐藏输入框内的环，展开状态跨会话及 side chat 共享并记住；收起后不保留布局占位。悬浮显示原生同口径的上下文用量。Cache 超过99%时显示一位小数。
