@@ -15,6 +15,45 @@ const usage = (input, cached, output) => ({
 });
 const line = (timestamp, type, payload) => JSON.stringify({ timestamp, type, payload }) + "\n";
 
+test("external responses without response IDs use session-scoped ordinals across replay and segments", async (t) => {
+  const sessionsDir = await mkdtemp(path.join(os.tmpdir(), "mcx-external-session-"));
+  t.after(() => rm(sessionsDir, { recursive: true, force: true }));
+  let now = 0;
+  const reader = new SessionStatusReader({ sessionsDir, now: () => now });
+  const filePath = path.join(sessionsDir, `rollout-test-${THREAD_ID}.jsonl`);
+  const measured = (session, ordinal, at, output, total) => JSON.stringify({
+    timestamp: at, type: "token_usage_record", ordinal,
+    payload: { session_id: session, turn_id: "turn-1", response_id: "",
+      usage: usage(100, 0, output), thread_token_usage: usage(200, 0, total) },
+  }) + "\n";
+  const first = measured(THREAD_ID, 14, "1970-01-01T00:00:02Z", 100, 100);
+  await writeFile(filePath, [
+    line("1970-01-01T00:00:00Z", "event_msg", { type: "task_started", turn_id: "turn-1" }),
+    line("1970-01-01T00:00:01.100Z", "event_msg", {
+      type: "item_completed", item: { type: "Reasoning" }, started_at_ms: 1000, completed_at_ms: 1100,
+    }), first,
+  ].join(""));
+  assert.equal((await reader.read(THREAD_ID)).steps, 1);
+  await appendFile(filePath, first + line("1970-01-01T00:00:03.100Z", "event_msg", {
+    type: "item_completed", item: { type: "AgentMessage" }, started_at_ms: 3000, completed_at_ms: 3100,
+  }) + measured(THREAD_ID, 20, "1970-01-01T00:00:04Z", 50, 150));
+  const snapshot = await reader.read(THREAD_ID);
+  assert.equal(snapshot.steps, 2);
+  assert.equal(snapshot.totalTokens, 350);
+  assert.equal(snapshot.observedTps, 75);
+  assert.equal(snapshot.speedSamples, 2);
+  assert.deepEqual(await reader.read(THREAD_ID), snapshot);
+  const segmentId = "22222222-3333-4444-8555-666666666666";
+  await writeFile(path.join(sessionsDir, `rollout-next-${THREAD_ID}_${segmentId}.jsonl`),
+    measured(segmentId, 14, "1970-01-01T00:00:05Z", 10, 160));
+  now = 2000;
+  const replayed = await reader.read(THREAD_ID);
+  assert.equal(replayed.steps, 3);
+  assert.equal(replayed.totalTokens, 360);
+  assert.equal(replayed.speedSamples, 2);
+  assert.equal(replayed.observedTps, 75);
+});
+
 test("reads unique turns and model steps, then incrementally updates token and speed totals", async (t) => {
   const base = await mkdtemp(path.join(os.tmpdir(), "mcx-session-status-"));
   t.after(() => rm(base, { recursive: true, force: true }));

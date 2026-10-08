@@ -15,7 +15,7 @@ Context 直接订阅 Codex 原生会话状态。其他统计由 Runtime Host 只
 ## 口径
 
 - 回合：唯一 `task_started` / `turn_context` 的 `turn_id`。
-- 步骤：有 `token_usage_record` 的唯一 `response_id`，即已记录的模型响应次数。
+- 步骤：有 `token_usage_record` 的唯一 `response_id`，即已记录的模型响应次数。外部模型未提供 `response_id` 时，使用记录的 `session_id` 与 `ordinal` 组合识别响应，避免增量读取及分段重建重复计数；两种身份都缺失时不猜测步骤或 TPS。
 - Token：优先采用逐响应记录的 `thread_token_usage`，旧日志缺少该记录时回退到 `token_count.total_token_usage`；缓存命中为 `cached_input_tokens / input_tokens`。未缓存输入为总输入减缓存读与缓存写。
 - TPS：取最近 5 个有有效计时且可确定归属的回合，合并同轮所有有效响应，计算 `Σ output_tokens / Σ（观测时长 − 其中完整且不与模型输出重叠的工具等待时长）`；重叠工具区间只扣一次，迟到的工具完成事件会回补已有样本，中断或结束回合会清空未配对计时。有效时长须为有限正数；完整的长思考响应不因超过 10 分钟而丢弃。不足 5 轮时使用已有有效轮数，无效回合不占名额，当前回合取得有效样本后即参与。它是最近有效回合按观测时长加权的平均约值，显示为 `N tok/s`，不是实时解码速度。缺少有效计时样本时显示 `—`。
 - Token 构成：Total 下的比例条按输出（紫）、其他输入（蓝）、缓存输入（绿）显示三项在会话总用量中的占比；缓存命中率独立放在末尾，仍以总输入为分母。其他输入为总输入减缓存输入，包含缓存写入。
@@ -25,6 +25,8 @@ Context 直接订阅 Codex 原生会话状态。其他统计由 Runtime Host 只
 统计图标使用 Lucide Static v1.31.0 的 Gauge；用量图标使用 Phosphor Icons 的 Database，单路径填充避免半透明色在路径交叠处加深。许可见 [`vendor/lucide-LICENSE`](vendor/lucide-LICENSE) 和 [`vendor/phosphor-LICENSE`](vendor/phosphor-LICENSE)。
 
 会话统计浮窗的 TPS 标签带有同色 Lucide info 图标（Lucide 0.577.0 官方资源）；悬浮或键盘聚焦可查看说明：GPT 等模型不公开完整思考过程及逐 Token 生成时间，TPS 仅为基于可观测事件估算的体感响应速度参考，不代表模型真实的 Token 生成速度。
+
+2026-10-08 本机 `opencode-go/deepseek-v4.1-flash` 日志实测：用量记录的 `response_id` 为空，但有 `session_id` 与 `ordinal`；输出条目的 `started_at_ms` 接近完成时间。该类计时可能只覆盖集中交付的输出，TPS 会明显高于整轮体感速度，不能据此推断模型解码性能。
 
 ## 上下文分类的可行性
 

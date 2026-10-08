@@ -77,6 +77,11 @@ export function sessionFacts(record) {
     }
     if (p.type === "token_count") emit("usage-observed", { total:usage(p.info?.total_token_usage), last:usage(p.info?.last_token_usage), contextWindow:p.info?.model_context_window });
   }
-  if (record?.type === "token_usage_record") emit("response-measured", { id:p.response_id, total:usage(p.thread_token_usage), last:usage(p.usage), end:Date.parse(at) });
+  if (record?.type === "token_usage_record") {
+    // 外部模型可能没有响应 ID；序号只在所属 rollout 会话内唯一。
+    const id = p.response_id || (p.session_id && Number.isSafeInteger(record.ordinal) && record.ordinal >= 0
+      ? JSON.stringify(["usage-record", p.session_id, record.ordinal]) : null);
+    emit("response-measured", { id, total:usage(p.thread_token_usage), last:usage(p.usage), end:Date.parse(at) });
+  }
   return facts;
 }

@@ -18,6 +18,20 @@ test('domain computes cache from internal usage and does not accept raw records'
   applySessionStatusEvent(state,{type:'event_msg',payload:{type:'token_count'}});assert.equal(sessionStatusSnapshot(state,'thread').outputTokens,20);
 });
 
+test('response identity prefers native IDs and requires a scoped ordinal for external records',()=>{
+  const record={type:'token_usage_record',ordinal:14,payload:{response_id:'native',session_id:'session'}};
+  assert.equal(sessionFacts(record)[0].id,'native');
+  record.payload.response_id='';
+  assert.equal(sessionFacts(record)[0].id,JSON.stringify(['usage-record','session',14]));
+  for (const ordinal of [undefined,-1,1.5]) {
+    record.ordinal=ordinal;
+    assert.equal(sessionFacts(record)[0].id,null);
+  }
+  record.ordinal=14;
+  delete record.payload.session_id;
+  assert.equal(sessionFacts(record)[0].id,null);
+});
+
 test('tool history includes string results as well as content arrays, including after compaction',()=>{
   const item={type:'function_call_output',output:'中文工具结果'};
   const expected=Math.ceil(Buffer.byteLength(item.output,'utf8')/4);
