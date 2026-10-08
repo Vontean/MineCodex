@@ -4,7 +4,7 @@ const STYLE_ID = "minecodex-session-status-style";
 const copyByLocale = { "zh-CN": {
   turns: "回合", steps: "步", speed: "TPS", cache: "缓存", cacheDetail: "缓存命中",
   statistics: "会话统计", usage: "Token 用量", context: "上下文详情", total: "总量",
-  firstToken: "平均首字延迟", input: "输入", cached: "缓存输入", output: "输出",
+  firstToken: "平均首字延迟", averageSpeed: "平均 TPS", input: "输入", cached: "缓存输入", output: "输出",
   sum: "合计", capacity: "窗口容量", contextShare: "上下文占用", compactions: "压缩次数",
   instructions: "指令", messages: "消息", toolHistory: "工具交互", other: "未分类",
   speedHelp: "关于 TPS", speedInfo: "根据会话日志估算生成速度，包含推理输出。",
@@ -15,7 +15,7 @@ const copyByLocale = { "zh-CN": {
 }, en: {
   turns: "turns", steps: "steps", speed: "TPS", cache: "Cache", cacheDetail: "Cache hit",
   statistics: "Session stats", usage: "Token usage", context: "Context", total: "Total",
-  firstToken: "Avg first token", input: "Input", cached: "Cached input", output: "Output",
+  firstToken: "Avg first token", averageSpeed: "Avg TPS", input: "Input", cached: "Cached input", output: "Output",
   sum: "Sum", capacity: "Window size", contextShare: "Context used", compactions: "Compactions",
   instructions: "Instructions", messages: "Messages", toolHistory: "Tool activity", other: "Unclassified",
   speedHelp: "About TPS", speedInfo: "Generation speed estimated from session logs, including reasoning output.",
@@ -377,6 +377,7 @@ function showPanel(kind) {
     row(dl, copy.turns, number(snapshot.turns));
     row(dl, copy.steps, number(snapshot.steps));
     row(dl, copy.firstToken, duration(snapshot.averageFirstTokenMs));
+    row(dl, copy.averageSpeed, snapshot.averageTps == null ? "—" : `${number(snapshot.averageTps)} tok/s`);
     const speedLabel = row(dl, copy.speed, snapshot.observedTps == null ? "—" : `${number(snapshot.observedTps)} tok/s`);
     speedLabel.className = "tps-label";
     tpsInfo.setAttribute("aria-label", copy.speedHelp);

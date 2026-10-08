@@ -163,3 +163,68 @@ test('latest Codex response rejects sub-second timing', () => {
   assert.equal(sessionStatusSnapshot(state,'thread').observedTps,100);
   assert.equal(sessionStatusSnapshot(state,'thread').speedSamples,1);
 });
+
+const completeTurn = (state,id) => apply(state,{type:'event_msg',payload:{type:'task_complete',turn_id:id}});
+
+test('Avg TPS merges responses per completed turn, then averages turns equally', () => {
+  const state=createSessionState();
+  measuredTurn(state,'one',1000,100);
+  apply(state,item('AgentMessage',3000,6000),response(6000,900,'one-extra'));
+  assert.equal(sessionStatusSnapshot(state,'thread').averageTps,null);
+  completeTurn(state,'one'); // (100+900)/(1+3) = 250
+  measuredTurn(state,'two',7000,100,1000);
+  const pending=sessionStatusSnapshot(state,'thread');
+  assert.equal(pending.averageTps,250);
+  assert.equal(pending.observedTps,100);
+  const done=completeTurn(state,'two');
+  assert.equal(done.averageTps,175); // (250+100)/2, not 1100/5
+  assert.equal(done.averageTpsTurns,2);
+  assert.equal(done.observedTps,100);
+});
+
+test('Avg TPS uses the latest ten completed turns and never backfills invalid turns', () => {
+  const state=createSessionState();
+  for(let i=0;i<11;i++) { measuredTurn(state,String(i),1000+i*3000,(i+1)*100);completeTurn(state,String(i)); }
+  assert.equal(sessionStatusSnapshot(state,'thread').averageTps,650); // 200..1100
+  assert.equal(sessionStatusSnapshot(state,'thread').averageTpsTurns,10);
+  measuredTurn(state,'invalid',40000,9000,999);
+  completeTurn(state,'invalid');
+  assert.equal(sessionStatusSnapshot(state,'thread').averageTps,700); // 300..1100, nine valid of latest ten
+  assert.equal(sessionStatusSnapshot(state,'thread').averageTpsTurns,9);
+});
+
+test('Avg TPS excludes interrupted turns and recognizes completion without a turn ID', () => {
+  const state=createSessionState();
+  measuredTurn(state,'interrupted',1000,500);
+  apply(state,{type:'event_msg',payload:{type:'task_interrupted',turn_id:'interrupted'}});
+  assert.equal(sessionStatusSnapshot(state,'thread').averageTps,null);
+  measuredTurn(state,'done',3000,100);
+  const result=apply(state,{type:'event_msg',payload:{type:'task_complete'}});
+  assert.equal(result.averageTps,100);
+  assert.equal(result.averageTpsTurns,1);
+  completeTurn(state,'done');
+  assert.equal(sessionStatusSnapshot(state,'thread').averageTpsTurns,1);
+});
+
+test('Avg TPS shares OCX timing and does not substitute Codex timing for invalid OCX', () => {
+  const state=createSessionState();
+  measuredTurn(state,'one',1000,100);completeTurn(state,'one');
+  measuredTurn(state,'two',3000,300,3000);completeTurn(state,'two');
+  const measurements=new Map([['one',{source:'ocx',output:100,elapsed:500,reason:null}],
+    ['two',{source:'ocx',output:300,elapsed:1000,reason:null}]]);
+  const result=sessionStatusSnapshot(state,'thread',measurements);
+  assert.equal(result.averageTps,250);
+  assert.equal(result.observedTps,300);
+  measurements.set('two',{source:'ocx',output:300,elapsed:null,reason:'invalid_duration'});
+  assert.equal(sessionStatusSnapshot(state,'thread',measurements).averageTps,200);
+});
+
+test('late tool records correct completed-turn Avg TPS without duplicating responses', () => {
+  const state=createSessionState();
+  apply(state,turnRecord('one'),item('Reasoning',1000,1100),response(4000,140));
+  completeTurn(state,'one');
+  assert.equal(sessionStatusSnapshot(state,'thread').averageTps,47);
+  const result=apply(state,item('CommandExecution',1200,2800),response(4000,140));
+  assert.equal(result.averageTps,100);
+  assert.equal(result.averageTpsTurns,1);
+});

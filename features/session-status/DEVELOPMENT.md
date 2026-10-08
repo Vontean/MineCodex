@@ -18,6 +18,7 @@ Context 直接订阅 Codex 原生会话状态。其他统计由 Runtime Host 只
 - 步骤：有 `token_usage_record` 的唯一 `response_id`，即已记录的模型响应次数。外部模型未提供 `response_id` 时，使用记录的 `session_id` 与 `ordinal` 组合识别响应，避免增量读取及分段重建重复计数；两种身份都缺失时不猜测步骤或 TPS。
 - Token：优先采用逐响应记录的 `thread_token_usage`，旧日志缺少该记录时回退到 `token_count.total_token_usage`；缓存命中为 `cached_input_tokens / input_tokens`。未缓存输入为总输入减缓存读与缓存写。
 - TPS：所有通路统一显示最近一次已完成模型响应的 TPS，不做多回合平均，也不以历史有效响应替代最新无效记录。界面保持 `N tok/s` 与详情中的 `TPS`。OCX 来源采用其已有 TPS（输出量除以整次请求耗时，包含推理输出与请求等待）；没有可关联 OCX 记录时沿用该次响应的会话日志估算。Codex 日志观测窗口至少 1000ms，OCX 请求总耗时只须为有限正数；缺少有效计时显示 `—`，不限制完整长思考响应的最大时长。
+- 平均 TPS：统计浮窗在平均首字延迟与 TPS 之间显示 `Avg TPS` / `平均 TPS`。按完成顺序取最新 10 个 `task_complete` 回合；同轮有效响应先以总输出量 / 总有效耗时合并，再对有效回合 TPS 取算术平均，最后取整。无有效计时的回合占窗口位置但不参与平均，不用更早回合补足；不足 10 轮使用已有轮数，无有效数据显示 `—`。进行中、`task_interrupted` 与 `turn_aborted` 不参与。来源、有效计时、工具扣时和迟到重算与单次 TPS 共用规则；不改变状态行的 TPS。
 - TPS 数据源：OCX Adapter 只读增量索引 `usage.jsonl`，不读取配置、凭据或对话正文。按 OCX 的 `sha256(threadId)[:32]` 会话标识、输入/缓存/输出用量相等及完成时间相差不超过 2 秒唯一关联；同一 OCX 请求不得归属多个响应，无法唯一匹配时保留 Codex 日志估算。安装 OCX 本身不决定来源；父会话或其他身份归档导致不能匹配的记录不猜测归属。
 - OCX TPS：与 OCX 的 `tokPerSecondResult` 相同，使用 `outputTokens / (durationMs / 1000)`，不使用 `genStartMs`、`lastOutputMs` 或 `firstOutputMs`。即使文字集中交付或请求不足 1 秒，只要请求总耗时为有限正数且输出用量有效便可计算；耗时非正数或用量不支持时，该响应不可用，不回退到 Codex 重算。`outputTokens` 已包含推理，不再加 `reasoningOutputTokens`，也不扣工具时间。
 - Codex 日志 TPS：没有可关联 OCX 记录的响应使用原有观测时长，扣其中完整且不与模型输出重叠的工具等待；重叠等待只扣一次，迟到的完成事件回补已有样本。中断或结束回合清空未配对计时，并同样拒绝不足 1 秒的有效窗口。OCX 日志迟到时，下次刷新重新关联并替换该响应口径，不重复计数；日志轮转/截断时重建 OCX 数值索引。

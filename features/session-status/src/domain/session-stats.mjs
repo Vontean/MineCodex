@@ -9,6 +9,7 @@ export function createSessionState() {
     turns: new Set(),
     currentTurnId: null,
     runningTurns: new Set(),
+    completedTurns: new Set(),
     responses: new Set(),
     hasResponseUsage: false,
     total: null,
@@ -66,8 +67,14 @@ export function applySessionStatusEvent(state, event) {
       if (Number.isFinite(event.contextWindow)) state.contextWindow=event.contextWindow;
       state.baseInstructionTokens=event.instructionTokens; break;
     case "context-reset": state.compactionEvents++; state.last=null; reset(); break;
-    case "turn-started": reset(); state.currentTurnId=event.id; state.turns.add(event.id); state.runningTurns.add(event.id); break;
-    case "turn-ended": reset(); state.currentTurnId=null; if (event.id) state.runningTurns.delete(event.id); else state.runningTurns.clear(); break;
+    case "turn-started": reset(); state.currentTurnId=event.id; state.turns.add(event.id); state.runningTurns.add(event.id); state.completedTurns.delete(event.id); break;
+    case "turn-ended": {
+      const id = event.id ?? state.currentTurnId;
+      if (event.completed && id) state.completedTurns.add(id);
+      reset(); state.currentTurnId=null;
+      if (id) state.runningTurns.delete(id); else state.runningTurns.clear();
+      break;
+    }
     case "first-token-measured": state.ttftTotalMs+=event.elapsed; state.ttftSamples++; break;
     case "compaction-finished": state.compactionCompleted++; break;
     case "output-observed":
@@ -103,8 +110,7 @@ export function applySessionStatusEvent(state, event) {
   if (state.total || state.turns.size) state.updatedAt=event.at ?? state.updatedAt;
 }
 
-export function sessionStatusSnapshot(state, threadId, measurements = new Map()) {
-  const sample = state.speedMeasurements.at(-1);
+function responseSpeed(sample, measurements) {
   const measurement = measurements.get(sample?.id);
   const source = measurement?.source ?? "codex";
   const elapsed = measurement ? measurement.elapsed : sample?.start == null ? null
@@ -114,6 +120,23 @@ export function sessionStatusSnapshot(state, threadId, measurements = new Map())
   const output = measurement?.output ?? sample?.output;
   const unavailableReason = measurement?.reason ?? (Number.isFinite(elapsed) && elapsed > 0 && elapsed < 1000
     ? "decode_window_too_short" : "timing_missing");
+  return { source, elapsed, valid, output, unavailableReason };
+}
+
+export function sessionStatusSnapshot(state, threadId, measurements = new Map()) {
+  const { source, elapsed, valid, output, unavailableReason } = responseSpeed(state.speedMeasurements.at(-1), measurements);
+  // 窗口先按完成回合截取；缺少计时不能让更早回合补进最新十轮。
+  const recentTurns = new Map([...state.completedTurns].slice(-10).map(id => [id, { output:0, elapsed:0 }]));
+  for (const sample of state.speedMeasurements) {
+    const turn = recentTurns.get(sample.turnId);
+    if (!turn) continue;
+    const speed = responseSpeed(sample, measurements);
+    if (!speed.valid) continue;
+    turn.output += speed.output;
+    turn.elapsed += speed.elapsed;
+  }
+  const turnSpeeds = [...recentTurns.values()].filter(turn => turn.elapsed > 0)
+    .map(turn => turn.output / (turn.elapsed / 1000));
   const total = state.total;
   const input = total?.input ?? 0;
   const cached = total?.cached ?? 0;
@@ -137,6 +160,8 @@ export function sessionStatusSnapshot(state, threadId, measurements = new Map())
     speedSource: source,
     speedUnavailableReason: valid ? null : unavailableReason,
     observedModelMs: valid ? elapsed : 0,
+    averageTps: turnSpeeds.length ? Math.round(turnSpeeds.reduce((sum, speed) => sum + speed, 0) / turnSpeeds.length) : null,
+    averageTpsTurns: turnSpeeds.length,
     toolMs: state.toolMs,
     averageFirstTokenMs: state.ttftSamples > 0 ? Math.round(state.ttftTotalMs / state.ttftSamples) : null,
     contextUsedTokens: contextUsed,

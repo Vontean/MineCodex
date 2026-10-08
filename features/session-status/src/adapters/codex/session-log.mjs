@@ -68,7 +68,7 @@ export function sessionFacts(record) {
   if (record?.type === "event_msg") {
     if (p.type === "context_compacted") emit("context-reset");
     if (p.type === "task_started" && p.turn_id) emit("turn-started", { id:p.turn_id });
-    if (["task_complete", "task_interrupted", "turn_aborted"].includes(p.type)) emit("turn-ended", { id:p.turn_id });
+    if (["task_complete", "task_interrupted", "turn_aborted"].includes(p.type)) emit("turn-ended", { id:p.turn_id, completed:p.type === "task_complete" });
     if (p.type === "task_complete" && Number.isFinite(p.time_to_first_token_ms)) emit("first-token-measured", { elapsed:p.time_to_first_token_ms });
     if (p.type === "item_completed") {
       if (p.item?.type === "ContextCompaction") emit("compaction-finished");
