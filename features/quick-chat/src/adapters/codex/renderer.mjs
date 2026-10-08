@@ -10,13 +10,13 @@ export function createQuickChatAdapter(codex) {
     const session = codex.props(surface, props => props.session?.conversationId)?.session;
     const floating = codex.props(surface, props => typeof props.onPresentationChange === "function" && typeof props.renderMenu === "function");
     // Work 的页面横条没有经典 Chat 的历史动作，不能接入此功能。
-    if (!composer || composer.isWorkConversation || !session || !floating) return null;
+    if (!composer || composer.isWorkConversation || composer.annotationSubmitTarget || composer.isWidgetOverlay || !session || !floating) return null;
     const history = floating.renderMenu({})?.props?.items?.find(item => item.id === "history" && typeof item.onSelect === "function");
     if (!history) return null;
     const state = codex.props(editable, props => typeof props.submitDisabled === "boolean" && props.conversationId);
     const controller = codex.props(editable, props => props.composerController?.eventEmitter)?.composerController;
     const minimize = [...surface.querySelectorAll('button')].find(button => {
-      const props = codex.props(button, props => typeof props.onMinimize === "function" && typeof props.isCompact === "boolean", 5);
+      const props = codex.props(button, props => props.standalone === true && typeof props.onMinimize === "function" && typeof props.isCompact === "boolean", 5);
       return Boolean(props && button.checkVisibility({visibilityProperty:true}) && !button.hasAttribute('data-mcx-quick-chat-history'));
     });
     let receipt = null;
@@ -32,7 +32,10 @@ export function createQuickChatAdapter(codex) {
     if (receipt && !receipts.has(receipt)) receipts.set(receipt, nextReceipt++);
     const frame = surface.closest('[role="dialog"]');
     const background = frame && [...frame.children].find(node => codex.props(node, props => props.asChild === true && typeof props.unstyled === "boolean", 8));
-    return {surface, editable, minimize, background:!session.hasConversation && floating.forceExpanded ? background : null, sessionId:session.conversationId, hasConversation:session.hasConversation,
+    const project = [...surface.querySelectorAll('[data-composer-rail-item] button')].find(button =>
+      codex.props(button, props => props.variant === "composer" && typeof props.onProjectChange === "function"));
+    const projectRail = project?.closest('[data-composer-rail-item]') ?? null;
+    return {surface, editable, minimize, projectRail, background:!session.hasConversation && floating.forceExpanded ? background : null, sessionId:session.conversationId, hasConversation:session.hasConversation,
       canSubmit:Boolean(state && !state.submitDisabled && !state.submitLoading), receiptId:receipt ? receipts.get(receipt) : 0, receiptPresentation:receipt?.presentation ?? null, emitter:controller?.eventEmitter,
       expanded:floating.presentation === "expanded" || floating.forceExpanded,
       expand:() => floating.onPresentationChange("expanded"),

@@ -3,14 +3,15 @@ const instances = new Map();
 let scheduled = false, disposed = false;
 const text = (en,zh) => (document.documentElement.lang || navigator.language).startsWith('zh') ? zh : en;
 const style = document.createElement('style');
-style.textContent = '[data-mcx-quick-chat-history]{margin-inline-end:8px;flex-shrink:0}[data-floating-chat-surface]>:has(>[data-mcx-quick-chat-history]){display:flex;align-items:center}';
+style.textContent = '[data-mcx-quick-chat-history]{margin-inline-end:8px;flex-shrink:0}[data-mcx-quick-chat-history]>svg{width:16px;height:16px}[data-mcx-quick-chat-project-rail]{display:none!important}[data-floating-chat-surface]>:has(>[data-mcx-quick-chat-history]){display:flex;align-items:center}';
 document.head.append(style);
 function releaseBackground(instance) {
   if (!instance.background) return;
   instance.background.removeAttribute('data-mcx-ui-surface'); instance.background.removeAttribute('data-mcx-ui-variant');
   instance.background = null;
 }
-function remove(instance) { releaseBackground(instance); instance.unsubscribe(); instance.button?.remove(); instance.tracker.clear(); }
+function releaseProjectRail(instance) { instance.projectRail?.removeAttribute('data-mcx-quick-chat-project-rail'); instance.projectRail = null; }
+function remove(instance) { releaseBackground(instance); releaseProjectRail(instance); instance.unsubscribe(); instance.button?.remove(); instance.tracker.clear(); }
 function sync() {
   if (disposed) return;
   const snapshots = native.surfaces(), active = new Set();
@@ -25,6 +26,11 @@ function sync() {
       instances.set(snapshot.surface, instance);
     }
     if (instance.tracker.accepted(snapshot)) snapshot.expand();
+    if (instance.projectRail !== snapshot.projectRail) {
+      releaseProjectRail(instance);
+      instance.projectRail = snapshot.projectRail;
+      instance.projectRail?.setAttribute('data-mcx-quick-chat-project-rail','');
+    }
     if (instance.background !== snapshot.background) {
       releaseBackground(instance);
       if (snapshot.background) {
@@ -41,8 +47,8 @@ function sync() {
       button.type = 'button';
       button.setAttribute('data-mcx-quick-chat-history', '');
       button.innerHTML = config.resources.history;
-      const icon = button.querySelector('svg'), nativeIcon = minimize.querySelector('svg');
-      if (icon) { icon.setAttribute('width', nativeIcon?.getAttribute('width') || '20'); icon.setAttribute('height', nativeIcon?.getAttribute('height') || '20'); icon.setAttribute('aria-hidden','true'); }
+      const icon = button.querySelector('svg');
+      if (icon) { icon.setAttribute('width','16'); icon.setAttribute('height','16'); icon.setAttribute('aria-hidden','true'); }
       button.addEventListener('pointerdown', event => event.preventDefault(), {signal});
       button.addEventListener('click', () => { instance.tracker.clear(); native.read(snapshot.surface)?.history(); }, {signal});
       minimize.before(button); instance.button = button;
@@ -68,9 +74,9 @@ const observer = new MutationObserver(schedule);
 observer.observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['aria-hidden','inert','hidden','lang']});
 sync();
 config.registerSelfCheck?.(() => {
-  const snapshots = native.surfaces(), available = snapshots.some(item => instances.get(item.surface)?.button?.isConnected);
-  return {state:snapshots.length ? available ? 'available' : 'unavailable' : 'not-applicable',
-    reason:snapshots.length ? available ? null : 'quick-chat-history-anchor-unavailable' : 'no-classic-quick-chat',
+  const snapshots = native.surfaces(), anchors = snapshots.filter(item => item.minimize), available = anchors.some(item => instances.get(item.surface)?.button?.isConnected);
+  return {state:anchors.length ? available ? 'available' : 'unavailable' : 'not-applicable',
+    reason:anchors.length ? available ? null : 'quick-chat-history-anchor-unavailable' : 'no-classic-quick-chat-floating-controls',
     checks:[{name:'quick-chat-history',available}],scopes:snapshots.map(item=>({name:'quick-chat',element:item.surface}))};
 });
 return () => { disposed = true; observer.disconnect(); for (const instance of instances.values()) remove(instance); instances.clear(); style.remove(); };

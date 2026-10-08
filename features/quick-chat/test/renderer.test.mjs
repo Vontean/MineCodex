@@ -2,16 +2,17 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createQuickChatAdapter} from '../src/adapters/codex/renderer.mjs';
 import {createSubmissionTracker} from '../src/domain/submission.mjs';
-function fixture({work=false,hasConversation=false}={}) {
+function fixture({work=false,hasConversation=false,page=false,widget=false}={}) {
   const listeners=new Set(),calls=[];
   const emitter={addListener:(name,fn)=>listeners.add(fn),removeListener:(name,fn)=>listeners.delete(fn)};
   const editable={},session={conversationId:'chat',hasConversation};
   const floating={presentation:'compact',onPresentationChange:value=>calls.push(value),renderMenu:()=>({props:{items:[{id:'history',onSelect:()=>calls.push('history')}]}})};
   const owner={memoizedProps:{session},memoizedState:{memoizedState:null,next:null},return:null};
-  const surface={isConnected:true,closest:()=>null,querySelector:()=>editable,querySelectorAll:()=>[]};
-  const props = new Map([[surface,[floating,{session}]],[editable,[{isWorkConversation:work,conversationId:'chat'},{submitDisabled:false,submitLoading:false,conversationId:'chat'},{composerController:{eventEmitter:emitter}}]]]);
+  const buttons=[],projectButtons=[];
+  const surface={isConnected:true,closest:()=>null,querySelector:()=>editable,querySelectorAll:selector=>selector==='button'?buttons:projectButtons};
+  const props = new Map([[surface,[floating,{session}]],[editable,[{isWorkConversation:work,annotationSubmitTarget:page?'page:1':undefined,isWidgetOverlay:widget,conversationId:'chat'},{submitDisabled:false,submitLoading:false,conversationId:'chat'},{composerController:{eventEmitter:emitter}}]]]);
   const codex={props:(node,predicate)=>props.get(node)?.find(predicate),currentFiber:()=>owner};
-  return {surface,owner,session,listeners,calls,adapter:createQuickChatAdapter(codex)};
+  return {surface,owner,session,listeners,calls,props,buttons,projectButtons,adapter:createQuickChatAdapter(codex)};
 }
 test('native receipt drives first acceptance even with no mounted transcript',()=>{
   const f=fixture(),tracker=createSubmissionTracker();
@@ -35,6 +36,27 @@ test('history before first message invokes original native actions',()=>{
 });
 test('Work never exposes Quick Chat controls',()=>{
   const f=fixture({work:true});assert.equal(f.adapter.read(f.surface),null);assert.deepEqual(f.calls,[]);
+});
+test('contextual full-page and widget composers never expose Quick Chat controls',()=>{
+  for (const mode of [{page:true},{widget:true}]) {
+    const f=fixture(mode);assert.equal(f.adapter.read(f.surface),null);assert.deepEqual(f.calls,[]);
+  }
+});
+test('only standalone Minimize anchors History; the expanded title header stays native',()=>{
+  const f=fixture(),header={checkVisibility:()=>true,hasAttribute:()=>false},standalone={...header};
+  f.buttons.push(header,standalone);
+  f.props.set(header,[{onMinimize:()=>{},isCompact:false}]);
+  f.props.set(standalone,[{onMinimize:()=>{},isCompact:true,standalone:true}]);
+  assert.equal(f.adapter.read(f.surface).minimize,standalone);
+  f.buttons.pop();assert.equal(f.adapter.read(f.surface).minimize,undefined);
+});
+test('only the project selector composer rail is exposed for hiding',()=>{
+  const f=fixture(),projectRail={},other={},project={closest:()=>projectRail};
+  f.projectButtons.push(other,project);
+  f.props.set(other,[{onProjectChange:()=>{},variant:'breadcrumb'}]);
+  f.props.set(project,[{onProjectChange:()=>{},variant:'composer'}]);
+  assert.equal(f.adapter.read(f.surface).projectRail,projectRail);
+  f.projectButtons.pop();assert.equal(f.adapter.read(f.surface).projectRail,null);
 });
 test('submit subscription preserves handled result and is removed',()=>{
   const f=fixture();let count=0;const unsubscribe=f.adapter.subscribe(f.adapter.read(f.surface),()=>count++);
