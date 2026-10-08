@@ -50,6 +50,7 @@ POST /api/data/preview 和 POST /api/data/import：预检与执行。
 | Session Status | Codex JSONL、展开偏好 | 日志为原生数据，用量派生；展开偏好留本机 |
 | Usage Meter | 当前账号额度读取 | 无独立持久化内容，不导出账号数据 |
 | Hide Upsell Banner | 注入生命周期 | 无独立内容 |
+| Quick Chat | 原生经典聊天与呈现状态 | 无独立内容，不复制或导出聊天历史 |
 | Sidebar Focus | 原生侧栏状态 | 无独立内容，不改变原生偏好 |
 | Markdown Reading | 原文档及渲染状态 | 不保存文档副本，无独立内容 |
 | File Navigation | 本机目录与原生导航 | 无独立内容，不打包文件系统 |

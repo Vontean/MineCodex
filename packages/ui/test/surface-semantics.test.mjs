@@ -45,6 +45,14 @@ test("composer menu uses body coordinates and zoom independently of outer stacks
   ui.composerMenu(panel,anchor);
   assert.deepEqual(panel.style,{left:"50px",top:"298px",transform:"translateY(-100%)",width:"360px",maxHeight:"292px"});
 });
+test("floating panel adds material without taking over native geometry or layers", t => {
+  const {ui} = fixture(t), panel = new Node();
+  panel.style = {zIndex:"-1",borderRadius:"24px",position:"absolute"};
+  ui.surface(panel,"floating-panel");
+  assert.equal(panel.attributes.get("data-mcx-ui-variant"),"opaque");
+  assert.equal(panel.attributes.has("data-mcx-ui-layer"),false);
+  assert.deepEqual(panel.style,{zIndex:"-1",borderRadius:"24px",position:"absolute"});
+});
 test("modal focus wraps, gives child popups priority, and stops when disposed", t => {
   const {ui,document} = fixture(t);
   const focus = [];

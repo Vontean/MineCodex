@@ -13,15 +13,16 @@ export function installSurfaces(signal, ui) {
     [data-mcx-ui-surface=popover] { box-shadow:0 0 0 var(--mcx-popover-overlay-ring-width,.5px) var(--mcx-color-border-overlay),var(--mcx-shadow-popover-overlay,var(--mcx-shadow-lg)); }
     [data-mcx-ui-surface=popover][data-mcx-ui-variant=translucent] { background:color-mix(in oklab,var(--mcx-color-surface-elevated-secondary) 90%,transparent); }
     [data-mcx-ui-surface=composer-menu] { border:var(--mcx-suggestion-menu-border-width,1px) solid var(--mcx-color-border); border-radius:var(--mcx-radius-suggestion-menu,var(--mcx-radius-2xl)); box-shadow:var(--mcx-suggestion-menu-shadow,none); }
+    [data-mcx-ui-surface=floating-panel] { box-shadow:0 0 0 .5px var(--mcx-color-border),var(--mcx-shadow-2xl); }
     [data-mcx-ui-surface=page] { border-radius:var(--mcx-radius-xl-base); background:var(--mcx-color-surface); box-shadow:none; }
     [data-mcx-ui-surface=page][data-mcx-ui-variant=transparent] { background:transparent; }
   `;
   document.head.append(style);
   signal.addEventListener("abort", () => style.remove(), { once:true });
   function surface(node, kind = "popover", { variant, opaque = true } = {}) {
-    const defaults = { dialog:"opaque", dropdown:"menu", popover:opaque ? "opaque" : "translucent", "composer-menu":"floating", page:"opaque" };
+    const defaults = { dialog:"opaque", dropdown:"menu", popover:opaque ? "opaque" : "translucent", "composer-menu":"floating", page:"opaque", "floating-panel":"opaque" };
     if (!(kind in defaults)) throw new Error(`Unknown UI surface: ${kind}`);
-    if (kind !== "dialog" && kind !== "page") ui.layer(node, "floating");
+    if (kind !== "dialog" && kind !== "page" && kind !== "floating-panel") ui.layer(node, "floating");
     node.setAttribute("data-mcx-ui-surface", kind);
     node.setAttribute("data-mcx-ui-variant", variant ?? defaults[kind]);
     return node;

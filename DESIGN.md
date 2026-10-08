@@ -211,3 +211,7 @@ Prompt 官方页面使用 `packages/ui/src/native/mcp-theme.mjs` 将 MCP Apps �
 Codex 26.930 官方侧栏 MCP icon 的 leading 容器为 `icon-base`（20×20px），菜单 compact 为 `icon-xs`（16px）。Prompt 资源按20px、27单位viewBox留白与1.8单位笔画提供，不改原生容器或热区。`packages/ui/src/native/mcp-app.mjs` 通过原生 GlobalView 的 source.server 识别 MCX 页，保留 header 节点，仅隐藏重复的宿主标题；切换到其他插件或卸载时恢复。
 
 Codex 26.930.51102 源码：MCP 导航的默认与选中资源相同，图标经 SVG mask 使用原生 `currentColor`。MCX 的选中资源由共享 `mcp-navigation.mjs` 按原生 `aria-current`／`data-selected` 切换，仅修改 mask image 的 href，不替换 React 节点。Prompt 复用原有 Phosphor 填充书本；MineCodex 由品牌源生成填充六瓣外圈与透明镐子。颜色、尺寸、热区与选中底色全部由原生组件决定，不反转主题色。其他插件、取消选中、节点复用与卸载均恢复原生资源。
+
+### Quick Chat 原生浮动面
+
+2026-10-08 本机 Renderer 源码与隔离窗口：FloatingPanelSurface 的 default / single-line 使用不透明 `--color-surface-elevated-secondary`、0.5px border ring 与原生 `shadow-2xl` utility。圆角随原生 floatingPanel / composer single-line token，不覆盖窗口几何或强制统一圆角。新聊天的 composer-only 分支原生背景为 unstyled；主动展开 History 时共享 UI 的 `floating-panel` 分支补全其原有背景平面，关闭历史或功能时撤销。
