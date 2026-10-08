@@ -46,8 +46,8 @@ test('tool that continues beyond the response is background, including in later 
   apply(state,item('Reasoning',1000,1100),response(3000,100,'one'),
     item('AgentMessage',4000,4500),response(6000,100,'two'));
   const snapshot=apply(state,item('CommandExecution',1200,10000));
-  assert.equal(snapshot.observedModelMs,4000);
-  assert.equal(snapshot.speedSamples,2);
+  assert.equal(snapshot.observedModelMs,2000);
+  assert.equal(snapshot.speedSamples,1);
   assert.equal(snapshot.observedTps,50);
 });
 
@@ -80,7 +80,7 @@ function measuredTurn(state, id, start, output, duration=1000) {
   return apply(state,turnRecord(id,start),item('AgentMessage',start,start+duration),response(start+duration,output,id));
 }
 
-test('latest five valid turns use total tokens over total time and keep all steps in each turn', () => {
+test('latest response replaces earlier TPS while all turns and steps remain counted', () => {
   const state=createSessionState();
   measuredTurn(state,'old',1000,9000);
   measuredTurn(state,'one',3000,100);
@@ -89,36 +89,36 @@ test('latest five valid turns use total tokens over total time and keep all step
   measuredTurn(state,'three',11000,600);
   measuredTurn(state,'four',13000,400);
   const snapshot=measuredTurn(state,'five',15000,800);
-  assert.equal(snapshot.observedTps,300); // (100+200+300+600+400+800) / (1+1+3+1+1+1)
-  assert.equal(snapshot.speedSamples,6);
-  assert.equal(snapshot.observedModelMs,8000);
+  assert.equal(snapshot.observedTps,800);
+  assert.equal(snapshot.speedSamples,1);
+  assert.equal(snapshot.observedModelMs,1000);
   assert.equal(snapshot.turns,6);
   assert.equal(snapshot.steps,7);
   const next=measuredTurn(state,'six',17000,1000);
-  assert.equal(next.observedTps,443); // (300+600+400+800+1000) / (3+1+1+1+1)
-  assert.equal(next.speedSamples,5);
-  assert.equal(next.observedModelMs,7000);
+  assert.equal(next.observedTps,1000);
+  assert.equal(next.speedSamples,1);
+  assert.equal(next.observedModelMs,1000);
 });
 
-test('empty and invalid turns do not evict valid turns; current turn joins when data arrives', () => {
+test('latest invalid response clears old TPS and current response restores it', () => {
   const state=createSessionState();
   assert.equal(sessionStatusSnapshot(state,'thread').observedTps,null);
   assert.equal(measuredTurn(state,'one',1000,100).observedTps,100);
-  assert.equal(measuredTurn(state,'two',3000,300).observedTps,200);
+  assert.equal(measuredTurn(state,'two',3000,300).observedTps,300);
   measuredTurn(state,'three',5000,500);
   measuredTurn(state,'four',6500,200);
   measuredTurn(state,'five',8000,400);
   apply(state,turnRecord('empty'),response(7000,500,'no-timing'));
   measuredTurn(state,'invalid',10000,9000,0);
   applySessionStatusEvent(state,{kind:'turn-started',id:'current'});
-  assert.equal(sessionStatusSnapshot(state,'thread').observedTps,300);
+  assert.equal(sessionStatusSnapshot(state,'thread').observedTps,null);
   const snapshot=apply(state,item('AgentMessage',612000,613000),response(613000,700,'current-response'));
-  assert.equal(snapshot.observedTps,420);
-  assert.equal(snapshot.speedSamples,5);
+  assert.equal(snapshot.observedTps,700);
+  assert.equal(snapshot.speedSamples,1);
   assert.equal(snapshot.isRunning,true);
 });
 
-test('complete long responses stay in the window instead of biasing TPS toward faster samples', () => {
+test('latest complete long response retains its full measured time', () => {
   const state=createSessionState();
   measuredTurn(state,'one',1000,100);
   measuredTurn(state,'two',3000,100);
@@ -126,9 +126,9 @@ test('complete long responses stay in the window instead of biasing TPS toward f
   measuredTurn(state,'four',7000,100);
   measuredTurn(state,'five',9000,100);
   const snapshot=measuredTurn(state,'slow',11000,9000,600_000);
-  assert.equal(snapshot.speedSamples,5);
-  assert.equal(snapshot.observedModelMs,604000);
-  assert.equal(snapshot.observedTps,16); // (4*100+9000) / (4+600)
+  assert.equal(snapshot.speedSamples,1);
+  assert.equal(snapshot.observedModelMs,600000);
+  assert.equal(snapshot.observedTps,15);
 });
 
 test('unknown turn timing is excluded and turn context changes cannot carry pending output', () => {
@@ -138,23 +138,23 @@ test('unknown turn timing is excluded and turn context changes cannot carry pend
   assert.equal(sessionStatusSnapshot(state,'thread').observedTps,null);
   measuredTurn(state,'three',6000,100);
   applySessionStatusEvent(state,{kind:'turn-ended',id:'three'});
-  assert.equal(apply(state,item('AgentMessage',8000,9000),response(9000,900,'orphan')).observedTps,100);
+  assert.equal(apply(state,item('AgentMessage',8000,9000),response(9000,900,'orphan')).observedTps,null);
 });
 
-test('OCX and Codex samples use weighted time without deducting tools from OCX windows', () => {
+test('latest OCX response replaces Codex TPS without deducting tool time', () => {
   const state=createSessionState();
   measuredTurn(state,'one',1000,100);
   measuredTurn(state,'two',3000,300,3000);
   apply(state,item('CommandExecution',3500,4500));
   const measurements=new Map([['two',{source:'ocx',output:300,elapsed:1000,reason:null}]]);
   const snapshot=sessionStatusSnapshot(state,'thread',measurements);
-  assert.equal(snapshot.observedTps,200);
-  assert.equal(snapshot.observedModelMs,2000);
-  assert.equal(snapshot.speedSource,'mixed');
-  assert.equal(snapshot.speedSamples,2);
+  assert.equal(snapshot.observedTps,300);
+  assert.equal(snapshot.observedModelMs,1000);
+  assert.equal(snapshot.speedSource,'ocx');
+  assert.equal(snapshot.speedSamples,1);
 });
 
-test('sub-second windows are rejected per response before pooling within a turn', () => {
+test('latest Codex response rejects sub-second timing', () => {
   const state=createSessionState();
   measuredTurn(state,'one',1000,9000,999);
   apply(state,item('AgentMessage',3000,3500),response(3500,9000,'extra'));

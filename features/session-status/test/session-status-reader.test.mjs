@@ -40,8 +40,8 @@ test("external responses without response IDs use session-scoped ordinals across
   const snapshot = await reader.read(THREAD_ID);
   assert.equal(snapshot.steps, 2);
   assert.equal(snapshot.totalTokens, 350);
-  assert.equal(snapshot.observedTps, 75);
-  assert.equal(snapshot.speedSamples, 2);
+  assert.equal(snapshot.observedTps, 50);
+  assert.equal(snapshot.speedSamples, 1);
   assert.deepEqual(await reader.read(THREAD_ID), snapshot);
   const segmentId = "22222222-3333-4444-8555-666666666666";
   await writeFile(path.join(sessionsDir, `rollout-next-${THREAD_ID}_${segmentId}.jsonl`),
@@ -50,8 +50,8 @@ test("external responses without response IDs use session-scoped ordinals across
   const replayed = await reader.read(THREAD_ID);
   assert.equal(replayed.steps, 3);
   assert.equal(replayed.totalTokens, 360);
-  assert.equal(replayed.speedSamples, 2);
-  assert.equal(replayed.observedTps, 75);
+  assert.equal(replayed.speedSamples, 0);
+  assert.equal(replayed.observedTps, null);
 });
 
 test("reads unique turns and model steps, then incrementally updates token and speed totals", async (t) => {
@@ -99,7 +99,7 @@ test("reads unique turns and model steps, then incrementally updates token and s
   assert.equal(second.steps, 2);
   assert.equal(second.totalTokens, 800);
   assert.equal(second.observedTps, 50);
-  assert.equal(second.speedSamples, 2);
+  assert.equal(second.speedSamples, 1);
   assert.deepEqual(await reader.read(THREAD_ID), second);
 });
 
@@ -375,7 +375,7 @@ test("late tool completion corrects TPS and duplicate usage does not consume the
     }),
   ].join(""));
   const final = await reader.read(THREAD_ID);
-  assert.equal(final.speedSamples, 2);
+  assert.equal(final.speedSamples, 1);
   assert.equal(final.observedTps, 100);
 });
 

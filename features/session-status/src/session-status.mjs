@@ -8,9 +8,9 @@ const copyByLocale = { "zh-CN": {
   sum: "合计", capacity: "窗口容量", contextShare: "上下文占用", compactions: "压缩次数",
   instructions: "指令", messages: "消息", toolHistory: "工具交互", other: "未分类",
   speedHelp: "关于 TPS", speedInfo: "根据会话日志估算生成速度，包含推理输出。",
-  speedInfoOcx: "根据 OCX 记录估算生成速度，包含推理输出。",
-  speedInfoMixed: "根据 OCX 记录和会话日志估算生成速度，包含推理输出。",
-  speedWindow: "取最近 5 个有有效数据的回合，不足 5 轮时按已有数据计算，仅供参考。",
+  speedInfoOcx: "根据 OCX 记录计算响应速度，包含推理输出和请求等待时间。",
+  speedWindow: "取最近一次已完成响应的数据，仅供参考。",
+  speedWindowOcx: "取最近一次请求的记录，与 OCX 的 TPS 一致。",
   speedUnavailable: "有效计时不足，暂无法估算。",
 }, en: {
   turns: "turns", steps: "steps", speed: "TPS", cache: "Cache", cacheDetail: "Cache hit",
@@ -19,9 +19,9 @@ const copyByLocale = { "zh-CN": {
   sum: "Sum", capacity: "Window size", contextShare: "Context used", compactions: "Compactions",
   instructions: "Instructions", messages: "Messages", toolHistory: "Tool activity", other: "Unclassified",
   speedHelp: "About TPS", speedInfo: "Generation speed estimated from session logs, including reasoning output.",
-  speedInfoOcx: "Generation speed estimated from OCX records, including reasoning output.",
-  speedInfoMixed: "Generation speed estimated from OCX records and session logs, including reasoning output.",
-  speedWindow: "Uses the latest 5 turns with valid data, or fewer when unavailable. For reference only.",
+  speedInfoOcx: "Response speed calculated from OCX records, including reasoning output and request waiting time.",
+  speedWindow: "Uses the latest completed response. For reference only.",
+  speedWindowOcx: "Uses the latest request record, matching OCX TPS.",
   speedUnavailable: "Not enough valid timing data to estimate speed.",
 } };
 function selectedCopy() {
@@ -31,8 +31,9 @@ function selectedCopy() {
 
 function speedTooltip(value, copy) {
   const source = value.speedSource === "ocx" ? copy.speedInfoOcx
-    : value.speedSource === "mixed" ? copy.speedInfoMixed : copy.speedInfo;
-  return `${source} ${value.observedTps == null ? copy.speedUnavailable : copy.speedWindow}`;
+    : copy.speedInfo;
+  const window = value.speedSource === "ocx" ? copy.speedWindowOcx : copy.speedWindow;
+  return `${source} ${value.observedTps == null ? copy.speedUnavailable : window}`;
 }
 
 // 图标来自 Lucide Static 与 Phosphor Icons；许可见 vendor/。

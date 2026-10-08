@@ -15,9 +15,8 @@ test("TPS source and unavailable explanations stay inside the localized info too
   const format=new Function(`${source.slice(source.indexOf("function speedTooltip"),source.indexOf("// 图标来自"))};return speedTooltip;`)();
   for(const copy of Object.values(copies)) {
     assert.equal(copy.speed,"TPS");
-    assert.equal(format({speedSource:"ocx",observedTps:100},copy),`${copy.speedInfoOcx} ${copy.speedWindow}`);
+    assert.equal(format({speedSource:"ocx",observedTps:100},copy),`${copy.speedInfoOcx} ${copy.speedWindowOcx}`);
     assert.equal(format({speedSource:"codex",observedTps:100},copy),`${copy.speedInfo} ${copy.speedWindow}`);
-    assert.equal(format({speedSource:"mixed",observedTps:100},copy),`${copy.speedInfoMixed} ${copy.speedWindow}`);
     assert.equal(format({speedSource:"ocx",observedTps:null},copy),`${copy.speedInfoOcx} ${copy.speedUnavailable}`);
   }
 });

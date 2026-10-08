@@ -27,19 +27,19 @@ async function fixture(t, records=[], codexStart=11850) {
   return {reader:new SessionStatusReader({sessionsDir,ocxUsagePath}),ocxUsagePath,rolloutPath};
 }
 
-test("OCX short window and short Codex delivery never produce thousands of TPS",async t=>{
+test("OCX TPS uses full request time even when delivery takes only 65ms",async t=>{
   const {reader}=await fixture(t,[ocx()]);const result=await reader.read(thread);
-  assert.equal(result.observedTps,null);assert.equal(result.speedSource,"ocx");
-  assert.equal(result.speedUnavailableReason,"decode_window_too_short");
+  assert.equal(result.observedTps,67);assert.equal(result.speedSource,"ocx");
+  assert.equal(result.speedUnavailableReason,null);
   assert.equal(result.steps,1);assert.equal(result.outputTokens,732);
 });
 
-test("OCX generation window replaces Codex delivery, including late log arrival",async t=>{
+test("OCX request time replaces Codex delivery, including late log arrival",async t=>{
   const {reader,ocxUsagePath}=await fixture(t);
   assert.equal((await reader.read(thread)).observedTps,null);
   await writeFile(ocxUsagePath,JSON.stringify(ocx({genStartMs:2910,lastOutputMs:10910}))+"\n");
   const result=await reader.read(thread);
-  assert.equal(result.observedTps,92);assert.equal(result.observedModelMs,8000);
+  assert.equal(result.observedTps,67);assert.equal(result.observedModelMs,10910);
   assert.equal(result.speedSource,"ocx");assert.equal(result.speedSamples,1);
   assert.deepEqual(await reader.read(thread),result);
 });
@@ -52,9 +52,11 @@ test("other conversations, mismatched usage, and ambiguous records cannot replac
   }
 });
 
-test("legacy OCX timing uses post-first-output fallback; invalid authoritative timing is not retried",async t=>{
-  for(const [record,expected]of [[ocx({genStartMs:undefined,lastOutputMs:undefined,firstOutputMs:2910}),92],
-    [ocx({genStartMs:10910,lastOutputMs:10843}),null]]){
+test("OCX TPS ignores decode timestamps and rejects invalid request duration",async t=>{
+  for(const [record,expected]of [[ocx({genStartMs:undefined,lastOutputMs:undefined,firstOutputMs:2910}),67],
+    [ocx({genStartMs:10910,lastOutputMs:10843}),67],
+    [ocx({timestamp:11910,durationMs:0}),null],
+    [ocx({timestamp:11410,durationMs:500}),1464]]){
     const {reader}=await fixture(t,[record]);const result=await reader.read(thread);
     assert.equal(result.observedTps,expected);assert.equal(result.speedSource,"ocx");
   }
@@ -62,19 +64,19 @@ test("legacy OCX timing uses post-first-output fallback; invalid authoritative t
 
 test("partial lines, duplicate records and truncation respect incremental OCX log ownership",async t=>{
   const record=ocx({genStartMs:2910,lastOutputMs:10910});
-  const {reader,ocxUsagePath}=await fixture(t,[record]);assert.equal((await reader.read(thread)).observedTps,92);
+  const {reader,ocxUsagePath}=await fixture(t,[record]);assert.equal((await reader.read(thread)).observedTps,67);
   const serialized=JSON.stringify(record);await appendFile(ocxUsagePath,serialized.slice(0,30));
   assert.equal((await reader.read(thread)).speedSamples,1);
   await appendFile(ocxUsagePath,serialized.slice(30)+"\n");assert.equal((await reader.read(thread)).speedSamples,1);
   await writeFile(ocxUsagePath,JSON.stringify(ocx())+"\n");
-  assert.equal((await reader.read(thread)).observedTps,null);
+  assert.equal((await reader.read(thread)).observedTps,67);
   await writeFile(ocxUsagePath+".next",JSON.stringify(record)+"\n");
   await rename(ocxUsagePath+".next",ocxUsagePath);
-  assert.equal((await reader.read(thread)).observedTps,92);
+  assert.equal((await reader.read(thread)).observedTps,67);
 });
 
 test("without OCX a valid Codex sample remains available; matched invalid OCX never falls back",async t=>{
-  for(const [records,expected,source]of [[[],84,"codex"],[ [ocx()],null,"ocx"],
+  for(const [records,expected,source]of [[[],84,"codex"],[ [ocx()],67,"ocx"],
     [[ocx({usageStatus:"unsupported"})],null,"ocx"],
     [[ocx({timestamp:10000,durationMs:10000})],84,"codex"]]){
     const {reader}=await fixture(t,records,3180);const result=await reader.read(thread);
@@ -84,9 +86,22 @@ test("without OCX a valid Codex sample remains available; matched invalid OCX ne
 
 test("one OCX request cannot be assigned to two same-usage Codex responses",async t=>{
   const {reader,rolloutPath}=await fixture(t,[ocx({genStartMs:2910,lastOutputMs:10910})]);
-  assert.equal((await reader.read(thread)).observedTps,92);
+  assert.equal((await reader.read(thread)).observedTps,67);
   await appendFile(rolloutPath,JSON.stringify({timestamp:new Date(11940).toISOString(),type:"token_usage_record",
     payload:{response_id:"other",usage,thread_token_usage:usage}})+"\n");
   const result=await reader.read(thread);
   assert.equal(result.speedSource,"codex");assert.equal(result.observedTps,null);
+});
+
+test("OCX displays the latest request TPS instead of averaging earlier turns",async t=>{
+  const latestUsage={input_tokens:1200,cached_input_tokens:600,output_tokens:720,total_tokens:1920};
+  const {reader,rolloutPath}=await fixture(t,[ocx(),ocx({requestId:"latest",timestamp:20000,durationMs:9940,
+    usage:{inputTokens:1200,cachedInputTokens:600,outputTokens:720}})]);
+  const row=(timestamp,type,payload)=>JSON.stringify({timestamp:new Date(timestamp).toISOString(),type,payload})+"\n";
+  await appendFile(rolloutPath,row(20000,"event_msg",{type:"task_started",turn_id:"latest-turn"})+
+    row(29900,"event_msg",{type:"item_completed",item:{type:"Reasoning"},started_at_ms:29850,completed_at_ms:29900})+
+    row(29960,"token_usage_record",{response_id:"latest-response",usage:latestUsage,thread_token_usage:latestUsage}));
+  const result=await reader.read(thread);
+  assert.equal(result.observedTps,72);assert.equal(result.observedModelMs,9940);
+  assert.equal(result.speedSamples,1);assert.equal(result.speedSource,"ocx");assert.equal(result.steps,2);
 });

@@ -10,26 +10,16 @@ function usageRecord(row) {
     || !Number.isFinite(row.timestamp) || !Number.isFinite(row.durationMs) || row.durationMs < 0) return null;
   return { id:row.requestId, conversationId:row.conversationId, start:row.timestamp,
     end:row.timestamp+row.durationMs, duration:row.durationMs,
-    first:row.firstOutputMs, generationStart:row.genStartMs, generationEnd:row.lastOutputMs,
     usageStatus:row.usageStatus, input:row.usage?.inputTokens, cached:row.usage?.cachedInputTokens ?? 0,
     output:row.usage?.outputTokens };
 }
 
-function decodeMeasurement(record) {
+function requestMeasurement(record) {
   const unavailable = reason => ({source:"ocx",output:record.output,elapsed:null,reason});
   if (record.usageStatus === "unsupported") return unavailable("usage_unsupported");
   if (!Number.isFinite(record.output) || record.output <= 0) return unavailable("output_missing");
-  let elapsed;
-  if (Number.isFinite(record.generationStart) && Number.isFinite(record.generationEnd)) {
-    elapsed=record.generationEnd-record.generationStart;
-  } else {
-    if (record.first === undefined) return unavailable("ttft_missing");
-    if (!Number.isFinite(record.first) || record.first < 0) return unavailable("invalid_duration");
-    elapsed=record.duration-record.first;
-  }
-  if (!Number.isFinite(elapsed) || elapsed <= 0) return unavailable("invalid_duration");
-  if (elapsed < 1000) return unavailable("decode_window_too_short");
-  return {source:"ocx",output:record.output,elapsed,reason:null};
+  if (!Number.isFinite(record.duration) || record.duration <= 0) return unavailable("invalid_duration");
+  return {source:"ocx",output:record.output,elapsed:record.duration,reason:null};
 }
 
 export class OpenCodexUsageReader {
@@ -85,6 +75,6 @@ export class OpenCodexUsageReader {
       owners.set(record.id,(owners.get(record.id) ?? 0)+1);
     }
     return new Map([...candidates].filter(([,record])=>owners.get(record.id) === 1)
-      .map(([id,record])=>[id,decodeMeasurement(record)]));
+      .map(([id,record])=>[id,requestMeasurement(record)]));
   }
 }
