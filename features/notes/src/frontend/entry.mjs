@@ -377,6 +377,9 @@ function sync() {
     close();
   if (!button) {
     button = add.cloneNode(false);
+    // Add 的附件加载状态不属于只填入文字的提示词入口。
+    button.removeAttribute("disabled");
+    button.removeAttribute("aria-disabled");
     button.removeAttribute("title");
     button.removeAttribute("aria-describedby");
     button.removeAttribute("id");

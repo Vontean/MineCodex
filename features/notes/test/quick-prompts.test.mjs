@@ -231,6 +231,46 @@ test("Quick Prompts only conflicts with visible native composer menus, not expan
   assert.equal(isOpen(control({ "aria-expanded": "false", "aria-haspopup": "menu" })), false);
 });
 
+test("an existing Chat can open Quick Prompts even when Add is disabled during mounting", async () => {
+  const source = await readFile(new URL("../src/frontend/entry.mjs", import.meta.url), "utf8");
+  const attrs = { disabled:"", "aria-disabled":"true" };
+  let mounted, opened = 0;
+  const add = {
+    className:"native-add", children:[], attrs,
+    cloneNode() {
+      const copy = { ...this, attrs:{...attrs}, handlers:{},
+        removeAttribute(name) { delete this.attrs[name]; },
+        setAttribute(name,value) { this.attrs[name]=value; },
+        addEventListener(name,handler) { this.handlers[name]=handler; },
+        click() { if (!Object.hasOwn(this.attrs,"disabled")) this.handlers.click(); },
+      };
+      return copy;
+    },
+    after(node) { mounted=node; },
+  };
+  const composer = { add, root:{}, editable:{} };
+  const sync = new Function("composer", "open", `
+    let disposed=false, signal={aborted:false}, panel=null, composerThread=null,
+      addButton=null, composerRoot=null, composerEditable=null, button=null, insertionBridge=null;
+    const config={management:false}, MARKER="data-minecodex-quick-prompts";
+    const insertionComposer=()=>composer, close=()=>{}, position=()=>{}, text=en=>en;
+    ${source.slice(source.indexOf("function sync()"), source.indexOf("// 页面与快捷调用面板共享数据"))}
+    return sync;
+  `)(composer,()=>opened++);
+  sync();
+  assert.equal(mounted.className,add.className);
+  assert.equal(Object.hasOwn(mounted.attrs,"disabled"),false);
+  assert.equal(Object.hasOwn(mounted.attrs,"aria-disabled"),false);
+  assert.deepEqual(add.attrs,{disabled:"","aria-disabled":"true"});
+  mounted.click();
+  assert.equal(opened,1);
+  delete add.attrs.disabled;
+  delete add.attrs["aria-disabled"];
+  sync();
+  mounted.click();
+  assert.equal(opened,2);
+});
+
 
 test("Quick Prompts anchors to the composer body when diff and request stacks extend its root", async () => {
   const source = await readFile(new URL("../src/frontend/entry.mjs", import.meta.url), "utf8");
