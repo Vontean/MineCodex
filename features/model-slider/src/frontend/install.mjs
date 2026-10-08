@@ -35,6 +35,11 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
       position: sticky; top: 0; z-index: 1; flex-shrink: 0; padding: 2px 8px 8px;
       background: var(--mcx-color-surface-elevated-secondary);
     }
+    /* sticky 保留菜单的 6px 内边距，补齐顶部遮挡而不改变布局高度。 */
+    [data-codex-model-slider-search-header]::before {
+      content: ""; position: absolute; top: -6px; left: -6px; right: -6px; height: 6px;
+      background: inherit; pointer-events: none;
+    }
     [data-codex-model-slider-search] {
       width: 100%; height: 28px; border: 0; outline: none; padding: 0;
       background: transparent; color: var(--mcx-color-text-primary);
