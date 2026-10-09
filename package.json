@@ -76,14 +76,18 @@
     "apps/dashboard/transport.js",
     "packages/plugin/src",
     "packages/plugin/assets",
-    "packages/plugin/plugin.json"
+    "packages/plugin/plugin.json",
+    "features/quick-chat-repair/src",
+    "features/quick-chat-repair/assets",
+    "features/quick-chat-repair/vendor/lucide-LICENSE",
+    "features/quick-chat-repair/codex-feature.json"
   ],
   "engines": {
     "node": ">=22.5.0"
   },
   "scripts": {
     "start": "node packages/cli/bin/mcx.mjs serve",
-    "test": "node --test packages/cli/test/*.test.mjs packages/runtime-host/test/*.test.mjs features/model-slider/test/*.test.mjs features/notes/test/*.test.mjs features/images/test/*.test.mjs features/hide-upsell-banner/test/*.test.mjs features/session-status/test/*.test.mjs features/usage-meter/test/*.test.mjs apps/dashboard/test/*.test.mjs features/unread-inbox/test/*.test.mjs features/quick-chat/test/*.test.mjs features/sidebar-focus/test/*.test.mjs features/sites/test/*.test.mjs packages/ui/test/*.test.mjs packages/codex-adapter/test/*.test.mjs features/markdown-reading/test/*.test.mjs features/file-navigation/test/*.test.mjs packages/plugin/test/*.test.mjs",
+    "test": "node --test packages/cli/test/*.test.mjs packages/runtime-host/test/*.test.mjs features/model-slider/test/*.test.mjs features/notes/test/*.test.mjs features/images/test/*.test.mjs features/hide-upsell-banner/test/*.test.mjs features/session-status/test/*.test.mjs features/usage-meter/test/*.test.mjs apps/dashboard/test/*.test.mjs features/unread-inbox/test/*.test.mjs features/quick-chat/test/*.test.mjs features/sidebar-focus/test/*.test.mjs features/sites/test/*.test.mjs packages/ui/test/*.test.mjs packages/codex-adapter/test/*.test.mjs features/markdown-reading/test/*.test.mjs features/file-navigation/test/*.test.mjs packages/plugin/test/*.test.mjs features/quick-chat-repair/test/*.test.mjs",
     "test:cli": "node --test packages/cli/test/*.test.mjs",
     "test:runtime": "node --test packages/runtime-host/test/*.test.mjs",
     "check": "node scripts/check-syntax.mjs",

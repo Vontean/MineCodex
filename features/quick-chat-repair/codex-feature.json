@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "id": "quick-chat-repair",
+  "version": "0.1.0",
+  "label": {"en":"Quick Chat Exit Repair", "zh-CN":"Quick Chat 退出修复"},
+  "description": {"en":"Fix the native transparent layer that blocks clicks after closing Quick Chat.", "zh-CN":"修复关闭 Quick Chat 后透明层残留、主页面无法点击的问题。"},
+  "entry": {"kind":"page-script", "script":"src/frontend/entry.mjs", "sourceFactory":"src/injection-source.mjs"},
+  "icon": {"resource":"assets/history.svg"},
+  "placement": {"order":76}
+}

@@ -28,6 +28,7 @@ test("config keeps established defaults and enables reading by default and prese
     "markdown-reading": true,
     "file-navigation": true,
     "quick-chat": true,
+    "quick-chat-repair": true,
   });
   assert.deepEqual(config.future, { channel: "preview" });
 
