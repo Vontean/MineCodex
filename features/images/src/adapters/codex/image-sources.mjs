@@ -15,7 +15,9 @@ export function createImageSourcesAdapter(codex) {
       !node.closest("[data-minecodex-image-navigation]")
       && codex.props(node, isImageNavigation));
     if (!tabs) return null;
-    const navigation = tabs.parentElement?.parentElement;
+    // 26.1007 把来源工具栏包进独立 inset；图库仍是同级的 flex 内容区。
+    let navigation = tabs.parentElement?.parentElement;
+    while (navigation && !navigation.nextElementSibling) navigation = navigation.parentElement;
     const content = navigation?.nextElementSibling;
     const shell = navigation?.parentElement;
     if (!content || !shell) return null;

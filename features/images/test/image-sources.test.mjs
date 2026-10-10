@@ -42,3 +42,20 @@ test("a changed native content boundary fails closed", () => {
     assert.equal(adapter.read(), null);
   } finally {globalThis.document = previous;}
 });
+
+
+test("26.1007 inset wrappers preserve the actual gallery and search boundary", context => {
+  const previous=globalThis.document;
+  context.after(()=>{globalThis.document=previous;});
+  const entry=fixture();
+  const toolbar=entry.navigation;
+  const inset={parentElement:entry.shell,nextElementSibling:entry.content};
+  toolbar.nextElementSibling=null;
+  toolbar.parentElement={parentElement:inset};
+  globalThis.document={querySelectorAll:()=>[entry.node]};
+  const adapter=createImageSourcesAdapter({props:(_node,predicate)=>predicate(entry.props)?entry.props:null});
+  const result=adapter.read();
+  assert.equal(result.navigation,inset);
+  assert.equal(result.content,entry.content);
+  assert.equal(result.search,entry.search);
+});

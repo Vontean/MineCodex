@@ -18,7 +18,7 @@ export function discoverFilePreviewComposerBindings(source) {
     if(found.length!==1)throw new Error("Native file preview Composer contract changed");
     return found[0];
   };
-  const scopeBody=requireBody(/draftId:[\w$]+,imageDataUrl:/);
+  const scopeBody=requireBody(/draftId:[\w$]+,(?:imageSrc|imageDataUrl):/);
   const homeBody=requireBody(/homeComposerController:[\w$]+,homeComposerMode:/);
   const composerBody=requireBody(/lockedLayout:`single-line`/);
   const localBody=requireBody(/prepareLocalConversationAttachments:/);
@@ -36,7 +36,7 @@ export function discoverFilePreviewComposerBindings(source) {
   const roles={
     useComposerController:alias(scopeBody,controller,true),
     useHomeComposer:homeBody.match(/let [\w$]+=([\w$]+)\([\w$]+\),[\w$]+=[\w$]+\?\.composerProps/)?.[1],
-    Composer:composerBody.match(/jsx\)\(([\w$]+),\{\.\.\.[\w$]+,className:`mx-auto w-full max-w-2xl px-toolbar`/)?.[1],
+    Composer:composerBody.match(/jsx\)\(([\w$]+),\{\.\.\.[\w$]+,[^;]+?lockedLayout:`single-line`/)?.[1],
     ComposerSurface:composerBody.match(/jsx\)\(([\w$]+),\{placement:/)?.[1],
     ScopeProvider:scopeProvider,
     composerScope:alias(scopeBody,scopes[0][2]),
@@ -115,33 +115,34 @@ export function createNativeImageModules({read = async url => (await fetch(url))
   async function gallery() {
     if (!connecting) connecting = (async () => {
       const {React,ReactDOM,module,component,binding,initialUrl,initialSource,initial}=await bootstrap();
-      const [masonry,layout,sourceImage,menu,selection]=await Promise.all([
+      const [masonry,layout,sourceImage,menu,toolbar]=await Promise.all([
         module("library-masonry"),module("library-item-layout"),module("generated-image-source"),
         module("generated-image-context-menu"),module("library-selection-toolbar"),
       ]);
-      const [moveDialog,dialogs]=await Promise.all([module("library-move-dialog",selection.source),module("library-item-dialogs",selection.source)]);
+      // 26.1007 将选择状态与图库动作移到 selectable-library-item；工具栏保留按钮与材质。
+      const selection=await module("selectable-library-item",toolbar.source);
+      const [moveDialog,dialogs]=await Promise.all([module("library-move-dialog",selection.source),module("library-item-dialogs",toolbar.source)]);
       const routerLocal = selection.source.match(/get\(([\w$]+)\)\.prepareNavigation\(/)?.[1];
       const routerAtom = await binding(selection.source, selection.url, routerLocal);
       const switchLocal = discoverImageActionBinding(selection.source, "switchMode");
       const switchMode = await binding(selection.source, selection.url, switchLocal);
-      const draftLocal = selection.source.match(/let u=([\w$]+)\(e,\[\]\);e.set/)?.[1];
+      const draftLocal = selection.source.match(/let [\w$]+=([\w$]+)\([\w$]+,\[\]\);[\w$]+\.set/)?.[1];
       const createChatDraft = await binding(selection.source, selection.url, draftLocal);
       const dropdownLocal = selection.source.match(/\(0,[\w$]+\.jsxs?\)\(([\w$]+),\{contentWidth:`menu`/)?.[1];
       const itemsLocal = selection.source.match(/\(0,[\w$]+\.jsxs?\)\(([\w$]+)\.Item,\{/)?.[1];
-      const buttonLocal = selection.source.match(/\(0,[\w$]+\.jsx\)\(([\w$]+),\{ref:[^,]+,color:`mediaOverlay`/)?.[1];
-      const iconLocal = selection.source.match(/color:`mediaOverlay`[^;]+?children:\(0,[\w$]+\.jsx\)\(([\w$]+),\{\}\)/)?.[1];
-      const [Dropdown, Menu, Button, MoreIcon] = await Promise.all([dropdownLocal, itemsLocal, buttonLocal, iconLocal].map(local => binding(selection.source, selection.url, local)));
+      const buttonLocal = toolbar.source.match(/jsx\)\(([\w$]+),\{color:`mediaSolid`/)?.[1];
+      const iconLocal = toolbar.source.match(/id:`libraryNext.selection.more`[^;]+?children:\(0,[\w$]+\.jsx\)\(([\w$]+),\{\}\)/)?.[1];
+      const [Dropdown, Menu] = await Promise.all([dropdownLocal, itemsLocal].map(local => binding(selection.source, selection.url, local)));
+      const [Button, MoreIcon] = await Promise.all([buttonLocal, iconLocal].map(local => binding(toolbar.source, toolbar.url, local)));
       const checkboxFunction = component(selection.exports,source=>/onCheckedChange:/.test(source)&&/viewMode:/.test(source),"selection checkbox");
-      const checkboxLocal = String(checkboxFunction).match(/\(0,[\w$]+\.jsx\)\(([\w$]+),\{className:`cursor-interaction`,variant:/)?.[1];
+      const checkboxLocal = String(checkboxFunction).match(/jsx\)\(([\w$]+),\{className:`cursor-interaction`,/)?.[1];
       const Checkbox = await binding(selection.source,selection.url,checkboxLocal);
       const rangeSelection = component(selection.exports,source=>/^function [\w$]+\(\{orderedIds:/.test(source)&&/extendRange:/.test(source),"range selection");
-      const selectionLocal = selection.source.match(/\.set\(([\w$]+),new Set\)/)?.[1];
-      const selectionExport = selection.source.match(/export\{([^}]+)\}/)?.[1].split(",").map(value=>value.trim().split(/\s+as\s+/)).find(parts=>parts[0]===selectionLocal)?.at(-1);
-      const nativeSelectedIds = selection.exports[selectionExport];
-      if (!nativeSelectedIds) throw new Error("Native selection state contract changed");
-      const clearPrefix = selection.source.slice(selection.source.indexOf("id:`libraryNext.selection.clear`"));
+      const selectionLocal = toolbar.source.match(/\.set\(([\w$]+),new Set[,)]/)?.[1];
+      const nativeSelectedIds = await binding(toolbar.source,toolbar.url,selectionLocal);
+      const clearPrefix = toolbar.source.slice(toolbar.source.indexOf("id:`libraryNext.selection.clear`"));
       const clearLocal = clearPrefix.match(/\(0,[\w$]+\.jsx\)\(([\w$]+),\{\}\)/)?.[1];
-      const ClearIcon = await binding(selection.source,selection.url,clearLocal);
+      const ClearIcon = await binding(toolbar.source,toolbar.url,clearLocal);
       const dialogLocal = dialogs.source.match(/\(0,[\w$]+\.jsx\)\(([\w$]+),\{open:[^,]+,showDialogClose:!1/)?.[1];
       const contentLocal = dialogs.source.match(/\(0,[\w$]+\.jsx\)\(([\w$]+),\{as:`form`,onSubmit:/)?.[1];
       const [Dialog,DialogContent] = await Promise.all([dialogLocal,contentLocal].map(local=>binding(dialogs.source,dialogs.url,local)));
@@ -154,8 +155,9 @@ export function createNativeImageModules({read = async url => (await fetch(url))
       const attachLocal = discoverImageActionBinding(imageActionSource, "attachChatImages");
       const downloadLocal = imageActionSource.match(/await ([\w$]+)\(\{downloadSrc:/)?.[1];
       const [imageFile,attachChatImages,downloadImage] = await Promise.all([imageFileLocal,attachLocal,downloadLocal].map(local=>binding(menuCoreSource,menuCoreUrl,local)));
-      const toolbarClass = selection.source.match(/className:`(pointer-events-auto flex h-toolbar[^`]+)`/)?.[1];
-      const toolbarPositionClass = selection.source.match(/className:`(pointer-events-none fixed inset-x-4 bottom-6[^`]+)`/)?.[1];
+      const toolbarClass = toolbar.source.match(/=\`(_Toolbar_[^`]+)\`/)?.[1];
+      const toolbarContainer = toolbar.source.match(/=\`(_Container_[^`]+)\`/)?.[1];
+      const toolbarPositionClass = toolbarContainer && `${toolbarContainer} fixed`;
       if (!toolbarClass || !toolbarPositionClass) throw new Error("Native selection toolbar layout changed");
       const libraryIcon = async label => {
         const marker = selection.source.indexOf(`defaultMessage:\`${label}\``);
@@ -180,8 +182,11 @@ export function createNativeImageModules({read = async url => (await fetch(url))
       const favoriteIconOwner = favoritePrefix.slice(0,favoriteIconLocal).match(/\(0,[\w$]+\.jsx\)\(([\w$]+),\{$/)?.[1];
       const [FavoriteIcon, savedSmall, savedMedium, emptySmall, emptyMedium] = await Promise.all([favoriteIconOwner,...favoriteAsset.slice(1)].map(local => binding(selection.source,selection.url,local)));
       const favoriteIcon = saved => React.createElement(FavoriteIcon,{icon:{assets:saved?{16:savedSmall,20:savedMedium}:{16:emptySmall,20:emptyMedium}}});
-      const [chatIcon, downloadIcon, folderIcon, deleteIcon] = await Promise.all([
-        libraryIcon("Chat about this"), libraryIcon("Download"), libraryIcon("Add to folder"), libraryIcon("{kind, select, directory {Delete folder} other {Delete}}"),
+      const chatLocal = toolbar.source.match(/children:[\w$]+\?[^;]+?:\(0,[\w$]+\.jsxs\)\([\w$]+\.Fragment,\{children:\[\(0,[\w$]+\.jsx\)\(([\w$]+),\{\}\),\(0,[\w$]+\.jsx\)\([\w$]+,\{id:`libraryNext.selection.chat`/)?.[1];
+      const ChatIcon = await binding(toolbar.source,toolbar.url,chatLocal);
+      const chatIcon = React.createElement(ChatIcon,{});
+      const [downloadIcon, folderIcon, deleteIcon] = await Promise.all([
+        libraryIcon("Download"), libraryIcon("Move to folder"), libraryIcon("{kind, select, directory {Delete folder} other {Delete}}"),
       ]);
       if (!React.createElement || !ReactDOM.createRoot || !Menu.Item) throw new Error("Native Images rendering contract changed");
       return {

@@ -47,3 +47,11 @@ test("image actions survive local variable renaming in Codex 26.930.51102", () =
   ]) assert.equal(discoverImageActionBinding(source,"attachChatImages"),"attach");
   assert.throws(()=>discoverImageActionBinding('await attach(scope,chatId,[file],{changed:true})',"attachChatImages"),/attachChatImages/);
 });
+
+// 26.1007 的 React memo 缓存把 JSX 拆为变量，Composer 不再带旧 className。
+test("26.1007 imageSrc scopes and memoized Composer preserve semantic roles",()=>{
+  const source='function scope(e){let{draftId:i,imageSrc:a}=e,y=Controller(),b=Provider,x=Provider,C=scope,T=route,E=value,w=make(e,i);let D=jsx)(home,{composerController:y});let O=jsx)(b,{scope:C,value:w,children:D});return jsx)(x,{scope:T,value:E,children:O})}function home(e){let y={homeComposerController:n,homeComposerMode:m};let x=homeHook(y),S=x?.composerProps;}function composer(e){let j=jsx)(Composer,{...r,ref:g,composerController:n,lockedLayout:`single-line`});return jsx)(Surface,{placement:D,children:j})}function local(e){let nav=Navigate();let prepare=async e=>{let f=await attach(scope,host).createFileAttachment({contents:bytes});signal.aborted&&(remove(scope,host,f.path));nav(routeFor(id),{state:state});};return jsx)(File,{...props,aboveComposerContent:warning,composerModeAvailability:available,prepareLocalConversationAttachments:prepare})}';
+  assert.deepEqual(discoverFilePreviewComposerBindings(source),{
+    useComposerController:'Controller',useHomeComposer:'homeHook',Composer:'Composer',ComposerSurface:'Surface',ScopeProvider:'Provider',composerScope:'scope',createComposerValue:'make',composerRouteScope:'route',FileComposer:'File',fileComposerAvailability:'available',localAttachmentService:'attach',deleteLocalAttachment:'remove',useFileNavigate:'Navigate',localThreadRoute:'routeFor',
+  });
+});
