@@ -1,4 +1,5 @@
 const native = createQuickChatAdapter(config.codex);
+const shortcut = installQuickChatShortcut(signal, config.codex);
 const instances = new Map();
 let scheduled = false, disposed = false;
 const text = (en,zh) => (document.documentElement.lang || navigator.language).startsWith('zh') ? zh : en;
@@ -94,4 +95,4 @@ config.registerSelfCheck?.(() => {
     reason:anchors.length ? available ? null : 'quick-chat-history-anchor-unavailable' : 'no-classic-quick-chat-floating-controls',
     checks:[{name:'quick-chat-history',available}],scopes:snapshots.map(item=>({name:'quick-chat',element:item.surface}))};
 });
-return () => { disposed = true; observer.disconnect(); for (const instance of instances.values()) remove(instance); instances.clear(); style.remove(); };
+return () => { disposed = true; shortcut.dispose(); observer.disconnect(); for (const instance of instances.values()) remove(instance); instances.clear(); style.remove(); };

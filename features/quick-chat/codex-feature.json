@@ -3,7 +3,7 @@
   "id": "quick-chat",
   "version": "0.1.0",
   "label": { "en": "Quick Chat", "zh-CN": "快捷聊天增强" },
-  "description": { "en": "Expand Quick Chat after sending and open native chat history before starting a conversation.", "zh-CN": "发送后自动展开 Quick Chat，尚未发送时也能打开原生聊天历史。" },
+  "description": { "en": "Restore Cmd Option N in Codex mode, expand Quick Chat after sending, and open native chat history.", "zh-CN": "补回 Codex 模式的 ⌘⌥N，发送后自动展开 Quick Chat，尚未发送时也能打开原生聊天历史。" },
   "entry": { "kind": "page-script", "script": "src/frontend/entry.mjs", "sourceFactory": "src/injection-source.mjs", "resources": { "history": "assets/history.svg" } },
   "icon": { "resource": "assets/history.svg" },
   "placement": { "order": 75 }

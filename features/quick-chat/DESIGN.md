@@ -3,6 +3,7 @@
 沿用根 DESIGN.md 的视觉与原生控件规则。功能开关为 `quick-chat`，控制台名称为「快捷聊天增强」。
 
 - 仅增强经典 ChatGPT 的 Quick Chat 浮层；全窗口页面中的 Work / 代码输入横条保留原状。
+- Codex 模式下，原生命令缺失时补回 ⌘⌥N，调用原生 Quick Chat 打开动作并保留已有会话；官方恢复 `quickChat` 命令后让原生处理。⌘⇧N 的 Temporary Chat 不受影响。此补偿随「快捷聊天增强」开关启停，仅在应用窗口内生效。页面上下文已有浮层时（含 Work）优先调用原生恢复按钮，还原最小化前的 compact / expanded 形态并聚焦；已显示时仅聚焦输入框，不另开聊天。
 - 打开、聚焦和输入不改变原生初始形态。用户提交进入当前会话后自动展开正文；空提交或被阻止的提交不展开。
 - History 只出现在 compact 输入横条的原生 standalone 悬浮控制区，紧邻 Minimize 左侧，边缘间距 8px。历史面板打开后只保留 Minimize；standalone Minimize 在两种状态下均保持圆形。展开后的标题栏保留原生标题历史入口，不增加按钮。复制 Minimize 热区、材质与反馈；History 使用 16×16px Lucide 官方资源，匹配原生项目选择器的小图标层级（Minimize 的 20px 画布内图形另有留白）。
 - 经典 Chat 隐藏无效的项目选择 rail，不删除 React 节点。外层 rail 没有其他内容时也收起，避免原生圆角留白和负 margin 在聚焦时引入 -4px 净偏移；有其他内容时保留外层。控制区继续锚定原生浮层顶部，聚焦不改变与输入横条的位置关系。Work、页面 annotation composer 与 widget 不接入。关闭功能或切换分支时恢复 rail。
@@ -11,3 +12,5 @@
 - 保留原生最小化、拖动、手动展开、焦点、主题、语言与 zoom。关闭功能时移除按钮和监听，不改原生偏好。
 
 适配依据：2026-10-08 本机官方 Renderer 的 `quick-chat-window`、`quick-chat-floating-surface` 源码及 profile 隔离窗口。原生菜单 `history.onSelect`、呈现控制器 `onPresentationChange` 属于私有能力；失效时停止增强，诊断不暴露用户内容。
+
+快捷键适配依据：2026-10-10，官方 26.1007.21159（build 20052）命令目录缺少 `quickChat`，但原生打开动作仍可用；独立 profile 验证补偿前后与卸载行为。
