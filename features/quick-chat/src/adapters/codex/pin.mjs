@@ -1,12 +1,7 @@
+import {quickChatHistoryVisible} from "./history.mjs";
 export function createQuickChatPinAdapter(codex) {
   const layerSelector = '.fixed.inset-0.zoom-adjusted-viewport.pointer-events-auto';
-  function historyVisible(node) {
-    if (Array.isArray(node)) return node.some(historyVisible);
-    const props = node?.props;
-    if (!props || props.hidden || props.inert || props['aria-hidden']) return false;
-    if (Array.isArray(props.conversations) && typeof props.onConversationSelect === 'function' && typeof props.onNewChat === 'function') return true;
-    return historyVisible(props.children);
-  }
+
   function surfaces() {
     const inCodex = [...document.querySelectorAll('button[aria-haspopup="menu"]')].some(button => button.checkVisibility({visibilityProperty:true})
       && codex.props(button, p => typeof p.onModeSelect === 'function' && typeof p.mode === 'string', 80)?.mode === 'codex');
@@ -24,7 +19,7 @@ export function createQuickChatPinAdapter(codex) {
       if (!composer || composer.isWorkConversation || composer.annotationSubmitTarget || composer.isWidgetOverlay || !session?.hasConversation || !floating) return [];
       const anchor = surface.querySelector('header button[data-quick-chat-drag-handle]');
       const expanded = floating.presentation === 'expanded' || floating.forceExpanded;
-      const history = historyVisible(floating.renderTranscript?.());
+      const history = quickChatHistoryVisible(floating.renderTranscript?.());
       return [{surface, layer, sessionId:session.conversationId, anchor, minimized:Boolean(floating.isMinimized), expanded:Boolean(expanded), history,
         expand:() => floating.onPresentationChange('expanded'),
         showPin:Boolean(anchor && expanded && !floating.isMinimized && !history)}];

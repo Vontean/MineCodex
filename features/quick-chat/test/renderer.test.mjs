@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createQuickChatAdapter} from '../src/adapters/codex/renderer.mjs';
+import {createPageScriptSource} from '../src/injection-source.mjs';
 import {createSubmissionTracker} from '../src/domain/submission.mjs';
 function fixture({work=false,hasConversation=false,page=false,widget=false}={}) {
   const listeners=new Set(),calls=[];
@@ -13,7 +14,7 @@ function fixture({work=false,hasConversation=false,page=false,widget=false}={}) 
   const surface={isConnected:true,closest:()=>null,querySelector:()=>editable,querySelectorAll:selector=>selector==='button'?buttons:projectButtons};
   const props = new Map([[surface,[floating,{session}]],[editable,[{isWorkConversation:work,annotationSubmitTarget:page?'page:1':undefined,isWidgetOverlay:widget,conversationId:'chat'},{submitDisabled:false,submitLoading:false,conversationId:'chat'},{composerController:{eventEmitter:emitter}}]]]);
   const codex={props:(node,predicate)=>props.get(node)?.find(predicate),currentFiber:()=>owner};
-  return {surface,editable,owner,session,floating,listeners,calls,props,buttons,projectButtons,adapter:createQuickChatAdapter(codex)};
+  return {surface,editable,codex,owner,session,floating,listeners,calls,props,buttons,projectButtons,adapter:createQuickChatAdapter(codex)};
 }
 test('native receipt drives first acceptance even with no mounted transcript',()=>{
   const f=fixture(),tracker=createSubmissionTracker();
@@ -123,4 +124,14 @@ test('subscription identity stays internal, changes with the native source, and 
   delete controller.eventEmitter;
   const missing=f.adapter.read(f.surface);assert.equal(missing.subscriptionId,0);
   assert.doesNotThrow(()=>f.adapter.subscribe(missing,()=>{})());
+});
+
+
+test('serialized renderer resolves the shared native history contract at runtime',async()=>{
+  const source=await createPageScriptSource(),declarations=source.slice(0,source.indexOf('const exitRepair ='));
+  const create=new Function(`${declarations};return createQuickChatAdapter;`)();
+  const f=fixture(),adapter=create(f.codex);
+  assert.equal(adapter.read(f.surface).historyVisible,false);
+  adapter.read(f.surface).history();
+  assert.equal(adapter.read(f.surface).historyVisible,true);
 });
