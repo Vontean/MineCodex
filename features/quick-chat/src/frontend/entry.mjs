@@ -1,5 +1,6 @@
 const native = createQuickChatAdapter(config.codex);
 const shortcut = installQuickChatShortcut(signal, config.codex);
+const pin = installQuickChatPin(signal, config);
 const instances = new Map();
 let scheduled = false, disposed = false;
 const text = (en,zh) => (document.documentElement.lang || navigator.language).startsWith('zh') ? zh : en;
@@ -23,6 +24,7 @@ function releaseProjectRail(instance) { instance.projectRail?.removeAttribute('d
 function remove(instance) { releaseBackground(instance); releaseProjectRail(instance); instance.minimize?.removeAttribute('data-mcx-quick-chat-minimize'); instance.unsubscribe(); instance.button?.remove(); instance.tracker.clear(); instance.historyTracker.clear(); }
 function sync() {
   if (disposed) return;
+  pin.sync();
   const snapshots = native.surfaces(), active = new Set();
   for (const snapshot of snapshots) {
     active.add(snapshot.surface);
@@ -90,9 +92,13 @@ const observer = new MutationObserver(schedule);
 observer.observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['aria-hidden','inert','hidden','lang']});
 sync();
 config.registerSelfCheck?.(() => {
-  const snapshots = native.surfaces(), anchors = snapshots.filter(item => item.showHistory), available = anchors.some(item => instances.get(item.surface)?.button?.isConnected);
-  return {state:anchors.length ? available ? 'available' : 'unavailable' : 'not-applicable',
-    reason:anchors.length ? available ? null : 'quick-chat-history-anchor-unavailable' : 'no-classic-quick-chat-floating-controls',
-    checks:[{name:'quick-chat-history',available}],scopes:snapshots.map(item=>({name:'quick-chat',element:item.surface}))};
+  const snapshots = native.surfaces(), anchors = snapshots.filter(item => item.showHistory);
+  const history = anchors.some(item => instances.get(item.surface)?.button?.isConnected), pinned = pin.status();
+  const applicable = anchors.length > 0 || pinned.applicable;
+  const available = (!anchors.length || history) && (!pinned.applicable || pinned.available);
+  return {state:applicable ? available ? 'available' : 'unavailable' : 'not-applicable',
+    reason:applicable ? available ? null : 'quick-chat-controls-unavailable' : 'no-classic-quick-chat-floating-controls',
+    checks:[...(anchors.length ? [{name:'quick-chat-history',available:history}] : []), ...(pinned.applicable ? [{name:'quick-chat-pin',available:pinned.available}] : [])],
+    scopes:snapshots.map(item=>({name:'quick-chat',element:item.surface}))};
 });
-return () => { disposed = true; shortcut.dispose(); observer.disconnect(); for (const instance of instances.values()) remove(instance); instances.clear(); style.remove(); };
+return () => { disposed = true; shortcut.dispose(); pin.dispose(); observer.disconnect(); for (const instance of instances.values()) remove(instance); instances.clear(); style.remove(); };

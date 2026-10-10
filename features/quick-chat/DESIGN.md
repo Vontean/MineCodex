@@ -9,8 +9,12 @@
 - 经典 Chat 隐藏无效的项目选择 rail，不删除 React 节点。外层 rail 没有其他内容时也收起，避免原生圆角留白和负 margin 在聚焦时引入 -4px 净偏移；有其他内容时保留外层。控制区继续锚定原生浮层顶部，聚焦不改变与输入横条的位置关系。Work、页面 annotation composer 与 widget 不接入。关闭功能或切换分支时恢复 rail。
 - 点击 History 仅调用原生历史动作，以 forceExpanded 临时显示完整历史列表，不改变基础 presentation。未发送、未选择会话时最小化会关闭历史；恢复只显示原来的输入横条。从历史选择已有聊天后保持正文展开；选择 New chat 或仅浏览后最小化不触发正文展开。列表、分页、新聊天与选择行为由原生拥有，不复制数据。
 - 未发送时展开历史，原生 composer-only 背景没有填充；通过共享 UI 的 floating-panel 分支补全原背景平面，保留原生圆角和几何。
+- 有实际聊天内容的经典 Quick Chat 在 Codex 模式展开时，header 的原生 dragger 左侧显示 Pin。仅预览历史、空聊天、Work / 页面上下文和 widget 不提供 Pin。按钮复制相邻 dragger 的 class 和 SVG 尺寸，颜色与反馈继承同一原生 token；图标取官方安装包 Lucide Pin 路径（24px viewBox、2px stroke），固定时只填充图钉主体，针尖仍用 stroke。
+- Pin 是当前窗口、当前会话的临时状态。固定时透明全屏层放行主页面点击，原生可交互子元素保持命中；原生外部点击请求 compact 后，经原生 presentation 动作维持展开，不抢主页面焦点。进入历史预览或 Minimize 立即解除固定；恢复后为 unpinned。浮层内 Esc 解除固定并继续交给原生键盘处理；关闭、切换会话、切换主模式或卸载清除状态与标记。
 - 保留原生最小化、拖动、手动展开、焦点、主题、语言与 zoom。关闭功能时移除按钮和监听，不改原生偏好。
 
 适配依据：2026-10-08 本机官方 Renderer 的 `quick-chat-window`、`quick-chat-floating-surface` 源码及 profile 隔离窗口。原生菜单 `history.onSelect`、呈现控制器 `onPresentationChange` 属于私有能力；失效时停止增强，诊断不暴露用户内容。
 
 快捷键适配依据：2026-10-10，官方 26.1007.21159（build 20052）命令目录缺少 `quickChat`，但原生打开动作仍可用；独立 profile 验证补偿前后与卸载行为。
+
+Pin 适配依据：2026-10-10，Codex 26.1007.21159 / build 20052；原生 `header button[data-quick-chat-drag-handle]`、`QuickChatWindow` boundary、经典会话 hasConversation、统一停靠 presentation 与最小化回调，以及独立 profile 的真实鼠标命中测试。透明层穿透只在固定时生效，不替代独立退出修复。
