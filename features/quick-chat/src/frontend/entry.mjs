@@ -32,9 +32,9 @@ function sync() {
     active.add(snapshot.surface);
     let instance = instances.get(snapshot.surface);
     const selected = instance?.historyTracker.selected(snapshot);
-    if (!instance || instance.sessionId !== snapshot.sessionId || instance.emitter !== snapshot.emitter) {
+    if (!instance || instance.sessionId !== snapshot.sessionId || instance.subscriptionId !== snapshot.subscriptionId) {
       if (instance) remove(instance);
-      instance = {sessionId:snapshot.sessionId, emitter:snapshot.emitter, tracker:createSubmissionTracker(), historyTracker:createHistoryTracker(), button:null};
+      instance = {sessionId:snapshot.sessionId, subscriptionId:snapshot.subscriptionId, tracker:createSubmissionTracker(), historyTracker:createHistoryTracker(), button:null};
       const begin = () => { const current = native.read(snapshot.surface); if (current) instance.tracker.begin(current); };
       instance.unsubscribe = native.subscribe(snapshot, begin);
       instances.set(snapshot.surface, instance);

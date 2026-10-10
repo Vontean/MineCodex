@@ -13,7 +13,7 @@ function fixture({work=false,hasConversation=false,page=false,widget=false}={}) 
   const surface={isConnected:true,closest:()=>null,querySelector:()=>editable,querySelectorAll:selector=>selector==='button'?buttons:projectButtons};
   const props = new Map([[surface,[floating,{session}]],[editable,[{isWorkConversation:work,annotationSubmitTarget:page?'page:1':undefined,isWidgetOverlay:widget,conversationId:'chat'},{submitDisabled:false,submitLoading:false,conversationId:'chat'},{composerController:{eventEmitter:emitter}}]]]);
   const codex={props:(node,predicate)=>props.get(node)?.find(predicate),currentFiber:()=>owner};
-  return {surface,owner,session,floating,listeners,calls,props,buttons,projectButtons,adapter:createQuickChatAdapter(codex)};
+  return {surface,editable,owner,session,floating,listeners,calls,props,buttons,projectButtons,adapter:createQuickChatAdapter(codex)};
 }
 test('native receipt drives first acceptance even with no mounted transcript',()=>{
   const f=fixture(),tracker=createSubmissionTracker();
@@ -104,4 +104,23 @@ test('26.1007 scoped atom receipt accepts first and continued submissions withou
   assert.equal(tracker.accepted(f.adapter.read(f.surface)),false);
   f.owner.memoizedState.memoizedState=[{owner:()=>{},presentation:'compact'},{},{}];
   assert.equal(tracker.accepted(f.adapter.read(f.surface)),true);
+});
+
+
+test('subscription identity stays internal, changes with the native source, and cleans both sources',()=>{
+  const f=fixture(),first=f.adapter.read(f.surface),second=f.adapter.read(f.surface);
+  assert.equal('emitter' in first,false);
+  assert.equal(typeof first.subscriptionId,'number');
+  assert.equal(first.subscriptionId,second.subscriptionId);
+  const stopFirst=f.adapter.subscribe(first,()=>{});
+  const listeners=new Set(),controller=f.props.get(f.editable).find(p=>p.composerController).composerController;
+  controller.eventEmitter={addListener:(_,fn)=>listeners.add(fn),removeListener:(_,fn)=>listeners.delete(fn)};
+  const changed=f.adapter.read(f.surface);
+  assert.notEqual(changed.subscriptionId,first.subscriptionId);
+  const stopChanged=f.adapter.subscribe(changed,()=>{});
+  stopFirst();assert.equal(f.listeners.size,0);assert.equal(listeners.size,1);
+  stopChanged();assert.equal(listeners.size,0);
+  delete controller.eventEmitter;
+  const missing=f.adapter.read(f.surface);assert.equal(missing.subscriptionId,0);
+  assert.doesNotThrow(()=>f.adapter.subscribe(missing,()=>{})());
 });

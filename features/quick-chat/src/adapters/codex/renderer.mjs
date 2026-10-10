@@ -1,5 +1,6 @@
 export function createQuickChatAdapter(codex) {
-  const receipts = new WeakMap();
+  const receipts = new WeakMap(), subscriptions = new WeakMap(), emitters = new WeakMap();
+  let nextSubscription = 1;
   let nextReceipt = 1;
   const surfaceSelector = '[data-floating-chat-surface]';
   function historyList(node) {
@@ -46,16 +47,21 @@ export function createQuickChatAdapter(codex) {
       codex.props(button, props => props.variant === "composer" && typeof props.onProjectChange === "function"));
     const projectRail = project?.closest('[data-composer-rail-item]') ?? null;
     const expanded = Boolean(floating.presentation === "expanded" || floating.forceExpanded);
-    return {surface, editable, minimize, projectRail, background:!session.hasConversation && floating.forceExpanded ? background : null, sessionId:session.conversationId, hasConversation:session.hasConversation,
-      canSubmit:Boolean(state && !state.submitDisabled && !state.submitLoading), receiptId:receipt ? receipts.get(receipt) : 0, receiptPresentation:receipt?.presentation ?? null, emitter:controller?.eventEmitter,
+    const emitter = controller?.eventEmitter;
+    const subscribable = typeof emitter?.addListener === "function" && typeof emitter?.removeListener === "function";
+    if (subscribable && !subscriptions.has(emitter)) subscriptions.set(emitter, nextSubscription++);
+    const snapshot = {surface, editable, minimize, projectRail, background:!session.hasConversation && floating.forceExpanded ? background : null, sessionId:session.conversationId, hasConversation:session.hasConversation,
+      canSubmit:Boolean(state && !state.submitDisabled && !state.submitLoading), receiptId:receipt ? receipts.get(receipt) : 0, receiptPresentation:receipt?.presentation ?? null, subscriptionId:subscribable ? subscriptions.get(emitter) : 0,
       expanded, showHistory:Boolean(minimize && !expanded), historyVisible:historyList(floating.renderTranscript?.()),
       expand:() => floating.onPresentationChange("expanded"),
       // 历史动作通过 forceExpanded 临时展开；不要覆盖最小化后的恢复形态。
       history:() => history.onSelect()};
+    if (subscribable) emitters.set(snapshot, emitter);
+    return snapshot;
   }
   function surfaces() { return [...document.querySelectorAll(surfaceSelector)].map(read).filter(Boolean); }
   function subscribe(snapshot, listener) {
-    const emitter = snapshot.emitter;
+    const emitter = emitters.get(snapshot);
     if (!emitter?.addListener || !emitter?.removeListener) return () => {};
     // 不改变原生 emit 的 handled 结果，也不接管发送。
     const submit = () => { listener(); return false; };
