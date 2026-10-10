@@ -45,3 +45,5 @@ host action 收录旧 localStorage 收藏，之后以后端为准。当前窗口
 Fast 图标 localStorage 仍只属于可再生成缓存，不进入迁移包。
 
 跨机器收藏按完整模型 ID 匹配：本机缺少的模型保留收藏记录但不创建可选项；不同服务商的同名模型不自动对应，也不改变当前选中模型与思考档位。
+
+- Codex 26.1007.21159 原生模型弹层带 CSS `zoom` 与开场 `scale`。模型列表打开、返回、搜索的高度动画使用 computed CSS height；可用屏幕高度先除以 `currentCSSZoom` 转换为布局尺寸，避免动画起点和终点重复缩放。

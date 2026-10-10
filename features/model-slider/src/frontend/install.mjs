@@ -727,7 +727,7 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
         .reduce((sum, value) => sum + (Number.parseFloat(value) || 0), 0);
       const last = items[Math.max(1, maxVisibleItems) - 1];
       const resultsHeight = last ? last.offsetTop + last.offsetHeight - content.offsetTop : content.offsetHeight;
-      const available = modelSelectorControllerMenu.parentMenu.getBoundingClientRect().bottom - 8;
+      const available = (modelSelectorControllerMenu.parentMenu.getBoundingClientRect().bottom - 8) / (menu.currentCSSZoom || 1);
       menu.style.height = `${Math.ceil(Math.min(chrome + header.offsetHeight + resultsHeight, available))}px`;
       menu.style.overflowY = "auto";
       return;
@@ -1008,7 +1008,8 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
   }
 
   function animateControllerModelMenu(record, opening, onFinish) {
-    const height = record.menu.getBoundingClientRect().height;
+    // height 写入 CSS 动画，必须使用布局尺寸，不能重复计入原生 zoom 和开场 scale。
+    const height = Number.parseFloat(getComputedStyle(record.menu).height);
     clearTimeout(record.motionTimer);
     record.animations?.forEach((animation) => animation.cancel());
     record.animations = [];
@@ -1139,14 +1140,14 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
       resetKeyboard();
       const record = modelSelectorControllerMenu;
       if (!record || record.menu !== menu || record.closing) return;
-      const previousHeight = menu.getBoundingClientRect().height;
+      const previousHeight = Number.parseFloat(getComputedStyle(menu).height);
       clearTimeout(record.motionTimer);
       record.animations?.forEach((animation) => animation.cancel());
       record.animations = [];
       menu.scrollTop = 0;
       renderEnhancedModelMenu(menu, selector);
       sizeModelMenuViewport(menu, selector.maxVisibleItems);
-      record.listHeight = menu.getBoundingClientRect().height;
+      record.listHeight = Number.parseFloat(getComputedStyle(menu).height);
       if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
       const motion = menu.animate([{ height: `${previousHeight}px` }, { height: `${record.listHeight}px` }],
         { duration: 320, easing: "cubic-bezier(.19,1,.22,1)" });
@@ -1242,7 +1243,7 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
       placeholderText,
       position: parentMenu.style.position,
       overflow: parentMenu.style.overflow,
-      sliderHeight: parentMenu.getBoundingClientRect().height,
+      sliderHeight: Number.parseFloat(getComputedStyle(parentMenu).height),
     };
     parentMenu.style.position = "relative";
     parentMenu.style.overflow = "visible";
@@ -1251,7 +1252,7 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
     modelButton.setAttribute("aria-expanded", "true");
     search.focus({ preventScroll: true });
     const record = modelSelectorControllerMenu;
-    record.listHeight = menu.getBoundingClientRect().height;
+    record.listHeight = Number.parseFloat(getComputedStyle(menu).height);
     animateControllerModelMenu(record, true, () => {
       if (modelSelectorControllerMenu !== record || record.closing) return;
       record.animations.forEach((animation) => animation.cancel());
