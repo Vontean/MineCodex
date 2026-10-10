@@ -2,9 +2,27 @@
   "schemaVersion": 1,
   "id": "quick-chat",
   "version": "0.1.0",
-  "label": { "en": "Quick Chat", "zh-CN": "快捷聊天增强" },
-  "description": { "en": "Restore Quick Chat shortcuts, expand after sending, pin classic chats, and open native chat history.", "zh-CN": "恢复 Quick Chat 快捷键，发送后展开聊天，可固定经典聊天窗口并查看原生历史。" },
-  "entry": { "kind": "page-script", "script": "src/frontend/entry.mjs", "sourceFactory": "src/injection-source.mjs", "resources": { "history": "assets/history.svg", "pin": "assets/pin.svg" } },
-  "icon": { "resource": "assets/history.svg" },
-  "placement": { "order": 75 }
+  "label": {
+    "en": "Enhance Quick Chat",
+    "zh-CN": "快捷聊天增强"
+  },
+  "description": {
+    "en": "Start fresh after closing, restore minimized chats, expand after sending, pin conversations, and repair native exit layers.",
+    "zh-CN": "关闭后开启全新聊天，恢复最小化输入框、发送后展开、固定聊天，并修复退出后的透明遮罩残留。"
+  },
+  "entry": {
+    "kind": "page-script",
+    "script": "src/frontend/entry.mjs",
+    "sourceFactory": "src/injection-source.mjs",
+    "resources": {
+      "history": "assets/history.svg",
+      "pin": "assets/pin.svg"
+    }
+  },
+  "icon": {
+    "resource": "assets/history.svg"
+  },
+  "placement": {
+    "order": 75
+  }
 }

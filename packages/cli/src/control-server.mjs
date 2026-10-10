@@ -14,7 +14,7 @@ import { createDataTransfer, MAX_TRANSFER_BYTES } from "./data-transfer/service.
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const packageMetadata = JSON.parse(await readFile(path.join(packageRoot, "package.json"), "utf8"));
 const MAX_BODY_BYTES = 64 * 1024;
-const DASHBOARD_FEATURE_ORDER = ["model-slider", "notes", "usage-meter", "session-status", "markdown-reading", "file-navigation", "images", "sites", "quick-chat", "quick-chat-repair", "sidebar-focus", "hide-upsell-banner"];
+const DASHBOARD_FEATURE_ORDER = ["model-slider", "notes", "usage-meter", "session-status", "markdown-reading", "file-navigation", "images", "sites", "quick-chat", "sidebar-focus", "hide-upsell-banner"];
 const CONTENT_TYPES = new Map([
   [".css", "text/css; charset=utf-8"],
   [".html", "text/html; charset=utf-8"],

@@ -31,9 +31,9 @@ if (packageMetadata.license !== "MIT") {
 
 const files = report.files.map(({ path: filePath }) => filePath).sort();
 const requiredFiles = [
-  "features/quick-chat-repair/codex-feature.json",
-  "features/quick-chat-repair/src/adapters/codex/presence.mjs",
-  "features/quick-chat-repair/src/injection-source.mjs",
+  "features/quick-chat/codex-feature.json",
+  "features/quick-chat/src/adapters/codex/presence.mjs",
+  "features/quick-chat/src/frontend/exit.mjs",
   "packages/plugin/src/server.mjs",
   "features/notes/assets/icons/prompt-entry.svg",
   "features/notes/assets/icons/prompt-entry-selected.svg",

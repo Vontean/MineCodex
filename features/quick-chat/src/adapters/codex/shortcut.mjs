@@ -8,8 +8,24 @@ export function quickChatOpenExport(source) {
   return name;
 }
 
+// 新建和恢复共用原生打开状态；退出动画残留的 DOM 不代表会话仍打开。
+export function quickChatLifecycleExports(source) {
+  const open = quickChatOpenExport(source);
+  const exports = source.slice(source.lastIndexOf('export{'));
+  const escaped = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const local = exports.match(new RegExp(`(?:\\{|,)([\\w$]+) as ${escaped(open)}(?:,|\\})`))?.[1];
+  const start = source.indexOf(`function ${local}(`);
+  const body = source.slice(start, source.indexOf('function ', start + 9));
+  const create = body.match(/if\([\w$]+==null\)\{([\w$]+)\([\w$]+,[\w$]+\);return\}/)?.[1];
+  const state = body.match(/[\w$]+\.get\(([\w$]+)\)\|\|/)?.[1];
+  const exportOf = name => name && exports.match(new RegExp(`(?:\\{|,)${escaped(name)} as ([\\w$]+)(?:,|\\})`))?.[1];
+  const createExport = exportOf(create), openState = exportOf(state);
+  if (!createExport || !openState) throw new Error('quick-chat-lifecycle-contract-unavailable');
+  return {open, create:createExport, openState};
+}
+
 export function installQuickChatShortcut(signal, codex, discover = null) {
-  let bindings = null, disposed = false;
+  let bindings = null, disposed = false, pendingFocus = null;
   function activateExisting() {
     // 原生恢复按钮同时恢复 presentation、取消最小化并聚焦输入框。
     for (const button of document.querySelectorAll('button')) {
@@ -32,6 +48,20 @@ export function installQuickChatShortcut(signal, codex, discover = null) {
       return true;
     }
     return false;
+  }
+  function sessionId(surface) { return codex.props(surface,p=>p.session?.conversationId)?.session?.conversationId; }
+  function focusNew() {
+    if (!pendingFocus || disposed || signal.aborted) return;
+    if (!bindings.isOpen(pendingFocus.scope)) { pendingFocus=null; return; }
+    for (const surface of document.querySelectorAll('[data-floating-chat-surface]')) {
+      const id=sessionId(surface);
+      if (!id || pendingFocus.previous.has(id) || surface.closest('[hidden], [inert], [aria-hidden="true"]')) continue;
+      const editable=surface.querySelector('[data-chatgpt-composer] [contenteditable="true"]');
+      if (!editable?.checkVisibility({visibilityProperty:true})) continue;
+      pendingFocus=null;
+      editable.focus({preventScroll:true});
+      return;
+    }
   }
   function context() {
     for (const button of document.querySelectorAll('button[aria-haspopup="menu"]')) {
@@ -56,9 +86,10 @@ export function installQuickChatShortcut(signal, codex, discover = null) {
     const commands = Object.values(module).find(v => Array.isArray(v) && v.some(c => c?.id === 'temporaryChat') && v.some(c => c?.id === 'newTask'));
     if (!commands) throw new Error('quick-chat-command-catalog-unavailable');
     if (commands.some(c => c.id === 'quickChat')) return {native:true};
-    const open = module[quickChatOpenExport(source)];
-    if (typeof open !== 'function') throw new Error('quick-chat-open-action-unavailable');
-    return {native:false, open};
+    const roles = quickChatLifecycleExports(source);
+    const open = module[roles.open], create = module[roles.create], openState = module[roles.openState];
+    if (typeof open !== 'function' || typeof create !== 'function' || !openState) throw new Error('quick-chat-open-action-unavailable');
+    return {native:false, open, create, isOpen:scope => scope.get(openState)};
   }
   const ready = (discover ?? load)().then(value => {
     if (disposed || signal.aborted) return;
@@ -68,8 +99,12 @@ export function installQuickChatShortcut(signal, codex, discover = null) {
   function keydown(event) {
     if (disposed || signal.aborted || bindings?.native || event.defaultPrevented || event.repeat || event.isComposing
       || !event.metaKey || !event.altKey || event.ctrlKey || event.shiftKey || event.code !== 'KeyN') return;
-    if (!activateExisting()) {
-      const scope = bindings && context();
+    const scope = bindings && context();
+    if (scope && bindings.isOpen(scope) === false) {
+      pendingFocus={scope,previous:new Set([...document.querySelectorAll('[data-floating-chat-surface]')].map(sessionId))};
+      bindings.create(scope);
+      focusNew();
+    } else if (!activateExisting()) {
       if (!scope) return;
       bindings.open(scope);
     }
@@ -77,7 +112,7 @@ export function installQuickChatShortcut(signal, codex, discover = null) {
     event.stopPropagation();
   }
   document.addEventListener('keydown', keydown, {signal});
-  function dispose() { disposed = true; document.removeEventListener('keydown', keydown); bindings = null; }
+  function dispose() { disposed = true; document.removeEventListener('keydown', keydown); bindings = null; pendingFocus=null; }
   signal.addEventListener('abort', dispose, {once:true});
-  return {ready, dispose};
+  return {ready, dispose, sync:focusNew};
 }

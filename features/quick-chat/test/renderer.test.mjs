@@ -93,3 +93,15 @@ test('history panel hides its redundant entry while keeping the native Minimize 
   f.floating.forceExpanded=false;
   assert.equal(f.adapter.read(f.surface).showHistory,true);
 });
+
+test('26.1007 scoped atom receipt accepts first and continued submissions without duplicating session id',()=>{
+  const f=fixture(),tracker=createSubmissionTracker();
+  tracker.begin(f.adapter.read(f.surface));
+  f.owner.memoizedState.memoizedState=[{owner:()=>{},presentation:'compact'},{},{}];
+  f.session.hasConversation=true;
+  assert.equal(tracker.accepted(f.adapter.read(f.surface)),true);
+  tracker.begin(f.adapter.read(f.surface));
+  assert.equal(tracker.accepted(f.adapter.read(f.surface)),false);
+  f.owner.memoizedState.memoizedState=[{owner:()=>{},presentation:'compact'},{},{}];
+  assert.equal(tracker.accepted(f.adapter.read(f.surface)),true);
+});

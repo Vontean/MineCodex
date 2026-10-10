@@ -1,3 +1,4 @@
+const exitRepair = installQuickChatExitRepair(signal, createQuickChatExitAdapter(config.codex));
 const native = createQuickChatAdapter(config.codex);
 const shortcut = installQuickChatShortcut(signal, config.codex);
 const pin = installQuickChatPin(signal, config);
@@ -24,6 +25,7 @@ function releaseProjectRail(instance) { instance.projectRail?.removeAttribute('d
 function remove(instance) { releaseBackground(instance); releaseProjectRail(instance); instance.minimize?.removeAttribute('data-mcx-quick-chat-minimize'); instance.unsubscribe(); instance.button?.remove(); instance.tracker.clear(); instance.historyTracker.clear(); }
 function sync() {
   if (disposed) return;
+  shortcut.sync();
   pin.sync();
   const snapshots = native.surfaces(), active = new Set();
   for (const snapshot of snapshots) {
@@ -98,7 +100,7 @@ config.registerSelfCheck?.(() => {
   const available = (!anchors.length || history) && (!pinned.applicable || pinned.available);
   return {state:applicable ? available ? 'available' : 'unavailable' : 'not-applicable',
     reason:applicable ? available ? null : 'quick-chat-controls-unavailable' : 'no-classic-quick-chat-floating-controls',
-    checks:[...(anchors.length ? [{name:'quick-chat-history',available:history}] : []), ...(pinned.applicable ? [{name:'quick-chat-pin',available:pinned.available}] : [])],
+    checks:[{name:"native-exit-observer",available:exitRepair.status()}, ...(anchors.length ? [{name:'quick-chat-history',available:history}] : []), ...(pinned.applicable ? [{name:'quick-chat-pin',available:pinned.available}] : [])],
     scopes:snapshots.map(item=>({name:'quick-chat',element:item.surface}))};
 });
-return () => { disposed = true; shortcut.dispose(); pin.dispose(); observer.disconnect(); for (const instance of instances.values()) remove(instance); instances.clear(); style.remove(); };
+return () => { disposed = true; exitRepair.dispose(); shortcut.dispose(); pin.dispose(); observer.disconnect(); for (const instance of instances.values()) remove(instance); instances.clear(); style.remove(); };

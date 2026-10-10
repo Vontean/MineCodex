@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {quickChatOpenExport,installQuickChatShortcut} from '../src/adapters/codex/shortcut.mjs';
+import {quickChatOpenExport,quickChatLifecycleExports,installQuickChatShortcut} from '../src/adapters/codex/shortcut.mjs';
 import {createPageScriptSource} from '../src/injection-source.mjs';
 
 const source = 'function renamed(s,opts={}){if(!s.get(cap,{name:`chatgpt.quick-chat`}).isCapable)return;let current=s.get(session),page=s.get(pageSession);if(page!=null)return;open(s)}export{renamed as opener}';
@@ -10,10 +10,11 @@ test('finds the native open role across renamed locals and fails on a changed co
   assert.throws(()=>quickChatOpenExport(source.replace('chatgpt.quick-chat','other')));
   assert.throws(()=>quickChatOpenExport(source.replace('export{renamed as opener}','export{}')));
 });
-function fixture({mode='codex',native=false,scopeAvailable=true,minimized=false,active=false,hidden=false,visible=true}={}) {
+function fixture({mode='codex',native=false,scopeAvailable=true,minimized=false,active=false,hidden=false,visible=true,open=true}={}) {
   const previous=globalThis.document,listeners=new Set(),calls=[];
   const button={checkVisibility:()=>true};
-  const restored=[];
+  const restored=[],created=[];
+  let opened=open,surfaceSession="existing";
   const editable={checkVisibility:()=>visible,focus:()=>restored.push('focus')};
   const surface={closest:()=>hidden?{}:null,querySelector:()=>editable};
   const restoreButton={checkVisibility:()=>true,click:()=>restored.push('restore')};
@@ -23,13 +24,13 @@ function fixture({mode='codex',native=false,scopeAvailable=true,minimized=false,
   const fiber={memoizedState:{memoizedState:{current:scopeAvailable?scope:null}}};
   globalThis.document={querySelectorAll:selector=>selector==='button'?(minimized?[restoreButton]:[]):selector==='[data-floating-chat-surface]'?(active?[surface]:[]):[button],addEventListener:(name,fn)=>listeners.add(fn),removeEventListener:(name,fn)=>listeners.delete(fn)};
   const controller=new AbortController();
-  const codex={props:(node,predicate)=>node===surface?{...floating,isMinimized:false}:node===restoreButton?[restoreProps,floating].find(predicate):({mode,onModeSelect:()=>{}}),currentFiber:()=>fiber,report:()=>{}};
-  const shortcut=installQuickChatShortcut(controller.signal,codex,async()=>({native,open:value=>calls.push(value)}));
+  const codex={props:(node,predicate)=>node===surface?[{...floating,isMinimized:false},{session:{conversationId:surfaceSession}}].find(predicate):node===restoreButton?[restoreProps,floating].find(predicate):({mode,onModeSelect:()=>{}}),currentFiber:()=>fiber,report:()=>{}};
+  const shortcut=installQuickChatShortcut(controller.signal,codex,async()=>({native,open:value=>calls.push(value),create:value=>{created.push(value);opened=true},isOpen:()=>opened}));
   const key=(overrides={})=>{
     const event={code:'KeyN',metaKey:true,altKey:true,ctrlKey:false,shiftKey:false,repeat:false,isComposing:false,defaultPrevented:false,preventDefault(){this.defaultPrevented=true},stopPropagation(){this.stopped=true},...overrides};
     for(const fn of listeners)fn(event);return event;
   };
-  return {shortcut,controller,calls,key,listeners,restored,restore:()=>{shortcut.dispose();globalThis.document=previous}};
+  return {shortcut,controller,calls,key,listeners,restored,created,setSession:id=>{surfaceSession=id},restore:()=>{shortcut.dispose();globalThis.document=previous}};
 }
 test('Codex Cmd Option N invokes the native action once and retains its scope',async()=>{
   const f=fixture();try {await f.shortcut.ready;const e=f.key();assert.equal(f.calls.length,1);assert.equal(e.defaultPrevented,true);assert.equal(e.stopped,true);}finally{f.restore()}
@@ -58,4 +59,34 @@ test('active page composer is focused without changing presentation or opening a
 });
 test('hidden and invisible page composers cannot steal focus',async()=>{
   for(const options of [{hidden:true},{visible:false}]){const f=fixture({mode:'work',active:true,...options});try{await f.shortcut.ready;assert.equal(f.key().defaultPrevented,false);assert.deepEqual(f.restored,[]);}finally{f.restore()}}
+});
+
+
+test('fully closed Quick Chat creates a fresh session, including retained exit DOM',async()=>{
+  for(const options of [{},{active:true},{minimized:true}]) {
+    const f=fixture({...options,open:false});
+    try{await f.shortcut.ready;assert.equal(f.key().defaultPrevented,true);assert.equal(f.created.length,1);assert.equal(f.calls.length,0);assert.deepEqual(f.restored,[]);}finally{f.restore();}
+  }
+});
+
+test('open and minimized sessions are retained rather than recreated',async()=>{
+  for(const options of [{active:true},{minimized:true}]) {
+    const f=fixture({...options,open:true});
+    try{await f.shortcut.ready;f.key();assert.equal(f.created.length,0);assert.equal(f.calls.length,0);assert.equal(f.restored.length,1);}finally{f.restore();}
+  }
+});
+
+test('native lifecycle roles follow renamed open, new-chat and boolean-state exports',()=>{
+  const source='function open(s,opts={}){if(!s.get(cap,{name:`chatgpt.quick-chat`}).isCapable)return;let current=s.get(session),page=s.get(pageSession);if(page!=null)return;if(current==null){fresh(s,opts);return}s.get(active)||(restore(s))}function fresh(s,opts){}export{open as opener,fresh as newChat,active as opened}';
+  assert.deepEqual(quickChatLifecycleExports(source),{open:'opener',create:'newChat',openState:'opened'});
+  assert.deepEqual(quickChatLifecycleExports(source.replaceAll('fresh','renamed').replaceAll('active','renamedState')),{open:'opener',create:'newChat',openState:'opened'});
+  assert.throws(()=>quickChatLifecycleExports(source.replace('active as opened','other as opened')),/lifecycle-contract/);
+});
+
+
+test('fresh composer focuses only after the new native session mounts, and abort cancels focus',async()=>{
+ for(const abort of [false,true]) {
+  const f=fixture({active:true,open:false});
+  try{await f.shortcut.ready;f.key();assert.deepEqual(f.restored,[]);if(abort)f.controller.abort();f.setSession('fresh');f.shortcut.sync();assert.deepEqual(f.restored,abort?[]:['focus']);}finally{f.restore()}
+ }
 });

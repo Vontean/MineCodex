@@ -31,7 +31,10 @@ export function createQuickChatAdapter(codex) {
       if (fiber.memoizedProps?.session?.conversationId !== session.conversationId) continue;
       for (let hook = fiber.memoizedState, count = 0; hook && count < 140; hook = hook.next, count++) {
         const value = hook.memoizedState;
-        if (value?.conversationId === session.conversationId && "owner" in value && typeof value.presentation === "string") receipt = value;
+        // 26.1007 的按会话订阅状态为 [value, store, atom]，value 不再重复存 conversationId。
+        const record=Array.isArray(value) ? value[0] : value;
+        if (record && typeof record === "object" && "owner" in record && typeof record.presentation === "string"
+          && (record.conversationId == null || record.conversationId === session.conversationId)) receipt = record;
       }
       if (receipt) break;
     }

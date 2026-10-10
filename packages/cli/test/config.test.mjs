@@ -28,7 +28,6 @@ test("config keeps established defaults and enables reading by default and prese
     "markdown-reading": true,
     "file-navigation": true,
     "quick-chat": true,
-    "quick-chat-repair": true,
   });
   assert.deepEqual(config.future, { channel: "preview" });
 
@@ -84,4 +83,12 @@ test("retired Task notifications cannot be restored by old config or feature upd
 test("explicit reading and navigation opt-outs are preserved", () => {
   for (const id of ["markdown-reading","file-navigation"])
     assert.equal(normalizeConfig({features:{[id]:false}}).features[id],false);
+});
+
+test("merged Quick Chat drops the retired repair switch and keeps the enhancement preference",()=>{
+ for(const enabled of [true,false]){
+  const config=normalizeConfig({features:{"quick-chat":enabled,"quick-chat-repair":!enabled}});
+  assert.equal(config.features["quick-chat"],enabled);
+  assert.equal("quick-chat-repair" in config.features,false);
+ }
 });

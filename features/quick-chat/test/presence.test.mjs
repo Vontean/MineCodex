@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createQuickChatExitAdapter} from '../src/adapters/codex/presence.mjs';
-import {createPageScriptSource} from '../src/injection-source.mjs';
+import {installQuickChatExitRepair} from '../src/frontend/exit.mjs';
 function fixture() {
   let calls = 0;
   const map = new Map([['empty',false],['animation',false]]);
@@ -46,9 +46,9 @@ test('unloading cancels queued observation and disconnects without editing the p
   globalThis.document={documentElement:{},querySelectorAll:() => {reads++;return [];}};
   globalThis.MutationObserver=class {constructor(fn){callback=fn} observe(){} disconnect(){disconnected=true}};
   try {
-    const install=new Function('signal','config',await createPageScriptSource());
-    const dispose=install(new AbortController().signal,{codex:{},registerSelfCheck:fn => {probe=fn}});
-    await Promise.resolve();assert.equal(reads,1);assert.equal(probe().state,'available');
+    const repair=installQuickChatExitRepair(new AbortController().signal,createQuickChatExitAdapter({}));
+    const dispose=repair.dispose;
+    await Promise.resolve();assert.equal(reads,1);assert.equal(repair.status(),true);
     callback();dispose();await Promise.resolve();
     assert.equal(reads,1);assert.equal(disconnected,true);
   } finally {globalThis.document=previousDocument;globalThis.MutationObserver=previousObserver;}
