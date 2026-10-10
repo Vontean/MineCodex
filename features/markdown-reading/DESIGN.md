@@ -26,8 +26,8 @@ Preview 原生实测正文行高 19.6px，scroller 左右 padding 16px，顶部 
 
 ## 面板适配
 
-- 普通正文最大宽度 800 CSS px，这是本功能规则，不是已确认的 Pages token。
-- 同一原生 scroller 内布局，左右 gutter 为 `clamp(16px, 4cqi, 40px)`，宽面板额外居中；顶部 24px、底部 64px。不新增纵向滚动区域。
+- 普通正文沿用 Pages 的 Electron 阅读宽度：`calc(var(--thread-content-max-width) - var(--padding-toolbar) * 2)`；左右最小 gutter 为 `calc(var(--spacing) * 14)`。Codex 26.1007.21159 安装包源码与隔离窗口布局确认当前分别为 736px、56px，不硬编码这两个数值。
+- 同一原生 scroller 内布局，左右 padding 为 `max(var(--mcx-reading-gutter), calc((100% - var(--mcx-reading-width)) / 2))`：窄面板保持最小 gutter，宽面板正文达到上限后居中；表格阅读宽度复用同一 token 公式。沿用 Pages 常规阅读分支，不使用 compact／native-controls 的 16px 分支。顶部 24px、底部 64px。不新增纵向滚动区域。
 - 保留原文空行，将普通空行行高设为 1em；标题行增加 1em 顶部间距，首行标题除外。CodeMirror 用 `.cm-gap` 保留未挂载段落的高度；不把虚拟视图中的可见首行改写成页面标题。
 - 列表行上下 .125em、引用行上下 .25em；代码保留原生字体、高亮、折行与复制，内部行高 20px，首末代码行分别增加 12px 留白；表格单元格 padding 8px 12px，原生分隔行保持零高。
 - 表格与代码保留原生 Preview 的逐行内容模型。表格通过 CodeMirror 装饰提供完整网格与可读列宽，各行共享同一横向位置；保留正文滚动区域，不重建为 HTML table。表格不提供 Pages 的列宽拖拽、增删行列等编辑能力。

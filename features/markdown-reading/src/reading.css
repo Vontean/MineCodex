@@ -1,4 +1,4 @@
-/* Pages 正文角色；仅标记的原生 Preview 生效。布局尺寸是本功能的面板适配规则。 */
+/* Pages 正文角色与阅读宽度；仅标记的原生 Preview 生效。 */
 .cm-editor[data-minecodex-markdown-reading] .mcx-reading-link {
   color: var(--color-text-accent, var(--color-token-text-link-foreground));
   text-decoration: underline;
@@ -13,9 +13,9 @@
 }
 .cm-editor[data-minecodex-markdown-reading] {
   --file-editor-font-size: var(--mcx-text-document, 14px);
-  --mcx-reading-width: 800px;
-  --mcx-reading-gutter: clamp(16px, 4cqi, 40px);
-  --mcx-reading-table-reading-width: calc(var(--thread-content-max-width, 768px) - var(--padding-toolbar, 16px) * 2);
+  --mcx-reading-width: calc(var(--thread-content-max-width) - var(--padding-toolbar) * 2);
+  --mcx-reading-gutter: calc(var(--spacing) * 14);
+  --mcx-reading-table-reading-width: var(--mcx-reading-width);
   --mcx-reading-table-wide-margin: min(calc(var(--spacing, .25rem) * 16), max(0px, (100cqi - var(--mcx-reading-table-reading-width)) / 2));
   container-type: inline-size;
 }
