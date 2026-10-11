@@ -115,16 +115,39 @@ export function createModelRules() {
     return authoritative || modelIdentity(raw).provider ? raw : nativeSlug ?? catalogSlug ?? raw;
   }
 
-  function nativeGptSortRank(rawValue) {
-    const known = new Map([
-      ["gpt-6-astra", 1], ["gpt-5.6-sol", 2], ["gpt-5.6-terra", 3], ["gpt-5.6-luna", 4],
-      ["gpt-5.5", 5], ["gpt-5.4", 6], ["gpt-5.4-mini", 7], ["gpt-5.3-codex-spark", 8],
-    ]);
-    const raw = String(rawValue ?? "").trim();
-    const knownRank = known.get(raw);
-    if (knownRank != null) return { official: true, rank: knownRank };
-    const identity = modelIdentity(raw);
-    return identity.provider ? null : { official: true, rank: 100 };
+  function modelSortKey(rawValue, selector) {
+    const identity = modelIdentity(rawValue);
+    const backend = identity.backend.slice(identity.backend.lastIndexOf("/") + 1).toLowerCase();
+    // 厂商由模型本身识别，接入 provider 不参与分组。
+    const brand = selector.brands?.find(brand => brand.keywords.some(keyword =>
+      backend.includes(keyword.slice(keyword.lastIndexOf("/") + 1).toLowerCase())
+    ));
+    const group = /^gpt[-\s]/.test(backend) ? "openai"
+      : brand?.id ?? backend.split(/\d/)[0].replace(/[-._\s]+$/, "");
+    const tier = /^gpt[-\s]/.test(backend)
+      ? ["astra", "sol", "terra", "luna"].indexOf(backend.match(/(?:^|[-\s])(astra|sol|terra|luna)(?:$|[-\s])/)?.[1])
+      : -1;
+    // 点号与连字符版本都逐段比较，4-10 比 4-6 新。
+    const version = backend.match(/\d+(?:[._-]\d+)*/)?.[0].split(/[._-]/).map(Number) ?? [];
+    return { group, tier: tier < 0 ? 4 : tier, version };
+  }
+
+  function compareModelIds(left, right, selector) {
+    const a = modelSortKey(left, selector), b = modelSortKey(right, selector);
+    if (a.group !== b.group) {
+      const groups = ["openai", ...(selector.brands ?? []).map(brand => brand.id).filter(id => id !== "openai")];
+      const rank = group => { const index = groups.indexOf(group); return index < 0 ? groups.length : index; };
+      return rank(a.group) - rank(b.group) || a.group.localeCompare(b.group);
+    }
+    if (a.group === "openai") {
+      if (a.tier !== b.tier) return a.tier - b.tier;
+    }
+    if (Boolean(a.version.length) !== Boolean(b.version.length)) return a.version.length ? -1 : 1;
+    for (let index = 0; index < Math.max(a.version.length, b.version.length); index++) {
+      const difference = (b.version[index] ?? 0) - (a.version[index] ?? 0);
+      if (difference) return difference;
+    }
+    return 0;
   }
 
   function visibleControllerModels(controller) {
@@ -144,5 +167,5 @@ export function createModelRules() {
         );
     });
   }
-  return { favoriteModelId, modelIdentity, formatIdentifier, providerLabel, compactModelLabel, brandForModel, comparableModelLabel, catalogModelFor, resolveModelAlias, modelWithOpenCodexEfforts, nativeGptSortRank, visibleControllerModels };
+  return { favoriteModelId, modelIdentity, formatIdentifier, providerLabel, compactModelLabel, brandForModel, comparableModelLabel, catalogModelFor, resolveModelAlias, modelWithOpenCodexEfforts, compareModelIds, visibleControllerModels };
 }

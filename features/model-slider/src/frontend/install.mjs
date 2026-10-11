@@ -2,7 +2,7 @@
 export function installModelSlider(signal, { feature, ui, createIcon, requestRefresh, locale, codex, requestAction }, rules, createModelControllerAdapter) {
   const modelSelectorFeature = feature;
   const featureUI = ui, createMarkupIcon = createIcon, queueEnsure = requestRefresh;
-  const { favoriteModelId, modelIdentity, formatIdentifier, providerLabel, compactModelLabel, brandForModel, comparableModelLabel, catalogModelFor, resolveModelAlias, modelWithOpenCodexEfforts, nativeGptSortRank, visibleControllerModels } = rules;
+  const { favoriteModelId, modelIdentity, formatIdentifier, providerLabel, compactModelLabel, brandForModel, comparableModelLabel, catalogModelFor, resolveModelAlias, modelWithOpenCodexEfforts, compareModelIds, visibleControllerModels } = rules;
   const modelSelectorOriginalToggleLabels = new Map();
   const modelSelectorGenericContainers = new Map();
   const modelSelectorNativeToggleHandlers = new Map();
@@ -649,15 +649,11 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
     }, 260);
   }
 
-  function compareEnhancedModelItems(a, b, favorites) {
+  function compareEnhancedModelItems(a, b, favorites, selector) {
     const favA = Number(favorites.has(a.dataset.codexModelSliderRaw));
     const favB = Number(favorites.has(b.dataset.codexModelSliderRaw));
     if (favA !== favB) return favB - favA;
-    const rankA = nativeGptSortRank(a.dataset.codexModelSliderRaw);
-    const rankB = nativeGptSortRank(b.dataset.codexModelSliderRaw);
-    if (Boolean(rankA) !== Boolean(rankB)) return rankA ? -1 : 1;
-    if (rankA && rankB) return rankA.rank - rankB.rank;
-    return 0;
+    return compareModelIds(a.dataset.codexModelSliderRaw, b.dataset.codexModelSliderRaw, selector);
   }
 
   function renderEnhancedModelMenu(menu, selector) {
@@ -683,7 +679,7 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
     const visible = items.filter((item) => item.style.display !== "none");
     const starred = visible.filter((item) => favorites.has(item.dataset.codexModelSliderRaw));
     const ordinary = visible.filter((item) => !favorites.has(item.dataset.codexModelSliderRaw));
-    const desired = items.slice().sort((a, b) => compareEnhancedModelItems(a, b, favorites));
+    const desired = items.slice().sort((a, b) => compareEnhancedModelItems(a, b, favorites, selector));
     const parent = items[0].parentElement;
     if (!parent || !desired.every((item) => item.parentElement === parent)) return;
     const current = Array.from(parent.children).filter((child) => child.hasAttribute?.("data-codex-model-slider-item"));

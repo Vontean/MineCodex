@@ -50,3 +50,51 @@ test('portable favorites keep provider identity and never remap an authoritative
   assert.deepEqual(localModels.filter(id => saved.has(favoriteModelId(id, { authoritative: true }))), ['native-model', 'missing-model']);
   assert.equal(saved.size, 3);
 });
+
+for (const [environment, rules] of [
+  ['module', createModelRules()],
+  ['renderer source', new Function(`return (${createModelRules.toString()})();`)()],
+]) {
+  const selector = { brands: [
+    { id: 'openai', keywords: ['gpt', 'openai'] },
+    { id: 'anthropic', keywords: ['claude'] },
+    { id: 'gemini', keywords: ['gemini'] },
+    { id: 'deepseek', keywords: ['deepseek'] },
+    { id: 'hunyuan', keywords: ['tencent', 'hunyuan', 'opencode-go/hy3'] },
+  ] };
+  test(`${environment}: GPT tiers outrank numeric versions and future versions need no allowlist`, () => {
+    const ids = ['gpt-6-luna', 'gpt-5.5', 'gpt-6.1-sol', 'gpt-5.6-terra', 'gpt-5.6-sol', 'gpt-6-astra', 'gpt-6-sol', 'gpt-5.6-luna', 'gpt-6.10-sol'];
+    assert.deepEqual(ids.sort((a,b) => rules.compareModelIds(a,b,selector)), [
+      'gpt-6-astra', 'gpt-6.10-sol', 'gpt-6.1-sol', 'gpt-6-sol', 'gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-6-luna', 'gpt-5.6-luna', 'gpt-5.5',
+    ]);
+    assert.ok(rules.compareModelIds('route/gpt-5.6-sol', 'gpt-6-luna', selector) < 0);
+    assert.equal(rules.compareModelIds('claude/gpt-6-sol', 'gpt-6-sol', selector), 0);
+  });
+  test(`${environment}: third-party versions compare numerically within each manufacturer`, () => {
+    for (const ids of [
+      ['route/claude-opus-4-6-thinking', 'route/claude-haiku-5-5', 'route/claude-opus-4-10'],
+      ['route/gemini-3.1-pro', 'route/gemini-3.8-flash', 'other/gemini-3.10-flash'],
+      ['route/deepseek-v4.1-flash', 'route/deepseek-v5', 'route/deepseek-v4.2'],
+    ]) {
+      const expected = ids[0].includes('gemini') ? [ids[2], ids[1], ids[0]] : [ids[1], ids[2], ids[0]];
+      assert.deepEqual(ids.slice().sort((a,b) => rules.compareModelIds(a,b,selector)), expected);
+    }
+    assert.equal(rules.compareModelIds('gemini/claude-4.6', 'other/claude-4-6', selector), 0);
+    assert.ok(rules.compareModelIds('gemini/hy3-preview', 'other/hy2', selector) < 0);
+    assert.ok(rules.compareModelIds('claude/gemini-3.1-pro', 'route/gemini-3.8-flash', selector) > 0);
+  });
+}
+
+test('favorites and ordinary models each follow manufacturer, tier and version order', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const source = await readFile(new URL('../src/frontend/install.mjs', import.meta.url), 'utf8');
+  const compare = new Function('compareModelIds', source.slice(source.indexOf('  function compareEnhancedModelItems('), source.indexOf('  function renderEnhancedModelMenu(')) + ';return compareEnhancedModelItems;')(createModelRules().compareModelIds);
+  const selector = {brands:[{id:'anthropic',keywords:['claude']},{id:'gemini',keywords:['gemini']}]};
+  const favorites = new Set(['gpt-6-luna','gpt-5.6-sol','a/claude-4.6','b/claude-5.5']);
+  const ids = ['a/claude-4.6','gpt-6-luna','gpt-6.1-sol','b/claude-5.5','b/gemini-3.1','a/gemini-3.8','gpt-5.6-sol','gpt-6-astra'];
+  const items = ids.map(id => ({dataset:{codexModelSliderRaw:id}}));
+  assert.deepEqual(items.sort((a,b)=>compare(a,b,favorites,selector)).map(item=>item.dataset.codexModelSliderRaw), [
+    'gpt-5.6-sol','gpt-6-luna','b/claude-5.5','a/claude-4.6',
+    'gpt-6-astra','gpt-6.1-sol','a/gemini-3.8','b/gemini-3.1',
+  ]);
+});
