@@ -189,7 +189,7 @@ macOS 后台服务 App 在明确的原生资源修订 1.0.1 中接入实心图�
 
 项目入口使用官方 MCP Apps global entrypoint，交由原生导航管理固定、收纳、
 焦点和页面壳，不再克隆账号菜单行。品牌图标来自唯一 SVG 源；控制台内容沿用
-apps/dashboard/DESIGN.md，通过 MCP bridge 跟随宿主主题，保留用户手动外观选择。
+apps/dashboard/DESIGN.md，使用独立本地视觉快照，只经 MCP bridge 跟随宿主明暗选择信号，保留当前会话手动外观选择。
 此接口已在 Codex 26.930.51102 源码确认；真实原生面板交互仍须独立验收。
 
 ### 原生文档块悬浮操作
@@ -215,3 +215,11 @@ Codex 26.930.51102 源码：MCP 导航的默认与选中资源相同，图标经
 ### Quick Chat 原生浮动面
 
 2026-10-08 本机 Renderer 源码与隔离窗口：FloatingPanelSurface 的 default / single-line 使用不透明 `--color-surface-elevated-secondary`、0.5px border ring 与原生 `shadow-2xl` utility。圆角随原生 floatingPanel / composer single-line token，不覆盖窗口几何或强制统一圆角。新聊天的 composer-only 分支原生背景为 unstyled；主动展开 History 时共享 UI 的 `floating-panel` 分支补全其原有背景平面，关闭历史或功能时撤销。
+
+### Dashboard 本地视觉快照
+
+MCX 控制台（浏览器与官方 MCP App）使用 `apps/dashboard/styles.css` 中独立的
+确定值主题；宿主只提供 light／dark 选择，不注入渲染必需的 token 值。共享 Tooltip
+的视觉输入也来自这份本地定义。2026-10-11 的 Codex 26.1007.21159 页面与 Prompt
+观测、明暗来源表、卡片预览及媒体接口见 `apps/dashboard/DESIGN.md`。这是控制台的
+明确可靠性边界；Prompt 与其他注入功能继续使用本规范既有的原生映射策略。

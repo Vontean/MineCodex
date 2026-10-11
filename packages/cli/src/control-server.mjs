@@ -21,7 +21,12 @@ const CONTENT_TYPES = new Map([
   [".js", "text/javascript; charset=utf-8"],
   [".mjs", "text/javascript; charset=utf-8"],
   [".svg", "image/svg+xml"],
-  [".ttf", "font/ttf"],
+  [".json", "application/json; charset=utf-8"],
+  [".mp4", "video/mp4"],
+  [".webm", "video/webm"],
+  [".png", "image/png"],
+  [".jpg", "image/jpeg"],
+  [".webp", "image/webp"],
 ]);
 
 function tokenMatches(candidate, expected) {
@@ -241,7 +246,7 @@ async function staticResponse(url, paths, response) {
       "Content-Type": CONTENT_TYPES.get(path.extname(absolute)) ?? "application/octet-stream",
       "Content-Length": info.size,
       "Cache-Control": "no-store",
-      "Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; frame-ancestors 'none'",
+      "Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' data: blob:; connect-src 'self'; frame-ancestors 'none'",
       "X-Content-Type-Options": "nosniff",
     });
     await pipeline(createReadStream(absolute), response);

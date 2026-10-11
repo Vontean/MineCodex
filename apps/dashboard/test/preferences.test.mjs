@@ -6,11 +6,11 @@ import vm from "node:vm";
 const source=(await readFile(new URL("../app.js",import.meta.url),"utf8")).replace(/^import .*\n/gm,"");
 function dashboard(savedLanguage) {
   const nodes=new Map(),storage=new Map(savedLanguage ? [["minecodex-language",savedLanguage]] : []);
-  const node=()=>({textContent:"",dataset:{},attributes:{},handlers:{},setAttribute(k,v){this.attributes[k]=v;},addEventListener(k,v){this.handlers[k]=v;},querySelector(){return this;}});
+  const node=()=>({textContent:"",dataset:{},attributes:{},handlers:{},setAttribute(k,v){this.attributes[k]=v;},getAttribute(k){return this.attributes[k];},addEventListener(k,v){this.handlers[k]=v;},querySelector(){return this;}});
   const languages=["zh-CN","en"].map(choice=>Object.assign(node(),{dataset:{languageChoice:choice}}));
   const themes=["light","dark"].map(choice=>Object.assign(node(),{dataset:{themeChoice:choice}}));
   let reloads=0;
-  const context=vm.createContext({document:{documentElement:{dataset:{}},querySelector(selector){if(!nodes.has(selector))nodes.set(selector,node());return nodes.get(selector);},querySelectorAll:selector=>selector.includes("language") ? languages : themes,addEventListener(){}},navigator:{language:"en-US"},localStorage:{getItem:key=>storage.get(key),setItem:(key,value)=>storage.set(key,value)},location:{reload(){reloads++;}},matchMedia:()=>({matches:false,addEventListener(){}}),dashboardFetch:()=>new Promise(()=>{}),window:{addEventListener(){}},setInterval(){},setTimeout(){},clearTimeout(){}});
+  const context=vm.createContext({installFeaturePreviews:()=>({attach(){},close(){}}),document:{documentElement:{dataset:{}},querySelector(selector){if(!nodes.has(selector))nodes.set(selector,node());return nodes.get(selector);},querySelectorAll:selector=>selector.includes("language") ? languages : themes,addEventListener(){}},navigator:{language:"en-US"},localStorage:{getItem:key=>storage.get(key),setItem:(key,value)=>storage.set(key,value)},location:{reload(){reloads++;}},matchMedia:()=>({matches:false,addEventListener(){}}),dashboardFetch:()=>new Promise(()=>{}),window:{addEventListener(){}},setInterval(){},setTimeout(){},clearTimeout(){}});
   vm.runInContext(source,context);
   return {context,nodes,storage,languages,reloads:()=>reloads};
 }

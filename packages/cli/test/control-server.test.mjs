@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -407,4 +407,22 @@ test("runtime unavailability reports enabled and disabled plugins stopped withou
   } finally {
     await server.close();
   }
+});
+
+
+test("dashboard media uses explicit MIME and CSP while browser authentication remains required", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "mcx-dashboard-media-http-"));
+  await mkdir(path.join(root, "assets/previews"), {recursive:true});
+  for (const name of ["test.webm", "test.mp4", "test.webp", "manifest.json"]) await writeFile(path.join(root, "assets/previews", name), "test-only");
+  const service = await createControlServer({paths:{dashboardDir:root}, token:"media-test", port:0, runtimeManager:{status:()=>({running:false})}});
+  try {
+    assert.equal((await fetch(service.url + "/api/status")).status,401);
+    for (const [name, type] of [["test.webm","video/webm"],["test.mp4","video/mp4"],["test.webp","image/webp"],["manifest.json","application/json; charset=utf-8"]]) {
+      const response = await fetch(service.url + "/assets/previews/" + name,{headers:{Authorization:"Bearer media-test"}});
+      assert.equal(response.status,200);
+      assert.equal(response.headers.get("content-type"),type);
+      assert.match(response.headers.get("content-security-policy"),/media-src 'self' data: blob:/);
+      assert.match(response.headers.get("content-security-policy"),/script-src 'self';/);
+    }
+  } finally {await service.close();await rm(root,{recursive:true,force:true});}
 });

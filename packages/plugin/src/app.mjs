@@ -14,4 +14,3 @@ app.addEventListener("hostcontextchanged", syncHost);
 syncHost(app.getHostContext());
 await import("../../../apps/dashboard/app.js");
 await import("../../../apps/dashboard/assets/data-transfer.js");
-await import("../../../apps/dashboard/assets/terrain.js");

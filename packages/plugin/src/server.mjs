@@ -8,7 +8,7 @@ import path from "node:path";
 import { resolvePaths } from "../../cli/src/paths.mjs";
 import { createControlClient } from "./control-client.mjs";
 import { createPromptsClient } from "./prompts-client.mjs";
-import { createAppHtml, createPromptsHtml } from "./ui-resource.mjs";
+import { createAppHtml, createPromptsHtml, readPreviewResource } from "./ui-resource.mjs";
 import { RELEASE_VERSION, CONTROL_RESOURCE_URI, PROMPT_RESOURCE_URI } from "./version.mjs";
 
 export const APP_URI = CONTROL_RESOURCE_URI;
@@ -67,6 +67,8 @@ export function createPluginServer({ promptsClient, paths = resolvePaths(), clie
     server.sendToolListChanged();
     return promptsResource(previousPromptsUri);
   });
+  server.registerResource("feature-preview", new ResourceTemplate("resource://minecodex/previews/{featureId}/{kind}", {list:undefined}),
+    {}, (uri, {featureId, kind}) => readPreviewResource(path.join(paths.packageRoot, "apps/dashboard"), featureId, kind, uri));
   let html;
   const controlResource = async uri => ({ contents: [{
     uri, mimeType: RESOURCE_MIME_TYPE, text: html ??= await createAppHtml(paths.packageRoot),

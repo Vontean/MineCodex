@@ -3,7 +3,7 @@ import {dashboardFetch} from '../transport.js';
 const tooltipLifetime = new AbortController();
 const { tooltipSurface } = installFeatureTooltips(tooltipLifetime.signal);
 window.addEventListener('pagehide', event => { if (!event.persisted) tooltipLifetime.abort(); });
-const zh = document.documentElement.lang.startsWith('zh');
+let zh = document.documentElement.lang.startsWith('zh');
 const t = (cn, en) => zh ? cn : en;
 const dialog = document.querySelector('#data-dialog');
 const entry = document.querySelector('#data-button');
@@ -14,12 +14,18 @@ const exportButton = document.querySelector('#data-export');
 const importButton = document.querySelector('#data-import');
 const input = document.querySelector('#data-file');
 let bundle = null, busy = false;
-entry.textContent = t('数据迁移', 'Transfer data');
-document.querySelector('#data-title').textContent = t('数据迁移', 'Transfer data');
-document.querySelector('#data-policy').textContent = t('仅补充缺失项，重复跳过，冲突保留本机。', 'Add missing items. Skip duplicates. Keep local conflicts.');
-document.querySelector('#data-close').setAttribute('aria-label', t('关闭', 'Close'));
-exportButton.querySelector('.button-label').textContent = t('导出', 'Export');
-importButton.querySelector('.button-label').textContent = t('导入', 'Import');
+function localize() {
+  zh = document.documentElement.lang.startsWith('zh');
+  Object.assign(featureNames, {notes:t('提示词库','Prompt Library'),sites:t('站点收藏','Saved Sites'),'model-slider':t('模型窗口','Model Panel')});
+  entry.textContent = t('数据迁移', 'Transfer data');
+  document.querySelector('#data-title').textContent = t('数据迁移', 'Transfer data');
+  document.querySelector('#data-policy').textContent = t('仅补充缺失项，重复跳过，冲突保留本机。', 'Add missing items. Skip duplicates. Keep local conflicts.');
+  document.querySelector('#data-close').setAttribute('aria-label', t('关闭', 'Close'));
+  exportButton.querySelector('.button-label').textContent = t('导出', 'Export');
+  importButton.querySelector('.button-label').textContent = t('导入', 'Import');
+}
+localize();
+window.addEventListener('minecodex-language', () => { localize(); if (dialog.open) dialog.close(); });
 async function request(url, data) {
   const response = await dashboardFetch(url, data ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) } : {});
   if (!response.ok) throw new Error(String(response.status));
@@ -32,11 +38,11 @@ function setBusy(value) {
   document.querySelector('#data-close').disabled = value;
   list.setAttribute('aria-busy', String(value));
 }
-const featureHints = {
+const featureHints = () => ({
   'model-slider': t('仅匹配相同模型标识。本机缺少的模型保留收藏，不显示选项；导入后下次启动 Codex 生效。', 'Only exact model IDs match. Missing models stay saved but hidden. Imported favorites load next time Codex starts.'),
   notes: t('包含分类、排序与使用次数。', 'Includes categories, order and usage counts.'),
   sites: t('仅迁移公网网址，导入后归为外部网址。', 'Public URLs only; imported as external links.'),
-};
+});
 let hintIndex = 0;
 function row(name, detail, amount, hint = '') {
   const item = document.createElement('div'); item.className = 'data-card';
@@ -70,14 +76,14 @@ function showInventory(data) {
   for (const feature of data.features.filter(item => item.portable)) {
     const detail = feature.id === 'notes' ? t(`${feature.categories} 个分类`, `${feature.categories} categories`) : '';
     const hint = feature.id === 'model-slider' && !feature.initialized
-      ? t('旧收藏在新版模型窗口首次启动后收录。', 'Legacy favorites are collected when the updated slider first starts.') + ' ' + featureHints[feature.id]
-      : featureHints[feature.id];
+      ? t('旧收藏在新版模型窗口首次启动后收录。', 'Legacy favorites are collected when the updated slider first starts.') + ' ' + featureHints()[feature.id]
+      : featureHints()[feature.id];
     row(featureNames[feature.id] || feature.id, detail, t(`${feature.count} 项`, `${feature.count} items`), hint);
   }
 }
 function showPreview(data) {
   list.replaceChildren();
-  for (const feature of data.features) row(featureNames[feature.id] || feature.id, t(`${feature.duplicate} 项重复 · ${feature.conflict} 项冲突，保留本机${feature.categoriesAdded ? ` · 新增 ${feature.categoriesAdded} 个分类` : ''}`, `${feature.duplicate} duplicates · ${feature.conflict} conflicts kept locally${feature.categoriesAdded ? ` · ${feature.categoriesAdded} new categories` : ''}`), t(`新增 ${feature.added} 项`, `${feature.added} new`), featureHints[feature.id]);
+  for (const feature of data.features) row(featureNames[feature.id] || feature.id, t(`${feature.duplicate} 项重复 · ${feature.conflict} 项冲突，保留本机${feature.categoriesAdded ? ` · 新增 ${feature.categoriesAdded} 个分类` : ''}`, `${feature.duplicate} duplicates · ${feature.conflict} conflicts kept locally${feature.categoriesAdded ? ` · ${feature.categoriesAdded} new categories` : ''}`), t(`新增 ${feature.added} 项`, `${feature.added} new`), featureHints()[feature.id]);
   if (!data.features.length) row(t('空文件', 'Empty file'), t('没有可导入的数据', 'No data to import'), '0');
 }
 entry.addEventListener('click', async () => {
@@ -121,7 +127,7 @@ importButton.addEventListener('click', async () => {
   try {
     const result = await request('/api/data/import', bundle);
     list.replaceChildren();
-    for (const feature of result.features) row(featureNames[feature.id] || feature.id, feature.status === 'failed' ? t('可重试', 'Retry available') : t(`跳过 ${feature.duplicate} 项重复 · 保留 ${feature.conflict} 项冲突${feature.categoriesAdded ? ` · 新增 ${feature.categoriesAdded} 个分类` : ''}`, `${feature.duplicate} duplicates skipped · ${feature.conflict} conflicts kept${feature.categoriesAdded ? ` · ${feature.categoriesAdded} new categories` : ''}`), feature.status === 'failed' ? t('失败', 'Failed') : t(`新增 ${feature.added} 项`, `${feature.added} added`), featureHints[feature.id]);
+    for (const feature of result.features) row(featureNames[feature.id] || feature.id, feature.status === 'failed' ? t('可重试', 'Retry available') : t(`跳过 ${feature.duplicate} 项重复 · 保留 ${feature.conflict} 项冲突${feature.categoriesAdded ? ` · 新增 ${feature.categoriesAdded} 个分类` : ''}`, `${feature.duplicate} duplicates skipped · ${feature.conflict} conflicts kept${feature.categoriesAdded ? ` · ${feature.categoriesAdded} new categories` : ''}`), feature.status === 'failed' ? t('失败', 'Failed') : t(`新增 ${feature.added} 项`, `${feature.added} added`), featureHints()[feature.id]);
     status.textContent = result.complete ? t('导入完成', 'Import complete') : t('部分失败，请重试', 'Partially imported. Retry.');
     if (result.complete) bundle = null;
     importButton.querySelector('.button-label').textContent = result.complete ? t('导入', 'Import') : t('重试导入', 'Retry import');

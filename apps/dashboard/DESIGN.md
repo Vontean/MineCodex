@@ -1,97 +1,149 @@
 # MineCodex Dashboard Design System
 
-The standalone control panel follows the root DESIGN.md semantic color and interaction
-contract. It uses local light/dark tokens. In an official MCP App panel, the initial appearance follows
-the host theme and tracks host changes; a manual appearance choice retains precedence.
-The browser and MCP panel share the same dashboard source, controls and state semantics.
+控制台帮助用户理解增强出现的位置、解决的问题与操作结果，再决定是否启用。
+浏览器与官方 MCP App 共用 `index.html`、`styles.css`、`app.js` 和预览模块。
+功能开关表示用户配置，实际状态来自控制服务；预览不读取、推断或修改实际状态。
 
-## Layout and reference
+## 页面与布局
 
-Reference: VPN Dashboard settings source, inspected 2026-10-03. Its card grid uses a 16px
-radius/gap, top icon and trailing arrow, followed by a title and description. The live URL
-required login; this reference is source-based, not a live visual match.
+一列居中的 1064px 内容区，无侧栏、分类或营销分区。顶部工具区在正常布局中
+右对齐，语言图标胶囊在左，太阳／月亮分段胶囊在右；均高40px，图标按钮32px。
+品牌独立居中，唯一 SVG 标识在上、MineCodex 名称在下。标识64px，窄屏48px；
+标题32px／600，窄屏28px。Slogan 为“让 Codex 更顺手。”，下一行说明
+“按需开启交互增强，让日常使用更高效。”；英文分别为
+“Make Codex work better for you.”和“Enable the enhancements you need for a smoother daily workflow.”。
+补充行用于明确按需开启的用途，保持短句。
 
-MineCodex uses one centered 1064px column without a sidebar or category groups. The header
-holds the shared brand, a Chinese / English language selector to the left of the appearance control, and the appearance control; a runtime notice appears below only when the service needs attention.
-There is no tagline or visible section introduction. Save feedback remains available to screen readers.
-Eight independent cards form a three-column grid, two columns at 960px and one at 600px.
-Each card has an icon and switch at the top, name and purpose below, and a readable actual-state line
-at the bottom of every card. Enabled switches and runtime state remain distinct information. A card is not itself clickable. The footer shows the MineCodex version
-and adjacent update check (16px gap, regular weight, refresh icon), with persistent update feedback below it. An optional Copy diagnostics action exports only capability and token evidence; no install path, account data or session content is shown.
+运行提示仅显示真实服务异常与待重启事项。功能卡片按 API 顺序平级排列，
+数量来自实际数据，不写死。当前11项：模型窗口、提示词库、额度环、会话状态、
+Markdown 阅读增强、文件级联浏览、图片集合、站点收藏、快捷聊天增强、侧栏聚焦、
+隐藏额度推广。Task 暂停接入，旧服务返回该项时也不显示。
 
-Self-check states distinguish checking, available, partially available across windows, missing appearance tokens, unavailable and not applicable on this page. Installation evidence does not certify full user actions. Visible cards refresh while the page is visible; active setting saves are preserved.
+网格默认三列，960px及以下两列，600px及以下单列；16px间距、24px内边距。
+卡片最小高度216px，移动端204px；内容可增长，不截断用途与真实状态。
+图标24px、2.1单位笔画；标题16px／600、描述14px／1.65、状态13px／1.5。
+状态区位于底部，同一行卡片高度一致。卡片点击打开预览，只有开关改变功能配置。
 
-## Tokens and components
+页尾按关联分成两组：左侧版本与轻量更新检查；右侧数据迁移、诊断复制，使用次级描边胶囊按钮。
+组内间隔12px，两组左右对齐，窄屏按组换行。更新只检查并提示，不自动安装。
+重启只由已有显式按钮触发。错误保持可见，不用视觉降级掩盖真实异常。
 
-- Canvas: cool #edf1f7 / deep blue #101722, with a decorative ASCII voxel world.
-- Surface: white / #1b2533, with a hard 3px lower edge for a block-like silhouette; no blur.
-- Border: #d7dfe9 / #334359; blue #3478d4 / #71a8f3 switches and active state accents.
-- Ink, secondary ink, accent, success, warning and danger use the local semantic CSS tokens.
-- `--card-radius`: 8px; `--grid-gap`: 16px; `--card-padding`: 24px.
-- Card minimum height: 216px desktop, 204px mobile; content can grow without clipping.
-- System sans family; pixel brand title 36–64px/700, feature name 16px/600, description 14px/1.65,
-  state metadata 13px/1.5. Each description is one short statement of purpose; remove promotional filler while preserving each feature’s actual state.
-- Feature icons: 24px display size, uniform 2.1-unit stroke in a 24×24 viewBox, matching Prompts. The control-server normalizes only dashboard output; original injected assets stay unchanged.
-- Icons: existing manifest assets, with official Lucide bell, panel-left and globe for
-  Task Switcher, Sidebar Focus and Sites. Lucide ISC license is retained in
-  `packages/ui/assets/lucide-LICENSE.txt`.
-- Checkbox switches expose switch semantics, feature labels, descriptions and state text.
-  Track is 36×21px with a 32px-high label hit area. Pending requests disable only their switch;
-  failures restore the previous value and focus. Enabled and active remain distinct facts.
-- Language uses a compact 中文 / EN capsule with aria-pressed. It follows the browser initially; manual choices persist locally and reload localized card content. Switching is disabled during feature saves. Healthy and injected share the same visible Active in Codex label; backend health remains diagnostic data.
-- Appearance uses the VPN reference’s two-segment sun/moon capsule (32px segments, 4px gap and padding). A sliding selected circle and aria-pressed expose selection. Browser entry follows the system and persists manual choices locally. The official App initially follows Codex, allows a temporary manual choice, and follows the next explicit host theme change. Its full-height content surface owns the dashboard palette because the official sandbox overrides html/body backgrounds.
-- Restart and error notices use a neutral card, colored left edge, status icon, compact copy and trailing action; toast errors share that material. Restart notice appears only for a pending restart. No automatic restart.
-- Update checks retain loading, result and retryable failure states; installation stays with
-  the existing `mcx update` flow.
+## 独立视觉快照
 
-## Motion
+Dashboard 的 `--canvas`、`--surface`、`--ink` 等变量由本地 CSS 定义确定值，
+不读取原生 token，也不由宿主 `styles.variables` 注入数值。共享 Tooltip 所需的
+`--mcx-*` 仅映射这些本地值。此例外不改变 Prompt 与其他注入页面的主题桥。
+禁止跨 iframe 读取父窗口 DOM。没有宿主或样式桥时，本地主题仍完整。
 
-`--ease-out: cubic-bezier(0.23, 1, 0.32, 1)`. Switch thumb: 180ms transform;
-button press: 140ms transform to scale(0.97). No stagger, card lift, layout motion or continuous
-loading shimmer. Hover is limited to fine pointers. Keyboard actions disable transitions;
-reduced-motion preferences disable movement. Focus rings remain visible in both themes.
+2026-10-11 在独立 profile 的 Codex **26.1007.21159** 核对：
+原生 Renderer 根作用域明暗计算值；官方 Prompt 卡片浅色实测；当前 Prompt CSS
+在原生作用域的明暗探针。后者用于核对同一圆角与投影，不代表官方 Prompt 深色
+宿主桥已经独立人工验收。下面记录原生名称只是取证，不是运行时接口。
 
-## Project identity
+| 角色 / 依据 | 浅色本地值 | 深色本地值 |
+| --- | --- | --- |
+| 页面与卡片底色 / 原生 `--color-surface` | `#ffffff` | `#181818` |
+| 次级底色 / 原生 `--color-surface-secondary` | `#f7f7f7` | `#141414` |
+| 菜单与预览 / 原生 elevated-secondary | `#ffffff` | `#2d2d2d` |
+| 主文字 / 原生 text-primary | `#0d0d0d` | `#ffffff` |
+| 次级文字 / 原生 text-secondary 65% | `#0d0d0da6` | `#ffffffa6` |
+| 三级文字 / 原生 text-tertiary | `#0d0d0d7b` | `#ffffff7f` |
+| 卡片边缘 / 官方 Prompt border-secondary 与原生 border | `#0d0d0d13` | `#ffffff15` |
+| 控件边缘 / 原生 border-primary-outline | `#0d0d0d1c` | `#ffffff28` |
+| 卡片圆角 / Prompt 计算值 | `20px` | `20px` |
+| 卡片投影 / 当前 Prompt CSS 与计算值 | `0 4px 16px -6px #00000012` | 同左 |
+| 系统字体 / 原生 font-sans-default | `-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif` | 同左 |
+| 字号 / 原生 text-lg、text-base、text-sm | `16px`、`14px`、`13px` | 同左 |
+| 字重 / 原生 normal、medium、semibold | `400`、`500`、`600` | 同左 |
+| 焦点颜色 / 原生 color-ring | `#3a83f7`，本地3px／40% ring | 同左 |
+| 成功、错误 / 原生 text-success、text-danger | `#00a240`、`#e02e2a` | `#40c977`、`#ff6764` |
+| 警告 / 原生 caution表面文字、深色caution文字 | `#923b0f` | `#ffd240` |
 
-The masthead uses self-hosted Silkscreen Bold (SIL OFL, bundled license in assets/OFL.txt),
-with a stone-colored face, dark outline and stepped text shadow inspired by Minecraft lettering.
-The shared pickaxe mark is 76px desktop / 48px mobile. Body and state text retain the legible
-project sans-serif contract. This is a dashboard-specific visual treatment; the brand geometry
-and other injected plugin UI remain governed by root DESIGN.md.
+页面为均匀纯色，无渐变、窗口透明材质、地形、像素字体或硬质下沿投影。
+Prompt 卡片计算轮廓为 `superellipse(1)`，即普通圆角；不把原生 Tooltip 的
+`superellipse(1.5)` 轮廓套到卡片。预览使用不透明 elevated 表面与轻投影。
+开关轨道36×21px，命中高度32px；选中用中性主文字色，状态仍用语义色。
 
-Dashboard icons are official Lucide SVGs, covered by packages/ui/assets/lucide-LICENSE.txt.
-All font and icon assets are served locally and included in the npm package.
+本地快照不自动跟随原生改名或视觉更新。未来升级须先核对组件实际作用域，
+再主动修改数值与本表。可用范围与自检证据不能替代真实操作验收。
 
-## ASCII agent world
+## 语言与主题
 
-A fixed, pointer-transparent and aria-hidden canvas renders deterministic terraced terrain,
-ASCII water, paths and coding nodes (>_, {}, git, </>, [AI], $). It rotates around its vertical
-axis once every 240 seconds, rendered at at most 20 fps and device pixel ratio capped at 2.
-The world stays behind opaque cards; text and controls never rotate. Reduced motion freezes
-the view, hidden tabs pause the animation. The terrain module has no external dependency
-or network request and does not consume user or session data.
+语言按钮仅显示 Lucide `languages` 图标，Tooltip 告知当前语言；原生 auto popover
+列出中文、English，`aria-pressed` 标明选择，Escape／空白点击关闭。外观使用
+太阳／月亮与 `aria-pressed`，Tooltip 和无障碍标签随语言变化。均支持键盘焦点。
+Lucide ISC 许可在 `packages/ui/assets/lucide-LICENSE.txt`。
 
-## Data transfer
+浏览器初始跟随系统，手动外观选择保存到本地。MCP App 初始跟随宿主，手动选择
+仅作用于当前会话，下一次明确宿主主题事件重新跟随；尺寸增量事件不改主题。
+宿主只发送 light／dark 信号。语言沿用本地保存与保存保护：功能请求未完成或重启
+进行中不切换。浏览器重载本页获取一致文案；MCP 在当前上下文内更新文案与 API
+语言，并同步数据迁移、预览与 Tooltip，避免 sandbox 重载丢失官方页面。
 
-The footer includes a quiet Transfer data action. A native modal dialog (520px maximum,
-24px padding, existing opaque surface and 8px radius) shows only portable features as bordered
-cards. Feature-specific explanations live behind a small info button. The native auto popover
-uses the shared `installFeatureTooltips().tooltipSurface` material through `/assets/ui-tooltip.js`,
-with local theme token mapping only; its geometry, keyboard activation and Escape remain
-owned by this click-triggered hint. No separate tooltip material lives in dashboard CSS.
-Close uses the shared Dialog SVG, centered as a 16px block inside a 32px flex hit area.
-Non-portable features and generic file/platform explanations are omitted from this dialog.
-The merge policy is one 11px tertiary line, without a filled notice surface. Export and Import
-are equal outline surface buttons, each with an official Lucide icon and a text label. Labels
-can change for confirmation/retry without replacing the icons. Empty status text takes no space.
-Selecting a file shows added/duplicate/conflict counts before confirmation. Busy states prevent
-duplicate submissions and closing; native dialog focus restoration is preserved.
+## 聚焦与功能预览
 
-Footer version label and value align on their text baseline. Source previously stretched
-14px normal-line-height Chinese and numeric text boxes; 2026-10-05 preview measurements showed
-1px difference in text top. Baseline alignment matches both text tops and the neighboring actions
-without a positional offset.
+`assets/feature-previews.js` 管理单个当前卡片、浮层、视频和清理。
+精细指针进入200ms后打开，当前卡片清晰、其他卡片降至50%不透明度；不拦截指针，
+不加整页模糊或遮罩，不移动网格节点。离开卡片与预览100ms后关闭，允许跨越8px间隙。
+切换另一卡片会先卸载上一视频；已关闭功能也能预览。
 
-Feature names describe user tasks rather than implementation details. Chinese and English descriptions state a concrete benefit in one sentence and avoid claims beyond the feature. Markdown Reader and Cascading File Browser default on; explicit saved opt-outs remain unchanged. File navigation uses its own full card with a folder icon.
+优先侧边显示360px浮层，右侧不足翻向左侧；两侧都不足时放到卡片下／上方，
+必要时使用受视口限制的窄屏面板，避开当前开关。预览限制在 Dashboard 自己的视口，
+不覆盖宿主导航，不主动抢焦点。只有 opacity 淡入160ms，不抬升卡片、不动画布局。
 
-卡片顺序：模型窗口、提示词库、额度环、会话状态、Markdown 阅读增强、文件级联浏览、图片集合、站点收藏、侧栏聚焦、隐藏额度推广。API 统一输出此顺序；不改变 Runtime 的加载顺序。
+卡片本身提供无文字预览按钮，保留“查看效果 · 功能名”无障碍标签；开关位于独立上层热区。
+键盘聚焦显示，Enter／Space或触屏点击卡片固定；文字／封面预览有显式关闭，纯视频由Escape或浮窗外点击关闭。
+Escape与关闭按钮按触发方式返回入口，返回焦点不会重新打开。
+空白点击、页面滚动、resize、隐藏、失焦、数据迁移／语言菜单打开及 pagehide 清理。
+先释放状态再移除节点，避免 focusout 重入；视频暂停、移除src并load，取消待处理资源与两秒重播计时。
+状态轮询只原位更新卡片，同一顺序不搬运节点，保留键盘焦点与固定预览。
+
+## 内容与媒体接口
+
+`assets/preview-content.js` 按稳定 feature ID 保存中英位置／问题／操作结果，
+与卡片名称、实时状态分开。`assets/previews/manifest.json` 管素材关联，当前为空。
+示例格式：
+
+```json
+{
+  "file-navigation": {
+    "video": "file-navigation.webm",
+    "poster": "file-navigation.webp",
+    "version": "26.1007.21159"
+  }
+}
+```
+
+文件放在清单同目录，仅使用简单文件名。视频支持mp4／webm，封面支持png／jpg／webp。
+素材必须是对应功能真实录制，画面等比contain，不裁切关键动作。版本字段用于素材维护，不在视频浮窗显示，也不表示当前会话兼容性。没有素材时仅显示三项说明和“演示视频准备中”，没有空播放器。
+封面单独存在时标为静态预览；资源失败保留说明与可用封面。加载中显示低干扰文字。
+按2026-10-11用户修订，可播放视频浮窗只显示等比视频，不显示标题、说明、状态标签、版本或播放器控件。
+视频静音、内联自动播放；每次结束保留最后一帧，两秒后从头播放。
+自动播放拒绝或减少动态效果时回退静态封面／文字，不显示播放按钮。
+关闭、切换或隐藏只允许零个或一个播放器存活，同时取消重播计时。
+
+浏览器首次打开预览才读取清单，当前预览才请求媒体。MCP HTML 只内置清单，不内置
+全部视频；通过 App.readServerResource 按需读取
+`resource://minecodex/previews/{featureId}/{video|poster}`，得到本地data URL。
+服务检查清单与扩展名，禁止越出资源目录。共享HTTP入口提供对应MIME及媒体CSP。
+`apps/dashboard/assets` 已在npm包名单中，后续素材无需增加新的发布目录。
+测试素材只留在忽略的验收目录／浏览器路由中，不作为产品演示或运行资源交付。
+
+## 数据迁移与稳定性
+
+沿用原生dialog的焦点与关闭行为，最大宽520px、padding24px。三个可迁移领域使用
+各自业务预检与合并规则；GUI不直接读业务文件。导入导出仍为平级outline按钮，
+busy状态禁止重复提交与关闭。说明复用共享Tooltip，仅从本地定义读取视觉值。
+保存失败回退原值与焦点，并显示错误；刷新保留正在保存的功能。诊断只导出能力、
+token与窗口证据，不导出安装路径、账号、会话内容或凭据。
+
+验收涵盖明暗、中英、三／二／一列、hover与切换、键盘／触屏、reduce-motion、
+无媒体／404／自动播放拒绝、宿主变量删除、真实隔离API保存与失败回退、数据迁移、
+更新及官方sandbox。截图与DOM／API操作证据分别记录；真实录屏视觉与完整原生鼠标
+链在素材与人工阶段单独验收，不用本地测试视频冒充已完成。
+
+## 页面精简
+
+不显示品牌下方的重复运行状态行；真实状态继续在各功能卡片与诊断中提供。
+重启提示仅在pendingRestart时出现，保留说明与业务操作；所有提示与错误反馈（重启、加载错误、Toast）统一不使用左侧色条；语义由图标、文字和状态色表达。重启按钮采用999px胶囊圆角。
+卡片不再显示“查看效果”文字和额外一行，悬停、无文字卡片按钮、键盘与触屏预览继续有效。

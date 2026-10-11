@@ -25,7 +25,7 @@ test("official dashboard follows host changes after manual selection and ignores
   const window = {minecodexMcpApp:{},minecodexHostTheme:"dark",addEventListener:(name,fn)=>listeners.set(name,fn)};
   const document = {documentElement:{dataset:{}}};
   const elements = {themeToggle:{setAttribute(){},addEventListener:(name,fn)=>handlers.set(name,fn)},themeButtons:[]};
-  const context = vm.createContext({window,document,elements,locale:"en",copy:{},
+  const context = vm.createContext({previews:{close(){}},window,document,elements,locale:"en",copy:{},
     matchMedia:()=>({matches:false}),localStorage:{getItem:()=>"light",setItem:(...args)=>saved.push(args)}});
   const start = source.indexOf('const systemTheme = matchMedia(');
   const end = source.indexOf('elements.languageToggle.addEventListener(',start);

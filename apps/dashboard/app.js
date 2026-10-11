@@ -1,17 +1,14 @@
+import {installFeaturePreviews} from "./assets/feature-previews.js";
 import {diagnosticReport} from "./assets/diagnostics.js";
 import {dashboardFetch} from "./transport.js";
 let savedLocale;
 try { savedLocale = localStorage.getItem("minecodex-language"); } catch { /* 存储不可用时跟随浏览器语言。 */ }
-const locale = ["en", "zh-CN"].includes(savedLocale) ? savedLocale
+let locale = ["en", "zh-CN"].includes(savedLocale) ? savedLocale
   : navigator.language.toLowerCase().startsWith("zh") ? "zh-CN" : "en";
 document.documentElement.lang = locale;
 
-const copy = {
+const messages = {
   en: {
-    connecting: "Connecting…",
-    runtimeActive: "Active in Codex",
-    runtimeStopped: "Runtime unavailable",
-    runtimeNotInjected: "Runtime running — restart Codex to apply plugins",
     plugins: "Your extensions",
     restartTitle: "Restart Codex to apply changes",
     restartCopy: "Your plugin choices are saved. Restart when you are ready.",
@@ -53,10 +50,6 @@ const copy = {
     failureDetail: "This extension could not be confirmed. Copy diagnostics to help investigate.",
   },
   "zh-CN": {
-    connecting: "正在连接…",
-    runtimeActive: "已在 Codex 中生效",
-    runtimeStopped: "运行服务不可用",
-    runtimeNotInjected: "运行服务已启动——重启 Codex 以应用插件",
     plugins: "功能扩展",
     restartTitle: "重启 Codex 以应用更改",
     restartCopy: "插件选择已经保存，可以在准备好后统一重启。",
@@ -97,11 +90,10 @@ const copy = {
     restartFailed: "MineCodex 无法重启 Codex。请重试或复制诊断信息协助排查。",
     failureDetail: "暂时无法确认这项功能的状态，可复制诊断信息协助排查。",
   },
-}[locale];
+};
+let copy = messages[locale];
 
 const elements = {
-  runtimeDot: document.querySelector("#runtime-dot"),
-  runtimeLabel: document.querySelector("#runtime-label"),
   restartNotice: document.querySelector("#restart-notice"),
   restartTitle: document.querySelector("#restart-title"),
   restartCopy: document.querySelector("#restart-copy"),
@@ -128,11 +120,18 @@ const elements = {
 let state = null;
 let toastTimer = null;
 const pendingFeatureIds = new Set();
+const previews = installFeaturePreviews(elements.pluginList, locale);
 
 function applyStaticCopy() {
+  document.querySelector("#brand-slogan").textContent = locale === "zh-CN" ? "让 Codex 更顺手。" : "Make Codex work better for you.";
+  document.querySelector("#brand-description").textContent = locale === "zh-CN" ? "按需开启交互增强，让日常使用更高效。" : "Enable the enhancements you need for a smoother daily workflow.";
+  const language = document.querySelector("#language-button");
+  const languageLabel = locale === "zh-CN" ? "语言 · 中文" : "Language · English";
+  language.setAttribute("aria-label", languageLabel);
+  language.setAttribute("data-minecodex-tooltip", languageLabel);
   elements.languageToggle.setAttribute("aria-label", locale === "zh-CN" ? "语言" : "Language");
+  document.querySelector("#language-menu").setAttribute("aria-label", locale === "zh-CN" ? "语言" : "Language");
   for (const button of elements.languageButtons) button.setAttribute("aria-pressed", String(button.dataset.languageChoice === locale));
-  elements.runtimeLabel.textContent = copy.connecting;
   elements.restartTitle.textContent = copy.restartTitle;
   elements.restartCopy.textContent = copy.restartCopy;
   elements.restartButton.querySelector(".button-label").textContent = copy.restart;
@@ -209,6 +208,7 @@ function createPluginCard(feature) {
   pluginState.append(dot, stateLabel);
   heading.append(icon, label);
   card.append(heading, pluginCopy, pluginState);
+  previews.attach(card);
   return card;
 }
 
@@ -230,6 +230,8 @@ function updatePluginCard(card, feature) {
   input.setAttribute("aria-label", feature.label);
   dot.className = `status-dot ${status.className}`;
   stateLabel.textContent = status.label;
+  const previewEntry = card.querySelector(".preview-entry");
+  previewEntry?.setAttribute("aria-label", `${locale === "zh-CN" ? "查看效果" : "See how it works"} · ${feature.label}`);
 }
 
 function findPluginCard(featureId) {
@@ -243,38 +245,25 @@ function renderPluginCards(features) {
     if (!child.dataset.featureId) child.remove();
   }
   const featureIds = new Set(features.map(({ id }) => id));
-  for (const feature of features) {
+  for (const [index, feature] of features.entries()) {
     let card = findPluginCard(feature.id);
     if (!card) {
       card = createPluginCard(feature);
     }
-    elements.pluginList.append(card);
+    const expected = elements.pluginList.children[index];
+    if (expected !== card) elements.pluginList.insertBefore(card, expected ?? null);
     updatePluginCard(card, feature);
   }
   for (const card of [...elements.pluginList.querySelectorAll("[data-feature-id]")]) {
-    if (card.dataset.featureId && !featureIds.has(card.dataset.featureId)) card.remove();
+    if (card.dataset.featureId && !featureIds.has(card.dataset.featureId)) {
+      if (card.classList.contains("is-previewing")) previews.close();
+      card.remove();
+    }
   }
   elements.pluginList.setAttribute("aria-busy", "false");
 }
 
 function renderRuntime() {
-  const runtimeRunning = Boolean(state?.runtime?.running);
-  const renderer = state?.renderer;
-  const rendererCurrent = Boolean(
-    renderer?.discovered
-      && renderer.runtimeSessionId
-      && renderer.runtimeSessionId === state?.runtime?.runtimeSessionId
-      && renderer.active
-      && Number(renderer.injectedTargets) > 0,
-  );
-  const active = runtimeRunning && rendererCurrent;
-  elements.runtimeLabel.closest(".overview").hidden = active;
-  elements.runtimeDot.className = `status-dot ${active ? "is-active" : "is-warning"}`;
-  elements.runtimeLabel.textContent = active
-    ? copy.runtimeActive
-    : runtimeRunning
-      ? copy.runtimeNotInjected
-      : copy.runtimeStopped;
   elements.versionValue.textContent = state?.version ?? "—";
   elements.restartNotice.hidden = !state?.pendingRestart;
 }
@@ -320,11 +309,9 @@ async function load() {
     elements.pluginList.hidden = false;
     render();
   } catch {
+    previews.close();
     elements.pluginList.hidden = true;
     elements.loadError.hidden = false;
-    elements.runtimeDot.className = "status-dot is-warning";
-    elements.runtimeLabel.textContent = copy.runtimeStopped;
-    elements.runtimeLabel.closest(".overview").hidden = true;
   }
 }
 
@@ -432,11 +419,13 @@ function applyTheme() {
   for (const button of elements.themeButtons) {
     button.setAttribute("aria-label", button.dataset.themeChoice === "light" ? copy.lightAppearance : copy.darkAppearance);
     button.setAttribute("aria-pressed", String(button.dataset.themeChoice === (dark ? "dark" : "light")));
+    button.setAttribute("data-minecodex-tooltip", button.getAttribute("aria-label"));
   }
 }
 elements.themeToggle.addEventListener("click", (event) => {
   const button = event.target.closest("[data-theme-choice]");
   if (!button) return;
+  previews.close();
   selectedTheme = button.dataset.themeChoice;
   if (!window.minecodexMcpApp) {
     try { localStorage.setItem("minecodex-appearance", selectedTheme); } catch { /* 保留内存中的选择。 */ }
@@ -449,8 +438,20 @@ elements.languageToggle.addEventListener("click", (event) => {
   const choice = button.dataset.languageChoice;
   if (choice === locale) return;
   try { localStorage.setItem("minecodex-language", choice); } catch { return; }
-  // 重载后以同一语言请求卡片内容，不影响功能配置与外观选择。
-  location.reload();
+  // 浏览器沿用重载；官方 sandbox 在当前上下文内切换，保留主题与通信。
+  previews.close();
+  if (!window.minecodexMcpApp) { location.reload(); return; }
+  locale = choice;
+  copy = messages[locale];
+  document.documentElement.lang = locale;
+  previews.setLocale(locale);
+  document.querySelector("#language-menu").hidePopover();
+  applyStaticCopy();
+  applyTheme();
+  elements.updateResult.hidden = true;
+  elements.toast.hidden = true;
+  window.dispatchEvent(new Event("minecodex-language"));
+  void load();
 });
 systemTheme.addEventListener("change", applyTheme);
 window.addEventListener("minecodex-host-theme", () => {
@@ -462,3 +463,12 @@ document.addEventListener("pointerdown", () => { document.documentElement.datase
 applyStaticCopy();
 applyTheme();
 void load();
+
+const languageMenu = document.querySelector("#language-menu");
+languageMenu.addEventListener("toggle", event => {
+  document.querySelector("#language-button").setAttribute("aria-expanded", String(event.newState === "open"));
+  if (event.newState !== "open") return;
+  const rect = document.querySelector("#language-button").getBoundingClientRect();
+  languageMenu.style.left = `${Math.max(8, Math.min(rect.right - 140, innerWidth - 148))}px`;
+  languageMenu.style.top = `${rect.bottom + 8}px`;
+});
