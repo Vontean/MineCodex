@@ -17,7 +17,7 @@
   --shadow: 0 4px 16px -6px #00000012;
   --focus: 0 0 0 3px #3a83f766;
   --card-radius: 20px;
-  --grid-gap: 16px;
+  --grid-gap: 24px;
   --card-padding: 24px;
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -102,11 +102,12 @@ h1 { display: flex; flex-direction: column; align-items: center; gap: 16px; font
 .refresh-icon { --icon: url("/assets/refresh-cw.svg"); }
 .info-icon { --icon: url("/assets/info.svg"); }
 .alert-icon { --icon: url("/assets/triangle-alert.svg"); }
-.theme-toggle { position: relative; display: flex; gap: 4px; padding: 4px; border-radius: 999px; background: var(--surface-muted); box-shadow: inset 0 0 0 1px var(--border); }
-.theme-toggle button { position: relative; display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--ink-secondary); cursor: pointer; }
-.theme-toggle button[aria-pressed="true"] { color: var(--ink); }
-.theme-selection { position: absolute; inset: 4px auto auto 4px; width: 32px; height: 32px; border-radius: 50%; background: var(--surface-elevated); box-shadow: 0 1px 3px #0002; transition: transform 180ms var(--ease-out); }
-:root[data-theme="dark"] .theme-selection { transform: translateX(36px); }
+.theme-toggle { display:flex; }
+.theme-toggle button, .language-button { display:grid; place-items:center; width:40px; height:40px; padding:0; border:0; border-radius:50%; background:transparent; color:var(--ink-secondary); cursor:pointer; }
+.theme-toggle button:hover, .language-button:hover { color:var(--ink); background:color-mix(in srgb,var(--ink) 5%,transparent); }
+::view-transition-image-pair(root) { isolation:auto; }
+::view-transition-old(root), ::view-transition-new(root) { animation:none; mix-blend-mode:normal; }
+::view-transition-new(root) { z-index:1; }
 
 h2 { font-size: 14px; font-weight: 620; }
 
@@ -117,8 +118,7 @@ h2 { font-size: 14px; font-weight: 620; }
 }
 
 .header-actions { display: flex; justify-content: flex-end; align-items: center; gap: 12px; flex-shrink: 0; }
-.language-toggle { display: flex; padding: 4px; border-radius: 999px; background: var(--surface-muted); box-shadow: inset 0 0 0 1px var(--border); }
-.language-button { display:grid; place-items:center; width:32px; height:32px; padding:0; border:0; border-radius:50%; background:transparent; color:var(--ink-secondary); cursor:pointer; }
+.language-toggle { display:flex; }
 .language-icon { --icon: url("/assets/languages.svg"); }
 .language-menu { position: fixed; inset: auto; margin:0; padding:6px; min-width:140px; border:1px solid var(--border-heavy); border-radius:14px; background:var(--surface-elevated); color:var(--ink); box-shadow:var(--shadow); }
 .language-menu button { display:block; width:100%; padding:8px 12px; border:0; border-radius:8px; background:transparent; color:var(--ink-secondary); text-align:left; cursor:pointer; }

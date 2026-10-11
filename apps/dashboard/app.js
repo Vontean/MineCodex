@@ -417,20 +417,43 @@ function applyTheme() {
   document.documentElement.dataset.theme = dark ? "dark" : "light";
   elements.themeToggle.setAttribute("aria-label", locale === "zh-CN" ? "外观" : "Appearance");
   for (const button of elements.themeButtons) {
-    button.setAttribute("aria-label", button.dataset.themeChoice === "light" ? copy.lightAppearance : copy.darkAppearance);
-    button.setAttribute("aria-pressed", String(button.dataset.themeChoice === (dark ? "dark" : "light")));
-    button.setAttribute("data-minecodex-tooltip", button.getAttribute("aria-label"));
+    button.dataset.themeChoice = dark ? "dark" : "light";
+    button.querySelector(".ui-icon").className = `ui-icon ${dark ? "moon" : "sun"}-icon`;
+    const current = dark ? copy.darkAppearance : copy.lightAppearance;
+    const next = dark ? copy.lightAppearance : copy.darkAppearance;
+    const label = locale === "zh-CN" ? `${current} · 切换为${next}` : `${current} · Switch to ${next.toLowerCase()}`;
+    button.setAttribute("aria-label", label);
+    button.setAttribute("data-minecodex-tooltip", label);
   }
 }
-elements.themeToggle.addEventListener("click", (event) => {
-  const button = event.target.closest("[data-theme-choice]");
-  if (!button) return;
+let themeTransition = null;
+async function toggleTheme(button) {
+  if (themeTransition) return;
   previews.close();
-  selectedTheme = button.dataset.themeChoice;
+  selectedTheme = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
   if (!window.minecodexMcpApp) {
     try { localStorage.setItem("minecodex-appearance", selectedTheme); } catch { /* 保留内存中的选择。 */ }
   }
-  applyTheme();
+  if (!document.startViewTransition || matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    applyTheme(); return;
+  }
+  const rect = button.getBoundingClientRect();
+  const x = rect.left + rect.width / 2, y = rect.top + rect.height / 2;
+  const radius = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
+  const transition = document.startViewTransition(applyTheme);
+  themeTransition = transition;
+  try {
+    await transition.ready;
+    document.documentElement.animate({clipPath:[`circle(0px at ${x}px ${y}px)`, `circle(${radius}px at ${x}px ${y}px)`]}, {
+      duration:420, easing:"cubic-bezier(0.23, 1, 0.32, 1)", pseudoElement:"::view-transition-new(root)",
+    });
+    await transition.finished;
+  } catch { transition.skipTransition(); }
+  finally { themeTransition = null; }
+}
+elements.themeToggle.addEventListener("click", event => {
+  const button = event.target.closest("[data-theme-choice]");
+  if (button) void toggleTheme(button);
 });
 elements.languageToggle.addEventListener("click", (event) => {
   const button = event.target.closest("[data-language-choice]");
