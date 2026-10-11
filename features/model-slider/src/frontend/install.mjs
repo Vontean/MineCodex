@@ -1032,10 +1032,59 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
     record.motionTimer = setTimeout(onFinish, 320);
   }
 
+  function prepareSelectedModelReveal(record) {
+    const { menu } = record;
+    const interaction = new AbortController();
+    let frame = null;
+    const cancel = () => {
+      interaction.abort();
+      if (frame !== null) cancelAnimationFrame(frame);
+      frame = null;
+    };
+    for (const type of ["wheel", "touchstart", "pointerdown", "keydown", "input", "click"]) {
+      document.addEventListener(type, cancel, { capture: true, passive: true, signal: interaction.signal });
+    }
+    menu.scrollTop = 0;
+    return {
+      cancel,
+      finishOpening() {
+        if (interaction.signal.aborted || !menu.isConnected) return;
+        // 先呈现列表顶部，再在下一帧检查选中项；sticky 搜索栏不算可见内容区。
+        frame = requestAnimationFrame(() => {
+          const selected = menu.querySelector("[data-codex-model-slider-selected]");
+          if (!selected) return cancel();
+          const zoom = menu.currentCSSZoom || 1;
+          const bounds = menu.getBoundingClientRect();
+          const top = menu.querySelector("[data-codex-model-slider-search-header]").getBoundingClientRect().bottom;
+          const bottom = bounds.bottom - (parseFloat(getComputedStyle(menu).paddingBottom) || 0) * zoom;
+          const item = selected.getBoundingClientRect();
+          if (item.top >= top && item.bottom <= bottom) return cancel();
+          const from = menu.scrollTop;
+          const to = Math.max(0, Math.min(menu.scrollHeight - menu.clientHeight,
+            from + ((item.top + item.bottom - top - bottom) / 2) / zoom));
+          if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
+            menu.scrollTop = to;
+            return cancel();
+          }
+          const start = performance.now();
+          const scroll = now => {
+            if (!menu.isConnected) return cancel();
+            const progress = Math.min(1, (now - start) / 400);
+            menu.scrollTop = from + (to - from) * (1 - (1 - progress) ** 3);
+            if (progress < 1) frame = requestAnimationFrame(scroll);
+            else cancel();
+          };
+          frame = requestAnimationFrame(scroll);
+        });
+      },
+    };
+  }
+
   function closeControllerModelMenu({ immediate = false } = {}) {
     const record = modelSelectorControllerMenu;
     if (!record) return false;
     if (record.closing && !immediate) return true;
+    record.reveal?.cancel();
     const placeholder = document.querySelector(
       '[data-codex-intelligence-trigger] [class*="_ModelPickerTriggerPlaceholder_"]',
     );
@@ -1249,12 +1298,14 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
     search.focus({ preventScroll: true });
     const record = modelSelectorControllerMenu;
     record.listHeight = Number.parseFloat(getComputedStyle(menu).height);
+    record.reveal = prepareSelectedModelReveal(record);
     animateControllerModelMenu(record, true, () => {
       if (modelSelectorControllerMenu !== record || record.closing) return;
       record.animations.forEach((animation) => animation.cancel());
       record.animations = [];
       menu.style.overflowY = "auto";
       sizeModelMenuViewport(menu, selector.maxVisibleItems);
+      record.reveal.finishOpening();
     });
   }
 
