@@ -10,7 +10,9 @@
 右对齐，语言与当前明暗模式使用无常驻底色、无描边的纯图标按钮；40px热区。
 浅色显示太阳，深色显示月亮；点击切换模式并同步图标，Tooltip说明当前与下一模式。
 品牌独立居中，唯一 SVG 标识在上、MineCodex 名称在下。标识64px，窄屏48px；
-标题32px／600，窄屏28px。Slogan 为“让 Codex 更顺手。”，下一行说明
+标题恢复历史Silkscreen Bold像素字、1px描边与1–5px阶梯立体阴影，改用本地黑白／灰色品牌token。
+标题字号clamp(28px,5.3vw,64px)，保持单行；Slogan22px，说明16px，窄屏分别20／15px。
+品牌区桌面上／下留白40／64px，窄屏32／48px。Slogan 为“让 Codex 更顺手。”，下一行说明
 “按需开启交互增强，让日常使用更高效。”；英文分别为
 “Make Codex work better for you.”和“Enable the enhancements you need for a smoother daily workflow.”。
 补充行用于明确按需开启的用途，保持短句。
@@ -60,7 +62,9 @@ Dashboard 的 `--canvas`、`--surface`、`--ink` 等变量由本地 CSS 定义�
 | 成功、错误 / 原生 text-success、text-danger | `#00a240`、`#e02e2a` | `#40c977`、`#ff6764` |
 | 警告 / 原生 caution表面文字、深色caution文字 | `#923b0f` | `#ffd240` |
 
-页面为均匀纯色，无渐变、窗口透明材质、地形、像素字体或硬质下沿投影。
+页面为均匀纯色，无渐变、窗口透明材质、地形或卡片硬质下沿投影。
+品牌标题为明确例外：恢复6444004中既有MC像素字轮廓，只将蓝色品牌值改为黑白灰。
+字体仅用于品牌名称；Silkscreen字体与OFL许可均来自历史资源，MCP内置字体data URL。
 Prompt 卡片计算轮廓为 `superellipse(1)`，即普通圆角；不把原生 Tooltip 的
 `superellipse(1.5)` 轮廓套到卡片。预览使用不透明 elevated 表面与轻投影。
 开关轨道36×21px，命中高度32px；选中用中性主文字色，状态仍用语义色。

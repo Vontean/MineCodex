@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-const mime = { ".svg": "image/svg+xml" };
+const mime = { ".svg": "image/svg+xml", ".ttf": "font/ttf" };
 export async function createAppHtml(packageRoot) {
   const directory = path.join(packageRoot, "apps/dashboard");
   let html = await readFile(path.join(directory, "index.html"), "utf8");
