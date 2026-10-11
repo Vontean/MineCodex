@@ -83,7 +83,7 @@ Preview 使用其所属原生 CodeMirror 的 ViewPlugin / Decoration / Compartme
 
 表格列宽由整张表的内容共同决定。Adapter 将原生 Markdown AST 的单元格内容放入不可访问、不可选择的隐藏 HTML table，由浏览器执行原生 auto 布局；列宽接入现有 CodeMirror 单元格，不移动、删除或替换正文节点。测量层不参与文档滚动、复制与辅助技术导航。取消每列 120px 下限及等宽分列，空单元格仍按源码列位补齐。
 
-表格可超过 800px 正文宽度。full-width 边距复用 Pages 的公式：reading width 为 `--thread-content-max-width - --padding-toolbar * 2`，wide margin 为 `min(--spacing * 16, max(0, (容器宽度 - reading width) / 2))`。窄面板保留内容列宽，在本表内横向浏览，正文没有横向溢出。文字使用 break-spaces / normal word-break / break-word overflow-wrap；不以面板宽度强行等分或压窄列。未提供 Pages 的手动调整列宽与行列编辑能力。
+默认开启文档换行。换行模式下表格整体宽度与普通正文一致，使用 scroller 扣除左右正文 padding 后的可用宽度，不向 gutter 扩展。关闭换行后，表格才可超过正文宽度；full-width 边距复用 Pages 的公式：reading width 为 `--thread-content-max-width - --padding-toolbar * 2`，wide margin 为 `min(--spacing * 16, max(0, (容器宽度 - reading width) / 2))`。窄面板保留内容列宽，在本表内横向浏览，正文没有横向溢出。文字使用 break-spaces / normal word-break / break-word overflow-wrap；不以面板宽度强行等分或压窄列。未提供 Pages 的手动调整列宽与行列编辑能力。
 
 每张溢出的表格底部只有一条滚动条，拖拽、点轨道、方向键、PageUp/Down、Home/End、横向滚轮与 Shift 滚轮控制整张表，表头和所有行同步。滚动条在悬浮整张表、操作区或滚动条时显示；键盘聚焦时显示，粗指针设备常显。离开且无焦点时隐藏，仍保留布局空间，避免正文跳动。滚动条使用浏览器原生 overflow-x:scroll 与 Pages 的 scrollbar-width:thin，不自绘滑块、不自行处理拖动或轨道点击；颜色引用原生 token。CodeMirror 的逐行结构通过共享 offset 接入同一个滚动控制容器，并非改写为 Pages 的整表 DOM。竖向滚轮继续滚动原正文。表格行不各自显示滚动条。虚拟行重挂载恢复共享 offset；键盘光标进入不可见列时同步跟随。
 
@@ -110,7 +110,7 @@ Preview 使用其所属原生 CodeMirror 的 ViewPlugin / Decoration / Compartme
 
 复用 Codex 26.930.21537 Chat Markdown 的公开 `data-block-actions` React 组件、CopyButton、Button (`color=blockAction` / `radius=full` / `size=inputIcon`)、Tooltip 和消息流 CodeSnippet 原生换行／取消换行图标。Adapter 通过源码语义角色与公开 export 接入，不绑定构建 hash；继承当前 React context。操作栏在表格 hover / focus 内可达，窄面板不越过本面板边缘；操作栏放在表头上方，表头预留 16px 间距，避免遮住适配后的最后一列标题；透明指针桥仅覆盖操作栏及表头顶部留白，让鼠标可连续移入按钮，不拦截正文选区。操作栏和滚动条挂载在原生 cm-scroller 内、cm-content 外，按文档坐标定位，随正文由浏览器同步滚动；不逐帧追随视口坐标，不吸附到视口顶部。纯滚动复用已有列宽与滚动范围，节点、内容或布局变化时才重新测量。操作控件用于本功能表格与代码块，保留 Chat 和 Mermaid 的原生动作。
 
-“复制表格”复制本表 Markdown 源码，由原生 CopyButton 显示反馈。“开启／关闭文档换行”是当前 Preview 文档中所有表格与普通代码块共用的状态：默认关闭、表格使用自然列宽；开启后隐藏测量 table 切换为 100% 宽度的原生 auto 布局，单元格 overflow-wrap:anywhere，按内容分配列宽并增长行高；关闭恢复自然宽度。能够适配时移除横向滚动条和渐消；列数过多导致最小单元格尺寸仍超宽时继续提供横向浏览。状态不写入 Markdown，不影响其他文档；Source 切换或关闭 Preview 后恢复默认状态。
+“复制表格”复制本表 Markdown 源码，由原生 CopyButton 显示反馈。“开启／关闭文档换行”是当前 Preview 文档中所有表格与普通代码块共用的状态：默认开启、表格跟随普通正文宽度；隐藏测量 table 使用 100% 宽度的原生 auto 布局，单元格 overflow-wrap:anywhere，按内容分配列宽并增长行高；关闭恢复自然宽度。能够适配时移除横向滚动条和渐消；列数过多导致最小单元格尺寸仍超宽时继续提供横向浏览。状态不写入 Markdown，不影响其他文档；Source 切换或关闭 Preview 后恢复默认状态。
 
 表格按钮顺序固定为“换行（适用时）→ 复制 → 扩展”。扩展始终提供，不依赖宽度溢出或换行状态。点击复用消息流表格的原生全屏预览 Dialog、Table 组件、Markdown lexer / renderer、滚动容器与扩展图标，不重建正文编辑器。全屏内容来自当前表格 Markdown 源码；保留原生预览的遮罩、关闭按钮、Escape 与主题样式，关闭后焦点返回触发按钮。功能卸载同时释放 Dialog portal 及其页面锁定。
 
@@ -155,4 +155,4 @@ TOC 的纵向中心以整个 File Panel（包含文件 Toolbar）的边界计算
 
 ## 文档换行状态
 
-每个 Preview 会话拥有一个换行状态，由 `reading-runtime.mjs` 创建并传给表格与富文本 Adapter。点击任意表格或普通代码块的按钮，统一切换当前文档所有支持此逻辑的块；按钮提示为“开启／关闭文档换行”。虚拟滚动、块重挂载及异步加载沿用当前状态，不按块位置或内容分别保存。其他文档独立；关闭 Preview 后释放订阅，不写入文件或全局偏好。math / mermaid 保留原生能力。
+每个 Preview 会话拥有一个默认开启的换行状态，由 `reading-runtime.mjs` 创建并传给表格与富文本 Adapter。点击任意表格或普通代码块的按钮，统一切换当前文档所有支持此逻辑的块；按钮提示为“开启／关闭文档换行”。虚拟滚动、块重挂载及异步加载沿用当前状态，不按块位置或内容分别保存。其他文档独立；关闭 Preview 后释放订阅，不写入文件或全局偏好。math / mermaid 保留原生能力。

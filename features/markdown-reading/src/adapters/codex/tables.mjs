@@ -150,9 +150,13 @@ export function installMarkdownTables(view, api, wrapState) {
     const content = view.contentDOM;
     const scroller = view.scrollDOM;
     const padding = getComputedStyle(scroller);
+    const wrapping = wrapState.get();
+    measure.style.width = wrapping
+      ? `${scroller.clientWidth - parseFloat(padding.paddingLeft) - parseFloat(padding.paddingRight)}px`
+      : "";
     const available = measure.clientWidth;
     const inset = (scroller.clientWidth - available) / 2;
-    const breakout = Math.max(0, parseFloat(padding.paddingLeft) - inset);
+    const breakout = wrapping ? 0 : Math.max(0, parseFloat(padding.paddingLeft) - inset);
     for (const [id, table] of tables) {
       table.style.inlineSize = wrapState.get() ? '100%' : 'max-content';
       for (const cell of table.querySelectorAll('td,th'))

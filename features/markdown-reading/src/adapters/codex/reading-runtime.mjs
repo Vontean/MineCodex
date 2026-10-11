@@ -8,7 +8,7 @@ import { loadNativeMarkdownRichText, installMarkdownRichText } from './rich-text
 
 // 每个 Preview 共用换行状态，虚拟滚动重挂载的块也读取当前值。
 export function createMarkdownWrapState() {
-  let enabled = false;
+  let enabled = true;
   const listeners = new Set();
   return {
     get: () => enabled,

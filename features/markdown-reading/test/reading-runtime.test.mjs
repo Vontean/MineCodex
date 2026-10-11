@@ -6,18 +6,18 @@ test('wrap subscribers share both toggle directions, late mounts read current st
   for (const create of [createMarkdownWrapState, new Function(`return (${createMarkdownWrapState.toString()})()`)]) {
     const state = create(), seen = [];
     const unsubscribe = state.subscribe(() => seen.push(state.get()));
-    assert.equal(state.get(), false);
-    state.toggle();
     assert.equal(state.get(), true);
+    state.toggle();
+    assert.equal(state.get(), false);
     const late = [];
     const removeLate = state.subscribe(() => late.push(state.get()));
     state.toggle();
-    assert.deepEqual(seen, [true, false]);
-    assert.deepEqual(late, [false]);
+    assert.deepEqual(seen, [false, true]);
+    assert.deepEqual(late, [true]);
     unsubscribe();
     removeLate();
     state.toggle();
-    assert.deepEqual(seen, [true, false]);
+    assert.deepEqual(seen, [false, true]);
   }
 });
 
@@ -43,10 +43,10 @@ test('tables and code share one preview state while other previews remain indepe
   assert.equal(tableStates.get(a.view), codeStates.get(a.view));
   assert.equal(tableStates.get(b.view), codeStates.get(b.view));
   assert.notEqual(tableStates.get(a.view), tableStates.get(b.view));
-  assert.deepEqual(observed, [true, true]);
+  assert.deepEqual(observed, [false, false]);
   codeStates.get(a.view).toggle();
-  assert.equal(tableStates.get(a.view).get(), false);
-  assert.equal(tableStates.get(b.view).get(), true);
+  assert.equal(tableStates.get(a.view).get(), true);
+  assert.equal(tableStates.get(b.view).get(), false);
   a.session.dispose();
   b.session.dispose();
 });
