@@ -4,7 +4,8 @@ import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import vm from 'node:vm';
 import { markdownMermaidSource, createQvResources, createQvFrame } from '../src/mermaid/frame.mjs';
-import { buildQvTemplate, staticQvScript } from '../../../scripts/build-qv-mermaid.mjs';
+import { createQvLoading } from '../src/mermaid/loading.mjs';
+import { buildQvTemplate, staticQvScript, buildQvLoading } from '../../../scripts/build-qv-mermaid.mjs';
 
 const feature = new URL('../', import.meta.url);
 test('closed Mermaid fences preserve every diagram type and presentation directive as data', () => {
@@ -52,6 +53,42 @@ test('shipped template is reproducible and contains no unresolved includes or CD
 test('missing assets fail before replacing native widgets', () => {
   assert.throws(()=>createQvResources({}), /qv-resources-unavailable/);
   assert.throws(()=>createQvResources({qvTemplate:{script:'x'}}), /qv-resources-unavailable/);
+});
+test('loading adapter is reproducible from the QV snapshot without changing chart tooltip styles', async () => {
+  const compiled = await buildQvLoading();
+  assert.equal(await readFile(new URL('src/mermaid/loading.mjs',feature),'utf8'),compiled.module);
+  assert.equal(await readFile(new URL('assets/qv-loading.css',feature),'utf8'),compiled.styles);
+  assert.ok(!compiled.styles.includes('{{'));
+  assert.ok(!compiled.styles.includes('tooltip'));
+  assert.ok(compiled.styles.includes('1.75s ease-in-out infinite'));
+});
+test('dot loading pauses while hidden and stops all work on readiness or disposal', () => {
+  const frames=new Map(),listeners=new Map(),motionListeners=new Map();
+  let next=0,painted=0,observer;
+  const ctx={setTransform(){},clearRect(){},beginPath(){},arc(){},fill(){painted++;}};
+  class Element {
+    constructor(){this.children=[];this.attrs=new Map();}
+    append(child){this.children.push(child);child.parent=this;}
+    setAttribute(k,v){this.attrs.set(k,v);}
+    removeAttribute(k){this.attrs.delete(k);}
+    getBoundingClientRect(){return {width:736,height:248};}
+    getContext(){return ctx;}
+    remove(){this.parent.children=this.parent.children.filter(child=>child!==this);}
+  }
+  const region=new Element(),reduced={matches:false,addEventListener:(k,fn)=>motionListeners.set(k,fn),removeEventListener:k=>motionListeners.delete(k)};
+  const document={hidden:false,createElement:()=>new Element(),addEventListener:(k,fn)=>listeners.set(k,fn),removeEventListener:k=>listeners.delete(k)};
+  const context={document,devicePixelRatio:2,matchMedia:()=>reduced,getComputedStyle:()=>({color:'#71717a'}),
+    requestAnimationFrame:fn=>{frames.set(++next,fn);return next;},cancelAnimationFrame:id=>frames.delete(id),
+    ResizeObserver:class{constructor(fn){this.fn=fn;observer=this;}observe(){this.fn();}disconnect(){this.disconnected=true;}}};
+  const finish=vm.runInNewContext(`(${createQvLoading.toString()})`,context)(region);
+  const tick=now=>{const [id,fn]=frames.entries().next().value;frames.delete(id);fn(now);};
+  tick(40);assert.ok(painted>0);assert.equal(frames.size,1);
+  document.hidden=true;listeners.get('visibilitychange')();assert.equal(frames.size,0);
+  document.hidden=false;listeners.get('visibilitychange')();assert.equal(frames.size,1);
+  reduced.matches=true;motionListeners.get('change')();tick(80);assert.equal(frames.size,0);
+  finish();finish();assert.equal(region.children.length,0);assert.equal(region.attrs.get('aria-busy'),'false');
+  assert.equal(listeners.size,0);assert.equal(motionListeners.size,0);assert.equal(observer.disconnected,true);
+  observer.fn();assert.equal(frames.size,0);
 });
 test('script URLs are shared across previews in one document and revoked with the last release', () => {
   delete globalThis.__mcxQvScripts;

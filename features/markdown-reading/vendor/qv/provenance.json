@@ -44,10 +44,12 @@
     "mermaid-quadrant-model.js": "775448876b802fae5f1148d92ab99c491168be87aea6aecf2a92ce27fbb5c939",
     "mermaid.html": "36d7e6994c8c8eebb13fffe79b67a82cd6d336d66142ee62784cfe8650c0ad9e",
     "donut-chart.html": "70578f946929abfd284e61c64ab06a2812cdc2374bf8cb6a6f0bbb7c0c167363",
-    "radar-chart.html": "4f18a77b7ec77c495758177a01c930574aa23c533c588c82ced86719f635790a"
+    "radar-chart.html": "4f18a77b7ec77c495758177a01c930574aa23c533c588c82ced86719f635790a",
+    "chart-loading.html": "700f7879be8e22b82a8d03be7ce9abf188f2db4a71f9a91229d2bb338add5b6b"
   },
   "generated": {
-    "chart-presets.js": "mermaid_presets.py compile_presets"
+    "chart-presets.js": "mermaid_presets.py compile_presets",
+    "loading.mjs": "chart-loading.html dot-field drawing; Preview owns readiness and cleanup"
   },
   "adaptation": "offline dependencies and static motion; model, layout, drawing and presentation retained"
 }

@@ -5,6 +5,31 @@ import { build } from 'esbuild';
 import { parse } from 'acorn';
 const source = new URL('../features/markdown-reading/vendor/qv/source/', import.meta.url);
 const output = new URL('../features/markdown-reading/assets/', import.meta.url);
+export async function buildQvLoading() {
+  const template = await readFile(new URL('chart-loading.html', source), 'utf8');
+  const script = template.match(/<script>([\s\S]*?)<\/script>/)[1];
+  // 网点几何与绘制原样复用 QV；就绪、失败和卸载由 Preview 的真实状态结束。
+  const drawing = script.slice(script.indexOf('let frame='), script.indexOf('function finish()'));
+  const module = `// 由 scripts/build-qv-mermaid.mjs 从 QV chart-loading.html 生成，请勿手改。
+export function createQvLoading(region) {
+const field=document.createElement('div'),canvas=document.createElement('canvas');
+field.className='qv-loading-field';canvas.className='qv-loading-canvas';field.setAttribute('aria-hidden','true');field.append(canvas);region.append(field);
+region.setAttribute('data-mcx-qv-loading','');region.setAttribute('aria-busy','true');
+const ctx=canvas.getContext('2d'),reduced=matchMedia('(prefers-reduced-motion: reduce)');
+${drawing}
+return function finish(){if(done)return;done=true;cancelAnimationFrame(frame);observer.disconnect();document.removeEventListener('visibilitychange',visibility);reduced.removeEventListener('change',motion);field.remove();region.removeAttribute('data-mcx-qv-loading');region.setAttribute('aria-busy','false');};
+}
+`;
+  const css = template.match(/<style>([\s\S]*?)<\/style>/)[1].replaceAll('{{LOADING_ID}}', 'mcx-qv-loading-source');
+  const field = css.match(/#mcx-qv-loading-source>\.qv-loading-field\{[^}]+\}/)[0];
+  const canvas = css.match(/#mcx-qv-loading-source \.qv-loading-canvas\{[^}]+\}/)[0];
+  const keyframes = css.match(/@keyframes qv-field-mcx-qv-loading-source\{50%\{[^}]+\}\}/)[0];
+  const reduced = css.match(/@media\(prefers-reduced-motion:reduce\)\{#mcx-qv-loading-source>\.qv-loading-field\{[^}]+\}\}/)[0];
+  const styles = [field, canvas, keyframes, reduced].join('\n').replaceAll('qv-field-mcx-qv-loading-source','mcx-qv-loading-field')
+    .replaceAll('#mcx-qv-loading-source','.mcx-reading-qv-status[data-mcx-qv-loading]')
+    .replaceAll('var(--muted-foreground)','var(--mcx-color-text-foreground-secondary)') + '\n';
+  return { module, styles };
+}
 export function staticQvScript(script) {
   const tree = parse(script, { ecmaVersion: 'latest', sourceType: 'script' }), edits = [];
   function visit(node) {
@@ -61,6 +86,9 @@ export async function buildQvTemplate({ motion = false } = {}) {
   return { markup: template.replace(match[0], ''), script: (motion ? "" : prefix) + script };
 }
 async function main() {
+  const loading = await buildQvLoading();
+  await writeFile(new URL('../src/mermaid/loading.mjs', output), loading.module);
+  await writeFile(new URL('qv-loading.css', output), loading.styles);
   await writeFile(new URL('qv-template.json', output), JSON.stringify(await buildQvTemplate()));
   const result = await build({ stdin: { contents: `import mermaid from 'mermaid';import ELK from 'elkjs/lib/elk.bundled.js';import * as lucide from 'lucide';import * as d3 from 'd3';import * as sankey from 'd3-sankey';window.ELK=ELK;window.lucide={...lucide,createIcons:options=>lucide.createIcons({icons:lucide.icons,...options})};window.__mcxQVRuntime={mermaid,d3,sankey};`, resolveDir: fileURLToPath(new URL('../',import.meta.url)) }, bundle: true, minify: true, format: 'iife', platform: 'browser', target: 'chrome140', legalComments: 'eof', metafile:true, outfile: fileURLToPath(new URL('qv-dependencies.js', output)) });
   const packages = new Map();

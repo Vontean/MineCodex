@@ -7,7 +7,7 @@ const tokenNames = ['--font-content', '--text-document', '--leading-relaxed', '-
   '--color-text-foreground-secondary', '--color-border'];
 const style = document.createElement('style');
 style.setAttribute('data-minecodex-markdown-reading-styles', '');
-style.textContent = [config.resources.styles, config.resources.mermaidStyles].filter(Boolean).join('\n');
+style.textContent = [config.resources.styles, config.resources.mermaidStyles, config.resources.qvLoadingStyles].filter(Boolean).join('\n');
 document.head.append(style);
 let disposed = false;
 let pending = null;

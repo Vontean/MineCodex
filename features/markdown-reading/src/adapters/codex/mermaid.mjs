@@ -1,4 +1,5 @@
 import { createQvResources, createQvFrame, readQvTheme } from '../../mermaid/frame.mjs';
+import { createQvLoading } from '../../mermaid/loading.mjs';
 import { captureMarkdownProviders } from './providers.mjs';
 import { createMarkdownMermaidControls } from './mermaid-viewer.mjs';
 
@@ -19,11 +20,12 @@ export function installMarkdownMermaid(view, api, native, codex, resources, onSt
       const status = document.createElement('div');
       const chinese = document.documentElement.lang.startsWith('zh');
       status.className = 'mcx-reading-qv-status'; status.setAttribute('role', 'status');
-      status.textContent = chinese ? '正在加载图表…' : 'Loading diagram…';
+      status.setAttribute('aria-label', chinese ? '正在加载图表…' : 'Loading diagram…');
       host.className = 'mcx-reading-qv-widget'; slot.className = 'mcx-reading-qv-inline'; actions.className = 'mcx-reading-qv-actions';
       host.append(actions, slot); slot.append(status);
-      const item = { host, slot, source:this.source, height:240, ready:false, expanded:false };
-      slot.style.height = '240px';
+      const finishLoading = createQvLoading(status);
+      const item = { host, slot, source:this.source, height:280, ready:false, expanded:false };
+      slot.style.height = '280px';
       item.controller = createQvFrame(this.source, assets, readQvTheme(view.dom), height => {
         if (disposed || view.destroyed) return;
         if (item.expanded) {
@@ -33,16 +35,19 @@ export function installMarkdownMermaid(view, api, native, codex, resources, onSt
         item.height = height; slot.style.height = height + 'px';
         item.controller.frame.style.height = height + 'px'; view.requestMeasure();
       }, state => {
+        finishLoading();
+        status.removeAttribute('aria-label');
         item.ready = state === 'enhanced' || state === 'native';
         status.hidden = item.ready;
         if (!item.ready) status.textContent = chinese ? '图表加载失败，可复制源码查看。' : 'Diagram failed to load. Copy the source to inspect it.';
         item.controller.frame.style.visibility = item.ready ? '' : 'hidden';
         item.setReady?.(item.ready); report();
       }, () => item.close?.());
+      item.controller.frame.style.visibility = 'hidden';
       slot.append(item.controller.frame);
       const root = native.ReactDOM.createRoot(actions);
       root.render(withProviders(native.React, native.React.createElement(Controls, {item})));
-      item.dispose = () => { root.unmount(); item.controller.dispose(); mounted.delete(item); report(); };
+      item.dispose = () => { finishLoading(); root.unmount(); item.controller.dispose(); mounted.delete(item); report(); };
       host._mcxQv = item; mounted.add(item); report();
       return host;
     }
