@@ -23,7 +23,7 @@ async function fixture(context,{fileNode=async()=>({id:"libfile_image"}),favorit
   };
   const scope={value:{basePath:"/space",accountId:"account",userId:"user",routeKind:"home"},query:{getOrFetch(){}},set(){},get:atom=>atom==="account"?state.account:atom==="user"?"user":{info:text=>state.toasts.push(text),danger:text=>state.toasts.push(text)}};
   const intl={formatMessage:message=>message.defaultMessage};
-  const codex={currentFiber:()=>({memoizedProps:{scope},return:{tag:10,type:"IntlProvider",memoizedProps:{value:intl}}})};
+  const codex={account:()=>({read:()=>({planType:"pro"})}),currentFiber:()=>({memoizedProps:{scope},return:{tag:10,type:"IntlProvider",memoizedProps:{value:intl}}})};
   const adapter=createNativeImageSource(codex,{
     modules:{gallery:async()=>native,canvas},createCloudImageActions,promptGlyphSource,
     libraryApi:{fileNode,favoriteStatus},

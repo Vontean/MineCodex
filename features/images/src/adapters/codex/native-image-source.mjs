@@ -4,6 +4,7 @@ import {createNativeImageModules} from "./native-image-modules.mjs";
 export function createNativeImageSource(codex, { requestHostAction, libraryApi, createCloudImageActions, promptGlyphSource, signal, modules = createNativeImageModules() } = {}) {
   const connect = modules.gallery;
   const opened = new Map();
+  const account = codex.account(signal);
 
   function uploadFile({base64,name}) {
     const decoded=atob(base64),bytes=new Uint8Array(decoded.length);
@@ -42,11 +43,11 @@ export function createNativeImageSource(codex, { requestHostAction, libraryApi, 
   }
 
   function navigationContract(anchor) {
+    const plus = account.read().planType === "plus";
     for (let fiber = codex.currentFiber(anchor); fiber; fiber = fiber.return) {
       const props = fiber.memoizedProps;
       if (typeof fiber.type === "function" && props?.variant === "browse"
-        && props.tabs?.some(item => item.key === "generated")
-        && props.tabs?.some(item => item.key === "uploaded")) return {type:fiber.type, props};
+        && (plus ? ["images", "all", "folders"] : ["generated", "uploaded"]).every(key => props.tabs?.some(item => item.key === key))) return {type:fiber.type, props};
     }
     throw new Error("Native image navigation contract changed");
   }
@@ -61,7 +62,9 @@ export function createNativeImageSource(codex, { requestHostAction, libraryApi, 
         const props = {
           ...contract.props,
           selectedKey,
-          tabs:[...contract.props.tabs, {key:"imagegen", name:"Image Gen"}],
+          tabs:account.read().planType === "plus"
+            ? contract.props.tabs.flatMap(tab => tab.key === "images" ? [tab, {key:"imagegen", name:"Image Gen"}] : [tab])
+            : [...contract.props.tabs, {key:"imagegen", name:"Image Gen"}],
           onSelect:key => {
             onSelect(key);
             if (key !== "imagegen") navigationContract(anchor).props.onSelect(key);

@@ -78,7 +78,7 @@ export function installLocalImageSource(config, signal, sources, native) {
   async function scan() {
     if (signal.aborted) return;
     const entry = sources.read();
-    if (mounted && mounted.entry.tabs === entry?.tabs) {
+    if (mounted && mounted.entry.tabs === entry?.tabs && mounted.entry.accountKey === entry?.accountKey && mounted.entry.mode === entry?.mode) {
       if (!mounted.active) mounted.nav?.render(entry.selectedKey);
       return;
     }
@@ -176,11 +176,12 @@ export function installLocalImageSource(config, signal, sources, native) {
   }
 
   let scheduled = false;
-  const observer = new MutationObserver(() => {
+  function schedule() {
     if (scheduled) return;
     scheduled = true;
     queueMicrotask(() => {scheduled = false; void scan();});
-  });
+  }
+  const observer = new MutationObserver(schedule);
   observer.observe(document.body, {childList:true, subtree:true, attributes:true, attributeFilter:["aria-selected"]});
   void scan();
   let cleaned = false;
@@ -188,6 +189,7 @@ export function installLocalImageSource(config, signal, sources, native) {
   signal.addEventListener("abort", cleanup, {once:true});
   return {
     cleanup,
+    refresh:schedule,
     selfCheck() {
       const entry=sources.read(),scope=sources.applicability();
       if (!entry) return {state:scope === "applicable" ? "unavailable" : scope,reason:scope === "not-applicable" ? "outside-image-sources" : "image-sources-anchor-unavailable"};

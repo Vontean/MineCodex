@@ -259,7 +259,7 @@ function localPromptRequested(){openPendingLocalPrompt();void scan();}
 document.addEventListener("minecodex:image-prompt",localPromptRequested);
 const localeObserver = new MutationObserver(() => mounted?.refreshLocale());
 localeObserver.observe(document.documentElement, { attributes:true, attributeFilter:["lang"] });
-localImageSource = installLocalImageSource(config, signal, createImageSourcesAdapter(config.codex), createNativeImageSource(config.codex, {
+localImageSource = installLocalImageSource(config, signal, createImageSourcesAdapter(config.codex, signal, () => localImageSource?.refresh()), createNativeImageSource(config.codex, {
   requestHostAction:config.requestHostAction, libraryApi, createCloudImageActions, promptGlyphSource, signal,
 }));
 config.registerSelfCheck?.(() => {

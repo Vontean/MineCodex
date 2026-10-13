@@ -18,7 +18,7 @@ test("assembled Images installer owns each observer and cleans both enhancements
     addEventListener:(name,handler)=>listeners.add(handler),removeEventListener:(name,handler)=>listeners.delete(handler)};
   const controller=new AbortController();
   const cleanup=new Function("config","signal","document","MutationObserver","navigator",source)(
-    {codex:{}},controller.signal,document,Observer,{language:"en"});
+    {codex:{account:()=>({read:()=>({status:"unknown",planType:null})}),rail:()=>null,props:()=>null}},controller.signal,document,Observer,{language:"en"});
   await Promise.resolve();
   assert.equal(observers.length,3);assert.ok(observers.every(observer=>observer.observed===1));
   assert.equal(listeners.size,2);

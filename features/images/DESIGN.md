@@ -157,3 +157,10 @@ Delete 在单张 More 与批量动作条共用一条隐藏流程，复用原生 
 2026-10-05，Codex 26.930.51102：图库切换模式和图片附件调用的局部变量已变化。按调用结构识别导入角色，不固定压缩变量名。原生 navigation、gallery、canvas 模块发现已在当前构建验证；显示与实际操作验收单独记录。
 
 - Codex 26.1007.21159：来源 tabs 仍使用 `variant:"browse"` 与 `generated/uploaded`；工具栏增加 inset 包裹，内容边界由同级图库确定。图库动作、选择状态和移动对话框引用属于 `selectable-library-item`，按钮、清空图标和工具栏 CSS 属于 `library-selection-toolbar`。
+
+
+## Plus 的 Library 入口（2026-10-13）
+
+套餐优先读取共享 Codex Adapter 的 `accounts/check` 当前账号记录，清单未加载时使用 `planAtLogin`。Plus 在 `/library` 的 browse 导航中将 Image Gen 插入 Images 后、All 前；保留 Suggested／Favorites／Folders／Images／All 的原生选择动作。图库内容和 Search library 均定位当前可见的 Library 外壳，不接入 `/images` 图片创作首页。其他已识别套餐保留 `/space/files?tab=images` 的 generated／uploaded 来源导航。身份未知时等待原生数据。
+
+Codex 26.1007.30912 独立 Plus profile 已确认 Library 具备图库所需的 route scope、library scope 与 intl；导航和图库继续由原生 Adapter 呈现。本地图片、提示词、分页和动作复用既有实现。注入主动隐藏原标签／内容后仍保持同一挂载；账号变化或离开 Library 时卸载并恢复原节点、搜索与 hidden 状态。
