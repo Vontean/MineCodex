@@ -19,8 +19,16 @@ import { readFile } from 'node:fs/promises';
 import { installMarkdownTables } from './adapters/codex/tables.mjs';
 import { loadMarkdownListAPI, installMarkdownLists } from './adapters/codex/lists.mjs';
 import { createMarkdownPreviewAdapter } from './adapters/codex/preview.mjs';
+import { createQvResources, createQvFrame, readQvTheme } from './mermaid/frame.mjs';
+import { createMarkdownMermaidControls } from './adapters/codex/mermaid-viewer.mjs';
+import { installMarkdownMermaid } from './adapters/codex/mermaid.mjs';
 export async function createPageScriptSource() {
   const bindings = [
+    createQvResources,
+    createQvFrame,
+    readQvTheme,
+    createMarkdownMermaidControls,
+    installMarkdownMermaid,
     collectMarkdownFootnotes,
     captureMarkdownProviders,
     createMarkdownReadingRuntime,

@@ -1,0 +1,86 @@
+<div id="{{ROOT_ID}}" role="figure" aria-labelledby="{{ROOT_ID}}-title">
+<style>
+#{{ROOT_ID}}{position:relative;padding-top:32px;width:100%;color:var(--foreground);--ring-enter:650}
+#{{ROOT_ID}} h3{margin:0 90px 32px 0;font-weight:500}
+#{{ROOT_ID}} .plot{position:relative}
+#{{ROOT_ID}} .direct-label{position:absolute;transform:translate(-50%,-50%);background:transparent;border:0;padding:5px;color:var(--foreground);font:inherit;font-size:14px;text-align:center;white-space:nowrap;cursor:var(--cursor-interaction,pointer)}
+#{{ROOT_ID}} .direct-label span{display:block;margin-top:4px;color:var(--muted-foreground);font-size:13px;font-variant-numeric:tabular-nums}
+#{{ROOT_ID}} .legend[hidden]{display:none}
+#{{ROOT_ID}} .chart{width:100%;display:block}
+#{{ROOT_ID}} .center{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none;width:140px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px}
+#{{ROOT_ID}} .center-value{line-height:1;white-space:nowrap;font-size:calc(var(--font-size-base,14px)*2.3);font-weight:500;letter-spacing:-.04em;font-variant-numeric:tabular-nums}
+#{{ROOT_ID}} .center-label{line-height:1.4;font-size:12px;color:var(--muted-foreground)}
+#{{ROOT_ID}} .legend{display:flex;flex-wrap:wrap;justify-content:center;gap:8px 22px;margin-top:20px}
+#{{ROOT_ID}} .legend button{font:inherit;font-size:12px;color:var(--foreground);background:transparent;border:0;border-radius:0;display:inline-flex;align-items:center;gap:7px;padding:4px 0;cursor:var(--cursor-interaction,pointer)}
+#{{ROOT_ID}} .swatch{width:9px;height:9px;border-radius:2px;display:inline-block;flex-shrink:0}
+#{{ROOT_ID}} .percent{color:var(--muted-foreground);font-variant-numeric:tabular-nums}
+#{{ROOT_ID}} .slice{transition:opacity 160ms ease;cursor:var(--cursor-interaction,pointer)}
+#{{ROOT_ID}} .bubble{position:absolute;z-index:2;width:176px;max-width:calc(100% - 16px);padding:12px 14px;box-sizing:border-box;background:var(--popover);color:var(--popover-foreground);border:1px solid var(--border);border-radius:12px;box-shadow:0 4px 16px color-mix(in srgb,var(--foreground) 10%,transparent);pointer-events:none;font-size:12px}
+#{{ROOT_ID}} .bubble[hidden]{display:none}
+#{{ROOT_ID}} .bubble-title{font-weight:500;margin-bottom:10px}
+#{{ROOT_ID}} .bubble-row{display:flex;align-items:center;gap:8px;font-variant-numeric:tabular-nums}
+#{{ROOT_ID}} .bubble-percent{margin-left:auto;color:var(--muted-foreground)}
+@media(prefers-reduced-motion:reduce){#{{ROOT_ID}} .slice{transition:none}}
+@media(pointer:coarse){#{{ROOT_ID}} .legend button{min-height:44px}}
+</style>
+<h3 id="{{ROOT_ID}}-title">{{TITLE}}</h3>
+<div class="plot"><svg class="chart" role="img" aria-label="{{SUMMARY}}"></svg><div class="center" aria-hidden="true"><span class="center-value"></span><span class="center-label"></span></div></div>
+<div class="legend" aria-label="来源及占比"></div>
+<div class="bubble" role="tooltip" hidden><div class="bubble-title"></div><div class="bubble-row"><span class="swatch"></span><span class="bubble-value"></span><span class="bubble-percent"></span></div><div class="description text-small" style="margin-top:8px" hidden></div></div>
+<script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+<script>
+(()=>{
+const root=document.getElementById('{{ROOT_ID}}'),plot=root.querySelector('.plot'),svg=d3.select(root.querySelector('.chart')),legend=root.querySelector('.legend'),bubble=root.querySelector('.bubble');
+const config={{CONFIG_JSON}};
+const numberFormat=new Intl.NumberFormat(undefined,{minimumFractionDigits:config.decimals,maximumFractionDigits:config.decimals});const formatValue=v=>config.valuePrefix+numberFormat.format(v)+config.valueSuffix;
+const data=config.items;
+const total=d3.sum(data,d=>d.value),color=i=>`var(--viz-series-${i+1})`,pct=i=>`${Number((data[i].value/total*100).toFixed(1))}%`;
+const reduced=window.matchMedia('(prefers-reduced-motion: reduce)');let layout=null,entered=false,lastWidth=0;
+let direct=false;const eligibleDirect=data.length<=4&&d3.min(data,d=>d.value/total)>=.08&&data.every(d=>d.label.length<=12);
+function clear(){svg.selectAll('.slice').attr('opacity',1);root.querySelectorAll('.legend button,.direct-label').forEach(b=>b.style.opacity=1);root.querySelector('.center-value').textContent=config.valuePrefix+numberFormat.format(total);root.querySelector('.center-label').textContent='总计'+(config.valueSuffix.trim()?' · '+config.valueSuffix.trim():'');bubble.hidden=true;}
+function show(i){if(!layout)return;svg.selectAll('.slice').attr('opacity',d=>d.index===i?1:.25);root.querySelectorAll('.legend button,.direct-label').forEach((b,j)=>b.style.opacity=j===i?1:.55);root.querySelector('.center-value').textContent=pct(i);root.querySelector('.center-label').textContent=data[i].label;
+if(config.showTooltip===false)return;
+root.querySelector('.bubble-title').textContent=data[i].label;const description=root.querySelector('.description');description.textContent=data[i].description||'';description.hidden=!data[i].description;root.querySelector('.bubble-value').textContent=formatValue(data[i].value);root.querySelector('.bubble-percent').textContent=pct(i);root.querySelector('.bubble .swatch').style.background=color(i);bubble.hidden=false;
+const d=layout.arcs[i],angle=(d.startAngle+d.endAngle)/2,px=layout.cx+Math.sin(angle)*layout.radius,py=layout.cy-Math.cos(angle)*layout.radius;
+const rb=root.getBoundingClientRect(),pb=plot.getBoundingClientRect(),bw=bubble.offsetWidth,bh=bubble.offsetHeight;
+bubble.style.left=Math.max(8,Math.min(rb.width-bw-8,px>=layout.cx?px+14:px-bw-14))+'px';bubble.style.top=Math.max(pb.top-rb.top+8,Math.min(pb.top-rb.top+py-bh/2,pb.bottom-rb.top-bh-8))+'px';}
+data.forEach((d,i)=>{const b=document.createElement('button');b.type='button';b.innerHTML=`<span class="swatch" style="background:${color(i)}" aria-hidden="true"></span><span class="name"></span><span class="percent"></span>`;b.querySelector('.name').textContent=d.label;b.querySelector('.percent').textContent=pct(i);b.addEventListener('pointerenter',()=>show(i));b.addEventListener('pointerleave',clear);b.addEventListener('focus',()=>show(i));b.addEventListener('blur',clear);legend.append(b);});
+function draw(animate=false){const width=Math.round(plot.getBoundingClientRect().width);if(width<1)return;lastWidth=width;direct=eligibleDirect&&width>=420;const height=direct?340:280,cx=width/2,cy=height/2,radius=direct?Math.min(104,width/2-50):Math.min(118,width/2-16),inner=radius*.75;
+// 间隔不参与角度分配；随最小正值缩小，避免零值和极小值撑大缺口。
+const arcs=d3.pie().sort(null).value(d=>d.value)(data),positiveArcs=arcs.filter(d=>d.data.value>0),smallestAngle=d3.min(positiveArcs,d=>d.endAngle-d.startAngle),gap=positiveArcs.length>1?Math.min(.025,smallestAngle*.2):0;
+// 保留接近整圆时的微小端点差，避免三位小数将两端舍入为同一点。
+const arc=d3.arc().digits(9).innerRadius(inner).outerRadius(radius).padAngle(gap).cornerRadius(Math.min(3,radius*smallestAngle*.2)),enter=parseFloat(getComputedStyle(root).getPropertyValue('--ring-enter'));layout={width,cx,cy,radius,arcs};
+svg.selectAll('*').interrupt();svg.selectAll('*').remove();svg.attr('viewBox',`0 0 ${width} ${height}`);const g=svg.append('g').attr('transform',`translate(${cx},${cy})`);
+const slices=g.selectAll('.slice').data(positiveArcs).join('path').attr('class','slice').attr('fill',d=>color(d.index)).attr('d',arc).on('pointerenter pointermove',(_,d)=>show(d.index)).on('pointerleave pointercancel',clear).on('pointerup',e=>{if(e.pointerType==='touch')clear();});
+plot.querySelectorAll('.direct-label').forEach(e=>{e.getAnimations().forEach(a=>a.cancel());e.remove();});legend.hidden=direct;
+if(direct){arcs.forEach((d,i)=>{const a=(d.startAngle+d.endAngle)/2,side=Math.sin(a)>0?1:-1,narrow=width<460;
+const peers=arcs.filter(q=>(Math.sin((q.startAngle+q.endAngle)/2)>0?1:-1)===side).sort((p,q)=>Math.cos((q.startAngle+q.endAngle)/2)-Math.cos((p.startAngle+p.endAngle)/2));const rank=peers.indexOf(d);
+const x=narrow?cx+(i<2?1:-1)*width*.28:cx+Math.sin(a)*(radius+64),y=narrow?(i===0||i===3?32:height-32):cy-Math.cos(a)*(radius+48);
+const b=document.createElement('button');b.type='button';b.className='direct-label';b.style.left=x+'px';b.style.top=y+'px';b.append(document.createTextNode(data[i].label));const percent=document.createElement('span');percent.textContent=pct(i);b.append(percent);b.onpointerenter=()=>show(i);b.onpointerleave=clear;b.onfocus=()=>show(i);b.onblur=clear;plot.append(b);
+if(animate&&!reduced.matches){
+const delay=enter*(.2+i*.05);
+b.animate([{opacity:0},{opacity:1}],{delay,duration:enter*.4,easing:'ease',fill:'backwards'});
+}
+const px=cx+Math.sin(a)*(radius+7),py=cy-Math.cos(a)*(radius+7);
+});}
+if(animate&&!reduced.matches){
+// 细分遮罩只控制显现节奏，不改变实际数据分段。
+const id=root.id+'-reveal',mask=svg.append('defs').append('mask').attr('id',id).attr('maskUnits','userSpaceOnUse').attr('x',-radius-2).attr('y',-radius-2).attr('width',radius*2+4).attr('height',radius*2+4);
+const segments=d3.range(120),unit=Math.PI*2/120;
+const reveal=d3.arc().innerRadius(inner-2);
+const cells=mask.selectAll('path').data(segments).join('path').attr('fill','white').attr('d',i=>reveal.outerRadius(inner-2)({startAngle:i*unit-.002,endAngle:(i+1)*unit+.002}));
+g.attr('mask',`url(#${id})`);
+cells.transition().delay(i=>i/(segments.length-1)*enter*.55).duration(enter*.45).ease(d3.easeCubicOut).attrTween('d',i=>t=>reveal.outerRadius(inner-2+(radius-inner+4)*t)({startAngle:i*unit-.002,endAngle:(i+1)*unit+.002}));
+g.transition().delay(enter).on('end',()=>{g.attr('mask',null);mask.remove();});
+}clear();}
+root.addEventListener('pointerleave',clear);root.addEventListener('keydown',e=>{if(e.key==='Escape')clear();});window.addEventListener('blur',clear);
+draw();if(!reduced.matches)svg.attr('visibility','hidden');let inView=false,armed=true;
+function replayIfReady(){if(inView&&armed&&!document.hidden){armed=false;entered=true;svg.attr('visibility','visible');draw(true);}}
+const observer=new IntersectionObserver(es=>{const e=es[0];if(!e.isIntersecting){inView=false;armed=true;}else if(e.intersectionRatio>=.2){inView=true;replayIfReady();}},{threshold:[0,.2]});
+document.addEventListener('visibilitychange',()=>{if(document.hidden)armed=true;else replayIfReady();});
+window.addEventListener('pageshow',e=>{if(e.persisted){armed=true;replayIfReady();}});observer.observe(root);
+new ResizeObserver(()=>{if(Math.round(plot.getBoundingClientRect().width)!==lastWidth)draw();}).observe(plot);
+root.dispatchEvent(new Event('qv:ready',{bubbles:true}));
+})();
+</script>
+</div>

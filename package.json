@@ -76,7 +76,10 @@
     "apps/dashboard/transport.js",
     "packages/plugin/src",
     "packages/plugin/assets",
-    "packages/plugin/plugin.json"
+    "packages/plugin/plugin.json",
+    "features/markdown-reading/vendor/qv/LICENSE",
+    "features/markdown-reading/vendor/qv/provenance.json",
+    "features/markdown-reading/vendor/qv/THIRD_PARTY_NOTICES.txt"
   ],
   "engines": {
     "node": ">=22.5.0"
@@ -94,7 +97,8 @@
     "test:ui": "node --test packages/ui/test/*.test.mjs",
     "build:icons": "node scripts/build-brand-icons.mjs",
     "build:plugin": "node scripts/build-plugin.mjs",
-    "test:plugin": "node --test packages/plugin/test/*.test.mjs"
+    "test:plugin": "node --test packages/plugin/test/*.test.mjs",
+    "build:mermaid": "node scripts/build-qv-mermaid.mjs"
   },
   "repository": {
     "type": "git",
@@ -122,6 +126,11 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
-    "esbuild": "^0.28.2"
+    "d3": "7.9.0",
+    "d3-sankey": "0.12.3",
+    "elkjs": "0.10.0",
+    "esbuild": "^0.28.2",
+    "lucide": "0.468.0",
+    "mermaid": "11.12.0"
   }
 }

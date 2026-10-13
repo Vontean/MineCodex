@@ -57,7 +57,7 @@ Preview 原生实测正文行高 19.6px，scroller 左右 padding 16px，顶部 
 | 行内代码、反引号／波浪线 fenced code、缩进式代码 | 普通 fenced code 与缩进式代码通过 CodeMirror block widget 接入原生消息流 CodeSnippet；高亮、主题、圆角、边框与 padding 继承组件，复制与换行操作复用原生控件 |
 | 本地／引用式图片 | 保留原图比例，宽图随正文宽度缩小；缺失图片沿用原生失败与替代文本 |
 | LaTeX 公式 | 实测 `\(…\)`、`\[…\]`、`$$…$$` 和 fenced `math` 渲染为原生 KaTeX；单美元行内公式通过同一原生 KaTeX 渲染。保留公式原生横向滚动能力 |
-| Mermaid | 保留原生图表组件、缩放与编辑；窄面板整图缩小会降低文字可读性，未视为窄屏阅读体验通过 |
+| Mermaid | 闭合围栏使用 QV 静态渲染与原生放大外壳；QV 不支持或显式自定义样式的图由 QV 自身回退为 Mermaid 原生图 |
 | YAML frontmatter | 保留原生 Metadata 节点，随正文滚动；原生工具栏保持现有布局 |
 | HTML、注释、脚注、定义列表、GitHub 提示块 | HTML 使用受限语义元素的 DOM 投影，注释隐藏；脚注显示连续编号、正文及往返跳转；定义列表有术语／正文层级，GitHub 提示块显示标题和提示容器 |
 
@@ -108,7 +108,7 @@ Preview 使用其所属原生 CodeMirror 的 ViewPlugin / Decoration / Compartme
 
 ## 表格悬浮快捷操作
 
-复用 Codex 26.930.21537 Chat Markdown 的公开 `data-block-actions` React 组件、CopyButton、Button (`color=blockAction` / `radius=full` / `size=inputIcon`)、Tooltip 和消息流 CodeSnippet 原生换行／取消换行图标。Adapter 通过源码语义角色与公开 export 接入，不绑定构建 hash；继承当前 React context。操作栏在表格 hover / focus 内可达，窄面板不越过本面板边缘；操作栏放在表头上方，表头预留 16px 间距，避免遮住适配后的最后一列标题；透明指针桥仅覆盖操作栏及表头顶部留白，让鼠标可连续移入按钮，不拦截正文选区。操作栏和滚动条挂载在原生 cm-scroller 内、cm-content 外，按文档坐标定位，随正文由浏览器同步滚动；不逐帧追随视口坐标，不吸附到视口顶部。纯滚动复用已有列宽与滚动范围，节点、内容或布局变化时才重新测量。操作控件用于本功能表格与代码块，保留 Chat 和 Mermaid 的原生动作。
+复用 Codex 26.930.21537 Chat Markdown 的公开 `data-block-actions` React 组件、CopyButton、Button (`color=blockAction` / `radius=full` / `size=inputIcon`)、Tooltip 和消息流 CodeSnippet 原生换行／取消换行图标。Adapter 通过源码语义角色与公开 export 接入，不绑定构建 hash；继承当前 React context。操作栏在表格 hover / focus 内可达，窄面板不越过本面板边缘；操作栏放在表头上方，表头预留 16px 间距，避免遮住适配后的最后一列标题；透明指针桥仅覆盖操作栏及表头顶部留白，让鼠标可连续移入按钮，不拦截正文选区。操作栏和滚动条挂载在原生 cm-scroller 内、cm-content 外，按文档坐标定位，随正文由浏览器同步滚动；不逐帧追随视口坐标，不吸附到视口顶部。纯滚动复用已有列宽与滚动范围，节点、内容或布局变化时才重新测量。操作控件用于本功能表格与代码块，保留 Chat 的原生动作；支持的 flowchart 使用本功能的图表操作栏。
 
 “复制表格”复制本表 Markdown 源码，由原生 CopyButton 显示反馈。“开启／关闭文档换行”是当前 Preview 文档中所有表格与普通代码块共用的状态：默认开启、表格跟随普通正文宽度；隐藏测量 table 使用 100% 宽度的原生 auto 布局，单元格 overflow-wrap:anywhere，按内容分配列宽并增长行高；关闭恢复自然宽度。能够适配时移除横向滚动条和渐消；列数过多导致最小单元格尺寸仍超宽时继续提供横向浏览。状态不写入 Markdown，不影响其他文档；Source 切换或关闭 Preview 后恢复默认状态。
 
@@ -139,7 +139,7 @@ TOC 的纵向中心以整个 File Panel（包含文件 Toolbar）的边界计算
 
 2026-10-04，以 Codex 26.930.21537 的完整样例和富文本边界样例验证。语法装饰留在功能 Adapter；共享 Runtime 只负责注入。局部 replace / block widget 由原生 CodeMirror StateField 持有，切换 Source、禁用和卸载时通过 Compartment 移除，不修改文件内容。
 
-- 普通代码块直接使用原生消息流 CodeSnippet；保留原生高亮加载、字体、主题、边框与圆角。复制与换行使用同一原生 Actions / CopyButton / Button / Tooltip 和图标；整块悬浮或键盘聚焦时显示，无横向溢出的未换行块只显示复制。顺序为换行、复制；代码块的原生 Actions 通过 `className=bg-transparent` 使用透明底，避免灰色代码区上出现白色胶囊；按钮保留原生 tertiary 与 hover 颜色。链接色仅作用于链接和脚注按钮，不覆盖代码操作控件。切换换行更换图标，不使用锚定按钮态。代码内容独立水平滚动，操作区随块一起竖向滚动。math / mermaid 围栏保留已有原生组件。
+- 普通代码块直接使用原生消息流 CodeSnippet；保留原生高亮加载、字体、主题、边框与圆角。复制与换行使用同一原生 Actions / CopyButton / Button / Tooltip 和图标；整块悬浮或键盘聚焦时显示，无横向溢出的未换行块只显示复制。顺序为换行、复制；代码块的原生 Actions 通过 `className=bg-transparent` 使用透明底，避免灰色代码区上出现白色胶囊；按钮保留原生 tertiary 与 hover 颜色。链接色仅作用于链接和脚注按钮，不覆盖代码操作控件。切换换行更换图标，不使用锚定按钮态。代码内容独立水平滚动，操作区随块一起竖向滚动。math 围栏保留已有原生组件；QV 静态渲染与放大见下方 Mermaid 章节。
 - 引用内代码移除用于源码引用的前缀，保留代码本身的缩进。转义、公式、HTML 和脚注处理跳过代码范围，不把代码示例误解释成富文本。
 - 脚注编号按首次引用顺序；重复引用共享编号，未定义／被转义的引用保留字面文本。正文使用原生 Markdown lexer 与展示组件，支持强调、链接、代码和连续行；点击编号跳到正文，返回按钮恢复点击前的滚动位置。
 - HTML 通过 DOMParser 投影受限的语义元素，保留常用行内、块、列表、表格与 details 标签；不复制任意 style 或事件属性，不执行脚本。HTML 块内部的普通 Markdown 字符保持 HTML 文本语义。注释不占正文行高。
@@ -155,4 +155,29 @@ TOC 的纵向中心以整个 File Panel（包含文件 Toolbar）的边界计算
 
 ## 文档换行状态
 
-每个 Preview 会话拥有一个默认开启的换行状态，由 `reading-runtime.mjs` 创建并传给表格与富文本 Adapter。点击任意表格或普通代码块的按钮，统一切换当前文档所有支持此逻辑的块；按钮提示为“开启／关闭文档换行”。虚拟滚动、块重挂载及异步加载沿用当前状态，不按块位置或内容分别保存。其他文档独立；关闭 Preview 后释放订阅，不写入文件或全局偏好。math / mermaid 保留原生能力。
+每个 Preview 会话拥有一个默认开启的换行状态，由 `reading-runtime.mjs` 创建并传给表格与富文本 Adapter。点击任意表格或普通代码块的按钮，统一切换当前文档所有支持此逻辑的块；按钮提示为“开启／关闭文档换行”。虚拟滚动、块重挂载及异步加载沿用当前状态，不按块位置或内容分别保存。其他文档独立；关闭 Preview 后释放订阅，不写入文件或全局偏好。math 保留原生能力；Mermaid 不参与文档换行切换。
+
+
+## Mermaid · QV 静态阅读试验
+
+闭合 Mermaid 围栏（源码不超过 50,000 字符）使用真正的 QV 模型、布局、绘制与样式。所有已收录的 QV 图型走同一入口；不支持的图型或显式自定义样式由 QV 自身保留 Mermaid 原生外观。不改写源文件。不闭合或过长的围栏保留宿主行为。
+
+`vendor/qv/source` 是 QuickerVisulize 的源码快照，来源 commit 与逐文件 SHA-256 见 `vendor/qv/provenance.json`。`scripts/build-qv-mermaid.mjs` 从该快照组装资源，保留模型、布局、几何、绘制、CSS 和交互；通过 AST 去掉进场／重播函数、滚入视口触发与 visibilitychange 重播监听。hover、分组浏览、长图折行、ResizeObserver 和视口控制继续由 QV 拥有。消息流的动效与宿主外壳不作为相同表现的验收要求。
+
+依赖固定为 Mermaid 11.12.0、ELK 0.10.0、D3 7.9.0、d3-sankey 0.12.3、Lucide 0.468.0；它们是构建依赖，打包结果随 feature 发布，运行时不访问 CDN。`npm run build:mermaid` 重建 `assets/qv-template.json`、`assets/qv-dependencies.js` 和依赖许可通知。更新快照或依赖时同步 provenance／许可并重新验证。
+
+`src/mermaid/frame.mjs` 拥有独立文档与主题／高度／显示模式消息桥；`src/adapters/codex/mermaid.mjs` 以最高优先级 CodeMirror StateField 替换闭合图表块，避免原生组件重复绘制。`mermaid-viewer.mjs` 复用原生 Actions、CopyButton、Tooltip、扩展图标和 TablePreview。Runtime 按 Preview 安装，`markdown-reading-mermaid` 依据当前挂载图的 ready 状态报告；仅挂载容器不算渲染成功。
+
+依赖与渲染脚本按文档只编译一次：`createQvResources` 为每份脚本建立一次 blob URL 并由引用计数持有，图表帧只按 URL 取用，不再逐帧复制源码、重复建 Blob 或重复编译；最后一个预览释放时撤销 URL。`globalThis.__mcxQvScripts` 是这份共享的唯一所有者，以脚本源码为键，内容变化不会复用旧地址；子页只接受 blob: 脚本地址，引导消息仍核对发送窗口与随机 token。
+
+图表使用 `srcdoc` iframe，sandbox 为 `allow-scripts allow-same-origin`；这是 CSS、Mermaid 全局对象与生命周期隔离，不是对不可信脚本的安全边界。仅运行固定的打包代码，源码作为配置数据传入，Mermaid 使用 strict 安全级别；消息核对发送窗口与随机 token。加载遵循 Runtime Host 既有 CDP CSP bypass 契约，同源子页用于保持该契约，不使用被宿主拦截的 data: 导航。iframe 内 CSP 禁止网络请求。
+
+主题与字体从 Preview 的实际 token 映射到 QV 变量，不覆盖 QV 图表 CSS；QV 系列色使用快照所需变量和默认色。相同源码、宽度、主题与字体下验证与 QV 静止态的节点尺寸、位置、形状与连线路径一致；不同宿主主题的颜色不能宣称逐像素相同。
+
+内联图保持文字大小，超宽时由 QV 图块横向滚动。图块上方预留 44px 操作栏，复制返回 Mermaid 源码；放大按钮在图就绪后启用。加载失败或 30 秒没有 ready 回报时显示失败说明，不永久留空，不报告成功。
+
+放大进入窗口内原生查看器，默认适配视口，可以切换实际大小。使用 `Element.moveBefore` 移动同一个 iframe，保留 browsing context、分组与浏览状态；不重建图或 SVG 副本。关闭后放回正文，恢复内联高度、横向位置与触发按钮焦点。宿主不支持此 API 时明确报告 Adapter 不可用。图表帧及其内部观察者、消息监听、超时和 React root 归同一挂载实例释放；共享脚本 URL 由资源引用计数释放。关闭 Preview、切换 Source、禁用和虚拟卸载均清理。
+
+性能结论来自同一隔离实例、同一 4 图与 18 图样例、相同宽度与主题，自动滚动逐块挂载并记录每帧从挂载到 ready 的耗时。18 图每帧中位数由 359–557ms 降到 109–194ms，合计由 8.5–11.5s 降到 3.9–5.7s；4 图由约 770ms／合计 3.05s 降到中位数 523–599ms／合计 1.95–2.34s。纯依赖加载消融（无渲染，18 帧）由每帧约 1000ms、堆 58.5 MiB 降到约 258ms、堆 35.6 MiB。数值属于该机器与固定样例；依赖包 5.2 MB、其中 ELK 占 30% 是体积事实，不等于内存占用。
+
+原生契约依据：Codex 26.1007.30912 隔离实例，真实 Runtime Host 接入。18 种已收录图型在同一文档内逐项加载，均已进入对应 QV renderer 且无回退、无失败提示；五节点 flowchart 的节点尺寸／位置／形状与四条连线路径与源 QV 静止态逐值一致。放大／实际大小／适配视口／Escape／焦点恢复、分组下钻及其在全屏前后的作用域保留、Source／Preview 切换释放并重新挂载、深色与窄宽度渲染均已检查。非 Markdown 文件关闭预览后共享脚本 URL 被回收，18 图挂载不增加 URL 数量。更长的真实文档与全部图型的语法覆盖仍需相应样例验收，不能由上述样例推断全面通过。自动检查与用户视觉确认分别记录。

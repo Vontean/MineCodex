@@ -5,6 +5,7 @@ import { loadNativeMarkdownToc } from './toc-native.mjs';
 import { installMarkdownToc } from './toc.mjs';
 import { loadNativeMarkdownTableActions, installMarkdownTableActions } from './table-actions.mjs';
 import { loadNativeMarkdownRichText, installMarkdownRichText } from './rich-text.mjs';
+import { installMarkdownMermaid } from './mermaid.mjs';
 
 // 每个 Preview 共用换行状态，虚拟滚动重挂载的块也读取当前值。
 export function createMarkdownWrapState() {
@@ -38,8 +39,10 @@ export function createMarkdownReadingRuntime(
     installMarkdownTableActions,
     loadNativeMarkdownRichText,
     installMarkdownRichText,
+    installMarkdownMermaid,
     installMarkdownMetadataScroll,
   },
+  resources = {},
 ) {
   const cached = new Map();
   function load(name, ...args) {
@@ -61,6 +64,7 @@ export function createMarkdownReadingRuntime(
       ['markdown-reading-toc', 'loading'],
       ['markdown-table-actions', 'loading'],
       ['markdown-reading-rich-text', 'loading'],
+      ['markdown-reading-mermaid', 'loading'],
     ]);
     const cleanups = [capabilities.installMarkdownMetadataScroll(editor, scroller)];
     let disposed = false;
@@ -99,6 +103,12 @@ export function createMarkdownReadingRuntime(
         if (!current()) return;
         cleanups.push(capabilities.installMarkdownTableActions(view, actions, codex, tables.controller));
         report('markdown-table-actions', true);
+        await stage('markdown-reading-mermaid', 'native-mermaid-adapter-unavailable', async () => {
+          const cleanup = capabilities.installMarkdownMermaid(view, api, actions, codex, resources,
+            available => report('markdown-reading-mermaid', available, available ? null : 'qv-renderer-not-ready'));
+          cleanups.push(cleanup);
+          report('markdown-reading-mermaid', cleanup.available?.() ?? true);
+        });
         await installRichText(api, actions);
       });
     }

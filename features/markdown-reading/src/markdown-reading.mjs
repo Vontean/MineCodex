@@ -1,11 +1,13 @@
 const marker = 'data-minecodex-markdown-reading';
-const native = createMarkdownPreviewAdapter(config.codex);
+const native = createMarkdownPreviewAdapter(config.codex, config.resources);
 const styled = new Map();
 const sessions = new Map();
-const tokenNames = ['--font-content', '--text-document', '--leading-relaxed', '--font-weight-semibold'];
+const tokenNames = ['--font-content', '--text-document', '--leading-relaxed', '--font-weight-semibold',
+  '--color-token-main-surface-primary', '--color-token-bg-secondary', '--color-text-foreground',
+  '--color-text-foreground-secondary', '--color-border'];
 const style = document.createElement('style');
 style.setAttribute('data-minecodex-markdown-reading-styles', '');
-style.textContent = config.resources.styles;
+style.textContent = [config.resources.styles, config.resources.mermaidStyles].filter(Boolean).join('\n');
 document.head.append(style);
 let disposed = false;
 let pending = null;
