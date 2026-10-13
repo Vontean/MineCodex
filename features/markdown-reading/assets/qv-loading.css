@@ -1,0 +1,4 @@
+.mcx-reading-qv-status[data-mcx-qv-loading]>.qv-loading-field{position:absolute;inset:32px 0 0;overflow:hidden;pointer-events:none;color:var(--mcx-color-text-foreground-secondary);opacity:.38;animation:mcx-qv-loading-field 1.75s ease-in-out infinite;mask-image:linear-gradient(to top left,transparent 0%,black 30% 70%,transparent 100%)}
+.mcx-reading-qv-status[data-mcx-qv-loading] .qv-loading-canvas{display:block;width:100%;height:100%}
+@keyframes mcx-qv-loading-field{50%{opacity:.56}}
+@media(prefers-reduced-motion:reduce){.mcx-reading-qv-status[data-mcx-qv-loading]>.qv-loading-field{animation:none}}

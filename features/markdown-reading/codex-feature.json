@@ -15,7 +15,12 @@
     "script": "src/markdown-reading.mjs",
     "sourceFactory": "src/injection-source.mjs",
     "resources": {
-      "styles": "src/reading.css"
+      "styles": "src/reading.css",
+      "mermaidStyles": "src/mermaid/theme.css",
+      "qvLoadingStyles": "assets/qv-loading.css",
+      "qvExport": "assets/qv-export.js",
+      "qvTemplate": "assets/qv-template.json",
+      "qvDependencies": "assets/qv-dependencies.js"
     }
   },
   "icon": {

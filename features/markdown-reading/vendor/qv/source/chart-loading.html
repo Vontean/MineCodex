@@ -1,0 +1,46 @@
+<div id="{{LOADING_ID}}" class="qv-loading-region" aria-busy="true">
+<style>
+#{{LOADING_ID}}{position:relative;width:100%}
+#{{LOADING_ID}}[aria-busy="true"]{min-height:280px}
+#{{LOADING_ID}}[aria-busy="true"]>.qv-loading-content{visibility:hidden;pointer-events:none}
+#{{LOADING_ID}}>.qv-loading-field{position:absolute;inset:32px 0 0;overflow:hidden;pointer-events:none;color:var(--muted-foreground);opacity:.38;animation:qv-field-{{LOADING_ID}} 1.75s ease-in-out infinite;mask-image:linear-gradient(to top left,transparent 0%,black 30% 70%,transparent 100%)}
+#{{LOADING_ID}} .qv-loading-canvas{display:block;width:100%;height:100%}
+#{{LOADING_ID}}[aria-busy="false"]>.qv-loading-field{display:none}
+/* 数据浮层随宿主主题选择表面；变量只作用于浮层，不改变图表或菜单。 */
+#{{LOADING_ID}} [role="tooltip"]{--background:light-dark(#fff,#111214);--foreground:light-dark(#18191b,#fff);--popover:light-dark(#fff,#111214);--popover-foreground:light-dark(#18191b,#fff);--muted-foreground:light-dark(#73777f,#b8bdc6);--border:light-dark(#e5e7eb,#ffffff24);background:var(--popover)!important;color:var(--popover-foreground)!important;border-color:var(--border)!important;font-size:12px;line-height:18px;overflow-wrap:anywhere}
+#{{LOADING_ID}} [role="tooltip"] :is(.bubble-title,.bubble-date,.bubble-month,.bubble-head,.quick-radar-tooltip-dimension,[class$="-tip-title"],[class$="-detail-title"]){font-size:14px;line-height:20px;font-weight:600;margin-bottom:12px}
+#{{LOADING_ID}} [role="tooltip"] :is(.bubble-value,.bubble-percent,.bubble-row strong){color:var(--muted-foreground);font-weight:400}
+@keyframes qv-field-{{LOADING_ID}}{50%{opacity:.56}}
+@media(prefers-reduced-motion:reduce){#{{LOADING_ID}}>.qv-loading-field{animation:none}}
+</style>
+<div class="qv-loading-field" aria-hidden="true"><canvas class="qv-loading-canvas"></canvas></div>
+<script>
+(()=>{
+const region=document.getElementById('{{LOADING_ID}}'),field=region.querySelector('.qv-loading-field'),canvas=field.querySelector('canvas'),ctx=canvas.getContext('2d'),reduced=matchMedia('(prefers-reduced-motion: reduce)');
+let frame=0,last=0,start=0,done=false,geometry;
+const clamp=x=>Math.max(0,Math.min(1,x)),smooth=x=>x*x*(3-2*x),cubic=x=>x<.5?4*x*x*x:1-Math.pow(-2*x+2,3)/2,lerp=(a,b,t)=>a+(b-a)*t;
+const random=(a,b)=>lerp(a,b,Math.random()),cycle=t=>{const p=t%1;return p<.5?p*2:2-p*2;};
+// 对照本机 image-loading-state：固定点阵、双明暗场、30fps 与相同运动参数；不依赖宿主 React。
+const durations=[4500,6330,5600,5750,3600,2400].map(n=>n*1.2*random(1,1.35)),phases=durations.map(()=>Math.random());
+const bounds=[[random(.1,.32),random(.68,.9)],[random(.1,.32),random(.68,.9)],[random(.68,.9),random(.1,.32)],[random(.68,.9),random(.1,.32)],[random(.42,.52),random(.62,.75)],[random(.5,.62),random(.74,.9)]];
+function resize(){const {width,height}=field.getBoundingClientRect(),dpr=Math.max(1,devicePixelRatio||1),spacing=Math.max(1,12/dpr);canvas.width=Math.floor(width*dpr);canvas.height=Math.floor(height*dpr);geometry={width,height,dpr,spacing,cols:Math.max(1,Math.floor(width/spacing)),rows:Math.max(1,Math.floor(height/spacing))};schedule();}
+function paint(now){frame=0;if(done||document.hidden||!ctx)return;if(!reduced.matches&&now-last<1000/30){schedule();return;}last=now;if(!start)start=now;const t=reduced.matches?0:now-start,g=geometry;if(!g||!g.width||!g.height)return;
+const values=durations.map((d,i)=>lerp(...bounds[i],(i===0||i===2?cubic:smooth)(cycle(t/d+phases[i])))),[x1,y1,x2,y2]=values,r1=.78*values[4],r2=.78*values[5];
+ctx.setTransform(g.dpr,0,0,g.dpr,0,0);ctx.clearRect(0,0,g.width,g.height);ctx.fillStyle=getComputedStyle(field).color;
+const radius=Math.max(.8,g.spacing*.075),ox=(g.width-(g.cols-1)*g.spacing)/2,oy=(g.height-(g.rows-1)*g.spacing)/2;
+for(let y=0;y<g.rows;y++)for(let x=0;x<g.cols;x++){const nx=g.cols===1?.5:x/(g.cols-1),ny=g.rows===1?.5:y/(g.rows-1),a=Math.pow(clamp((1-smooth(clamp(Math.hypot(nx-x1,ny-y1)/r1)))*1.2+(1-smooth(clamp(Math.hypot(nx-x2,ny-y2)/r2)))*.82),1.18);if(a<=.03)continue;ctx.globalAlpha=a;ctx.beginPath();ctx.arc(ox+x*g.spacing,oy+y*g.spacing,radius,0,Math.PI*2);ctx.fill();}
+ctx.globalAlpha=1;if(!reduced.matches)schedule();}
+function schedule(){if(!done&&!frame&&!document.hidden)frame=requestAnimationFrame(paint);}
+const observer=new ResizeObserver(resize);observer.observe(field);
+function visibility(){if(document.hidden){cancelAnimationFrame(frame);frame=0;}else schedule();}
+function motion(){cancelAnimationFrame(frame);frame=0;schedule();}
+document.addEventListener('visibilitychange',visibility);reduced.addEventListener('change',motion);
+function finish(){done=true;cancelAnimationFrame(frame);observer.disconnect();document.removeEventListener('visibilitychange',visibility);reduced.removeEventListener('change',motion);region.setAttribute('aria-busy','false');region.removeEventListener('qv:ready',finish);document.removeEventListener('error',failed,true);}
+function failed(event){if(event.target?.tagName==='SCRIPT'&&region.contains(event.target)){finish();const message=document.createElement('div');message.setAttribute('role','alert');message.textContent='图表资源加载失败，请重新打开。';region.querySelector('.qv-loading-content').replaceChildren(message);}}
+region.addEventListener('qv:ready',finish);document.addEventListener('error',failed,true);
+})();
+</script>
+<div class="qv-loading-content">
+{{CONTENT}}
+</div>
+</div>

@@ -1,0 +1,8 @@
+.mcx-reading-qv-widget { position:relative; padding-top:44px; }
+.mcx-reading-qv-frame { display:block; width:100%; border:0; }
+.mcx-reading-qv-actions { position:absolute; inset:0 0 auto; height:44px; }
+.mcx-reading-qv-actions [data-block-actions] { opacity:1; pointer-events:auto; }
+.mcx-reading-qv-inline { position:relative; }
+.mcx-reading-qv-status:not([hidden]) { position:absolute; inset:0; display:grid; place-items:center; }
+.mcx-reading-qv-slot { position:relative; width:100%; height:100%; overflow:hidden; }
+.mcx-reading-qv-slot > iframe { position:absolute; inset:0 auto auto 0; max-width:none; }
