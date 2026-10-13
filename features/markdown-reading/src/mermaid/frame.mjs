@@ -3,8 +3,8 @@ export function markdownMermaidSource(fence) {
   return match && match[2].length <= 50000 ? match[2] : null;
 }
 
-// 依赖与渲染脚本按文档只编译一次：图表帧按 URL 取用同一份脚本，避免逐帧复制源码、
-// 重复建 Blob 与重复编译。URL 由引用计数持有，最后一个预览释放时回收。
+// 同一文档共享脚本 URL，减少源码复制和 Blob 创建，并允许浏览器复用编译缓存。
+// 各帧仍独立求值；URL 由引用计数持有，最后一个预览释放时回收。
 export function createQvResources(resources) {
   if (!resources.qvTemplate?.script || !resources.qvDependencies) throw new Error('qv-resources-unavailable');
   const store = (globalThis.__mcxQvScripts ??= new Map());
