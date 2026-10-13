@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto';
 import vm from 'node:vm';
 import { markdownMermaidSource, createQvResources, createQvFrame } from '../src/mermaid/frame.mjs';
 import { createQvLoading } from '../src/mermaid/loading.mjs';
-import { buildQvTemplate, staticQvScript, buildQvLoading } from '../../../scripts/build-qv-mermaid.mjs';
+import { buildQvTemplate, staticQvScript, buildQvLoading, readingQvScript } from '../../../scripts/build-qv-mermaid.mjs';
 
 const feature = new URL('../', import.meta.url);
 test('closed Mermaid fences preserve every diagram type and presentation directive as data', () => {
@@ -49,6 +49,18 @@ test('shipped template is reproducible and contains no unresolved includes or CD
   assert.ok(!/import\(['"]https:/.test(compiled.script));
   assert.ok(compiled.script.includes("securityLevel:'strict'"));
   assert.ok(compiled.script.includes('window.__mcxQVRuntime.mermaid'));
+});
+test('window.matchMedia uses static motion too so preset charts are not left hidden', () => {
+  const script = staticQvScript("const reduced=window.matchMedia('(prefers-reduced-motion: reduce)');if(!reduced.matches)svg.hidden=true;");
+  const svg = { hidden: false };
+  vm.runInNewContext(script, { svg, __qvStaticMotion: { matches: true } });
+  assert.equal(svg.hidden, false);
+});
+test('reading template retains QV entry and re-entry motion by default', async () => {
+  const compiled = await buildQvTemplate();
+  assert.ok(compiled.script.includes('new IntersectionObserver'));
+  assert.ok(compiled.script.includes('.animate('));
+  assert.ok(!compiled.script.includes('const __qvStaticMotion='));
 });
 test('missing assets fail before replacing native widgets', () => {
   assert.throws(()=>createQvResources({}), /qv-resources-unavailable/);
@@ -137,4 +149,34 @@ test('frame authenticates messages, encodes source as data, reports timeout and 
   controller.dispose();assert.ok(removed);
   listener({source:contentWindow,data:{type:'mcx-qv',token:'nonce',state:'enhanced',height:700}});
   assert.deepEqual(heights,[500]);
+});
+
+test('whole-diagram wrapping uses the maximum reading width, including short flows and narrow panels', async () => {
+  const source = await readFile(new URL('vendor/qv/source/mermaid-layout.js',feature),'utf8');
+  const context = vm.createContext({cfg:{readingWidth:736},root:{clientWidth:480}});
+  vm.runInContext(readingQvScript(source,'mermaid-layout.js'),context);
+  context.prepareMermaidLayout = async () => {};
+  context.finishMermaidGeometry = () => {};
+  const make = width => ({direction:'LR',nodes:Array.from({length:4},(_,i)=>({id:String(i),w:154,h:48})),groups:[],layout:{width,height:104}});
+  const below = make(736);await context.prepareFlowchartLayout(below);
+  assert.equal(below.balanced,false,'narrow panel does not lower the threshold');
+  const above = make(737);await context.prepareFlowchartLayout(above);
+  assert.equal(above.balanced,true,'four nodes can wrap without the old 16-node gate');
+  assert.ok(Math.max(...above.nodes.map(n=>n.x+n.w))+24<=736);
+  assert.ok(new Set(above.nodes.map(n=>n.y)).size>1);
+});
+test('group direction comparison uses the reading maximum and preserves explicit connection faces', async () => {
+  const source = await readFile(new URL('vendor/qv/source/mermaid-navigation.js',feature),'utf8');
+  const context = vm.createContext({cfg:{readingWidth:736},root:{clientWidth:480}});
+  vm.runInContext(readingQvScript(source,'mermaid-navigation.js'),context);
+  let comparisons=0;
+  context.prepareNavigationView=async()=>{};
+  context.prepareMermaidLayout=async data=>{comparisons++;data.layout={width:400};};
+  const make = (width,edges=[]) => ({scope:'group',direction:'LR',layout:{width},nodes:[],edges,groups:[]});
+  const narrow = make(600);await context.prepareCompleteScope(narrow,480);
+  assert.equal(comparisons,0);assert.equal(narrow.direction,'LR');
+  const wide = make(800);await context.prepareCompleteScope(wide,480);
+  assert.equal(comparisons,1);assert.equal(wide.direction,'TB');
+  await context.prepareCompleteScope(make(800,[{fromSide:'EAST'}]),480);
+  assert.equal(comparisons,1);
 });

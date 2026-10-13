@@ -15,16 +15,21 @@ import {
 import { loadNativeMarkdownLinks, installMarkdownLinks } from './adapters/codex/links.mjs';
 import { loadNativeMarkdownToc } from './adapters/codex/toc-native.mjs';
 import { installMarkdownToc } from './adapters/codex/toc.mjs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 import { readFile } from 'node:fs/promises';
 import { installMarkdownTables } from './adapters/codex/tables.mjs';
 import { loadMarkdownListAPI, installMarkdownLists } from './adapters/codex/lists.mjs';
 import { createMarkdownPreviewAdapter } from './adapters/codex/preview.mjs';
 import { createQvResources, createQvFrame, readQvTheme } from './mermaid/frame.mjs';
+import { exportQvDiagram, saveQvDiagram } from './mermaid/export.mjs';
 import { createQvLoading } from './mermaid/loading.mjs';
 import { createMarkdownMermaidControls } from './adapters/codex/mermaid-viewer.mjs';
 import { installMarkdownMermaid } from './adapters/codex/mermaid.mjs';
 export async function createPageScriptSource() {
   const bindings = [
+    exportQvDiagram,
+    saveQvDiagram,
     createQvLoading,
     createQvResources,
     createQvFrame,
@@ -53,5 +58,5 @@ export async function createPageScriptSource() {
   ];
   const declarations = bindings.map((binding) => `const ${binding.name} = ${binding.toString()};`).join('\n');
   const entry = await readFile(new URL('./markdown-reading.mjs', import.meta.url), 'utf8');
-  return `${declarations}\n${entry}`;
+  return `const markdownDownloadsDirectory=${JSON.stringify(join(homedir(),'Downloads'))};\n${declarations}\n${entry}`;
 }

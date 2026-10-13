@@ -18,6 +18,7 @@
       "styles": "src/reading.css",
       "mermaidStyles": "src/mermaid/theme.css",
       "qvLoadingStyles": "assets/qv-loading.css",
+      "qvExport": "assets/qv-export.js",
       "qvTemplate": "assets/qv-template.json",
       "qvDependencies": "assets/qv-dependencies.js"
     }

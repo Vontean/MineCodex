@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 import { parse } from 'acorn';
+import { createMermaidViewport } from '../features/markdown-reading/src/mermaid/viewport.mjs';
 const source = new URL('../features/markdown-reading/vendor/qv/source/', import.meta.url);
 const output = new URL('../features/markdown-reading/assets/', import.meta.url);
 export async function buildQvLoading() {
@@ -40,7 +41,8 @@ export function staticQvScript(script) {
     if (node.type === 'NewExpression' && node.callee.name === 'IntersectionObserver') {
       edits.push([node.start, node.end, '__qvNoopObserver']); return;
     }
-    if (node.type === 'CallExpression' && node.callee.type === 'Identifier' && node.callee.name === 'matchMedia'
+    if (node.type === 'CallExpression' && (node.callee.name === 'matchMedia'
+      || (node.callee.type === 'MemberExpression' && node.callee.object.name === 'window' && node.callee.property.name === 'matchMedia'))
       && node.arguments[0]?.value?.includes('prefers-reduced-motion')) {
       edits.push([node.start, node.end, '__qvStaticMotion']); return;
     }
@@ -61,17 +63,70 @@ export function staticQvScript(script) {
   for (const [start, end, value] of edits.sort((a, b) => b[0] - a[0])) script = script.slice(0, start) + value + script.slice(end);
   return script;
 }
-export async function buildQvTemplate({ motion = false } = {}) {
+// 阅读场景只保留有额外信息的提示；快照保持原样，差异集中在构建适配。
+export function readingQvScript(script, name) {
+  // 整图换行以 Preview 正文上限为基准，不改节点文字宽度或 vendor 快照。
+  const limit = '(cfg.readingWidth||root.clientWidth)';
+  if (name === 'mermaid-layout.js') {
+    script = script.replace('data.nodes.length<16||Math.max(data.layout.width,data.layout.height)<2400||Math.max(data.layout.width/data.layout.height,data.layout.height/data.layout.width)<3', `data.layout.width<=${limit}`)
+      .replace('const score=Math.abs(Math.log(w/h))', `const score=1000*Math.max(0,w/${limit}-1)+Math.abs(Math.log(w/h))`);
+  }
+  if (name === 'mermaid-class-model.js') {
+    script = script.replace('data.nodes.length>=16&&Math.max(data.layout.width,data.layout.height)>=2400&&Math.max(data.layout.width/data.layout.height,data.layout.height/data.layout.width)>=3', `data.layout.width>${limit}&&['LR','RL'].includes(data.direction)`)
+      .replace('ratio(data)>=ratio(initial)||data.layout.width*data.layout.height>initial.layout.width*initial.layout.height*1.3', 'data.layout.width>=initial.layout.width');
+  }
+  if (name === 'mermaid-navigation.js') script = script.replace('data.layout.width<=width', `data.layout.width<=${limit}`);
+  const tree = parse(script, { ecmaVersion: 'latest' }), edits = [];
+  function walk(node) {
+    if (!node || typeof node !== 'object') return;
+    if (node.type === 'FunctionDeclaration') {
+      const id = node.id.name;
+      if ((name === 'mermaid-sequence.js' && id === 'placeTip') || (['mermaid-block.js','mermaid-c4.js'].includes(name) && id === 'showTip')) {
+        edits.push([node.body.start, node.body.end, '{}']); return;
+      }
+      if (name === 'mermaid-architecture-reader.js' && id === 'reveal') {
+        edits.push([node.body.start,node.body.end,'{if(pending!==epoch||!selected||!selected.anchor?.isConnected)return;highlight(selected.id);}']); return;
+      }
+      if (name === 'mermaid-sequence.js' && id === 'focus') {
+        const firstTip = node.body.body.find(n => n.type === 'ExpressionStatement' && n.expression.callee?.name === 'placeTip');
+        edits.push([firstTip.start, node.body.end - 1, '']); return;
+      }
+      if (name === 'mermaid-class.js' && id === 'showRelation') {
+        edits.push([node.body.start, node.body.end, '{select(trigger,null,edge);}']); return;
+      }
+      if (['mermaid-er.js', 'mermaid-state.js'].includes(name) && id === 'show') {
+        const gate = name === 'mermaid-er.js'
+          ? node.body.body.find(n => n.type === 'IfStatement' && n.test.type === 'LogicalExpression' && n.test.left.argument?.name === 'selected')
+          : node.body.body.find(n => n.type === 'IfStatement' && n.test.type === 'UnaryExpression' && n.test.argument.name === 'value');
+        edits.push([gate.start, node.body.end - 1, '']); return;
+      }
+    }
+    for (const value of Object.values(node)) {
+      if (Array.isArray(value)) value.forEach(walk);
+      else if (value?.type) walk(value);
+    }
+  }
+  walk(tree);
+  for (const [start, end, value] of edits.sort((a,b) => b[0]-a[0])) script = script.slice(0,start)+value+script.slice(end);
+  return script;
+}
+export async function buildQvTemplate({ motion = true } = {}) {
   let template = await readFile(new URL('mermaid.html', source), 'utf8');
   for (const match of [...template.matchAll(/\{\{([A-Z0-9_]+)_JS\}\}/g)]) {
     const name = match[1] === 'CHART_PRESETS' ? 'chart-presets.js' : `mermaid-${match[1].toLowerCase().replaceAll('_', '-')}.js`;
-    const code = await readFile(new URL(name, source), 'utf8');
+    const original = await readFile(new URL(name, source), 'utf8');
+    const code = name === 'mermaid-viewport.js' ? createMermaidViewport.toString() : readingQvScript(original, name);
     template = template.replace(match[0], () => code);
   }
   template = template.replaceAll('{{ROOT_ID}}', 'mcx-qv-root').replaceAll('{{TITLE}}', '').replaceAll('{{TITLE_HIDDEN}}', 'hidden')
     .replaceAll('{{CONFIG_JSON}}', 'JSON.stringify(window.__mcxDiagramConfig)');
   const match = template.match(/<script>([\s\S]*?)<\/script>/);
   let script = motion ? match[1] : staticQvScript(match[1]);
+  // 架构图始终展示全貌，不提供节点组开关或分组下钻；流程图保持原有能力。
+  script = script.replace('navigationEnabled=!!data.groups?.length;', 'navigationEnabled=!!data.groups?.length&&!data.architecture;')
+    .replace('root.dataset.hasGroups=String(navigationEnabled)', 'root.dataset.hasGroups=String(!!data.groups?.length)')
+    .replace('async function setNavigationMode(enabled){', 'async function setNavigationMode(enabled){if(sourceModel.architecture)return;');
+  script = script.replace("const crumbs=[{id:null,name:drilldownActive?'总览':'完整架构'},...path]", "const crumbs=drilldownActive?[{id:null,name:'总览'},...path]:[]");
   script = script.replace("(await import('https://cdn.jsdelivr.net/npm/mermaid@11.12.0/dist/mermaid.esm.min.mjs')).default", 'window.__mcxQVRuntime.mermaid')
     .replaceAll("await import('https://cdn.jsdelivr.net/npm/d3@7.9.0/+esm')", 'window.__mcxQVRuntime.d3')
     .replaceAll("await import('https://cdn.jsdelivr.net/npm/d3-sankey@0.12.3/+esm')", 'window.__mcxQVRuntime.sankey');
@@ -81,7 +136,8 @@ export async function buildQvTemplate({ motion = false } = {}) {
   function walk(n) { if (!n || typeof n !== 'object') return; if(n.type==='FunctionDeclaration' && n.id?.name==='loadMermaidLayoutEngine') functionRanges.push([n.body.start,n.body.end]); for(const v of Object.values(n)){if(Array.isArray(v))v.forEach(walk);else if(v?.type)walk(v);} }
   walk(ast);
   for (const [start, end] of functionRanges.sort((a,b)=>b[0]-a[0])) script=script.slice(0,start)+'{if(!window.ELK)throw new Error("QV ELK unavailable");}'+script.slice(end);
-  script = script.replace('(async()=>{', 'window.__mcxQVReady=(async()=>{');
+  const viewportReady = 'document.addEventListener("qv:ready",event=>queueMicrotask(()=>{const root=event.target.closest?.(".qv-mermaid");if(root&&["enhanced","native"].includes(root.dataset.state))createMermaidViewport(root);}));';
+  script = script.replace('(async()=>{', 'window.__mcxQVReady=(async()=>{'+viewportReady);
   const prefix = 'const __qvStaticMotion={matches:true,addEventListener(){},removeEventListener(){}};const __qvNoopObserver={observe(){},disconnect(){}};\n';
   return { markup: template.replace(match[0], ''), script: (motion ? "" : prefix) + script };
 }
@@ -91,8 +147,9 @@ async function main() {
   await writeFile(new URL('qv-loading.css', output), loading.styles);
   await writeFile(new URL('qv-template.json', output), JSON.stringify(await buildQvTemplate()));
   const result = await build({ stdin: { contents: `import mermaid from 'mermaid';import ELK from 'elkjs/lib/elk.bundled.js';import * as lucide from 'lucide';import * as d3 from 'd3';import * as sankey from 'd3-sankey';window.ELK=ELK;window.lucide={...lucide,createIcons:options=>lucide.createIcons({icons:lucide.icons,...options})};window.__mcxQVRuntime={mermaid,d3,sankey};`, resolveDir: fileURLToPath(new URL('../',import.meta.url)) }, bundle: true, minify: true, format: 'iife', platform: 'browser', target: 'chrome140', legalComments: 'eof', metafile:true, outfile: fileURLToPath(new URL('qv-dependencies.js', output)) });
+  const exporter = await build({ stdin: { contents: "import {toBlob} from 'html-to-image';globalThis.__mcxQVExport={toBlob};", resolveDir:fileURLToPath(new URL('../',import.meta.url)) }, bundle:true,minify:true,format:'iife',platform:'browser',target:'chrome140',metafile:true,outfile:fileURLToPath(new URL('qv-export.js',output)) });
   const packages = new Map();
-  for (const input of Object.keys(result.metafile.inputs)) {
+  for (const input of Object.keys({...result.metafile.inputs,...exporter.metafile.inputs})) {
     if (!input.includes('node_modules/')) continue;
     let directory = path.dirname(path.resolve(input));
     while (directory.includes('node_modules')) {
@@ -113,6 +170,6 @@ async function main() {
     for (const file of licenses) notices += `\n${file}\n${await readFile(path.join(directory,file),'utf8')}\n`;
   }
   await writeFile(new URL('THIRD_PARTY_NOTICES.txt', new URL('../features/markdown-reading/vendor/qv/',import.meta.url)),notices);
-  console.log('QV static template and pinned offline dependencies built.');
+  console.log('QV reading template and pinned offline dependencies built.');
 }
 if (process.argv[1] === fileURLToPath(import.meta.url)) await main();

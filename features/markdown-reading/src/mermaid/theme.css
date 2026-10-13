@@ -4,7 +4,5 @@
 .mcx-reading-qv-actions [data-block-actions] { opacity:1; pointer-events:auto; }
 .mcx-reading-qv-inline { position:relative; }
 .mcx-reading-qv-status:not([hidden]) { position:absolute; inset:0; display:grid; place-items:center; }
-.mcx-reading-qv-expanded { display:flex; flex-direction:column; flex:1; min-width:0; min-height:0; width:100%; height:100%; padding:16px; }
-.mcx-reading-qv-size { display:flex; justify-content:flex-end; padding-bottom:12px; }
-.mcx-reading-qv-slot { flex:1; min-width:0; min-height:0; overflow:auto; }
-.mcx-reading-qv-slot[data-size="fit"] > iframe { height:100% !important; }
+.mcx-reading-qv-slot { position:relative; width:100%; height:100%; overflow:hidden; }
+.mcx-reading-qv-slot > iframe { position:absolute; inset:0 auto auto 0; max-width:none; }

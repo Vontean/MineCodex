@@ -1,4 +1,5 @@
 import { createQvResources, createQvFrame, readQvTheme } from '../../mermaid/frame.mjs';
+import { exportQvDiagram } from '../../mermaid/export.mjs';
 import { createQvLoading } from '../../mermaid/loading.mjs';
 import { captureMarkdownProviders } from './providers.mjs';
 import { createMarkdownMermaidControls } from './mermaid-viewer.mjs';
@@ -28,10 +29,7 @@ export function installMarkdownMermaid(view, api, native, codex, resources, onSt
       slot.style.height = '280px';
       item.controller = createQvFrame(this.source, assets, readQvTheme(view.dom), height => {
         if (disposed || view.destroyed) return;
-        if (item.expanded) {
-          if (item.mode === 'actual') item.controller.frame.style.height = height + 'px';
-          return;
-        }
+        if (item.expanded) {item.setNaturalHeight?.(height);return;}
         item.height = height; slot.style.height = height + 'px';
         item.controller.frame.style.height = height + 'px'; view.requestMeasure();
       }, state => {
@@ -45,6 +43,7 @@ export function installMarkdownMermaid(view, api, native, codex, resources, onSt
       }, () => item.close?.());
       item.controller.frame.style.visibility = 'hidden';
       slot.append(item.controller.frame);
+      item.export = async canvas => exportQvDiagram(item.controller.frame, await assets.exporter(item.controller.frame.contentDocument),canvas);
       const root = native.ReactDOM.createRoot(actions);
       root.render(withProviders(native.React, native.React.createElement(Controls, {item})));
       item.dispose = () => { finishLoading(); root.unmount(); item.controller.dispose(); mounted.delete(item); report(); };

@@ -1,3 +1,4 @@
+import { saveQvDiagram } from '../../mermaid/export.mjs';
 import { loadNativeMarkdownRenderer } from './markdown-native.mjs';
 import { captureMarkdownProviders } from './providers.mjs';
 
@@ -92,8 +93,21 @@ export async function loadNativeMarkdownTableActions(native) {
     binding(icon[3]),
     loadNativeMarkdownRenderer(source, url, module),
   ]);
+  const preview = section('id:`imagePreviewDialog.label`');
+  const downloadName = preview.match(/([\w$]+)\(\{downloadSrc:[\w$]+,onDownloaded:/)?.[1];
+  const downloadSection = preview.slice(preview.indexOf('suggestedFilename:', preview.indexOf('downloadSrc:')));
+  const downloadIcon = downloadSection.match(/children:\(0,[\w$]+\.jsx\)\(([\w$]+),\{className:`icon-xs`\}/)?.[1];
+  if (!downloadName || !downloadIcon) throw new Error('native-diagram-download-unavailable');
+  const downloadSource = section('Failed to download image');
+  const requestName = downloadSource.match(/await ([\w$]+)\(`save-file`,/)?.[1];
+  if (!requestName) throw new Error('native-diagram-save-request-unavailable');
+  const [DownloadIcon, saveFile] = await Promise.all([binding(downloadIcon),binding(requestName)]);
   return {
     ...native,
+    async downloadImage({downloadSrc,suggestedFilename}) {
+      return saveQvDiagram(downloadSrc,saveFile,markdownDownloadsDirectory,suggestedFilename);
+    },
+    DownloadIcon,
     ...renderer,
     TablePreview: publicBinding(previewName),
     Table: publicBinding(tableName),
