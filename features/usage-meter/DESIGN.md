@@ -29,8 +29,7 @@ primary/secondary 顺序或套餐字符串。剩余百分比为 clamp(100-used_p
 | --- | --- | --- |
 | 点击区域 | 克隆 Avatar 的原生按钮 class 和布局样式属性；目标 36×36px | 与导航项对齐 |
 | 环图 | 24×24px；viewBox 32；圆心 16；统一半径 43/3；描边 10/3 viewBox units（渲染 2.5px） | 自定义数据图，不是替代导航图标 |
-| 周环 | `--color-text-tertiary`（原生中性灰） | 单圈或下方短段 |
-| 五小时环 | `--color-text-secondary`（中性灰） | 上方长段 |
+| 进度环 | `--color-text-tertiary`（原生中性灰） | 单圈及双扇区统一颜色；额度类型由扇区位置与 Tooltip 区分，保持 Plus 与 Pro 视觉一致 |
 | 轨道 | 对应环色 18% alpha | 剩余额度的底轨 |
 | 中央数字 | 继承环的中性灰；`--font-sans-default`；`--text-xs` × 2/3（8px），单双圈与三位数均一致；500、tabular-nums、line-height:1 | 优先五小时 |
 

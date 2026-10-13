@@ -20,8 +20,6 @@ style.textContent = `
 [${MARKER}] { position:relative; display:flex; align-items:center; justify-content:center; flex:none; color:var(--mcx-color-text-tertiary); -webkit-app-region:no-drag; }
 [${MARKER}] .mcx-usage-ring { display:block; width:24px; height:24px; overflow:visible; }
 [${MARKER}] .mcx-usage-number { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:inherit; font-family:var(--mcx-font-sans-default); font-size:calc(var(--mcx-text-xs) * 2 / 3); line-height:1; font-weight:var(--font-weight-medium,500); letter-spacing:0; font-variant-numeric:tabular-nums; pointer-events:none; }
-[${MARKER}] [data-window="weekly"] { color:inherit; }
-[${MARKER}] [data-window="fiveHour"] { color:var(--mcx-color-text-secondary); }
 #${TIP_ID} { width:max-content; max-width:calc(100vw - 16px); }
 #${TIP_ID}[hidden] { display:none; }
 #${TIP_ID} dl { display:grid; grid-template-columns:auto auto; gap:2px 16px; margin:0; }
