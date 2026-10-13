@@ -1,6 +1,6 @@
 export function createUsageAdapter(signal, codex, invalidate) {
   let client=null,unsubscribe=null;
-function remainingWindows(data) {
+function remainingWindows(data, updatedAt) {
   const windows = [data?.rate_limit?.primary_window, data?.rate_limit?.secondary_window];
   const remaining = seconds => {
     const window = windows.find(window => window?.limit_window_seconds === seconds);
@@ -8,7 +8,15 @@ function remainingWindows(data) {
       ? Math.round(Math.max(0, Math.min(100, 100 - window.used_percent))) : null;
   };
   const weekly = remaining(604800), fiveHour = remaining(18000);
-  return weekly == null ? null : { weekly, fiveHour, primary: fiveHour ?? weekly };
+  const resetAt = seconds => {
+    const window = windows.find(window => window?.limit_window_seconds === seconds);
+    if (typeof window?.reset_at === "number" && Number.isFinite(window.reset_at) && window.reset_at > 0) return window.reset_at * 1000;
+    // 相对秒数绑定缓存更新时间，不能随着每次读取顺延。
+    if (typeof window?.reset_after_seconds === "number" && Number.isFinite(window.reset_after_seconds) && window.reset_after_seconds >= 0 && Number.isFinite(updatedAt) && updatedAt > 0) return updatedAt + window.reset_after_seconds * 1000;
+    return null;
+  };
+  return weekly == null ? null : { weekly, fiveHour, primary: fiveHour ?? weekly,
+    resetAt: { weekly: resetAt(604800), fiveHour: fiveHour == null ? null : resetAt(18000) } };
 }
 function nativeContext(rail) {
   const result = { auth:null,client:null,router:null };
@@ -27,7 +35,7 @@ function currentWindows(context) {
   const data = client?.getQueryData(["rate-limit-status"]);
   // 账号与缓存必须同时一致；旧账号的最后一次响应不能留在导航栏。
   if (!data || data.user_id !== auth.userId || data.account_id !== auth.accountId) return null;
-  return remainingWindows(data);
+  return remainingWindows(data, client.getQueryState?.(["rate-limit-status"])?.dataUpdatedAt);
 }
 function findAvatar(rail) {
   const buttons = [...(rail?.querySelectorAll("button") ?? [])];

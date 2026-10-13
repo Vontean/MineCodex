@@ -18,6 +18,9 @@
 窗口按 `limit_window_seconds` 识别：604800 为周、18000 为五小时；不依赖
 primary/secondary 顺序或套餐字符串。剩余百分比为 clamp(100-used_percent,0,100)，
 四舍五入显示整数。缺失/非法值不当成零。
+刷新时间优先使用窗口 `reset_at`（Unix 秒），否则以 QueryClient 的 `dataUpdatedAt`
+（毫秒）加 `reset_after_seconds` 转成固定时间点。缺失或非法时间不显示刷新行；
+相对值缺少缓存更新时间时不猜测时间，也不在每次读取时顺延。
 
 单周窗口显示一个周环和周剩余数字。周与五小时同时存在时，在同一半径上分成两段：
 上方 3/4 扇区表示五小时，下方 1/4 扇区表示总额度（当前为周额度）。中央显示五小时
@@ -41,8 +44,12 @@ primary/secondary 顺序或套餐字符串。剩余百分比为 clamp(100-used_p
 上段经左侧、顶部向右侧扣减，下段经底部向右侧扣减。0% 只显示底轨，不保留进度圆点。
 
 额度 Tooltip 的特殊内容是两列对齐，列间距16px；其通用材质和文字样式遵循根规范。Tooltip 在按钮右侧 2px，纵向居中并约束在窗口内；
-鼠标悬停延迟 350ms，键盘聚焦立即显示，Escape 隐藏。单圈一行 Weekly Limit；
-双段依次为 5h Limit、Weekly Limit，数值带 %。没有额外标题或说明。
+鼠标悬停延迟 350ms，键盘聚焦立即显示，Escape 隐藏。单圈一组 Weekly Limit；
+双段依次为 5h Limit、Weekly Limit，数值带 %。各组在额度行下面显示两列
+`Reset in` 与本地刷新时间（`MM/DD HH:mm`，24 小时制，精确到分），沿用相同文字 token；
+每次打开提示重新按系统本地时区格式化。双组之间使用 `--mcx-color-border-subtle`
+的 50% alpha 分割线，线两侧各留一个 `--mcx-spacing`；仅 Weekly 时没有分割线。
+没有额外标题或说明。
 
 原生 Avatar 点击区域目标为 36px，头像可见直径为 24px；额度外环含描边的可见直径同为 24px，
 数字与环均以按钮几何中心对齐；中性灰取自原生 navbar，不使用彩色强调。
