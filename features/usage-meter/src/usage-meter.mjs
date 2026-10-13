@@ -36,10 +36,31 @@ function svgNode(name, attributes) {
   return node;
 }
 
+function quotaArc(start, end, clockwise) {
+  const radius = 43 / 3;
+  const point = angle => {
+    const radians = (angle - 90) * Math.PI / 180;
+    return [16 + radius * Math.cos(radians), 16 + radius * Math.sin(radians)];
+  };
+  const from = point(start), to = point(end);
+  return `M ${from[0]} ${from[1]} A ${radius} ${radius} 0 ${Math.abs(end - start) > 180 ? 1 : 0} ${clockwise ? 1 : 0} ${to[0]} ${to[1]}`;
+}
+
 function draw(windows) {
   const svg = svgNode("svg", { viewBox: "0 0 32 32", class: "mcx-usage-ring", "aria-hidden": "true" });
-  for (const [key, radius] of [["weekly", 43 / 3], ["fiveHour", 10.5]]) {
-    if (windows[key] == null) continue;
+  if (windows.fiveHour != null) {
+    // 左下、右下各留 24° 圆头中心间距；两段都从左下切口扣减。
+    for (const [key, start, end, clockwise] of [["fiveHour", 237, 483, true], ["weekly", 213, 147, false]]) {
+      const group = svgNode("g", { "data-window": key, fill: "none", stroke: "currentColor", "stroke-width": 10 / 3, "stroke-linecap": "round" });
+      group.append(svgNode("path", { d: quotaArc(start, end, clockwise), opacity: 0.18 }));
+      if (windows[key] > 0) {
+        const remainingStart = start + (end - start) * (1 - windows[key] / 100);
+        group.append(svgNode("path", { d: quotaArc(remainingStart, end, clockwise) }));
+      }
+      svg.append(group);
+    }
+  } else {
+    const key = "weekly", radius = 43 / 3;
     const group = svgNode("g", { "data-window": key, fill: "none", stroke: "currentColor", "stroke-width": 10 / 3 });
     group.append(svgNode("circle", { cx: 16, cy: 16, r: radius, opacity: 0.18 }));
     if (windows[key] > 0) group.append(svgNode("circle", {

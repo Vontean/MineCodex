@@ -117,14 +117,54 @@ const documentFixture = {
 };
 const render = new Function("document", `${source.slice(0, source.indexOf("function positionTooltip()"))}\nreturn windows => { record = {button: document.createElement('button'), tooltip: document.createElement('div')}; draw(windows); return record; };`)(documentFixture);
 
-test("dual-ring render uses weekly outside, five-hour inside, and five-hour number", () => {
+test("two-segment render keeps the five-hour number and quota tooltip", () => {
   const { button, tooltip } = render({ weekly: 75, fiveHour: 40, primary: 40 });
   const [svg, number] = button.children;
   assert.equal(number.textContent, "40");
-  assert.deepEqual(svg.children.map(group => group.attributes["data-window"]), ["weekly", "fiveHour"]);
-  assert.deepEqual(svg.children.map(group => group.children[1].attributes["stroke-dasharray"]), ["75 100", "40 100"]);
-  assert.ok(Number(svg.children[0].children[0].attributes.r) > Number(svg.children[1].children[0].attributes.r));
+  assert.deepEqual(svg.children.map(group => group.attributes["data-window"]), ["fiveHour", "weekly"]);
   assert.deepEqual(tooltip.children[0].children.map(node => node.textContent), ["5h Limit", "40%", "Weekly Limit", "75%"]);
+});
+
+const arcValues = path => path.attributes.d.match(/-?\d+(?:\.\d+)?(?:e[+-]?\d+)?/gi).map(Number);
+const angle = (x, y) => (Math.atan2(x - 16, 16 - y) * 180 / Math.PI + 360) % 360;
+
+test("full quota has two round-ended segments on one radius with visible gaps", () => {
+  const groups = render({ weekly: 100, fiveHour: 100, primary: 100 }).button.children[0].children;
+  const [long, short] = groups.map(group => arcValues(group.children[0]));
+  assert.equal(long[2], short[2]);
+  assert.equal(long[5], 1); // 上方长段超过半圈。
+  assert.equal(short[5], 0);
+  assert.equal(long[6], 1);
+  assert.equal(short[6], 0);
+  assert.ok(long[1] > 16 && long[8] > 16 && short[1] > 16 && short[8] > 16);
+  const leftGap = Math.hypot(long[0] - short[0], long[1] - short[1]);
+  const rightGap = Math.hypot(long[7] - short[7], long[8] - short[8]);
+  for (const group of groups) {
+    assert.equal(group.attributes["stroke-linecap"], "round");
+    assert.equal(group.children[1].attributes.d, group.children[0].attributes.d);
+    // 扣除圆头直径后，实际 24px 图上两处净空均至少 1.9px。
+    for (const gap of [leftGap, rightGap]) assert.ok((gap - Number(group.attributes["stroke-width"])) * 24 / 32 >= 1.9);
+  }
+});
+
+test("both quotas deplete from the left cut, keeping their right endpoints fixed", () => {
+  const full = render({ weekly: 100, fiveHour: 100, primary: 100 }).button.children[0].children;
+  for (const remaining of [77, 50, 1]) {
+    const groups = render({ weekly: remaining, fiveHour: remaining, primary: remaining }).button.children[0].children;
+    groups.forEach((group, index) => {
+      const track = arcValues(full[index].children[0]), progress = arcValues(group.children[1]);
+      assert.deepEqual(progress.slice(7), track.slice(7));
+      const from = angle(track[0], track[1]), current = angle(progress[0], progress[1]);
+      const consumed = index === 0 ? (current - from + 360) % 360 : (from - current + 360) % 360;
+      const sector = index === 0 ? 270 : 90;
+      assert.ok(Math.abs(consumed / (sector - 24) - (1 - remaining / 100)) < 1e-10);
+    });
+  }
+  for (const windows of [{ weekly: 100, fiveHour: 0, primary: 0 }, { weekly: 0, fiveHour: 100, primary: 100 }, { weekly: 0, fiveHour: 0, primary: 0 }]) {
+    const groups = render(windows).button.children[0].children;
+    assert.equal(groups[0].children.length, windows.fiveHour === 0 ? 1 : 2);
+    assert.equal(groups[1].children.length, windows.weekly === 0 ? 1 : 2);
+  }
 });
 
 test("single-ring render and exhausted limits have no extra row or progress dot", () => {
@@ -133,4 +173,8 @@ test("single-ring render and exhausted limits have no extra row or progress dot"
   assert.equal(button.children[0].children[0].children.length, 1);
   assert.equal(button.children[1].textContent, "0");
   assert.deepEqual(tooltip.children[0].children.map(node => node.textContent), ["Weekly Limit", "0%"]);
+  const full = render({ weekly: 100, fiveHour: null, primary: 100 }).button.children[0].children[0];
+  assert.equal(full.children[0].tag, "circle");
+  assert.equal(full.children[1].attributes["stroke-dasharray"], "100 100");
+  assert.equal(full.children[1].attributes.transform, "rotate(-90 16 16)");
 });
