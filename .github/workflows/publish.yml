@@ -127,8 +127,8 @@ jobs:
         run: |
           PACKAGE=$(find "$GITHUB_WORKSPACE/release" -name '*.tgz' -type f)
           echo "$EXPECTED_SHA256  $PACKAGE" | sha256sum --check
-          # 私有源码仓库不生成公开 provenance；不使用 npm Token。
-          npm publish "$PACKAGE" --access public --tag latest --ignore-scripts --provenance=false
+          # 公开源码通过 OIDC 生成 provenance，将发布包关联至构建与源码；不使用 npm Token。
+          npm publish "$PACKAGE" --access public --tag latest --ignore-scripts --provenance
 
       - name: Verify public registry
         env:

@@ -8,13 +8,13 @@
 
 ```bash
 # 只验证，不发布；可检查已发布的版本。
-gh workflow run publish.yml --repo Vontean/MineCodex --ref main -f release_tag=v2.0.4 -F publish=false
+gh workflow run publish.yml --repo Vontean/MineCodex --ref main -f release_tag=vX.Y.Z -F publish=false
 
 # 发布新的版本；替换标签为本次待发布版本。
-gh workflow run publish.yml --repo Vontean/MineCodex --ref main -f release_tag=v2.0.5 -F publish=true
+gh workflow run publish.yml --repo Vontean/MineCodex --ref main -f release_tag=vX.Y.Z -F publish=true
 ```
 
-默认只验证，必须显式开启 publish。标签须为稳定版本 `vX.Y.Z`，位于 `main` 历史中，并匹配 package 与 lockfile 的版本。已存在的 npm 版本不能重复发布。
+将示例中的 `vX.Y.Z` 替换为本次版本。默认只验证，必须显式开启 publish。标签须为稳定版本 `vX.Y.Z`，位于 `main` 历史中，并匹配 package 与 lockfile 的版本。已存在的 npm 版本不能重复发布。
 
 ## 授权边界
 
@@ -23,7 +23,7 @@ gh workflow run publish.yml --repo Vontean/MineCodex --ref main -f release_tag=v
 - 验证任务只读仓库，无 OIDC 发布权限。发布任务只下载本次验证的构建产物、核对 SHA-256，再用短期 OIDC 凭证发布；不执行 package lifecycle，不保存长期 npm Token。
 - 验证和打包使用 GitHub 托管 macOS runner，符合 package 的 darwin/win32 平台约束；发布任务使用托管 Ubuntu runner，仅发布已验证的压缩包，不安装 MineCodex。
 - 原生 GitHub 的 Run workflow 按钮可见性由仓库权限决定，工作流不能按人隐藏该按钮；这里限制的是实际执行和取得发布权限。仓库管理员仍可改工作流或环境规则。新增协作者、账号改名或修改发布策略时，重新审查这些边界。
-- 仓库当前私有，关闭 npm provenance；源码公开后可重新评估开启。
+- 源码仓库与 npm 包均公开，发布通过 OIDC 生成 provenance，关联包产物、构建和源码。provenance 不替代测试或运行验收；改变仓库可见性或发布环境时重新核对生成条件。
 
 ## 首次 npm 绑定
 
