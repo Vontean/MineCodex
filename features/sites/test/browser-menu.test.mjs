@@ -14,7 +14,7 @@ test("browser action binds to its menu tab, reads current URL and excludes unrel
   const menu = { isConnected: true, getBoundingClientRect: () => ({ width: 200, height: 300 }), querySelectorAll: () => [downloads] };
   globalThis.document = { querySelectorAll: () => [menu] };
   try {
-    const adapter = createSitesAdapter(new AbortController().signal, { currentFiber: () => nodes[0] });
+    const adapter = createSitesAdapter(new AbortController().signal, {account:()=>({read:()=>({planType:"pro"})}), currentFiber: () => nodes[0] });
     assert.deepEqual(adapter.browserMenu().page, { url: "https://example.com/b", title: "B", cwd: "/project" });
     page.browserState.url = "https://example.com/c";
     assert.equal(adapter.browserMenu().page.url, "https://example.com/c");

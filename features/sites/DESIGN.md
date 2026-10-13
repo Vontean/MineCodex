@@ -8,7 +8,7 @@
 
 Sites 标题工具区增加次要操作 Add site，保留官方 New。添加弹窗默认展示 Codex 本地项目中的网页入口候选（含未启动网站），不显示重复的项目分组标题，项目名称仅在候选次级文本呈现；候选使用 checkbox 多选，点击整行切换勾选；已收录项不再出现在候选列表中。两个模式底部统一提供 Cancel / Add，项目模式未选择时禁用 Add，点击后才批量收录；取消不保存选择。候选不自动收录；扫描不启动服务。打开已收录的未启动站点时，使用支持的启动方式按需启动。弹窗使用「Project / Custom」分段按钮切换；切换保留已填写的网址；项目模式自动扫描并直接展示候选，不显示搜索框、说明行或刷新按钮。「自定义网址」只提供网址和名称，默认作为外部网址收录，在无项目聊天中打开；不显示开发来源及说明。网址与名称均必填；名称不能仅含空白且最多160字符，网址须为不含嵌入凭证的有效 HTTP(S) 地址。不符合时禁用 Add，输入变化后实时更新。项目关联自动来自扫描，不在编辑弹窗暴露。
 
-通过 MineCodex 添加的条目直接追加在 Space → Sites 的原生列表/网格中，保留官方条目，共用原生搜索与列表/网格切换，不提供额外筛选 tabs。标题下只显示主机地址与端口；访问列用图标 + Local address / External site，沿用原生 16px 图标、主文字色、text-sm 与 gap-1.5。Local 和 External 同时展示，访问列区分地址类型。操作列复用原生外部箭头，在默认浏览器打开；Project 条目菜单只提供移除，Custom URL 可编辑网址与名称，沿用添加校验。移除只移除入口。
+通过 MineCodex 添加的条目直接追加在 Space → Sites 的原生列表/网格中，保留官方条目，共用原生搜索与列表/网格切换，Plus 独立 Sites 页面增加 Added by you 标签，只显示通过 MCX 添加的条目；Owned by you／Shared with you 保留官方内容，切换时恢复原生列表。Space 无 ownership tabs 时保持现有混排。标题下只显示主机地址与端口；访问列用图标 + Local address / External site，沿用原生 16px 图标、主文字色、text-sm 与 gap-1.5。Local 和 External 同时展示，访问列区分地址类型。操作列复用原生外部箭头，在默认浏览器打开；Project 条目菜单只提供移除，Custom URL 可编辑网址与名称，沿用添加校验。移除只移除入口。
 
 ## 原生 token 与组件
 
@@ -56,7 +56,7 @@ Custom 地址分类：localhost/回环、IPv4私有网段及链路本地、IPv6�
 
 打开 Project 网页前等待新草稿的 ComposerScope focusComposerNonce 与本次导航一致，避免仅检查输入框存在而误用旧聊天。浏览器打开消息同时携带站点目录（无目录时取项目根目录）作为 cwd。
 
-新版 Sites 位于 `/space/sites`；注入与离开页面的布局判断使用该路由，移除旧 `/sites` 判断。
+套餐优先读取 `accounts/check` 的当前账号记录，未加载时使用 `planAtLogin`。Plus 接入 `/sites`，其余已识别套餐保留 `/space/sites`；未知身份等待原生数据，不猜分支。两条路由都属于 Sites 页面，进入网页 full view 时须确认已离开它们。
 标题区通过 New 的语义定位创建入口；按钮容器复用原生 lg secondary Button，不再假设 New 提供 data-variant。
 
 2026-10-02 隔离原生页面验证：新版已移除 Site ownership 筛选组；注入不依赖该组，也不隐藏官方条目。仅在原生列表为空且存在匹配的本地站点时隐藏原生空状态，保留头部与工具区；搜索无匹配或卸载时恢复。空状态定位排除本插件节点。
@@ -80,3 +80,12 @@ Codex 26.930.21537 隔离窗口验证：浏览器 panel 的 More（Browser optio
 通过菜单所属浏览器的原生状态读取实时 URL、标题及本地 cwd，不读取地址栏草稿，也不使用其他选中标签的缓存。仅支持无嵌入凭证的 HTTP(S) 页面。点击后预填添加弹窗，沿用 Project / Custom 分段选择与网址、名称校验。已确认本地项目归属的本地地址默认 Project；其余默认 Custom。有本地项目上下文时可切换 Project，无归属时禁用该项。远程浏览器路径不映射为本机项目。
 
 保存 Project 使用已确认项目身份，Custom 使用独立网址身份；复用既有重复检测。保存或取消后仍留在浏览器，不跳转 Sites，不发送聊天消息。原生 browserState、菜单动作及关闭协议仅由 Sites Adapter 解释，后端负责校验 URL 和本机项目目录归属。
+
+
+## Plus 原生页面分支（2026-10-13）
+
+Codex 26.1007.30912 的 Plus 独立 profile：Create Site 位于独立标题工具区；ownership 标签和实际内容区位于同一 min-h-full 外壳内，内容在最后一项，不是第二项。按可见搜索输入框定位，排除原生缓存的隐藏页面。Add site 紧邻 Create Site，复用其原生按钮与图标。
+
+Added by you 沿用原生 browse 标签的选中／未选中 class 和键盘切换。原始 ownership 节点保留，通过隐藏并以镜像导航转发 Owned／Shared 动作接入；Added 只切换本地筛选，不伪造原生 selectedKey。它隐藏官方内容，MCX 条目使用独立列表／网格；原生搜索和视图切换继续生效。离开、账号切换与卸载恢复原标签及内容的原始 hidden 状态。无匹配时显示简短空状态。
+
+原生共享能力确认可能在导航后移除整个 ownership 组。Plus 此时仍保留 Owned by you／Added by you，Shared with you 仅在原生提供时镜像；降级分支沿用本版本已测 browse class 与原生内容区 gutter。组重建或视图切换保持 Added 的选择。列表行必须包含原生 group/site-row，使末列动作的 hover／focus-within 规则生效。

@@ -1,4 +1,4 @@
-const nativeSites=createSitesAdapter(signal,config.codex);
+const nativeSites=createSitesAdapter(signal,config.codex,schedule);
 // 复用 Prompts 已验证的原生图标与 Lucide 图标，保持交互一致。
 const ICONS = config.resources.icons;
 const MENU_CLASSES = {"menu": "no-drag z-50 m-px flex select-none flex-col overflow-y-auto bg-surface-elevated-secondary/90 text-default ring-border ring-[0.5px] shadow-xl-spread backdrop-blur-sm rounded-2xl p-[var(--app-menu-gutter,var(--mcx-spacing))] min-w-[var(--app-menu-min-width,220px)]", "item": "no-drag outline-hidden flex min-h-[var(--app-menu-item-height,0px)] shrink-0 items-center justify-center p-[var(--app-menu-item-padding,var(--padding-row-y)_var(--padding-row-x))] text-(length:--app-menu-item-font-size,var(--mcx-text-sm)) leading-(--app-menu-item-line-height,var(--mcx-text-sm--line-height)) rounded-xl text-default group hover:bg-primary-ghost-hover focus:bg-primary-ghost-hover cursor-interaction flex flex-col", "row": "flex w-full min-w-0 items-center gap-[var(--spacing-menu-item-content,calc(var(--mcx-spacing)*1.5))]", "leading": "_leadingIcon_ml6jk_2"};
@@ -8,7 +8,11 @@ const owned = "data-mcx-sites";
 let disposed = false, state = { sites: [], projects: [], threads: [] }, addButton, rowsRoot, fallback, dialog, menu;
 let rowSignature = "", nativeButton, nativeInner, nativePlus, nativeSiteIcon, nativeMore, timer, revision = 0, opening = false;
 let nativeExternal, nativeGlobe, nativeActionsClass;
-let currentPage, refreshAt = 0, pendingLayout = null;
+let currentPage, currentAccount, refreshAt = 0, pendingLayout = null;
+let ownership;
+const nativeHidden=new Map();
+function restoreNativeContent() { for (const [node,hidden] of nativeHidden) node.hidden=hidden; nativeHidden.clear(); }
+function restoreOwnership() { restoreNativeContent();ownership?.dispose();ownership=null; }
 const style = document.createElement("style");
 style.setAttribute(owned, "style");
 style.textContent = config.resources.styles;
@@ -106,7 +110,7 @@ function loadPreview(container, url, cachedOnly = false) {
   });
 }
 function row(site, grid) {
-  const r = element("div", grid ? "group/site-card relative grid h-[210px] min-w-0 grid-rows-[148px_62px] overflow-hidden rounded-2xl border border-subtle bg-surface-card shadow-sm" : "relative col-span-full grid min-h-[82px] grid-cols-subgrid items-center overflow-hidden rounded-xl px-4 py-4 select-none hover:bg-primary-ghost-hover");
+  const r = element("div", grid ? "group/site-card relative grid h-[210px] min-w-0 grid-rows-[148px_62px] overflow-hidden rounded-2xl border border-subtle bg-surface-card shadow-sm" : "group/site-row relative col-span-full grid min-h-[82px] grid-cols-subgrid items-center overflow-hidden rounded-xl px-4 py-4 select-none hover:bg-primary-ghost-hover");
   r.setAttribute(owned, "entry"); r.dataset.siteId = site.id;
   const open = element("button", "absolute inset-0 cursor-interaction rounded-xl bg-transparent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-inset");
   open.type = "button"; open.setAttribute("aria-label", text("Open ", "打开 ") + site.title); open.onclick = () => openSite(site); r.append(open);
@@ -210,32 +214,54 @@ function showBrowserAdd({ site, project, preferProject }) {
 }
 function reconcile() {
   if (disposed) return;
+  if (currentAccount && nativeSites.accountKey() !== currentAccount) { closeMenu();dialog?.close(); }
   updateBrowserMenu();
   const page = nativeSites.pageInfo();
-  if (!page) { addButton?.remove(); addButton = null; rowsRoot?.remove(); rowsRoot = null; fallback?.remove(); fallback = null; rowSignature = ""; currentPage = null; closeMenu(); return; }
+  if (!page) { restoreOwnership();addButton?.remove(); addButton = null; rowsRoot?.remove(); rowsRoot = null; fallback?.remove(); fallback = null; rowSignature = ""; currentPage = null; closeMenu(); document.querySelectorAll("[data-mcx-sites-empty-suppressed]").forEach(e => e.removeAttribute("data-mcx-sites-empty-suppressed")); return; }
   cacheNative(page);
-  if (currentPage !== page.page) { currentPage = page.page; rowSignature = ""; if (Date.now() - refreshAt > 1500) refresh().catch(e => notice(e.message)); }
+  if (currentPage !== page.page || currentAccount !== page.accountKey) {
+    restoreOwnership();
+    if (currentAccount && currentAccount !== page.accountKey) { closeMenu(); dialog?.close(); }
+    addButton?.remove(); addButton=null; rowsRoot?.remove(); rowsRoot=null; fallback?.remove(); fallback=null;
+    currentPage = page.page; currentAccount=page.accountKey; rowSignature = "";
+    if (Date.now() - refreshAt > 1500) refresh().catch(e => notice(e.message));
+  }
+  if (page.plus && (!ownership || ownership.tabs !== page.ownershipTabs || !ownership.node.isConnected)) {
+    const added=ownership?.selection()==="added";
+    restoreOwnership();ownership=nativeSites.mountOwnership(page,()=>{restoreNativeContent();rowSignature="";schedule();});
+    if (added) ownership.selectAdded();
+  }
+  ownership?.sync();
+  const added=ownership?.selection()==="added";
+  if (added) {
+    for (const child of page.content.children) if (!child.hasAttribute(owned)) {
+      if (!nativeHidden.has(child)) nativeHidden.set(child,child.hidden);
+      child.hidden=true;
+    }
+  } else restoreNativeContent();
   if (!addButton?.isConnected && page.create) {
     addButton = button(text("Add site", "添加站点"), () => showDiscovery()); addButton.setAttribute(owned, "add");
     if (nativePlus) addButton.firstElementChild.prepend(nativePlus.cloneNode(true));
     page.create.before(addButton);
   }
   const query = page.input.value.trim().toLowerCase();
-  const sites = state.sites.filter(s => [s.title, s.url || "", state.projects.find(p => p.id === s.origin.projectId)?.name || ""].some(v => v.toLowerCase().includes(query)));
-  const signature = JSON.stringify([revision, query, page.shared, page.grid]);
-  if (signature === rowSignature && rowsRoot?.isConnected && (page.list ? rowsRoot.parentElement === page.list : fallback?.isConnected)) return;
+  const sites = ownership && !added || !ownership && page.shared ? [] : state.sites.filter(s => [s.title, s.url || "", state.projects.find(p => p.id === s.origin.projectId)?.name || ""].some(v => v.toLowerCase().includes(query)));
+  const list=added?null:page.list;
+  const signature = JSON.stringify([revision, query, page.shared, page.grid,added]);
+  if (signature === rowSignature && rowsRoot?.isConnected && (list ? rowsRoot.parentElement === list : fallback?.isConnected)) return;
   rowsRoot?.remove(); fallback?.remove(); fallback = null;
   document.querySelectorAll("[data-mcx-sites-empty-suppressed]").forEach(e => e.removeAttribute("data-mcx-sites-empty-suppressed"));
   rowsRoot = element("div"); rowsRoot.setAttribute(owned, "rows"); rowSignature = signature;
-  if (!sites.length) { rowsRoot = null; return; }
-  if (page.empty) page.empty.setAttribute("data-mcx-sites-empty-suppressed", "");
-  if (page.list) page.list.append(rowsRoot);
+  if (!sites.length && !added) { rowsRoot = null; return; }
+  if (page.empty && !added) page.empty.setAttribute("data-mcx-sites-empty-suppressed", "");
+  if (list) list.append(rowsRoot);
   else {
     fallback = element("div", "@container pb-3"); fallback.setAttribute(owned, "fallback");
     const layout = element("div"); layout.setAttribute(owned, page.grid ? "grid" : "table"); fallback.append(layout); layout.append(rowsRoot);
     page.content.append(fallback);
   }
   rowsRoot.append(...sites.map(s => row(s, page.grid)));
+  if (!sites.length) rowsRoot.append(element("p","text-sm text-secondary",text("No added sites found.","没有找到你添加的站点。")));
 }
 function schedule() { clearTimeout(timer); timer = setTimeout(reconcile, 60); }
 function newDialog(title, back) {
@@ -375,7 +401,7 @@ async function until(check, milliseconds = 7000) {
 
 async function applyWebLayout(token) {
   try {
-    await until(() => pendingLayout !== token || (nativeSites.path() !== "/space/sites" && (nativeSites.fullViewControl(true) || nativeSites.fullViewControl(false))));
+    await until(() => pendingLayout !== token || (!nativeSites.isSitesPath() && (nativeSites.fullViewControl(true) || nativeSites.fullViewControl(false))));
     if (pendingLayout !== token) return;
     const hide = [...document.querySelectorAll("button")].find(e => visible(e) && /^(Hide sidebar|隐藏侧栏|隐藏侧边栏|隱藏側邊欄|收起侧栏)$/.test(e.getAttribute("aria-label") || "")); hide?.click();
     // 使用原生完整视图入口，保留原生网页标签和底部聊天输入框。
@@ -414,9 +440,8 @@ observer.observe(document.body, { childList: true, subtree: true, attributes: tr
 document.addEventListener("input", schedule); document.addEventListener("click", onClick, true); document.addEventListener("keydown", onKey, true); document.addEventListener("pointerdown", onPointer, true);
 refresh().catch(e => notice(e.message)); schedule();
 config.registerSelfCheck?.(() => {
-  const path=nativeSites.path();
-  if (!path) return {state:"unknown",reason:"navigation-context-unavailable"};
-  if (path !== "/space/sites") return {state:"not-applicable",reason:"outside-sites-page"};
+  const scope=nativeSites.applicability();
+  if (scope !== "applicable") return {state:scope,reason:scope === "unknown" ? "account-or-navigation-unavailable" : "outside-sites-page"};
   const page=nativeSites.pageInfo(),available=Boolean(page?.create && addButton?.isConnected);
   return {state:available ? "available" : "unavailable",reason:available ? null : "sites-anchor-unavailable",
     checks:[{name:"sites-page",available:Boolean(page)},{name:"sites-create-anchor",available}],scopes:[{name:"sites-page",element:page?.page},{name:"sites-dialog",element:dialog},{name:"sites-menu",element:menu}]};
@@ -425,5 +450,6 @@ return () => {
   disposed = true; pendingLayout = null; clearTimeout(timer); observer.disconnect();
   document.removeEventListener("input", schedule); document.removeEventListener("click", onClick, true); document.removeEventListener("keydown", onKey, true); document.removeEventListener("pointerdown", onPointer, true);
   closeMenu(); dialog?.close(); document.querySelectorAll(`[${owned}]`).forEach(e => e.remove());
+  restoreOwnership();
   document.querySelectorAll("[data-mcx-sites-empty-suppressed]").forEach(e => e.removeAttribute("data-mcx-sites-empty-suppressed"));
 };
