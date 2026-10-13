@@ -101,7 +101,42 @@ export function createCodexEnvironment() {
     const scope = node && props(node, value => Boolean((value.router ?? value.value?.router)?.state?.location));
     return (scope?.router ?? scope?.value?.router)?.state?.location?.pathname ?? null;
   }
-  return { composer, composerSurface, rail, railSlot, route, navigation, mcpAppSource, currentThreadId:element => composer(element)?.threadId ?? null,
+  function account(signal, invalidate) {
+    let client, unsubscribe;
+    const cleanup = () => { unsubscribe?.(); unsubscribe = null; client = null; };
+    signal?.addEventListener("abort", cleanup, {once:true});
+    return {read() {
+      let auth, nextClient;
+      props(rail(), value => {
+        for (const candidate of [value.auth, value.value]) {
+          if (candidate && "authMethod" in Object(candidate) && "accountId" in Object(candidate)) auth ||= candidate;
+        }
+        for (const candidate of [value.queryClient, value.client, value.value]) {
+          if (typeof candidate?.getQueryData === "function" && typeof candidate?.getQueryCache === "function") nextClient ||= candidate;
+        }
+        return Boolean(auth && nextClient);
+      });
+      if (nextClient !== client) {
+        cleanup(); client = nextClient;
+        if (invalidate && !signal?.aborted) unsubscribe = client?.getQueryCache().subscribe(event => {
+          if (event.query?.queryKey?.[0] === "accounts") invalidate();
+        });
+      }
+      const unknown = {status:"unknown", planType:null, source:null, key:null};
+      if (signal?.aborted || !auth || auth.isLoading || !auth.userId || !auth.accountId
+        || !["chatgpt", "chatgptAuthTokens"].includes(auth.authMethod)) return unknown;
+      const data = client?.getQueryData(["accounts", "check"]);
+      const current = data?.accounts?.find(value => value.id === auth.accountId);
+      // 已有账号清单却找不到当前身份时，不借用上一个账号的登录套餐。
+      if (data && !current) return unknown;
+      const cachedPlan = typeof current?.plan_type === "string" ? current.plan_type : null;
+      const loginPlan = typeof auth.planAtLogin === "string" ? auth.planAtLogin : null;
+      const planType = cachedPlan ?? loginPlan;
+      if (!planType || planType === "unknown") return unknown;
+      return {status:"available", planType, source:cachedPlan ? "accounts/check" : "planAtLogin", key:JSON.stringify([auth.userId, auth.accountId])};
+    }};
+  }
+  return { composer, composerSurface, rail, railSlot, route, navigation, account, mcpAppSource, currentThreadId:element => composer(element)?.threadId ?? null,
     // 仅供 UI／插件 native Adapter 使用，交互层不读取 React props。
     currentFiber, props, report, diagnostics:() => [...capabilities.values()].map(item => ({...item})) };
 }

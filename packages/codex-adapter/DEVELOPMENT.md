@@ -11,6 +11,7 @@
 | `composerSurface(element?)` | 返回可见正式会话外壳 root/threadId，独立于编辑区是否存在或暂时 inert；供会话状态呈现与宿主统计订阅使用。真正隐藏、移入浮层、切换 home 或卸载时返回 null；不能作为文字插入许可 |
 | `route()` | 当前原生路由 pathname；只返回路径类型信息，不返回路由 state；缺失上下文返回 null，供功能判定适用场景 |
 | `navigation()` | 当前路由 path/key、提交订阅与原生导航动作；不暴露 router 或 React props，供同窗口恢复路由 |
+| `account(signal?, invalidate?)` | 返回 `read()`，输出 status/planType/source/key。优先从原生 `accounts/check` 读取当前 accountId 的套餐，清单未加载时使用 auth.planAtLogin；身份加载中、缺失、非 ChatGPT 或清单不包含当前账号时返回 unknown。传入 invalidate 时订阅 accounts 缓存变化，signal abort 释放订阅；不请求接口、不暴露凭据。Images／Sites 用该结果选择 Plus 或 Space 分支 |
 | `mcpAppSource(sourceWindow, identity)` | 验证直接或 sandbox 内层 iframe 所属 MCX server/plugin 与准确资源 URI，返回连接状态句柄 |
 | `rail()` / `railSlot(ownGroup)` | 可见原生 rail 与模板/滚动区/固定组句柄；不包含插件菜单策略 |
 | `currentFiber(element)` / `props(element,predicate,limit?)` | 仅供 native Adapter 使用；优先匹配当前 committed props，支持最近祖先的 scope |
