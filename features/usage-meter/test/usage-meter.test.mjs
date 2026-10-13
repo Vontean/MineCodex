@@ -16,16 +16,16 @@ const bucket = (used_percent, limit_window_seconds) => ({ used_percent, limit_wi
 const data = (primary, secondary = null) => ({ user_id: "user-a", account_id: "account-a", rate_limit: { primary_window: primary, secondary_window: secondary } });
 
 test("weekly-only plans show remaining percent, including 0 and 100", () => {
-  assert.deepEqual(remainingWindows(data(bucket(25, 604800))), { weekly: 75, fiveHour: null, primary: 75 });
+  assert.deepEqual(remainingWindows(data(bucket(25, 604800))), { weekly: 75, fiveHour: null, primary: 75, resetAt: { weekly: null, fiveHour: null } });
   assert.equal(remainingWindows(data(bucket(100, 604800))).primary, 0);
   assert.equal(remainingWindows(data(bucket(0, 604800))).primary, 100);
 });
 
 test("five-hour value takes precedence regardless of primary/secondary order", () => {
-  const expected = { weekly: 75, fiveHour: 40, primary: 40 };
+  const expected = { weekly: 75, fiveHour: 40, primary: 40, resetAt: { weekly: null, fiveHour: null } };
   assert.deepEqual(remainingWindows(data(bucket(60, 18000), bucket(25, 604800))), expected);
   assert.deepEqual(remainingWindows(data(bucket(25, 604800), bucket(60, 18000))), expected);
-  assert.deepEqual(remainingWindows({ ...data(bucket(25, 604800), bucket(100, 18000)), plan_type: "unrecognized-plan" }), { weekly: 75, fiveHour: 0, primary: 0 });
+  assert.deepEqual(remainingWindows({ ...data(bucket(25, 604800), bucket(100, 18000)), plan_type: "unrecognized-plan" }), { weekly: 75, fiveHour: 0, primary: 0, resetAt: { weekly: null, fiveHour: null } });
 });
 
 test("invalid or missing windows do not become fabricated 100 percent", () => {
@@ -33,7 +33,7 @@ test("invalid or missing windows do not become fabricated 100 percent", () => {
   assert.equal(remainingWindows(null), null);
   assert.equal(remainingWindows(data(bucket(25, 300))), null);
   assert.equal(remainingWindows(data(bucket(25, 18000))), null);
-  assert.deepEqual(remainingWindows(data(bucket(25, 604800), bucket(null, 18000))), { weekly: 75, fiveHour: null, primary: 75 });
+  assert.deepEqual(remainingWindows(data(bucket(25, 604800), bucket(null, 18000))), { weekly: 75, fiveHour: null, primary: 75, resetAt: { weekly: null, fiveHour: null } });
 });
 
 test("clamps and rounds remaining percentage", () => {
@@ -118,11 +118,11 @@ const documentFixture = {
 const render = new Function("document", `${source.slice(0, source.indexOf("function positionTooltip()"))}\nreturn windows => { record = {button: document.createElement('button'), tooltip: document.createElement('div')}; draw(windows); return record; };`)(documentFixture);
 
 test("two-segment render keeps the five-hour number and quota tooltip", () => {
-  const { button, tooltip } = render({ weekly: 75, fiveHour: 40, primary: 40 });
+  const { button, tooltip } = render({ weekly: 75, fiveHour: 40, primary: 40, resetAt: { weekly: null, fiveHour: null } });
   const [svg, number] = button.children;
   assert.equal(number.textContent, "40");
   assert.deepEqual(svg.children.map(group => group.attributes["data-window"]), ["fiveHour", "weekly"]);
-  assert.deepEqual(tooltip.children[0].children.map(node => node.textContent), ["5h Limit", "40%", "Weekly Limit", "75%"]);
+  assert.deepEqual(tooltip.children[0].children.flatMap(group => group.children.map(node => node.textContent)), ["5h Limit", "40%", "Weekly Limit", "75%"]);
 });
 
 const arcValues = path => path.attributes.d.match(/-?\d+(?:\.\d+)?(?:e[+-]?\d+)?/gi).map(Number);
@@ -168,13 +168,45 @@ test("both quotas deplete from the left cut, keeping their right endpoints fixed
 });
 
 test("single-ring render and exhausted limits have no extra row or progress dot", () => {
-  const { button, tooltip } = render({ weekly: 0, fiveHour: null, primary: 0 });
+  const { button, tooltip } = render({ weekly: 0, fiveHour: null, primary: 0, resetAt: { weekly: null, fiveHour: null } });
   assert.equal(button.children[0].children.length, 1);
   assert.equal(button.children[0].children[0].children.length, 1);
   assert.equal(button.children[1].textContent, "0");
-  assert.deepEqual(tooltip.children[0].children.map(node => node.textContent), ["Weekly Limit", "0%"]);
+  assert.deepEqual(tooltip.children[0].children.flatMap(group => group.children.map(node => node.textContent)), ["Weekly Limit", "0%"]);
   const full = render({ weekly: 100, fiveHour: null, primary: 100 }).button.children[0].children[0];
   assert.equal(full.children[0].tag, "circle");
   assert.equal(full.children[1].attributes["stroke-dasharray"], "100 100");
   assert.equal(full.children[1].attributes.transform, "rotate(-90 16 16)");
+});
+
+
+test("reset timestamps follow window duration and prefer absolute Unix seconds", t => {
+  const weekly = { ...bucket(25, 604800), reset_at: 1791909000, reset_after_seconds: 300 };
+  const fiveHour = { ...bucket(60, 18000), reset_after_seconds: 10800 };
+  const client = { ...quotaClient(() => data(weekly, fiveHour)), getQueryState: () => ({ dataUpdatedAt: 1791810000000 }) };
+  const read = () => currentWindows({ auth, client });
+  assert.deepEqual(read().resetAt, { weekly: 1791909000000, fiveHour: 1791820800000 });
+  t.mock.method(Date, "now", () => 1791817200000);
+  assert.deepEqual(read().resetAt, { weekly: 1791909000000, fiveHour: 1791820800000 });
+  for (const reset_at of [null, "1791909000", NaN, Infinity, -1]) {
+    assert.equal(remainingWindows(data({ ...bucket(25, 604800), reset_at })).resetAt.weekly, null);
+  }
+  assert.equal(remainingWindows(data({ ...bucket(25, 604800), reset_after_seconds: 300 })).resetAt.weekly, null);
+  for (const reset_after_seconds of [-1, "300", NaN, Infinity]) {
+    const client = { ...quotaClient(() => data({ ...bucket(25, 604800), reset_after_seconds })), getQueryState: () => ({ dataUpdatedAt: 1791810000000 }) };
+    assert.equal(currentWindows({ auth, client }).resetAt.weekly, null);
+  }
+});
+
+test("tooltip shows local reset dates to the minute within each quota group", () => {
+  const fiveHour = new Date(2026, 9, 14, 1, 5, 59).getTime();
+  const weekly = new Date(2026, 9, 20, 18, 30).getTime();
+  const { tooltip } = render({ weekly: 75, fiveHour: 40, primary: 40, resetAt: { fiveHour, weekly } });
+  assert.deepEqual(tooltip.children[0].children.map(group => group.children.map(node => node.textContent)), [
+    ["5h Limit", "40%", "Reset in", "10/14 01:05"],
+    ["Weekly Limit", "75%", "Reset in", "10/20 18:30"],
+  ]);
+  const single = render({ weekly: 75, fiveHour: null, primary: 75, resetAt: { weekly } }).tooltip;
+  assert.equal(single.children[0].children.length, 1);
+  assert.deepEqual(single.children[0].children[0].children.map(node => node.textContent), ["Weekly Limit", "75%", "Reset in", "10/20 18:30"]);
 });

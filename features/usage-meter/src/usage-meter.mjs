@@ -25,6 +25,8 @@ style.textContent = `
 #${TIP_ID} dl { display:grid; grid-template-columns:auto auto; gap:2px 16px; margin:0; }
 #${TIP_ID} dt { text-align:left; }
 #${TIP_ID} dd { margin:0; text-align:right; font-variant-numeric:tabular-nums; }
+#${TIP_ID} .mcx-usage-group { display:grid; grid-template-columns:subgrid; grid-column:1 / -1; gap:2px 16px; }
+#${TIP_ID} .mcx-usage-group + .mcx-usage-group { border-top:1px solid color-mix(in srgb,var(--mcx-color-border-subtle) 50%,transparent); margin-top:calc(var(--mcx-spacing) * 1); padding-top:calc(var(--mcx-spacing) * 1); }
 `;
 document.head.append(style);
 
@@ -45,6 +47,7 @@ function quotaArc(start, end, clockwise) {
 }
 
 function draw(windows) {
+  record.windows = windows;
   const svg = svgNode("svg", { viewBox: "0 0 32 32", class: "mcx-usage-ring", "aria-hidden": "true" });
   if (windows.fiveHour != null) {
     // 左下、右下各留 24° 圆头中心间距；两段都从左下切口扣减。
@@ -74,13 +77,24 @@ function draw(windows) {
   number.setAttribute("data-digits", String(number.textContent.length));
   record.button.replaceChildren(svg, number);
   const list = document.createElement("dl");
-  const rows = windows.fiveHour == null ? [] : [["5h Limit", windows.fiveHour]];
-  rows.push(["Weekly Limit", windows.weekly]);
-  for (const [label, percent] of rows) {
+  const rows = windows.fiveHour == null ? [] : [["5h Limit", windows.fiveHour, windows.resetAt?.fiveHour]];
+  rows.push(["Weekly Limit", windows.weekly, windows.resetAt?.weekly]);
+  for (const [label, percent, resetAt] of rows) {
+    const group = document.createElement("div");
+    group.className = "mcx-usage-group";
     const term = document.createElement("dt"), value = document.createElement("dd");
     term.textContent = label;
     value.textContent = `${percent}%`;
-    list.append(term, value);
+    group.append(term, value);
+    const date = new Date(resetAt);
+    if (resetAt != null && Number.isFinite(date.getTime())) {
+      const resetTerm = document.createElement("dt"), resetValue = document.createElement("dd");
+      resetTerm.textContent = "Reset in";
+      const pad = value => String(value).padStart(2, "0");
+      resetValue.textContent = `${pad(date.getMonth() + 1)}/${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+      group.append(resetTerm, resetValue);
+    }
+    list.append(group);
   }
   record.tooltip.replaceChildren(list);
   record.button.setAttribute("aria-label", rows.map(([label, percent]) => `${label} ${percent}%`).join(", "));
@@ -100,6 +114,7 @@ function positionTooltip() {
 function showTooltip() {
   clearTimeout(hoverTimer);
   if (!record) return;
+  draw(record.windows);
   record.tooltip.hidden = false;
   record.button.setAttribute("aria-describedby", TIP_ID);
   positionTooltip();
