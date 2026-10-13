@@ -1,34 +1,12 @@
-# Product
+# 模型选择的产品目标
 
-## Register
+面向经 OpenCodex 在 OpenAI 与第三方模型间切换的用户。目标是在 Composer 内更快识别和选择模型，同时保持原生思考档位、Fast、警告与键盘行为真实一致。
 
-product
+## 决策依据
 
-## Users
+- 模型身份是主信息，Provider 是辅助信息；帮助区分接入来源，又不增加输入框噪声。
+- 收藏与固定搜索服务大目录的查找任务，不另建管理页面。搜索时保留焦点与稳定的底边，避免筛选改变操作位置。
+- 显示名可以压缩，真实身份和可用档位保持原生契约；呈现优化不能改变用户选中的能力。
+- 私有契约失效时保留原生选择器，避免增强阻断最基本的模型选择。
 
-Codex desktop users who route work through OpenCodex and routinely switch between OpenAI and third-party models. They need to compare many model/provider combinations without leaving the Composer flow.
-
-## Product Purpose
-
-Enhance Codex's native model picker with provider-aware model identity, favorites, and a compact scrollable list with an always available, initially focused search field. Keep search visible while scrolling and resize filtered results smoothly around the fixed bottom edge. Preserve Codex's real model, reasoning-effort, Fast-mode, warning, and keyboard state. Success means the enhanced picker feels native and makes a large routed catalog faster to scan and operate.
-
-## Brand Personality
-
-Native, restrained, precise.
-
-## Anti-references
-
-Do not create a separate dashboard, iframe, branded control system, decorative AI surface, or a visually louder replacement for Codex. Do not fake model state or bypass native warnings.
-
-## Design Principles
-
-- Preserve native behavior before enhancing presentation.
-- Preserve Codex's native Slider shell and width; shorten routed model labels to their final path segment before native truncation.
-- Keep provider identity visible without increasing Composer noise.
-- Add complexity only when catalog size requires it.
-- Fail closed to the unmodified native picker when private DOM changes.
-- Keep all Codex-version-sensitive adaptation inside CodexRuntimeHost.
-
-## Accessibility & Inclusion
-
-Retain native menu roles, slider keyboard support, visible focus, and Fast-mode semantics. New controls provide English and Simplified Chinese labels, remain operable by keyboard, respect reduced motion, and never rely on color alone.
+完成标准：用户能在不离开输入流程的情况下找到目标模型，原生状态、警告和键盘反馈仍一致。排序、布局与动态选择见 [DESIGN.md](DESIGN.md)，隔离接入见 [DEVELOPMENT.md](DEVELOPMENT.md)，适配归属遵循根 [ARCHITECTURE.md](../../ARCHITECTURE.md)。

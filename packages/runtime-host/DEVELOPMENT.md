@@ -3,7 +3,7 @@
 本机个人 Codex 功能的统一运行宿主。它是统一 Injector 与生命周期宿主，负责：
 
 - 连接或启动支持 loopback CDP 的隔离 Codex 桌面实例；
-- 从同级项目的 `codex-feature.json` 注册 Sidebar 或 Conversation toolbar 入口；
+- 从功能 manifest 发现并组装声明的 Renderer / Surface 接入；
 - 挂载 full-page、Pinned Summary，并把 Detail iframe Surface 优先注册为 Codex 原生右侧 Task Tab；
 - 把 Codex 当前 resolved Theme Tokens 同步给每个 Surface；
 - 执行经过 manifest allowlist、Surface 身份和 renderer token 校验的 Host actions；
@@ -12,93 +12,34 @@
 各功能项目继续拥有自己的数据、HTTP API 与页面。宿主不读取业务数据库；单个
 功能服务失效不会阻止 Codex 或其他功能运行。
 
-## 启动与验证
+## 隔离启动与验证
+
+以下命令从仓库根执行。先按 [Model Slider 隔离说明](../../features/model-slider/DEVELOPMENT.md) 显式启动独立 Codex 窗口，再让宿主接入同一 profile / CDP；示例仅加载 Model Slider，避免启动其他功能服务。
 
 ```bash
-npm start
-npm test
+CODEX_FEATURES_ROOT="$PWD/features" \
+MINECODEX_ENABLED_FEATURES=model-slider \
+CODEX_RUNTIME_PROFILE_DIR="$HOME/.codex-model-slider/codex-profile" \
+CODEX_RUNTIME_CDP_PORT=9233 \
+node packages/runtime-host/src/main.mjs
+```
+
+改变验证范围时，服务端口和业务数据目录也应隔离；仅设置 Electron profile 不代表所有功能数据已隔离。运行参数查询启动入口与所属功能，不使用默认启动命令替代隔离接入。
+
+```bash
+npm run test:runtime
 npm run check
 ```
 
-宿主默认扫描上层目录中的同级项目。只有当 manifest 的 `healthUrl` 返回的 JSON 同时满足
-`ok === true`、`service === feature.id`、`protocolVersion === 1`，且 `instanceId` 等于本次 RuntimeHost
-生成并传给功能进程的 `MINECODEX_FEATURE_INSTANCE_ID` 时，宿主才会复用现有服务。仅仅可达或
-返回 2xx 的 foreign / stale 服务不会被信任；身份不匹配时，宿主会在项目目录执行其
-`command`。可用以下环境变量启动隔离实例：
+## 发现、资源与服务身份
 
-```bash
-CODEX_FEATURES_ROOT=/path/to/features \
-CODEX_RUNTIME_PROFILE_DIR=/tmp/codex-profile \
-CODEX_RUNTIME_CDP_PORT=9232 \
-MINECODEX_CODEX_EXECUTABLE=/path/to/Codex \
-npm start
-```
+当前 manifest 字段、入口类型和可用 host action 以 `src/feature-registry.mjs` 及实际功能 manifest 为准。page-script、模型选择器与 iframe Surface 保留各自加载方式；旧 Sidebar / Conversation toolbar 能力仍有独立契约，但历史 Notes 的 Summary / Todo 示例不代表当前 Prompt 入口。
 
-## Sidebar / page manifest
+资源、图标与源码工厂限制在所属功能目录。源码工厂显式组装序列化依赖，资源由宿主读取后传入；业务规则不在宿主复制。协议 ID 保持语言无关，可见标签使用 locale map 或现有字符串分支。
 
-旧 manifest 保持兼容；没有 `entry` 时默认仍是 Sidebar：
+HTTP 服务健康必须同时匹配功能身份、协议版本和本次宿主传入的 instanceId。仅可达或返回 2xx 不能证明是所属进程，避免复用其他实例或过期服务。检查失败按已声明 command 启动并验证所属服务；page-script 不虚构 HTTP 健康状态。
 
-```json
-{
-  "schemaVersion": 1,
-  "id": "images",
-  "label": "Images",
-  "surfaceUrl": "http://127.0.0.1:47831/",
-  "placement": { "after": "sites", "order": 10 },
-  "command": ["node", "src/main.mjs"],
-  "icon": {
-    "viewBox": "0 0 24 24",
-    "markup": "<rect ...></rect>"
-  }
-}
-```
-
-## Conversation toolbar / responsive summary manifest
-
-```json
-{
-  "schemaVersion": 1,
-  "id": "notes",
-  "label": { "en": "Notes", "zh-CN": "笔记" },
-  "surfaceUrl": "http://127.0.0.1:47832/?surface=summary",
-  "healthUrl": "http://127.0.0.1:47832/api/health",
-  "entry": {
-    "kind": "conversation-toolbar",
-    "ariaLabel": { "en": "Toggle pinned notes", "zh-CN": "切换固定笔记" }
-  },
-  "pinnedSummary": {
-    "label": { "en": "Pinned Notes", "zh-CN": "固定笔记" },
-    "surfaceUrl": "http://127.0.0.1:47832/?surface=summary",
-    "presentation": "responsive-summary",
-    "overlayLabel": { "en": "Toggle notes", "zh-CN": "切换笔记" },
-    "pinnedLabel": { "en": "Toggle pinned notes", "zh-CN": "切换固定笔记" }
-  },
-  "detailTabs": [
-    { "id": "todo", "label": { "en": "Todo", "zh-CN": "待办" }, "surfaceUrl": "http://127.0.0.1:47832/?surface=todo" },
-    { "id": "prompts", "label": { "en": "Prompts", "zh-CN": "提示词" }, "surfaceUrl": "http://127.0.0.1:47832/?surface=prompts" }
-  ],
-  "hostActions": ["insert-text", "attach-file", "open-detail-tab", "open-editor-modal", "resolve-file-paths"],
-  "command": ["node", "src/main.mjs"],
-  "icon": { "resource": "node_modules/lucide-static/icons/notebook-tabs.svg" }
-}
-```
-
-`icon.resource` 必须留在功能项目目录内。宿主读取真实 SVG 的 `viewBox` 与内部
-markup；功能不需要把第三方 SVG 复制进 manifest。
-
-`label`、`entry.ariaLabel`、Pinned Summary 的三个 label 与 Detail Tab label 均可使用
-单个字符串或 `{ "en": "…", "zh-CN": "…" }` locale map。字符串 manifest 保持
-向后兼容；locale map 以 English 为 fallback，并按 Codex 文档语言选择显示文本。
-Host action、feature id 与 detail id 是协议标识，必须保持语言无关。
-
-Conversation toolbar 入口复制原生按钮结构后会规范化交互类：关闭态保持透明并使用
-tertiary icon color，只有真实 hover 或 `data-state=open` 时才使用 Codex 原生
-`list-hover-background`，避免把创建瞬间的原生激活样式固化到功能按钮上。
-Conversation toolbar 的结构遵循原生分组，而不只追求图标顺序：有原生 Summary 时，
-Feature 入口直接加入 Summary 所在的中间功能组并紧跟在 Summary 后；New Chat 尚无
-Summary 时，宿主在中间 toolbar 的右端建立同构的 Summary feature group。可见的
-`Toggle bottom panel` 仅作为 New Chat 状态下定位中间 toolbar 的稳定锚点，Feature 不会
-进入也不会扩宽最右侧的 Bottom Panel / Side Panel 原生组。
+旧 Conversation toolbar Surface 的入口属于原生中间功能组，不扩宽最右侧面板按钮组；克隆按钮时根据真实关闭、hover 与打开状态更新表现，避免固化模板的激活样式。
 
 ## Surface 协议
 
@@ -169,38 +110,18 @@ Host 会再次发送当前状态。功能页面可据此暂停隐藏状态下的
 | loopback HTTP、manifest、Surface message schema | 项目自有稳定接口 | 可由测试直接覆盖 |
 | `window.electronBridge.getPathForFile` | 当前稳定 internal/preload | 仅用于 Finder `File` 路径解析 |
 | React right-panel `openTab`、Task scope、JSX runtime | private internal capability | 动态发现 bundle 并做能力检测；失败时返回明确的不可用错误 |
-| toolbar、summary、tabs、Composer selectors | DOM inference | 统一留在本 Adapter |
+| toolbar、summary、tabs、Composer selectors | DOM inference | 共享 Surface 接入归宿主；功能专有协议归所属 Adapter |
 | `Runtime.addBinding`、`DOM.setFileInputFiles`、注入脚本 | high-risk CDP | 必须使用隔离 profile 验收 |
 | `togglePinnedSummary`、`composer.addFiles` 字符串 | 探索证据 | 当前实现不把它们当契约 |
 
 这是非官方 CDP / DOM Adapter，不是公开的 Codex Contribution API。Codex 更新后按协议所有者修复：共享注入和生命周期归宿主，专有原生组件与 API 归对应插件 Adapter；领域规则与 Web UI不应直接跟随外部协议重写。
 
 
-## 共享弹窗与浮层
+## UI 安装与功能接线
 
-通用视觉、原生材质分支、遮罩及层级的权威来源为根 [DESIGN.md](../../DESIGN.md)，内部文件导航见 [AGENTS.md](../../AGENTS.md)。组件库目标与现有实现归属见 [UI 架构](../ui/ARCHITECTURE.md)。本节只说明当前接入契约。
+宿主安装共享 UI 源码，并通过 `config.ui` 传给 page-script；组件接入与恢复契约见 [UI 局部约定](../ui/DESIGN.md)，视觉选型见根 [DESIGN.md](../../DESIGN.md)。宿主不持有通用组件实现或功能材质副本。
 
-`packages/ui/src/install.mjs` 组装共享组件源码，在 Renderer 中只安装一次，由 page-script 的 `config.ui` 调用：
-
-```js
-config.ui.heading(dialog, { title, closeLabel, onClose, back });
-const actions = config.ui.footer(document.createElement("div"));
-actions.append(config.ui.action(saveButton, "primary"));
-config.ui.overlay(backdrop);
-config.ui.surface(popover); // 只统一材质，保留功能的定位与内容
-```
-
-`heading` 标记 dialog 并创建标题及 Close；`back` 是可选的已有按钮节点。容器宽高、内容、原生 dialog 或自定义焦点管理、关闭后的焦点恢复继续由功能负责。`footer` 只装饰直接子按钮，`action` 的 tone 为 ghost / secondary / primary / danger。不要再在插件中复制背景、阴影、标题和底部按钮规则。
-
-共享组件已迁入 UI workspace。Prompts 与 Sites 管理弹窗选用 opaque / Sites Share；Quick Prompts 使用 ComposerMenu；管理菜单和模型列表选择 Dropdown，Session Status 与任务切换选择 Popover。组件库负责各分支视觉，宿主不复制实现。
-
-page-script 可以用 manifest 的 `entry.resources` 声明本功能内的 CSS/图标资源，宿主读取后通过 `config.resources` 一次传入。JSON 作为数据、其他文件作为文本；越出功能目录的路径会被拒绝。它不改变 host action、服务启动或消息协议。
-
-Images 提示词面板沿用原生 File info 的附属信息面板结构；iframe 页面继续通过宿主接收主题。会话统计与云 Library 业务归所属插件，Runtime Host 只组合业务能力和外部连接。领域规则与架构层参见根 [ARCHITECTURE.md](../../ARCHITECTURE.md)。
-
-`entry.sourceFactory` 可声明本插件内的源码工厂，导出 `createPageScriptSource()` 并返回 Renderer 函数体字符串。工厂路径不能越出插件；纯领域函数由插件工厂序列化，宿主不维护规则副本。Images 使用这一接口共享图片提示词溯源规则。
-
-Model Slider 的模型规则、原生控制器适配和专有呈现位于插件 `src/domain` / `src/frontend`，安装源码由插件工厂组装。宿主仅提供配置、locale、共享 UI、图标与刷新调度，维护 ensure/dispose 接线；原生菜单开合和节点恢复由插件负责。
+Model Slider 的原生控制器、菜单与节点恢复归功能，宿主只维护配置与共享句柄传递、ensure/dispose 调度。其他功能的专有协议遵循根 [ARCHITECTURE.md](../../ARCHITECTURE.md)。
 
 ## 项目控制台入口
 

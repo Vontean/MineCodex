@@ -16,7 +16,8 @@ output/
 !.env.sample
 **/.impeccable/live/
 
-# 本地调查、阶段计划、历史交接与验收证据；当前规范仍纳入 Git。
+# 本地讨论、调查、阶段计划、历史交接与验收证据；当前规范仍纳入 Git。
+/docs/discussions/
 /docs/research/
 /docs/verification/
 /docs/history/

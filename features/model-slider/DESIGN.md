@@ -39,7 +39,7 @@ Composer 触发器区分两种状态：占位态（"Select model" / "Select effo
 
 ## 代码归属
 
-模型身份、品牌与别名、目录匹配、路由去重及档位交集由 `src/domain/model-rules.mjs` 维护，不读取 DOM 或收藏存储。`src/frontend/install.mjs` 维护原生控制器适配、收藏缓存、菜单、滑条与节点恢复，使用共享 Dropdown 材质。`src/injection-source.mjs` 将两者组装为自包含 Renderer 安装函数；宿主只提供配置、locale、共享 UI、图标工厂与刷新调度，调用 ensure/dispose。
+模型身份、品牌与别名、目录匹配、路由去重及档位交集由 `src/domain/model-rules.mjs` 维护，不读取 DOM 或收藏存储。专有原生控制器协议由 `src/adapters/codex/` 维护；`src/frontend/install.mjs` 消费控制器视图与命名动作，管理收藏缓存、菜单、滑条与呈现，使用共享 Dropdown 材质。`src/injection-source.mjs` 将规则、Adapter 和前端组装为自包含 Renderer 安装函数；宿主只提供配置、locale、共享 UI、图标工厂与刷新调度，调用 ensure/dispose。
 
 模型收藏由 `src/backend/favorites.mjs` 持久化；Renderer 首次接入通过 `model-favorites`
 host action 收录旧 localStorage 收藏，之后以后端为准。当前窗口保留本地缓存以维持菜单响应；

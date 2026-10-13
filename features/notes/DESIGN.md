@@ -5,8 +5,9 @@
 ## 范围与数据
 Prompts 页面负责新增、编辑、分类、Emoji、排序和统计；Quick Prompts Popover 只浏览和插入。移除旧顶部 Notes 入口、固定摘要、Todo 和 Files 界面。沿用 `notes` 功能 ID 与 SQLite，保留已有提示词、历史 Todo / Files 数据和用户文件。
 
-## 原生依据
-2026-09-27 在隔离 Codex 实测导航扩展区、Library 页面及 Add files and more。
+## 原生参照与入口
+视觉参照来自已记录的 Library、SymbolBrowser 与 Composer 原生组件。官方入口依据 Codex 26.930.51102 的安装源码；输入框展开方向的依据见下文，旧注入页面壳不作为当前管理页接入方式。
+
 - Prompt 管理页由 MCX 官方 MCP 插件注册 global 与 thread 入口，使用现有 book-open 图标；名称为 Prompt，不注入 navbar。侧栏固定与收纳由 Codex 管理；panel 的 New tab → More tools → Plugins and MCPs 经 thread 入口打开同一管理页。默认与填充图标共用原生 20px 容器；填充资源通过 viewBox 留白对齐可见宽度，选中时不放大。
 - Quick Prompts 位于 Add 与 Change permissions 之间，克隆 Add 的按钮 classes 与响应式图标容器。入口采用 Lucide book-open；保留 16 / 20px 图标容器，viewBox 扩为 27，将图形缩小约 11%；non-scaling-stroke 保持 1.5px 笔画，热区仍为 28px。
   只复用 Add 的外观，不继承其 `disabled` / `aria-disabled` 状态；可见且可编辑的输入框允许打开提示词。已有 Chat 加载时 Add 可能暂时禁用，不能使提示词入口持续禁用。
@@ -46,7 +47,7 @@ Header 为 Prompts；右侧依次为排序图标、分类调节图标、视图�
 ## 统计
 成功插入后原子增加 `use_count` 并更新 `called_at`，保存于现有 SQLite。创建、编辑、复制和排序不计数。历史次数未知，从 0 开始，不从旧 `last_used_at` 推断。删除分类、切换页面、重启不清零。
 
-本地数据只以 textContent 和表单值渲染，不执行提示词里的 HTML。页面关闭恢复底层原生视图的焦点能力；功能禁用移除所有本功能入口和视图。
+本地数据只以 textContent 和表单值渲染，不执行提示词里的 HTML。功能禁用清理输入框注入入口与视图，官方页面的数据请求由功能开关控制；官方面板的焦点与页面壳由宿主管理。
 
 ## 空状态与编辑细节
 空分类和搜索无结果沿用 Scheduled 的48px Emoji、18px medium标题、次级说明布局；空分类提供 New prompt。All 分组副标题采用 text-sm、500字重与 text-tertiary。Cancel 选择通用 ghost，保存选择 primary，Delete 选择 danger；非空分类删除前独立确认，明确提示词移到 Other，内容与调用次数保留。
@@ -55,11 +56,7 @@ Header 为 Prompts；右侧依次为排序图标、分类调节图标、视图�
 
 拖拽排序使用等高 Drop Placeholder，拖影跟随指针并显式按源行圆角裁切，不留下矩形外边界；同组条目以 180ms ease-out 让位，落位淡入 140ms。放到范围外或取消恢复原位，不写入排序。遵循 prefers-reduced-motion。
 
-页面选择通用 Page 的 `sidebar:"none"` 分支，自身不带常驻二级侧栏，保留原生 Home、Space、Scheduled sidebar 的悬浮叠加与导航行为。关闭页面恢复原页面位置，不改变用户的侧栏展开偏好。原生二级入口（如 Space → Images）提交导航后，通过共享 Page 的 `onNavigate` 关闭 Prompts、编辑浮层并释放底层 inert；保留用户刚选择的目标路由。仅悬浮展开侧栏不退出 Prompts。
-
 提示词编辑沿用原生 Project 的复合标题输入：40px 图标段位于标题前，细分隔线，共用圆角边框与 focus-within 状态。图标选择入口不再单独占一行；Title 通过 aria-label 标识。
-
-Prompts 导航状态调用通用 `ui.navigationRail`：未选中／hover使用outline，选中使用filled，打开页面时取消原生视觉选中，关闭或卸载恢复。原生图标资源读取与选中属性恢复由通用层维护；Navbar Tooltip 使用通用右侧定位与原生延迟。
 
 Category 下拉面板与触发栏等宽、左右对齐，宽度包含内边距；每次打开按当前触发栏尺寸计算。
 

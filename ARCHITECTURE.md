@@ -1,137 +1,72 @@
 # MineCodex 架构约定
 
-本文件负责领域归属、架构层与模块接口；通用视觉由 [DESIGN.md](DESIGN.md) 负责，内部文件导航由 [AGENTS.md](AGENTS.md) 负责。UI 结构与接入细节见 [组件库架构](packages/ui/ARCHITECTURE.md)。
-
-## 领域与架构层
-
-### 官方插件入口与增强运行时
-
-```mermaid
-flowchart TB
-  Entry["Codex 原生插件入口<br/>Explore／探索 · 可固定到侧栏"]
-  Panel["MCX 控制台<br/>官方 MCP App"]
-  Bridge["packages/plugin<br/>UI 资源 · MCP 操作桥"]
-  Service["packages/cli<br/>本地配置 · 数据 · 服务管理"]
-  Runtime["Runtime Host<br/>CDP · 注入 · 生命周期"]
-  Features["features/*<br/>现有增强与交互"]
-  Prompt["Prompt · 官方 MCP App<br/>独立图标"]
-  Notes["MCX notes 服务<br/>原有 SQLite · 分类 · 统计"]
-  Composer["输入框注入<br/>首页 · 聊天 · 面板 · 浮窗"]
-  Entry --> Panel --> Bridge --> Service --> Runtime --> Features
-  Entry --> Prompt --> Bridge --> Notes
-  Runtime --> Composer
-  Prompt -->|来源窗口绑定 · 填入后计数| Composer
-```
-
-官方插件只负责原生入口、面板资源和通信，不拥有增强进程。关闭面板或退出 MCP
-进程不停止本地服务；模型滑杆、阅读、提示词等保留现有注入链路与原生交互。
-`packages/plugin` 通过受限的 MCP 工具调用 CLI 控制服务，不复制业务规则、不把
-控制令牌送给 Renderer，也不放宽现有 HTTP Origin、Cookie 或鉴权要求。
-控制台共用一套源码，浏览器经同源 HTTP，官方面板经 MCP Apps bridge。
-`global` 注册主导航入口，具体固定与收纳遵循 Codex 的用户导航偏好。
-
-### 现有增强领域与架构层
-
-```mermaid
-flowchart TB
-  Host["Runtime Host<br/>发现、注入、CDP、可信消息、生命周期"]
-  Env["packages/codex-adapter<br/>Composer、thread identity、rail、React读取机制"]
-  UI["packages/ui<br/>native主题映射与图标适配<br/>通用组件、材质与层级"]
-  subgraph Plugin["features/* · 按领域组织"]
-    Native["adapters/codex<br/>专有日志、数据库、API、bundle、原生动作"]
-    Domain["domain<br/>内部事实、规则、指标口径"]
-    Backend["backend<br/>业务编排、存储与服务接口"]
-    Frontend["frontend / page-script / web<br/>特殊内容、状态、交互"]
-    Factory["injection-source<br/>显式序列化 Adapter 和纯规则"]
-  end
-  Codex["外部 Codex<br/>DOM、React、token、JSONL、SQLite、Library API"]
-  Host --> Env
-  Host --> UI
-  Host --> Backend
-  Host --> Factory
-  Factory --> Native
-  Factory --> Domain
-  Factory --> Frontend
-  Native --> Env
-  Native --> Domain
-  Backend --> Native
-  Backend --> Domain
-  Frontend -->|"config.codex：公共锚点与身份"| Env
-  Frontend -->|"config.ui：组件与内容组合"| UI
-  Frontend -->|"内部快照、锚点、命名动作"| Native
-  Codex -.-> Env
-  Codex -.-> Native
-  Codex -.-> UI
-```
-
-图描述能力流向，实际导入必须遵守下面的接口约束。Runtime Host 是组合入口，可以导入插件后端来接线；UI 与领域规则不反向导入宿主。前端通过已声明的 host action 请求业务，不直接使用 CDP 或本地数据库。
-
-| 领域 | 拥有的概念与规则 | 当前代码 |
-| --- | --- | --- |
-| Prompts（功能 ID 保留 notes） | 提示词、分类、顺序、插入成功后的调用计数；不替用户发送消息 | `features/notes/src/backend/`、`src/frontend/` |
-| Session Status | 回合、步骤、token 用量、缓存比例、体感 TPS 与上下文口径 | `features/session-status/src/domain/session-stats.mjs`、`src/adapters/codex/session-reader.mjs` |
-| Images | 图片身份、Library 来源、提示词溯源、导入与查看 | `features/images/src/`，外部协议在 `src/adapters/codex/`，本地 Image Gen 编排在 `src/backend/local-image-source.mjs`，历史命令编排在 `src/backend/cloud-library.mjs` |
-| Sites | 站点来源、地址分类、项目归属、收录、发现与启动 | `features/sites/src/domain/site.mjs`、`src/backend/`、`src/frontend/` |
-| Model Slider | 模型身份、品牌、目录别名、真实档位、收藏与原生选择器增强 | `features/model-slider/src/domain/`、`src/frontend/`、`src/injection-source.mjs` |
-| Markdown Reading | 文件 Markdown Preview 的识别、正文排版、脚注编号、原生目录衔接与恢复；不改变文档内容 | `features/markdown-reading/src/domain/`、`src/adapters/codex/`、`src/markdown-reading.mjs` |
-| File Navigation | 文件路径压缩、目录分支选择；独立于文档阅读，复用原生目录与文件打开动作 | `features/file-navigation/src/domain/`、`src/adapters/codex/`、`src/frontend/` |
-| 其他紧凑增强 | 各自的原生插入点与交互 | 保持本功能简单结构，不为统一外观创建空目录 |
-
-同为“会话”或“图片”的数据，不代表不同领域共享同一业务模型。业务结果通过明确的数据对象与动作传递；共享 UI 不解释 token 用量、提示词使用次数或站点启动状态。
+本文件负责规则所有权、依赖方向与接口选择。通用视觉和原生交互见 [DESIGN.md](DESIGN.md)，按任务读取的入口见 [AGENTS.md](AGENTS.md)。
 
 ## 柔性设计与接口原则
 
-- **在变化实际发生的位置留接口。** 已有多个插件使用的 Dialog、Button、Tooltip、页面层级归组件库；平台差异留在外部适配，不进入业务规则。只有一个实现且没有实际变化需求时，不预建策略类或抽象工厂。
-- **模块接口小，内部职责完整。** 模块隐藏材质、挂载、序列化或业务口径的复杂性；调用方只学习必要的内容、状态、参数、结果和失败条件。不是把大文件机械拆成大量转发文件。
-- **通过组合提供柔性。** Dialog 标题、内容和动作组合；原生材质按有限分支选择。插件提供回调，组件不寻找插件数据库；不采用继承树，也不接受任意 CSS 覆盖作为通用设计入口。
-- **外部依赖可替换，业务事实只有一处。** 会话日志读取接受目录与时钟，事件归约不读取文件；云图片适配接受 evaluator，由宿主连接 CDP；站点服务接受 listeners/probe，由发现适配执行进程与网页探测。
-- **单向知识依赖。** `domain` 不知道 Renderer、HTTP 服务、数据库连接或 CDP；UI 不知道任何功能领域；宿主负责组合，不拥有提示词、图片或会话指标规则。
-- **显式失败和生命周期。** 缺失原生能力返回已有错误/占位，不猜身份或展示旧会话数据。异步结果归属、卸载和用户草稿由真实所有者维护；不以过度防御掩盖失效契约。
-- **按领域规模分层。** 简单插件保留一个入口；有独立规则和副作用时再分 `domain` / `backend` / `frontend`。领域规则不强求零依赖，例如项目目录匹配可以使用 `node:path`，但不得执行 IO。
+- **在变化发生的位置留接口。** 多个功能实际共用的能力进入共享层；外部协议变化留在 Adapter。只有一个实现且没有变化需求时，保持直接实现，避免为假设中的扩展支付维护成本。
+- **接口小，内部职责完整。** 调用方只学习必要的输入、状态、结果与失败条件。模块隐藏业务口径、挂载或协议转换的复杂性；拆分以职责为依据，不以文件长度或目录对称为依据。
+- **通过组合提供柔性。** 功能传内容、状态与回调，共享组件拥有通用表现。需要不同原生材质时选择明确分支，而不是让每个调用方覆盖同一套 CSS。
+- **单向知识依赖。** 领域规则消费内部事实，不知道 Renderer、HTTP 服务、数据库连接或 CDP；共享 UI 不解释任何功能业务；宿主负责接线与运行。
+- **外部依赖可替换，规则只有一处。** IO、时钟与原生操作通过所属 Adapter 接入，纯规则可独立验证，也可在注入工厂中复用。接口应隔离真实变化，不把每个函数都包装成策略。
+- **按领域规模分层。** 有独立规则与副作用时再分领域、后端与前端；简单呈现增强保持紧凑。领域可以使用 `node:path` 等纯计算依赖，但不执行 IO。
 
-## 注入与资源契约
+## 所有权与依赖
 
-当前 page-script 仍是函数体源码，由 Runtime Host 执行并接收 `signal` 与 `config`；不是可以在 Renderer 直接 imports 的 Node 模块。`packages/ui/src/install.mjs` 将组件安装函数显式组装成自包含源码，宿主不复制组件实现。
+```mermaid
+flowchart TB
+  Entry["官方 MCP 入口与页面"] --> CLI["CLI · 本地服务与配置"]
+  CLI --> Host["Runtime Host · 连接、注入与生命周期"]
+  Host --> Env["Codex Adapter · 共享原生环境"]
+  Host --> UI["UI · 通用组件与视觉适配"]
+  Host --> Feature["Feature · 业务编排与呈现"]
+  Feature --> Native["专有 Adapter · 外部协议与命名动作"]
+  Feature --> Domain["Domain · 内部事实与规则"]
+  Native --> Env
+  Feature --> UI
+```
 
-较大的前端入口可在 manifest 的 `entry.resources` 中声明 CSS、图标 JSON 等资源文件：键映射到本功能内相对路径；JSON 解析为数据，其他文件读取为文本，经 `config.resources` 一次传入。资源不可越出功能目录，不新增 HTTP 请求或前端打包步骤。Prompts 与 Sites 使用这一接口把样式、图标和交互源码分开。
+图表示接入与能力流向。实际模块导入遵守单向知识依赖；Renderer 通过声明的 host action 请求后端能力，不直接取得 Node、CDP 或数据库连接。
 
-需要将纯规则组装进注入源码时，插件可声明 `entry.sourceFactory`，指向本功能内导出 `createPageScriptSource()` 的 Node 模块。宿主只调用工厂取得函数体源码；工厂负责把专有 Adapter 和纯规则序列化进去，Renderer 不依赖 Node imports。Images 的 Library 面板与历史云导入共用 `src/domain/library-prompt.mjs`。
+| 所有者 | 职责与选择依据 |
+| --- | --- |
+| CLI | 管配置、数据迁移组合、安装与后台服务，避免页面开关承担进程管理。 |
+| 官方 Plugin | 管入口、离线页面资源与 MCP 通信；复用既有业务服务。面板生命周期与增强运行时独立，关闭页面不应终止增强。 |
+| Runtime Host | 管发现、CDP、注入组装、可信消息、调度和运行生命周期；可导入功能后端接线，业务规则继续由功能拥有。 |
+| Codex Adapter | 管多个功能真实共用的 Composer、身份、路由和 React 读取机制。专有 Library、模型控制器、额度和 Sites 协议留在功能 Adapter。 |
+| UI | 管组件、材质、挂载角色、主题映射与视觉原生适配。组件不查询功能存储，功能不复制通用表现。 |
+| Feature | 管本功能规则、存储、内容和交互；专有 Adapter 把外部对象转成内部事实与命名动作。 |
 
-Images 的 iframe 仍使用主题/消息桥；原生 Library 增强仍使用 Renderer 入口。两种接入不强行合并。
+同为“图片”或“会话”的数据不自动共享业务模型。共享的依据是相同语义和实际消费需求，而不是名称相似。UI 结构与序列化接入见 [UI 架构](packages/ui/ARCHITECTURE.md)，公共环境契约见 [Codex Adapter](packages/codex-adapter/DEVELOPMENT.md)。
+
+## 外部协议与失败
+
+原始 DOM、React props、query cache、日志和数据库 schema 由所属 Adapter 解释。交互入口消费内部快照和命名动作，避免每次操作重新遍历 Fiber 或发现 bundle。原生动作所需的私有句柄保留在 Adapter 内，不成为领域对象。
+
+外部协议变化时，先修正所属 Adapter 和契约样例，再核对调用方。共享机制变化才修改共享 Adapter；通用表现变化才修改 UI。原生标签和宿主 surface 接入仍由宿主维护，不能把全部原生代码机械移入共享层。
+
+缺失能力使用明确错误或占位，身份缺失不猜当前会话。异步结果绑定实际窗口、会话、账号和挂载实例；切换或卸载后过期结果失效。清理由资源所有者维护，保留用户草稿；失败恢复依据真实契约，不用重放副作用或旧快照掩盖异常。
+
+能力诊断由 Adapter 提供，宿主按窗口和运行会话汇总。内部诊断进入开发输出与可复制详情，普通产品界面表达可理解的状态与恢复动作。
+
+## 注入环境
+
+page-script 是在 Renderer 执行的函数体源码，不具有 Node 模块的 imports 和闭包。功能工厂显式序列化所需 Adapter、纯规则与前端依赖；共享 UI 由安装器组装。移动文件时同时验证序列化后的实际执行，不能只验证 Node 导入。
+
+功能内资源经 manifest 声明，由宿主读取并随配置传入；资源路径限制在所属功能目录。这样样式与图标可独立维护，Renderer 无需另建资源请求链。具体字段与加载方式见 [Runtime Host](packages/runtime-host/DEVELOPMENT.md)。
+
+直接注入与 iframe 保留各自真实环境：前者通过共享句柄接入原生 UI，后者通过受校验的主题与消息桥接入。浏览器控制台与官方 MCP App 共用业务和页面源码，通信适配按环境选择。来源窗口、操作白名单与鉴权由桥维护，凭据留在可信端。
+
+## 数据迁移
+
+CLI 组合文件格式和功能适配器，功能 backend 拥有解析、去重与合并。GUI 展示清单、预检与结果，不直接读业务文件。逐领域事务与跨功能失败的取舍由 [数据迁移契约](packages/cli/DATA-TRANSFER.md) 维护。
 
 ## 修改与验证
 
-修改领域规则时验证结果口径；修改 IO 适配时验证路径、增量读取和错误；修改共享 UI 时验证安装源码、角色选择、焦点和卸载。原生布局、材质与交互按风险在隔离窗口验收。静态依赖检查只用于防止已确定的架构层反向导入，不取代行为验证。
+- 领域修改验证结果口径与关键反例；IO 修改验证路径、增量读取和错误；UI 修改验证序列化、挂载、焦点及清理。
+- 静态依赖检查守住已确定的层次，不能替代行为验证。原生协议、布局与交互变化按风险在隔离窗口验收。
+- 安装完成、后台健康、必要能力可用、用户操作成功和指定构建验收分别提供证据。没有适用场景不等于能力失效，全局安装标记不等于所有功能成功。
+- 自检读取当前实际作用域的证据；结果保留观测时刻、窗口与会话归属。旧窗口或会话的成功记录不沿用，检查频率和汇总细节见 Runtime Host 文档。
+- 文件迁移同步导入、manifest、序列化、验证与 npm 包名单，完成后移除无用途的旧实现。
 
-文件迁移同时更新 imports、manifest、命令、验证及 npm files。删除原位置文件，不保留转发兼容壳。公开 README 维护产品与使用说明；内部路由回写 AGENTS，通用视觉回写根 DESIGN，本级规则回写本级文档。
-
-Model Slider 的领域规则与原生控制器适配归插件，`src/injection-source.mjs` 显式组装两者；宿主只提供 feature 配置、共享 UI、图标工厂、locale 与刷新调度，调用 `ensure` / `dispose`。原生 React 操作仍由插件适配层维护，领域规则不读取 DOM 或 localStorage。旧 Summary 布局属于宿主 surface 接入，仍保留在 `codex-injection.mjs`。
-
-架构验证自动发现所有插件的 domain 目录，检查静态导入、再导出、动态模块依赖和外部环境引用；同时检查已注册 Renderer 入口及 frontend 的反向依赖，以及启用插件的 Tooltip 材质归属。纯规则的模块导入和自包含序列化行为由所属插件测试覆盖，不以测试数量替代领域归属审查。
-
-
-## Codex 防腐层职责（2026-10-01）
-
-- `packages/codex-adapter/src/renderer/environment.mjs` 只拥有真实共享的原生读取机制与锚点。`account()` 将 accounts/check 与 planAtLogin 转成当前身份的套餐快照，供 Images／Sites 共用；业务路由与注入锚点仍归各插件 Adapter。`composer()` 默认返回可见 thread 输入框的 root/body/add 与身份；Prompts 使用 `purpose:"insertion"` 读取可见的 Codex／ChatGPT 原生输入框，包含首页、浮动聊天和面板 chat bar；插入操作绑定打开面板的 editable，非thread不提供身份。缺失身份立即返回 null。`railSlot()` 返回扩展挂载句柄。`currentFiber()` / `props()` 仅供 native Adapter 使用，不向业务层传递 React props。
-- `packages/ui/src/native/` 拥有视觉协议。`tokens.mjs` 的规范名称和别名解析到 `--mcx-*`；`theme.mjs` 处理主题读取、直接注入变量、桥接快照和卸载恢复。原生 token 改名时加别名，保留项目规范名称和输出 token；插件不复制原生兼容映射。
-- `features/<id>/src/adapters/codex/` 拥有专有语义转换。Session Status 的日志转为 `kind/at` 事实和 `input/cached/output/total` 用量；Images 将原始树转换为生成事实，再由领域选择提示词。SitesCatalog 返回内部 projects/threads；Usage 返回额度快照，不暴露 queryClient/auth/router。
-- Model Slider 暴露明确字段的控制器视图和选择/菜单动作，不返回整个 React props；档位对象作为原生选择动作的句柄保留在该接口内，不进入模型领域规则。Task Switcher 从原生目录输出线程展示记录及 activate 回调；通知状态事件、去重与关闭记录归本功能 domain，前端维护通知堆栈。
-- 能力诊断由 Adapter 维护。Renderer 可通过运行时 `nativeCapabilities()` 查看 name/available/reason；目录 Adapter 提供 `diagnostics()`。未知状态不伪装成已读或闲置；用户界面不展示技术诊断。
-
-不要把原生相关代码一律移到共享层：Library、模型控制器、账号额度、Sites 路由和数据库属于专有 Adapter。简单 Banner 本身是一个呈现 Adapter，无业务领域，不新增空 domain/backend 目录。宿主的原生标签、surface 接入仍属于注入与生命周期边界；通用视觉与插件业务不回流到宿主。
-
-契约验证覆盖内部事实、当前 React alternate、隐藏输入框、账号切换、订阅清理、bundle 失效重试、主题消失/恢复和九插件源码组装。架构检查同时阻止 domain 重新解析已隔离的外部 schema，以及交互入口重新发现 React/query cache/bundle API。
-
-## 注入自检契约（2026-10-03）
-
-安装证据、后台服务健康、必要原生能力、用户操作结果与构建验收分别记录。功能定义必要锚点和适用场景，UI 主题 Adapter 负责实际作用域的 token 读取，Runtime Host 负责每个文档完成注入后的一次观测、窗口与 session 归属、重载／重连后的重检、失效清理及汇总；不持续轮询锚点和 token。domain 不解释 DOM、CSS 或原始自检协议。
-
-`selfCheck()` 仅确认当前可观测条件，不将缺少场景误报为不兼容，也不将全局脚本安装成功当成逐功能成功。静态源码消费清单用于定位 token，实际可用性必须读取当前计算样式。已知 CSS fallback 的缺失项仍记录；无 fallback 的必需值缺失或作用域映射不一致标为 degraded。用户操作和完整构建验收仍有独立证据边界。
-
-## 用户数据迁移
-
-CLI 的 `src/data-transfer/service.mjs` 只组合功能适配器与文件格式，领域解析、去重与写入
-仍归功能 backend。适配契约及全功能边界见 `packages/cli/DATA-TRANSFER.md`。
-导入采取非破坏性合并、全量预检与逐领域事务。Model Slider 收藏由专有后端存储维护，
-Renderer 经 allowlist 的 model-favorites host action 迁移旧收藏与提交增删；localStorage
-只用于当前窗口呈现，不直接读写 Electron profile 数据库。
+完成改动前，应能说明规则所有者、涉及的外部协议、选择该接口的理由，以及证据覆盖的范围。测试清单与实现数量从当前源码查询。

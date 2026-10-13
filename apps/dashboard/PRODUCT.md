@@ -1,41 +1,13 @@
-# Product
+# 控制台的产品目标
 
-## Register
+用户短暂进入控制台，确认安装、选择增强并应用配置。成功意味着他们能区分“已保存”“已应用”“后台健康”和“需要重启”，无需学习注入与运行宿主术语。
 
-product
+## 决策依据
 
-## Users
+- 管理信息以真实状态与操作结果为依据；预览只解释用途，不充当运行证据。
+- 使用用户熟悉的功能名称，技术细节留在诊断中，避免将恢复问题变成架构学习任务。
+- 保持单页、平级功能与清楚动作，减少导航、设置向导和重复入口。
+- 功能卡片帮助理解增强位置和实际作用；视觉围绕管理任务组织，品牌表现与预览方式由 [DESIGN.md](DESIGN.md) 明确选择。
+- 操作前说明影响，失败保留可理解的恢复路径。更新检查和安装、配置保存和重启分别表达。
 
-Codex Desktop users who want a few personal, broadly useful enhancements without managing
-technical integration details. They visit this control panel briefly to confirm installation,
-turn plugins on or off, and apply saved changes.
-
-## Product Purpose
-
-Provide one calm, trustworthy place to manage MineCodex's Model Slider, Notes, and Images
-plugins. Success means users understand what is active, what has merely been saved, and when
-a Codex restart is required without learning RuntimeHost or injection terminology.
-
-## Brand Personality
-
-Native, restrained, precise.
-
-## Anti-references
-
-Do not look like a generic SaaS admin dashboard, a branded AI control center, or a decorative
-card gallery. Avoid gradients, glass effects, oversized metrics, promotional copy, and invented
-controls where a standard macOS-style setting is clearer.
-
-## Design Principles
-
-- Use the user's term “plugin” and keep implementation details invisible.
-- Make configured, applied, healthy, and restart-required states truthful and distinct.
-- Preserve the visual restraint and interaction familiarity of Codex Desktop.
-- Keep every important action reversible and explain its effect before it runs.
-- Prefer one clear page over navigation, setup wizards, or modal-heavy flows.
-
-## Accessibility & Inclusion
-
-Meet WCAG 2.1 AA contrast and keyboard requirements, expose native control semantics, support
-English and Simplified Chinese, never rely on color alone, and respect reduced-motion and system
-light/dark preferences.
+完成标准：用户能判断当前状态与下一步操作；键盘与可访问语义完整，中英文、明暗和 reduced-motion 可用，状态不只依赖颜色；对比与键盘行为以 WCAG 2.1 AA 为验收目标。
