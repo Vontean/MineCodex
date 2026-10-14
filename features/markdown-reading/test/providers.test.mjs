@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { captureMarkdownProviders } from '../src/adapters/codex/providers.mjs';
+import { captureMarkdownProviders } from '../../../packages/codex-adapter/src/markdown/providers.mjs';
 
 test('added roots inherit the nearest committed provider once, with original nesting', () => {
   const context = {},

@@ -1,5 +1,5 @@
 import { collectMarkdownFootnotes } from '../../domain/footnotes.mjs';
-import { captureMarkdownProviders } from './providers.mjs';
+import { captureMarkdownProviders } from '../../../../../packages/codex-adapter/src/markdown/providers.mjs';
 
 // 复用消息流的代码组件与 Markdown lexer；文件内容及编辑器仍由 Codex 持有。
 export async function loadNativeMarkdownRichText(native) {

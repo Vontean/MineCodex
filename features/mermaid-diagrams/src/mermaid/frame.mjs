@@ -101,7 +101,7 @@ export function readQvTheme(element) {
   const colors = ['#3b82f6','#10b981','#8b5cf6','#f59e0b','#ec4899','#06b6d4'];
   colors.forEach((color, index) => tokens[`--viz-series-${index+1}`] = get(`--viz-series-${index+1}`) || color);
   const probe = document.createElement('div');
-  probe.style.cssText = 'position:absolute;visibility:hidden;pointer-events:none;width:var(--mcx-reading-width);height:0';
+  probe.style.cssText = 'position:absolute;visibility:hidden;pointer-events:none;width:var(--mcx-reading-width, calc(var(--thread-content-max-width) - var(--padding-toolbar) * 2));height:0';
   element.append(probe);
   const readingWidth = probe.getBoundingClientRect().width;
   probe.remove();

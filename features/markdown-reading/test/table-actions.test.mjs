@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { markdownExportAlias } from '../src/adapters/codex/table-actions.mjs';
+import { markdownExportAlias } from '../../../packages/codex-adapter/src/markdown/block-actions.mjs';
 import { createPageScriptSource } from '../src/injection-source.mjs';
 
 test('native export names match exactly, including dollar signs and prefix collisions', () => {

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { runInNewContext } from 'node:vm';
 import { readFile } from 'node:fs/promises';
-import { createMarkdownPreviewAdapter } from '../src/adapters/codex/preview.mjs';
+import { createMarkdownPreviewAdapter } from '../../../packages/codex-adapter/src/markdown/preview.mjs';
 import { createPageScriptSource } from '../src/injection-source.mjs';
 
 function fixture({ kind = 'markdown', filePanel = true, mode = true, connected = true } = {}) {

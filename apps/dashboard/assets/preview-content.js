@@ -15,6 +15,9 @@ const content = {
   'markdown-reading': [
     ['Codex 的 Markdown 文件预览。', '长文阅读、脚注跳转和表格查看不够方便。', '在文件预览中阅读增强排版，使用目录、脚注和表格操作。'],
     ['Markdown file previews in Codex.', 'Long documents, footnotes and tables take extra effort to read.', 'Read enhanced formatting and use the outline, footnote navigation and table actions.']],
+  'mermaid-diagrams': [
+    ['Markdown 文件预览中的 Mermaid 图表。', '实验性图表样式与交互仍在完善，默认关闭。', '按需开启图表增强，使用缩放和 PNG 下载；关闭后使用 Codex 原生图表。'],
+    ['Mermaid diagrams in Markdown file previews.', 'Enhanced diagram styles and interactions are experimental and off by default.', 'Opt in to diagram zoom and PNG download. Turn it off to use native Codex diagrams.']],
   'file-navigation': [
     ['Codex 文件预览上方的路径区域。', '浏览相邻目录和文件需要额外跳转。', '点击路径展开分列目录，逐级浏览并打开另一个文件。'],
     ['The path above a file preview in Codex.', 'Browsing nearby files and folders takes extra navigation.', 'Open the path to browse cascading folder columns and choose another file.']],

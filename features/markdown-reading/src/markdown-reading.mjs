@@ -1,5 +1,6 @@
 const marker = 'data-minecodex-markdown-reading';
-const native = createMarkdownPreviewAdapter(config.codex, config.resources);
+const runtime = createMarkdownReadingRuntime(config.codex);
+const native = createMarkdownPreviewAdapter(config.codex, item => runtime.attach(item));
 const styled = new Map();
 const sessions = new Map();
 const tokenNames = ['--font-content', '--text-document', '--leading-relaxed', '--font-weight-semibold',
@@ -7,7 +8,7 @@ const tokenNames = ['--font-content', '--text-document', '--leading-relaxed', '-
   '--color-text-foreground-secondary', '--color-border'];
 const style = document.createElement('style');
 style.setAttribute('data-minecodex-markdown-reading-styles', '');
-style.textContent = [config.resources.styles, config.resources.mermaidStyles, config.resources.qvLoadingStyles].filter(Boolean).join('\n');
+style.textContent = config.resources.styles;
 document.head.append(style);
 let disposed = false;
 let pending = null;

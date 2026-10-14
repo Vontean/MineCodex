@@ -3,9 +3,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 import { parse } from 'acorn';
-import { createMermaidViewport } from '../features/markdown-reading/src/mermaid/viewport.mjs';
-const source = new URL('../features/markdown-reading/vendor/qv/source/', import.meta.url);
-const output = new URL('../features/markdown-reading/assets/', import.meta.url);
+import { createMermaidViewport } from '../features/mermaid-diagrams/src/mermaid/viewport.mjs';
+const source = new URL('../features/mermaid-diagrams/vendor/qv/source/', import.meta.url);
+const output = new URL('../features/mermaid-diagrams/assets/', import.meta.url);
 export async function buildQvLoading() {
   const template = await readFile(new URL('chart-loading.html', source), 'utf8');
   const script = template.match(/<script>([\s\S]*?)<\/script>/)[1];
@@ -169,7 +169,7 @@ async function main() {
     if (!licenses.length) throw new Error(`Missing bundled dependency license: ${name}`);
     for (const file of licenses) notices += `\n${file}\n${await readFile(path.join(directory,file),'utf8')}\n`;
   }
-  await writeFile(new URL('THIRD_PARTY_NOTICES.txt', new URL('../features/markdown-reading/vendor/qv/',import.meta.url)),notices);
+  await writeFile(new URL('THIRD_PARTY_NOTICES.txt', new URL('../features/mermaid-diagrams/vendor/qv/',import.meta.url)),notices);
   console.log('QV reading template and pinned offline dependencies built.');
 }
 if (process.argv[1] === fileURLToPath(import.meta.url)) await main();

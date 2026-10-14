@@ -65,7 +65,7 @@ function fixture(overrides = {}) {
     reports = [],
     loads = [];
   const capabilities = {};
-  for (const name of ['MetadataScroll', 'Lists', 'Links', 'Tables', 'Toc', 'TableActions', 'RichText', 'Mermaid']) {
+  for (const name of ['MetadataScroll', 'Lists', 'Links', 'Tables', 'Toc', 'TableActions', 'RichText']) {
     capabilities[`installMarkdown${name}`] = () => {
       installed.push(name);
       const cleanup = () => removed.push(name);
@@ -104,12 +104,12 @@ test('each preview owns its cleanup; native modules are shared but editor APIs a
   assert.equal(f.loads.filter((name) => name === 'loadNativeMarkdownToc').length, 1);
   assert.equal(f.loads.filter((name) => name === 'loadMarkdownListAPI').length, 2);
   first.session.dispose();
-  assert.equal(f.removed.length, 8);
+  assert.equal(f.removed.length, 7);
   assert.ok(f.removed.indexOf('TableActions') < f.removed.indexOf('Tables'));
   first.session.dispose();
-  assert.equal(f.removed.length, 8);
+  assert.equal(f.removed.length, 7);
   second.session.dispose();
-  assert.equal(f.removed.length, 16);
+  assert.equal(f.removed.length, 14);
 });
 
 test('closing a preview before loading finishes never installs or reports into the next preview', async () => {
@@ -178,16 +178,4 @@ test('destroyed CodeMirror view cannot receive extensions when loading completes
   assert.deepEqual(f.installed, ['MetadataScroll']);
   assert.deepEqual(f.reports, []);
   session.dispose();
-});
-
-test('Mermaid enhancement failure leaves native diagrams and other reading capabilities available', async () => {
-  const f = fixture({ installMarkdownMermaid() { throw new Error('native-contract-changed'); } });
-  const { session } = f.attach();
-  await session.ready;
-  const checks = session.checks();
-  assert.equal(checks.find((c) => c.name === 'markdown-reading-mermaid').available, false);
-  assert.equal(checks.find((c) => c.name === 'markdown-table-actions').available, true);
-  assert.equal(checks.find((c) => c.name === 'markdown-reading-rich-text').available, true);
-  session.dispose();
-  assert.equal(f.removed.includes('Mermaid'), false);
 });

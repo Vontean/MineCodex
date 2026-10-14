@@ -26,6 +26,7 @@ test("config keeps established defaults and enables reading by default and prese
     "sidebar-focus": true,
     sites: true,
     "markdown-reading": true,
+    "mermaid-diagrams": false,
     "file-navigation": true,
     "quick-chat": true,
   });
@@ -91,4 +92,12 @@ test("merged Quick Chat drops the retired repair switch and keeps the enhancemen
   assert.equal(config.features["quick-chat"],enabled);
   assert.equal("quick-chat-repair" in config.features,false);
  }
+});
+
+test("Mermaid is opt-in for new and existing configs and independent from reading", () => {
+  for (const value of [{}, {features:{"markdown-reading":true}}, {features:{"markdown-reading":false}}])
+    assert.equal(normalizeConfig(value).features["mermaid-diagrams"],false);
+  const config=normalizeConfig({features:{"mermaid-diagrams":true,"markdown-reading":false}});
+  assert.equal(config.features["mermaid-diagrams"],true);
+  assert.equal(config.features["markdown-reading"],false);
 });

@@ -1,7 +1,7 @@
 import { createQvResources, createQvFrame, readQvTheme } from '../../mermaid/frame.mjs';
 import { exportQvDiagram } from '../../mermaid/export.mjs';
 import { createQvLoading } from '../../mermaid/loading.mjs';
-import { captureMarkdownProviders } from './providers.mjs';
+import { captureMarkdownProviders } from '../../../../../packages/codex-adapter/src/markdown/providers.mjs';
 import { createMarkdownMermaidControls } from './mermaid-viewer.mjs';
 
 export function installMarkdownMermaid(view, api, native, codex, resources, onStatus = () => {}) {

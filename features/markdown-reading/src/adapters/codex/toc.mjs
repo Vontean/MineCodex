@@ -1,4 +1,4 @@
-import { captureMarkdownProviders } from './providers.mjs';
+import { captureMarkdownProviders } from '../../../../../packages/codex-adapter/src/markdown/providers.mjs';
 
 // Markdown 负责标题与导航；原生组件负责短线、动效、浮层材质与悬浮定位。
 export function installMarkdownToc(view, api, native, codex) {

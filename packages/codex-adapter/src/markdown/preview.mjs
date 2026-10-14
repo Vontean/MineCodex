@@ -1,8 +1,5 @@
-import { createMarkdownReadingRuntime } from './reading-runtime.mjs';
-
 // 当前原生 Markdown Preview 是 CodeMirror 视图；Source 与 Pages 不属于此契约。
-export function createMarkdownPreviewAdapter(codex, resources) {
-  let runtime;
+export function createMarkdownPreviewAdapter(codex, attach) {
   function preview(editor) {
     if (!editor.isConnected || !editor.closest('[data-editor-search-surface]')) return null;
     const content = editor.querySelector('.cm-content[data-language="markdown"]');
@@ -30,9 +27,6 @@ export function createMarkdownPreviewAdapter(codex, resources) {
   return {
     preview,
     previews,
-    attach(item) {
-      runtime ??= createMarkdownReadingRuntime(codex, undefined, resources);
-      return runtime.attach(item);
-    },
+    attach(item) { return attach(item); },
   };
 }

@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "id": "mermaid-diagrams",
+  "version": "0.1.0",
+  "label": {
+    "en": "Mermaid Diagrams (Experimental)",
+    "zh-CN": "Mermaid 图表增强（实验性）"
+  },
+  "description": {
+    "en": "Opt in to enhanced Markdown diagrams with zoom and PNG download. Off by default.",
+    "zh-CN": "在 Markdown 预览中增强图表，支持缩放与 PNG 下载。实验性功能，默认关闭。"
+  },
+  "entry": {
+    "kind": "page-script",
+    "script": "src/mermaid-diagrams.mjs",
+    "sourceFactory": "src/injection-source.mjs",
+    "resources": {
+      "mermaidStyles": "src/mermaid/theme.css",
+      "qvLoadingStyles": "assets/qv-loading.css",
+      "qvExport": "assets/qv-export.js",
+      "qvTemplate": "assets/qv-template.json",
+      "qvDependencies": "assets/qv-dependencies.js"
+    }
+  },
+  "icon": {
+    "resource": "assets/workflow.svg"
+  },
+  "placement": {
+    "order": 91
+  }
+}

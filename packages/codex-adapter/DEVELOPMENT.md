@@ -18,3 +18,9 @@
 | `report(name,available,reason?)` / `diagnostics()` | 最新能力状态的副本；不持有凭据、原始账户数据或用户内容 |
 
 不要增加一个包含所有插件的 CodexGateway。新契约只有在被多个模块实际共用时进入这里。选择器、React 机制改动在本模块验证；插件专有协议改动在所属 Adapter 验证。正常界面不暴露内部诊断。
+
+## Markdown Preview 共用契约
+
+`src/markdown/` 由 Markdown Reader 和 Mermaid Diagrams 实际共用。`preview.mjs` 仅识别原生 File Panel 的 Markdown Preview，并调用功能传入的 attach；不持有任何功能 Runtime。`editor-api.mjs` 发现当前编辑器所属 CodeMirror API；`providers.mjs` 获取 committed Provider；`toc-native.mjs`、`markdown-native.mjs` 与 `block-actions.mjs` 发现原生 React、Markdown renderer 与块控件。排版、表格与图表安装继续归各自功能；图表下载协议不进入共享层。
+
+迁移时两个注入工厂都显式序列化这些能力。开启图表不要求阅读增强开启；默认关闭图表时阅读能力不依赖 QV、保存协议或图表自检。
