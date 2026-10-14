@@ -16,6 +16,26 @@ gh workflow run publish.yml --repo Vontean/MineCodex --ref main -f release_tag=v
 
 将示例中的 `vX.Y.Z` 替换为本次版本。默认只验证，必须显式开启 publish。标签须为稳定版本 `vX.Y.Z`，位于 `main` 历史中，并匹配 package 与 lockfile 的版本。已存在的 npm 版本不能重复发布。
 
+## 完整交付流程
+
+发布完成标准包含 GitHub Release，只有 main／标签和 npm 更新不算完整交付：
+
+1. 按逻辑边界提交功能与发布流程改动，单独提交 package／lockfile 版本升级；运行 `npm run prepublishOnly`。
+2. 推送 `main` 和对应版本标签，触发上述发布工作流并确认成功。
+3. 独立查询公共 npm registry，确认该版本存在且 `latest` 指向它。
+4. 创建对应 GitHub Release，标题为 `MineCodex X.Y.Z`，说明本版本的用户可见变化、默认行为和重要限制；设为 Latest。标签已存在时使用 `--verify-tag`，不让 Release 创建隐式标签。已有同版本 Release 时更新正文和 Latest 状态，不创建重复项。
+5. 用户要求更新本机时运行 `mcx update`，再用 `mcx --version` 和 `mcx status` 核验安装版本、后台服务与 RuntimeHost；原生 GUI 验收单独报告。
+
+Release 正文先写到 UTF-8 文件，保留实际换行，再执行（替换版本与文件路径）：
+
+```bash
+gh release create vX.Y.Z --repo Vontean/MineCodex --verify-tag --title "MineCodex X.Y.Z" --notes-file /absolute/path/release-notes.md --latest
+# 同版本 Release 已存在时：
+gh release edit vX.Y.Z --repo Vontean/MineCodex --title "MineCodex X.Y.Z" --notes-file /absolute/path/release-notes.md --latest
+```
+
+通过 `gh release view` 和 GitHub `/releases/latest` API 核对版本、正文、非草稿和 Latest 状态；最终报告同时给出发布工作流与 Release 链接。npm 已发布而后续步骤失败时只补齐缺少的步骤，不重复发布已有 npm 版本。
+
 ## 授权边界
 
 - 首次发起人的固定账号 ID、重跑人的账号名、仓库 ID 和 workflow 的 main 分支全部匹配才会继续。其他账号发起或重跑会失败，且不会进入持有 OIDC 权限的发布任务。
