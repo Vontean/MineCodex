@@ -236,6 +236,43 @@ test("Windows service command and runtime config builders pin exact paths", () =
   assert.equal(config.serviceLogPath, paths.serviceLogPath);
 });
 
+test("Windows registered activation preserves the package identity and loopback CDP arguments", async () => {
+  let script, waited;
+  const adapter = new WindowsPlatformAdapter();
+  adapter.codex = async () => ({ executable: FAKE_EXE, packageFamilyName: CODEX_WINDOWS_PACKAGE_FAMILY });
+  adapter.listCodexProcesses = async () => [{ pid: 42 }];
+  adapter.powershell = async value => { script = value; };
+  adapter.waitForNativeCodex = async options => { waited = options; return { pid: 43 }; };
+  assert.deepEqual(await adapter.openNativeCodex({ cdpPort: 9231 }), { pid: 43 });
+  assert.match(script, /ActivateApplication/);
+  assert.ok(script.includes(CODEX_WINDOWS_PACKAGE_FAMILY + "!App"));
+  assert.match(script, /--remote-debugging-address=127\.0\.0\.1 --remote-debugging-port=9231 --remote-allow-origins=http:\/\/127\.0\.0\.1:9231/);
+  assert.doesNotMatch(script, /Start-Process/);
+  assert.equal(waited.cdpPort, 9231);
+  assert.deepEqual([...waited.excludedPids], [42]);
+});
+
+test("Windows ordinary launch uses registered activation without CDP or process discovery", async () => {
+  const adapter = new WindowsPlatformAdapter();
+  adapter.codex = async () => ({ packageFamilyName: CODEX_WINDOWS_PACKAGE_FAMILY });
+  adapter.listCodexProcesses = async () => assert.fail("ordinary launch must not enumerate CDP processes");
+  adapter.waitForNativeCodex = async () => assert.fail("ordinary launch must not wait for CDP");
+  adapter.powershell = async script => {
+    assert.ok(script.includes(`::Launch('${CODEX_WINDOWS_PACKAGE_FAMILY}!App', '')`));
+    assert.doesNotMatch(script, /--remote-debugging/);
+  };
+  assert.equal(await adapter.openNativeCodex(), null);
+});
+
+test("Windows activation errors propagate without waiting for a nonexistent launch", async () => {
+  const adapter = new WindowsPlatformAdapter();
+  adapter.codex = async () => ({ packageFamilyName: CODEX_WINDOWS_PACKAGE_FAMILY });
+  adapter.listCodexProcesses = async () => [];
+  adapter.powershell = async () => { throw new Error("activation failed"); };
+  adapter.waitForNativeCodex = async () => assert.fail("failed activation must not wait for CDP");
+  await assert.rejects(adapter.openNativeCodex({ cdpPort: 9231 }), /activation failed/);
+});
+
 import path from "node:path";
 import os from "node:os";
 import { mkdtemp, writeFile, rm } from "node:fs/promises";
