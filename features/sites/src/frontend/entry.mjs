@@ -36,6 +36,7 @@ function setButtonDisabled(button, disabled) {
   button.disabled = disabled; button.setAttribute("aria-disabled", String(disabled)); button.toggleAttribute("data-disabled", disabled);
 }
 function notice(message) {
+  if (disposed || signal.aborted) return;
   document.querySelector(`[${owned}=notice]`)?.remove();
   const n = element("div", "", message); n.setAttribute(owned, "notice"); n.setAttribute("role", "status"); document.body.append(n);
   setTimeout(() => n.remove(), 7000);
