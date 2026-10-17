@@ -1,0 +1,6 @@
+# QV 快照按原始字节校验；构建输入与产物统一 LF，避免 Windows 检出改写。
+features/mermaid-diagrams/vendor/qv/source/** text eol=lf
+scripts/build-qv-mermaid.mjs text eol=lf
+features/mermaid-diagrams/src/mermaid/viewport.mjs text eol=lf
+features/mermaid-diagrams/src/mermaid/loading.mjs text eol=lf
+features/mermaid-diagrams/assets/qv-loading.css text eol=lf

@@ -1202,7 +1202,7 @@ test("resolves Model Slider effort from the native controller before the trigger
   // 子任务触发器属性（medium）滞后于控制器推导状态（max）时，控制器值必须优先。
   assert.match(
     source,
-    /const nativeModel = nativeCatalogModelFor\(identity\);\n\s*const selectedEffort = nativeModel\?\.currentReasoningLevel[\s\S]*?getAttribute\("data-selected-reasoning-effort"\)/,
+    /const nativeModel = nativeCatalogModelFor\(identity\);\r?\n\s*const selectedEffort = nativeModel\?\.currentReasoningLevel[\s\S]*?getAttribute\("data-selected-reasoning-effort"\)/,
   );
   assert.match(
     source,
