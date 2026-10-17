@@ -35,7 +35,9 @@ mcx open
 
 安装后重启 Codex 即可使用。在控制台按需开关功能，修改后运行 `mcx restart` 应用设置。
 
-如需在 Codex 内打开控制台和 Prompt 页面，先安装 [Codex CLI](https://developers.openai.com/codex/cli/)，再运行 `mcx plugin install`，从 Explore／探索中打开。
+如需在 Codex 内打开控制台和 Prompt 页面，先安装 [Codex CLI](https://developers.openai.com/codex/cli/)，再运行 `mcx plugin install`。这一步独立于后台增强安装；更换全局包或源码安装位置后，再运行一次以更新插件路径。
+
+注册后，在 Codex 的插件页点击刷新，再从 Explore／探索找到 MineCodex 和 Prompt。需要常驻 Navbar 时，分别点击它们旁边的“固定到侧边栏”。插件已安装、页面入口已发现、入口已固定是不同状态；未固定的入口不会常驻 Navbar。此路径已在 Codex 26.1013.4894.0 的 Windows 简体中文窗口验证。
 
 ## 常用命令
 
