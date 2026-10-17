@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   CODEX_WINDOWS_PACKAGE_FAMILY,
   buildWindowsServiceCommand,
+  buildWindowsServiceLauncher,
   buildWindowsServiceRuntimeConfig,
   createPlatformAdapter,
   isExactCodexProcessWindows,
@@ -156,6 +157,11 @@ test("installService writes runtime config, service command, and registers a log
       if (script.includes("Register-ScheduledTask")) {
         assert.match(script, new RegExp(WINDOWS_SERVICE_TASK_NAME));
         assert.match(script, /ExecutionTimeLimit \(\[TimeSpan\]::Zero\)/);
+        assert.match(script, /System32\\wscript\.exe/);
+        assert.match(script, /\/\/B \/\/Nologo/);
+        assert.match(script, /-WorkingDirectory \$serviceDir/);
+        assert.match(script, /New-ScheduledTaskTrigger -AtLogOn/);
+        assert.doesNotMatch(script, /-AtStartup/);
       }
       return { stdout: "registered" };
     },
@@ -167,6 +173,9 @@ test("installService writes runtime config, service command, and registers a log
   assert.match(command, /mcx\.mjs" serve/);
   assert.equal(config.cliPath, "C:\\\\mc\\mcx.mjs");
   assert.equal(config.nodePath, process.execPath);
+  const launcher = written.get(paths.serviceLauncherPath);
+  assert.equal(launcher.readUInt16LE(0), 0xFEFF);
+  assert.match(launcher.toString("utf16le"), /shell\.Run\(command, 0, True\)/);
 });
 
 test("assertNativeCodexCdp requires loopback CDP arguments and matching port owner", async () => {
@@ -191,6 +200,25 @@ test("assertNativeCodexCdp requires loopback CDP arguments and matching port own
   );
 });
 
+test("Windows service restore regenerates its hidden launcher before registering the task", async () => {
+  const paths = resolvePaths({ homeDir: WINDOWS_HOME, platform: "win32" });
+  const written = new Map();
+  const adapter = new WindowsPlatformAdapter({
+    fileSystem: {
+      mkdir: async () => {},
+      writeFile: async (file, content) => written.set(file, content),
+    },
+  });
+  adapter.removeService = async () => {};
+  adapter.assertServiceStopped = async () => {};
+  adapter.registerServiceTask = async () => {
+    assert.ok(written.has(paths.serviceAppPath));
+    assert.ok(written.has(paths.serviceLauncherPath));
+  };
+  await adapter.restoreServiceState({ app: { exists: true, status: "disabled" }, running: false }, { cliPath: "C:\\mc\\mcx.mjs", paths });
+  assert.match(written.get(paths.serviceLauncherPath).toString("utf16le"), /WScript\.Quit exitCode/);
+});
+
 test("Windows service command and runtime config builders pin exact paths", () => {
   const paths = resolvePaths({ homeDir: WINDOWS_HOME, platform: "win32" });
   const command = buildWindowsServiceCommand({
@@ -209,3 +237,23 @@ test("Windows service command and runtime config builders pin exact paths", () =
 });
 
 import path from "node:path";
+import os from "node:os";
+import { mkdtemp, writeFile, rm } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+
+test("Windows hidden launcher preserves exit code through a path with spaces and Chinese", { skip: process.platform !== "win32" }, async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "minecodex 隐藏 "));
+  try {
+    const paths = { serviceAppPath: path.join(directory, "service.cmd") };
+    const launcherPath = path.join(directory, "hidden.vbs");
+    await writeFile(paths.serviceAppPath, "@exit /b 7\r\n", "ascii");
+    await writeFile(launcherPath, Buffer.from("\uFEFF" + buildWindowsServiceLauncher(paths), "utf16le"));
+    await assert.rejects(
+      promisify(execFile)(path.join(process.env.SystemRoot, "System32", "cscript.exe"), ["//B", "//Nologo", launcherPath], { windowsHide: true }),
+      error => error.code === 7,
+    );
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});

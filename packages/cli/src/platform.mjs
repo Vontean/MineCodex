@@ -217,6 +217,20 @@ export function buildWindowsServiceCommand({ nodePath, cliPath, paths }) {
   ].join("\r\n");
 }
 
+export function buildWindowsServiceLauncher(paths) {
+  const serviceCmd = String(paths.serviceAppPath).replaceAll('"', '""');
+  return [
+    "Option Explicit",
+    "Dim shell, command, exitCode",
+    'Set shell = CreateObject("WScript.Shell")',
+    "' 隐藏窗口并等待服务退出，向计划任务传递真实退出码。",
+    'command = Chr(34) & shell.ExpandEnvironmentStrings("%ComSpec%") & Chr(34) & " /d /s /c " & Chr(34) & Chr(34) & "' + serviceCmd + '" & Chr(34) & Chr(34)',
+    "exitCode = shell.Run(command, 0, True)",
+    "WScript.Quit exitCode",
+    "",
+  ].join("\r\n");
+}
+
 // cmd 的引号转义是内部双引号翻倍，与 JSON 转义规则不同，不能混用。
 function cmdQuote(value) {
   return '"' + String(value).replaceAll('"', '""') + '"';
@@ -907,6 +921,8 @@ export class WindowsPlatformAdapter {
 
   async writeServiceCommand(paths, content) {
     await this.fileSystem.writeFile(paths.serviceAppPath, content, { mode: 0o700 });
+    // WSH 用 UTF-16 BOM 识别中文路径，避免依赖系统 ANSI 代码页。
+    await this.fileSystem.writeFile(paths.serviceLauncherPath, Buffer.from("\uFEFF" + buildWindowsServiceLauncher(paths), "utf16le"), { mode: 0o700 });
   }
 
   async snapshotServiceState(paths) {
@@ -956,8 +972,9 @@ export class WindowsPlatformAdapter {
   async registerServiceTask(paths) {
     // ExecutionTimeLimit 0 表示不限时：服务是常驻进程，不能被默认 72h 限制回收。
     const script = [
-      "$serviceCmd = '" + String(paths.serviceAppPath).replaceAll("'", "''") + "';",
-      '$action = New-ScheduledTaskAction -Execute \'cmd.exe\' -Argument (\'/c ""\' + $serviceCmd + \'""\');',
+      "$launcher = '" + String(paths.serviceLauncherPath).replaceAll("'", "''") + "';",
+      "$serviceDir = '" + String(paths.serviceDir).replaceAll("'", "''") + "';",
+      '$action = New-ScheduledTaskAction -Execute (Join-Path $env:SystemRoot \'System32\\wscript.exe\') -Argument (\'//B //Nologo "\' + $launcher + \'"\') -WorkingDirectory $serviceDir;',
       "$trigger = New-ScheduledTaskTrigger -AtLogOn;",
       "$settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1);",
       "Register-ScheduledTask -TaskName '" + WINDOWS_SERVICE_TASK_NAME + "' -Action $action -Trigger $trigger -Settings $settings -Force | Out-Null;",
