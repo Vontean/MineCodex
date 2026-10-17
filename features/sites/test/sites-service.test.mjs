@@ -10,7 +10,8 @@ import { parseListeners, probePage, localListeners } from "../src/backend/discov
 
 async function fixture(t) {
   const root = await mkdtemp(path.join(os.tmpdir(), "mcx-sites-"));
-  t.after(() => rm(root, { recursive: true, force: true }));
+  // Windows 文件句柄释放可能延迟；仅对本测试临时目录做有限清理重试。
+  t.after(() => rm(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 }));
   const project = path.join(root, "web"); await mkdir(project);
   await writeFile(path.join(root, ".codex-global-state.json"), JSON.stringify({ "local-projects": { project1: { name: "Website", rootPaths: [project] } } }));
   return { root, project, service: new SitesService({ codexHome: root, dataDir: path.join(root, "saved") }) };

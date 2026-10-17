@@ -59,3 +59,17 @@ test('Added by you selection preserves native actions, keyboard navigation and r
   globalThis.document.activeElement=nav.node.children[1];nav.node.onkeydown({key:'ArrowRight',preventDefault(){}});assert.equal(selection,'added');
   nav.dispose();assert.equal(f.tabs.hidden,false);assert.equal(nav.node.isConnected,false);
 });
+
+test('Plus recognizes the current Simplified Chinese create action without matching local or hidden controls',context=>{
+  const f=fixture(context);
+  const hidden=f.create.cloneNode(true);hidden.hidden=true;hidden.button=true;hidden.textContent='创建新站点';
+  const owned=f.create.cloneNode(true);owned.button=true;owned.textContent='创建新站点';owned.setAttribute('data-mcx-sites','add');
+  f.create.parentElement.children.unshift(hidden,owned);
+  f.create.textContent='创建新站点';
+  assert.equal(f.adapter.pageInfo().create,f.create);
+  for(const label of ['Create Site','创建站点','建立網站']) {
+    f.create.textContent=label;assert.equal(f.adapter.pageInfo().create,f.create);
+  }
+  f.create.textContent='创建新站点示例';
+  assert.equal(f.adapter.pageInfo().create,undefined);
+});
