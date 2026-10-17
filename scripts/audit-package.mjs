@@ -1,19 +1,23 @@
 import { execFile } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import os from "node:os";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 
 const execFileAsync = promisify(execFile);
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+const packArgs = ["pack", "--dry-run", "--json", "--ignore-scripts"];
+// npm run 提供 CLI 路径，直接经 Node 执行，避免 Windows 的 .cmd 启动差异。
+const npmCli = process.env.npm_execpath;
 const { stdout } = await execFileAsync(
-  "npm",
-  ["pack", "--dry-run", "--json", "--ignore-scripts"],
+  npmCli ? process.execPath : "npm",
+  npmCli ? [npmCli, ...packArgs] : packArgs,
   {
     cwd: root,
     env: {
       ...process.env,
-      npm_config_cache: process.env.MINECODEX_NPM_CACHE ?? "/tmp/minecodex-npm-cache",
+      npm_config_cache: process.env.MINECODEX_NPM_CACHE ?? path.join(os.tmpdir(), "minecodex-npm-cache"),
     },
     maxBuffer: 16 * 1024 * 1024,
   },
@@ -210,9 +214,9 @@ for (const binaryPath of [
   "packages/cli/native/MineCodex.app/Contents/MacOS/MineCodexServiceManager",
   "packages/cli/native/MineCodex.app/Contents/Resources/MineCodexServiceHost",
 ]) {
-  const { stdout: stringsOutput } = await execFileAsync("/usr/bin/strings", [path.join(root, binaryPath)], {
-    maxBuffer: 4 * 1024 * 1024,
-  });
+  // 规则均为 ASCII；直接提取完整二进制中的可打印片段，无需系统 strings 工具。
+  const binary = await readFile(path.join(root, binaryPath));
+  const stringsOutput = (binary.toString("latin1").match(/[\x20-\x7e]{4,}/g) || []).join("\n");
   for (const [pattern, reason] of sensitiveContent) {
     if (pattern.test(stringsOutput)) failures.push(`${reason}: ${binaryPath}`);
   }
