@@ -38,12 +38,17 @@ export function createContextUsageAdapter(signal, codex, onChange, loadFamily = 
   }
   async function discover() {
     if (loadFamily) return loadFamily();
-    const url=[...document.querySelectorAll('link[rel=modulepreload]')].map(link=>link.href).find(url=>/\/app-shared-[^/]+\.js(?:$|\?)/.test(url));
-    if (!url) throw new Error("context-bundle-unavailable");
-    const source=await (await fetch(url,{signal})).text();
-    const exported=contextUsageExport(source);
-    if (!exported) throw new Error("context-export-unavailable");
-    return (await import(url))[exported];
+    const urls=[...document.querySelectorAll('link[rel=modulepreload],script[src]')].map(node=>node.href || node.src);
+    const initial=urls.find(url=>/\/app-initial-[^/]+\.js(?:$|\?)/.test(url));
+    const shared=urls.find(url=>/\/app-shared-[^/]+\.js(?:$|\?)/.test(url));
+    if (!initial && !shared) throw new Error("context-bundle-unavailable");
+    // 当前 Codex 将上下文接口放在 app-initial，按实际导出识别。
+    for (const url of [initial,shared].filter(Boolean)) {
+      const source=await (await fetch(url,{signal})).text();
+      const exported=contextUsageExport(source);
+      if (exported) return (await import(url))[exported];
+    }
+    throw new Error("context-export-unavailable");
   }
   void discover().then(value=>{ if (!signal.aborted) { family=value; connect(thread,composer); } })
     .catch(()=>codex.report("context-usage",false,"context-capability-unavailable"));
