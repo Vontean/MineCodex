@@ -48,4 +48,8 @@ Context 直接订阅原生会话的 `latestTokenUsageInfo`，与原生指示器�
 
 2026-10-08，Codex 26.1002.52244 安装包与当前会话实测：`app-shared` 改为先创建 `tokenUsageInfo` selector，再派生按 thread ID 读取、内部携带 host ID 的 atom family。Adapter 从该声明定位导出，不固定 bundle 哈希或压缩后的导出名；旧版直接解构 `latestTokenUsageInfo` 的声明仍可识别。AppScope 与 store 的读取、订阅接口保持相同，发现失败时保留不可用诊断，不以日志用量覆盖原生状态。
 
+Codex `26.1013.4894.0` 的既有本机验证发现上述接口已迁入 `app-initial`。Adapter 从 modulepreload 与 script 入口发现资源，优先检查 `app-initial`，找不到接口导出时再检查 `app-shared`；仍按原生声明识别导出，不固定哈希或导出名。该变更适配 Codex bundle 布局，不局限于操作系统。回归验证运行 `node --test features/session-status/test/*.test.mjs`，覆盖新旧入口、缺失导出、订阅更新与清理；真实桌面百分比另行验收。
+
+2026-10-17，macOS Codex `26.1013.40934` 隔离 Renderer 验证同样发生接口迁移：旧发现路径不可用，新路径在真实会话 AppScope 中建立订阅并读到原生占用、窗口容量和百分比，AbortSignal 结束后释放订阅。该证据覆盖原生数据读取，不代表状态栏所有浮窗的完整交互验收。
+
 首次安装默认展开输入框下方的会话统计，之后记住用户的展开或收起选择。详情最右侧箭头可收起，收起后点击模型选择左侧的 context 环重新展开；展开时隐藏输入框内的环，展开状态跨会话及 side chat 共享并记住；收起后不保留布局占位。悬浮显示原生同口径的上下文用量。Cache 超过99%时显示一位小数。
