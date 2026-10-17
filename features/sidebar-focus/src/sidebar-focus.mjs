@@ -4,7 +4,7 @@ const EXPAND_GLYPH = "<svg aria-hidden=\"true\"\n  xmlns=\"http://www.w3.org/200
 
 
 const states = new Map();
-let active = false, restoring = false, button, timer = null, disposed = false;
+let active = false, restoring = false, button, currentBell, timer = null, disposed = false;
 const text = (en, cn) => (document.documentElement.lang || navigator.language).startsWith("zh") ? cn : en;
 
 
@@ -15,8 +15,10 @@ function remember(items) {
 function reconcile() {
   if (disposed) return;
   const sidebar = document.querySelector("#app-shell-sidebar");
-  const bell = [...(sidebar?.querySelectorAll("button[aria-pressed]") || [])].find(e => /activity|活动|动态/.test(e.getAttribute("aria-label") || ""));
+  const bell = nativeFocus.activity();
   if (!bell) { button?.remove(); button = null; return; }
+  if (currentBell !== bell) { button?.remove(); button = null; }
+  currentBell = bell;
   if (!button?.isConnected) {
     button = bell.cloneNode(false);
     button.removeAttribute("id");
@@ -93,7 +95,7 @@ const observer = new MutationObserver(records => {
   )) schedule();
 });
 observer.observe(document.documentElement, { subtree:true, childList:true, attributes:true, attributeFilter:[
-  "aria-expanded", "aria-pressed", "data-app-action-sidebar-thread-selected",
+  "aria-expanded", "aria-pressed", "aria-current", "style", "class", "data-app-action-sidebar-thread-selected",
   "data-app-action-sidebar-section-collapsed", "data-above-composer-conversation-id", "lang"
 ] });
 reconcile();

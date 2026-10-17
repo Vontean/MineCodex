@@ -13,16 +13,19 @@ export async function loadNativeMarkdownRenderer(source, url, module) {
   ].find((m) => m[2].includes(`${init}()`) && binding(m[1]));
   if (!initializer || !binding(markdownName)) throw new Error('native-rich-markdown-contract-unavailable');
   binding(initializer[1])();
-  let lexer, sharedUrl;
   const lexerName = source.match(/tokens:([\w$]+)\(e,void 0\)/)?.[1];
-  for (const m of source.matchAll(/import\{([^}]+)\}from["']([^"']+)["']/g))
+  let lexer = lexerName ? binding(lexerName) : undefined, sharedUrl;
+  // lexer 可在入口模块本地导出；代码组件仍从独立的共享模块加载。
+  for (const m of source.matchAll(/import\{([^}]+)\}from["']([^"']+)["']/g)) {
+    const importUrl = new URL(m[2], url).href;
+    if (/\/app-shared-[^/]+\.(?:js|mjs)$/.test(importUrl)) sharedUrl = importUrl;
     for (const entry of m[1].split(',')) {
       const parts = entry.trim().split(/\s+as\s+/);
       if (parts.at(-1) === lexerName) {
-        sharedUrl = new URL(m[2], url).href;
-        lexer = (await import(sharedUrl))[parts[0]];
+        lexer = (await import(importUrl))[parts[0]];
       }
     }
+  }
   if (!sharedUrl || typeof lexer !== 'function') throw new Error('native-markdown-lexer-unavailable');
   return { Markdown: binding(markdownName), lexer, sharedUrl };
 }

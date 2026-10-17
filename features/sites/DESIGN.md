@@ -86,6 +86,8 @@ Codex 26.930.21537 隔离窗口验证：浏览器 panel 的 More（Browser optio
 
 Codex 26.1007.30912 的 Plus 独立 profile：Create Site 位于独立标题工具区；ownership 标签和实际内容区位于同一 min-h-full 外壳内，内容在最后一项，不是第二项。按可见搜索输入框定位，排除原生缓存的隐藏页面。Add site 紧邻 Create Site，复用其原生按钮与图标。
 
+Codex 26.1013.4894.0 的 Windows 简体中文隔离窗口中，创建按钮文案为“创建新站点”；锚点识别同时保留“创建站点”。仍精确匹配可见原生按钮，排除 MCX 自有节点，不扩大为包含“站点”的模糊匹配。已验证添加入口、弹窗打开及 Escape 关闭；其他语言与原有 Space 分支由契约测试覆盖，不代表本构建的跨语言 GUI 验收。
+
 Added by you 沿用原生 browse 标签的选中／未选中 class 和键盘切换。原始 ownership 节点保留，通过隐藏并以镜像导航转发 Owned／Shared 动作接入；Added 只切换本地筛选，不伪造原生 selectedKey。它隐藏官方内容，MCX 条目使用独立列表／网格；原生搜索和视图切换继续生效。离开、账号切换与卸载恢复原标签及内容的原始 hidden 状态。无匹配时显示简短空状态。
 
 原生共享能力确认可能在导航后移除整个 ownership 组。Plus 此时仍保留 Owned by you／Added by you，Shared with you 仅在原生提供时镜像；降级分支沿用本版本已测 browse class 与原生内容区 gutter。组重建或视图切换保持 Added 的选择。列表行必须包含原生 group/site-row，使末列动作的 hover／focus-within 规则生效。

@@ -41,7 +41,7 @@ test("config keeps established defaults and enables reading by default and prese
   assert.deepEqual(saved.future, { channel: "preview" });
 });
 
-test("config writes atomically and control token stays stable with private permissions", async () => {
+test("config writes atomically and control token stays stable", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "minecodex-token-"));
   const configPath = path.join(root, "state", "config.json");
   const tokenPath = path.join(root, "state", "control-token");
@@ -49,6 +49,12 @@ test("config writes atomically and control token stays stable with private permi
   const token = await ensureControlToken(tokenPath);
   assert.equal(await ensureControlToken(tokenPath), token);
   assert.equal(token.length >= 40, true);
+});
+
+test("control token uses private POSIX permissions", { skip: process.platform === "win32" }, async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "minecodex-token-mode-"));
+  const tokenPath = path.join(root, "state", "control-token");
+  await ensureControlToken(tokenPath);
   assert.equal((await stat(tokenPath)).mode & 0o777, 0o600);
 });
 

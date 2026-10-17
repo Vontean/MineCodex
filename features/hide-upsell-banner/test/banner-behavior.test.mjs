@@ -4,8 +4,8 @@ import {readFile} from 'node:fs/promises';
 const source=await readFile(new URL('../src/hide-upsell-banner.mjs',import.meta.url),'utf8');
 function fixture(specs) {
   class Element {
-    constructor({title,usage=false,display=''}) {
-      this.isConnected=true;this.title=title;this.usage=usage;this.attrs=new Map();this.writes=0;
+    constructor({title,usage=false,display='',panel=false}) {
+      this.isConnected=true;this.title=title;this.usage=usage;this.panel=panel;this.attrs=new Map();this.writes=0;
       let value=display,priority='';const self=this;
       this.style={get display(){return value;},set display(v){value=v;self.writes++;},
         getPropertyValue:()=>value,getPropertyPriority:()=>priority,
@@ -16,7 +16,7 @@ function fixture(specs) {
     hasAttribute(k){return this.attrs.has(k);}
     setAttribute(k,v){this.attrs.set(k,v);}
     removeAttribute(k){this.attrs.delete(k);}
-    querySelector(){return {innerText:this.title,textContent:this.title};}
+    querySelector(selector){return selector==="[role='tabpanel']"?(this.panel?{}:null):{innerText:this.title,textContent:this.title};}
     querySelectorAll(){return this.usage?[{getAttribute:()=> 'Dismiss usage banner'}]:[];}
   }
   const nodes=specs.map(s=>new Element(s)),pending=[];let notify,disconnected=false;
@@ -50,4 +50,20 @@ test('cleanup restores inline display and queued scans cannot hide again',()=>{
 test('staged title and late usage control are picked up on mutation',()=>{
   const f=fixture([{title:''}]),n=f.nodes[0];n.title='You’re out of usage';f.mutate();assert.equal(n.style.display,'');
   n.usage=true;f.mutate();assert.equal(n.style.display,'none');f.cleanup();
+});
+
+test('file preview panels remain visible when document text matches exhaustion wording',()=>{
+  const f=fixture([{title:'AI-HANDOFF.md Codex 使用额度达到上限',panel:true},
+    {title:"You're out of Codex and Work usage",panel:true,usage:true},
+    {title:'Codex 使用额度已用尽'}]);
+  assert.deepEqual(f.nodes.map(n=>n.style.display),['','','none']);
+  assert.equal(f.nodes[0].hasAttribute('data-codex-upsell-banner-hidden'),false);
+  f.cleanup();
+});
+
+test('a reused aside is restored when it becomes a document panel',()=>{
+  const f=fixture([{title:'Codex usage limit reached',display:'flex'}]),n=f.nodes[0];
+  assert.equal(n.style.display,'none');n.panel=true;f.mutate();
+  assert.equal(n.style.display,'flex');
+  assert.equal(n.hasAttribute('data-codex-upsell-banner-hidden'),false);f.cleanup();
 });

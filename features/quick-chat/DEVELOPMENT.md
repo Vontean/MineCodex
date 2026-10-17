@@ -3,7 +3,7 @@
 独立 page-script 功能，无服务、数据库或 host action。CLI 提供独立开关，Runtime Host 仅发现和组装源码。
 
 - `src/adapters/codex/renderer.mjs` 识别经典聊天浮层，提供当前会话、原生提交许可、发送确认呈现记录身份、standalone Minimize 模板、项目 rail、展开和历史动作。入口不遍历 React。
-- `src/adapters/codex/shortcut.mjs` 通过原生命令目录、Quick Chat 能力检查与导出角色发现打开动作；从模式选择器定位当前 AppScope，不硬编码压缩名称或构建哈希。⌘⌥N 未被处理时，先以统一停靠浮层与按钮回调形状识别原生 Restore（不匹配本地化标签），调用按钮以保留原生 presentation 恢复和焦点。此分支覆盖页面上下文的 Work；已显示时只聚焦。Codex 模式先读取原生打开 atom；false 调用原生 New chat，待新会话 DOM 挂载后聚焦，不复用退出动画中的旧输入框。true 才恢复或聚焦已有浮层；重复按键、输入法组合和其他组合保留原状。官方恢复命令或协议不匹配时停止补偿，卸载及 AbortSignal 清理监听。
+- `src/adapters/codex/shortcut.mjs` 通过原生命令目录、Quick Chat 能力检查与导出角色发现打开动作；从模式选择器定位当前 AppScope，不硬编码压缩名称或构建哈希。平台快捷键（Windows Ctrl+Alt+N，macOS ⌘⌥N）未被处理时，先以统一停靠浮层与按钮回调形状识别原生 Restore（不匹配本地化标签），调用按钮以保留原生 presentation 恢复和焦点。此分支覆盖页面上下文的 Work；已显示时只聚焦。Codex 模式先读取原生打开 atom；false 调用原生 New chat，待新会话 DOM 挂载后聚焦，不复用退出动画中的旧输入框。true 才恢复或聚焦已有浮层；重复按键、输入法组合和其他组合保留原状。官方恢复命令或协议不匹配时停止补偿，卸载及 AbortSignal 清理监听。
 - `src/adapters/codex/history.mjs` 统一识别原生历史列表，只向控制区与 Pin 适配输出可见事实；注入工厂显式序列化此依赖。
 - `src/adapters/codex/pin.mjs` 识别经典 Quick Chat 的内容会话、展开 header 与原生全屏层，过滤 Work、widget、annotation、历史预览和退出状态；保留最小化快照供固定状态清理。`src/frontend/pin.mjs` 管会话内 Pin 与按钮，不读 Fiber；Minimize / Esc / 关闭 / 会话切换 / 卸载解除固定。只对当前固定层添加可撤销的背景穿透标记，子元素继续使用原生命中；维持展开经 Adapter 的原生 presentation 动作，不截断主页面点击。
 - `src/domain/submission.mjs` 只解释本次提交与同会话新增发送确认的关系，不读取 DOM 或原始 Codex 对象。

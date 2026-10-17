@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   CODEX_WINDOWS_PACKAGE_FAMILY,
   buildWindowsServiceCommand,
+  buildWindowsServiceLauncher,
   buildWindowsServiceRuntimeConfig,
   createPlatformAdapter,
   isExactCodexProcessWindows,
@@ -156,6 +157,11 @@ test("installService writes runtime config, service command, and registers a log
       if (script.includes("Register-ScheduledTask")) {
         assert.match(script, new RegExp(WINDOWS_SERVICE_TASK_NAME));
         assert.match(script, /ExecutionTimeLimit \(\[TimeSpan\]::Zero\)/);
+        assert.match(script, /System32\\wscript\.exe/);
+        assert.match(script, /\/\/B \/\/Nologo/);
+        assert.match(script, /-WorkingDirectory \$serviceDir/);
+        assert.match(script, /New-ScheduledTaskTrigger -AtLogOn/);
+        assert.doesNotMatch(script, /-AtStartup/);
       }
       return { stdout: "registered" };
     },
@@ -167,6 +173,9 @@ test("installService writes runtime config, service command, and registers a log
   assert.match(command, /mcx\.mjs" serve/);
   assert.equal(config.cliPath, "C:\\\\mc\\mcx.mjs");
   assert.equal(config.nodePath, process.execPath);
+  const launcher = written.get(paths.serviceLauncherPath);
+  assert.equal(launcher.readUInt16LE(0), 0xFEFF);
+  assert.match(launcher.toString("utf16le"), /shell\.Run\(command, 0, True\)/);
 });
 
 test("assertNativeCodexCdp requires loopback CDP arguments and matching port owner", async () => {
@@ -191,6 +200,25 @@ test("assertNativeCodexCdp requires loopback CDP arguments and matching port own
   );
 });
 
+test("Windows service restore regenerates its hidden launcher before registering the task", async () => {
+  const paths = resolvePaths({ homeDir: WINDOWS_HOME, platform: "win32" });
+  const written = new Map();
+  const adapter = new WindowsPlatformAdapter({
+    fileSystem: {
+      mkdir: async () => {},
+      writeFile: async (file, content) => written.set(file, content),
+    },
+  });
+  adapter.removeService = async () => {};
+  adapter.assertServiceStopped = async () => {};
+  adapter.registerServiceTask = async () => {
+    assert.ok(written.has(paths.serviceAppPath));
+    assert.ok(written.has(paths.serviceLauncherPath));
+  };
+  await adapter.restoreServiceState({ app: { exists: true, status: "disabled" }, running: false }, { cliPath: "C:\\mc\\mcx.mjs", paths });
+  assert.match(written.get(paths.serviceLauncherPath).toString("utf16le"), /WScript\.Quit exitCode/);
+});
+
 test("Windows service command and runtime config builders pin exact paths", () => {
   const paths = resolvePaths({ homeDir: WINDOWS_HOME, platform: "win32" });
   const command = buildWindowsServiceCommand({
@@ -208,4 +236,61 @@ test("Windows service command and runtime config builders pin exact paths", () =
   assert.equal(config.serviceLogPath, paths.serviceLogPath);
 });
 
+test("Windows registered activation preserves the package identity and loopback CDP arguments", async () => {
+  let script, waited;
+  const adapter = new WindowsPlatformAdapter();
+  adapter.codex = async () => ({ executable: FAKE_EXE, packageFamilyName: CODEX_WINDOWS_PACKAGE_FAMILY });
+  adapter.listCodexProcesses = async () => [{ pid: 42 }];
+  adapter.powershell = async value => { script = value; };
+  adapter.waitForNativeCodex = async options => { waited = options; return { pid: 43 }; };
+  assert.deepEqual(await adapter.openNativeCodex({ cdpPort: 9231 }), { pid: 43 });
+  assert.match(script, /ActivateApplication/);
+  assert.ok(script.includes(CODEX_WINDOWS_PACKAGE_FAMILY + "!App"));
+  assert.match(script, /--remote-debugging-address=127\.0\.0\.1 --remote-debugging-port=9231 --remote-allow-origins=http:\/\/127\.0\.0\.1:9231/);
+  assert.doesNotMatch(script, /Start-Process/);
+  assert.equal(waited.cdpPort, 9231);
+  assert.deepEqual([...waited.excludedPids], [42]);
+});
+
+test("Windows ordinary launch uses registered activation without CDP or process discovery", async () => {
+  const adapter = new WindowsPlatformAdapter();
+  adapter.codex = async () => ({ packageFamilyName: CODEX_WINDOWS_PACKAGE_FAMILY });
+  adapter.listCodexProcesses = async () => assert.fail("ordinary launch must not enumerate CDP processes");
+  adapter.waitForNativeCodex = async () => assert.fail("ordinary launch must not wait for CDP");
+  adapter.powershell = async script => {
+    assert.ok(script.includes(`::Launch('${CODEX_WINDOWS_PACKAGE_FAMILY}!App', '')`));
+    assert.doesNotMatch(script, /--remote-debugging/);
+  };
+  assert.equal(await adapter.openNativeCodex(), null);
+});
+
+test("Windows activation errors propagate without waiting for a nonexistent launch", async () => {
+  const adapter = new WindowsPlatformAdapter();
+  adapter.codex = async () => ({ packageFamilyName: CODEX_WINDOWS_PACKAGE_FAMILY });
+  adapter.listCodexProcesses = async () => [];
+  adapter.powershell = async () => { throw new Error("activation failed"); };
+  adapter.waitForNativeCodex = async () => assert.fail("failed activation must not wait for CDP");
+  await assert.rejects(adapter.openNativeCodex({ cdpPort: 9231 }), /activation failed/);
+});
+
 import path from "node:path";
+import os from "node:os";
+import { mkdtemp, writeFile, rm } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+
+test("Windows hidden launcher preserves exit code through a path with spaces and Chinese", { skip: process.platform !== "win32" }, async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "minecodex 隐藏 "));
+  try {
+    const paths = { serviceAppPath: path.join(directory, "service.cmd") };
+    const launcherPath = path.join(directory, "hidden.vbs");
+    await writeFile(paths.serviceAppPath, "@exit /b 7\r\n", "ascii");
+    await writeFile(launcherPath, Buffer.from("\uFEFF" + buildWindowsServiceLauncher(paths), "utf16le"));
+    await assert.rejects(
+      promisify(execFile)(path.join(process.env.SystemRoot, "System32", "cscript.exe"), ["//B", "//Nologo", launcherPath], { windowsHide: true }),
+      error => error.code === 7,
+    );
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});

@@ -26,6 +26,8 @@ Discovery never starts services. Opening a saved stopped site can start a suppor
 
 The renderer owns `data-mcx-sites` elements. Saved local sites join the native Space → Sites list/grid and search without additional filter tabs. Native empty states are suppressed only while matching local results are displayed and restored on cleanup. It uses native Sites layout classes, current semantic theme tokens, and the existing Prompts dialog/menu patterns. The route-state and resize adapters depend on native renderer internals and must be verified against app updates. Icon sources: native Sites controls, existing Prompts resources, and the Lucide monitor icon; Lucide license is included in `vendor/`.
 
+异步操作的错误提示共用当前 Renderer 生命周期：卸载或 AbortSignal 失效后不再创建 notice；有效生命周期内的失败仍显示。`test/lifecycle.test.mjs` 使用实际序列化 installer 覆盖延迟 reject、resolve 与清理，不能只检查正常卸载时节点数量。
+
 弹窗与浮层统一调用 UI 组件库提供的 `config.ui`（由 Runtime Host 注入），共享主题材质、标题、Close 和表单操作区；插件只维护内容及交互。
 
 Iteration selection uses explicit numeric version directory names/suffixes (v/ver/version/rev/revision), then entry-file modification time for equal or unnumbered copies (final/latest/copy/backup/old). Titles alone never merge independent sites. This applies to discovered entries, not arbitrary HTML files. Semver release directories such as name-1.2.0 are also recognized. Demo/example/preview folders owned by a SKILL.md are treated as agent skill documentation; ordinary project documentation sites, demos and prototypes remain eligible. Saved entries keep their existing target; discovery filtering does not rewrite the library. Invalid history is pruned only when no current file entry or live service supports it.

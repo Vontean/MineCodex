@@ -24,3 +24,7 @@
 `src/markdown/` 由 Markdown Reader 和 Mermaid Diagrams 实际共用。`preview.mjs` 仅识别原生 File Panel 的 Markdown Preview，并调用功能传入的 attach；不持有任何功能 Runtime。`editor-api.mjs` 发现当前编辑器所属 CodeMirror API；`providers.mjs` 获取 committed Provider；`toc-native.mjs`、`markdown-native.mjs` 与 `block-actions.mjs` 发现原生 React、Markdown renderer 与块控件。排版、表格与图表安装继续归各自功能；图表下载协议不进入共享层。
 
 迁移时两个注入工厂都显式序列化这些能力。开启图表不要求阅读增强开启；默认关闭图表时阅读能力不依赖 QV、保存协议或图表自检。
+
+Codex `26.1013.4894.0` 将 Markdown lexer 移到入口模块本地并公开导出；解析器兼容既有导入绑定与本地导出。代码组件仍位于 app-shared，因此其资源 URL 独立于 lexer 来源发现。缺少 lexer 或共享组件模块时明确报告契约不可用。回归见 `test/markdown-native.test.mjs`；Windows 隔离预览已验证表格操作、富文本能力及公式渲染恢复，图表能力由 Mermaid 单独检查。
+
+Codex `26.1013.4894.0` 的 TOC 将 `floating-navigation-rail-layout` 资源更名为 `floating-navigation-rail`，列表容器新增 `variant:viewer`，导航定位使用含评论区 inset 的计算值。发现规则支持两种资源名称，导航 class 从带 `page-table-of-contents` Tooltip 的函数中按 nav 角色取得，不依赖某个 top utility 的字面值。Markdown 自己仍按 File Panel 中心定位；不沿用 Pages 评论区的坐标计算。回归运行 `node --test packages/codex-adapter/test/toc-native.test.mjs`，覆盖新旧资源、容器属性、原生模块导入和样式加载。

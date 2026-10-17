@@ -25,9 +25,10 @@ export function resolvePaths({ homeDir = os.homedir(), platform = process.platfo
       supportDir,
       logsDir,
       serviceDir,
-      // Windows 无 .app 服务包；服务入口是计划任务拉起的 cmd 脚本。
+      // Windows 通过隐藏启动器等待 cmd 服务，保留计划任务的退出状态。
       serviceBundleSource: null,
       serviceAppPath: winPath.join(serviceDir, "MineCodexService.cmd"),
+      serviceLauncherPath: winPath.join(serviceDir, "MineCodexService-hidden.vbs"),
       serviceManagerPath: null,
       serviceRuntimeConfigPath: winPath.join(supportDir, "service-runtime.json"),
       configPath: winPath.join(supportDir, "config.json"),
