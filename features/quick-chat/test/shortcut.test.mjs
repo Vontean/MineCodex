@@ -10,7 +10,9 @@ test('finds the native open role across renamed locals and fails on a changed co
   assert.throws(()=>quickChatOpenExport(source.replace('chatgpt.quick-chat','other')));
   assert.throws(()=>quickChatOpenExport(source.replace('export{renamed as opener}','export{}')));
 });
-function fixture({mode='codex',native=false,scopeAvailable=true,minimized=false,active=false,hidden=false,visible=true,open=true}={}) {
+function fixture({platform='MacIntel',mode='codex',native=false,scopeAvailable=true,minimized=false,active=false,hidden=false,visible=true,open=true}={}) {
+  const previousNavigator=Object.getOwnPropertyDescriptor(globalThis,'navigator');
+  Object.defineProperty(globalThis,'navigator',{configurable:true,value:{platform}});
   const previous=globalThis.document,listeners=new Set(),calls=[];
   const button={checkVisibility:()=>true};
   const restored=[],created=[];
@@ -30,8 +32,20 @@ function fixture({mode='codex',native=false,scopeAvailable=true,minimized=false,
     const event={code:'KeyN',metaKey:true,altKey:true,ctrlKey:false,shiftKey:false,repeat:false,isComposing:false,defaultPrevented:false,preventDefault(){this.defaultPrevented=true},stopPropagation(){this.stopped=true},...overrides};
     for(const fn of listeners)fn(event);return event;
   };
-  return {shortcut,controller,calls,key,listeners,restored,created,setSession:id=>{surfaceSession=id},restore:()=>{shortcut.dispose();globalThis.document=previous}};
+  return {shortcut,controller,calls,key,listeners,restored,created,setSession:id=>{surfaceSession=id},restore:()=>{shortcut.dispose();globalThis.document=previous;if(previousNavigator)Object.defineProperty(globalThis,'navigator',previousNavigator);else delete globalThis.navigator;}};
 }
+
+test('Windows Ctrl Alt N opens Quick Chat and rejects Meta, extra modifiers and invalid input states',async()=>{
+  const f=fixture({platform:'Win32'});
+  try {
+    await f.shortcut.ready;
+    assert.equal(f.key().defaultPrevented,false);
+    const win={ctrlKey:true,metaKey:false};
+    for(const overrides of [{metaKey:true},{shiftKey:true},{altKey:false},{repeat:true},{isComposing:true},{defaultPrevented:true},{code:'KeyM'}])f.key({...win,...overrides});
+    assert.equal(f.calls.length,0);
+    const event=f.key(win);assert.equal(event.defaultPrevented,true);assert.equal(f.calls.length,1);
+  } finally {f.restore();}
+});
 test('Codex Cmd Option N invokes the native action once and retains its scope',async()=>{
   const f=fixture();try {await f.shortcut.ready;const e=f.key();assert.equal(f.calls.length,1);assert.equal(e.defaultPrevented,true);assert.equal(e.stopped,true);}finally{f.restore()}
 });

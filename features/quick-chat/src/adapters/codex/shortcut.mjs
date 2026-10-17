@@ -25,6 +25,7 @@ export function quickChatLifecycleExports(source) {
 }
 
 export function installQuickChatShortcut(signal, codex, discover = null) {
+  const windows = navigator.platform.startsWith('Win');
   let bindings = null, disposed = false, pendingFocus = null;
   function activateExisting() {
     // 原生恢复按钮同时恢复 presentation、取消最小化并聚焦输入框。
@@ -97,8 +98,9 @@ export function installQuickChatShortcut(signal, codex, discover = null) {
     codex.report('quick-chat-shortcut', true);
   }).catch(() => { if (!disposed && !signal.aborted) codex.report('quick-chat-shortcut', false, 'native-shortcut-contract-unavailable'); });
   function keydown(event) {
+    const primaryModifier = windows ? event.ctrlKey && !event.metaKey : event.metaKey && !event.ctrlKey;
     if (disposed || signal.aborted || bindings?.native || event.defaultPrevented || event.repeat || event.isComposing
-      || !event.metaKey || !event.altKey || event.ctrlKey || event.shiftKey || event.code !== 'KeyN') return;
+      || !primaryModifier || !event.altKey || event.shiftKey || event.code !== 'KeyN') return;
     const scope = bindings && context();
     if (scope && bindings.isOpen(scope) === false) {
       pendingFocus={scope,previous:new Set([...document.querySelectorAll('[data-floating-chat-surface]')].map(sessionId))};
