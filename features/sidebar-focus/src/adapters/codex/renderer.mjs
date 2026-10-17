@@ -30,5 +30,5 @@ function target(items) {
     || items.find(b => b.key.startsWith("section:") && (selected && b.element.contains(selected) || project && b.element.contains(project.element)));
   return section ? { section, project } : null;
 }
-  return {activity,mode:element=>props(element,p=>p.sidebarMode != null).sidebarMode,branches,target,isBranchToggle:element=>!!element.closest("[data-app-action-sidebar-section-toggle], " + projectSelector)};
+  return {activity,branches,target,isBranchToggle:element=>!!element.closest("[data-app-action-sidebar-section-toggle], " + projectSelector)};
 }

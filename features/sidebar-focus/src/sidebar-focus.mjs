@@ -4,8 +4,7 @@ const EXPAND_GLYPH = "<svg aria-hidden=\"true\"\n  xmlns=\"http://www.w3.org/200
 
 
 const states = new Map();
-const layouts = new Map();
-let active = false, restoring = false, button, currentBell, currentMode, timer = null, disposed = false;
+let active = false, restoring = false, button, currentBell, timer = null, disposed = false;
 const text = (en, cn) => (document.documentElement.lang || navigator.language).startsWith("zh") ? cn : en;
 
 
@@ -18,19 +17,8 @@ function reconcile() {
   const sidebar = document.querySelector("#app-shell-sidebar");
   const bell = nativeFocus.activity();
   if (!bell) { button?.remove(); button = null; return; }
-  const mode = nativeFocus.mode(bell);
-  if (currentMode && currentMode !== mode) {
-    // 两种模式分别保留恢复快照，不能把旧页面布局应用到新页面。
-    layouts.set(currentMode, {active, restoring, states:new Map(states)});
-    const saved = layouts.get(mode);
-    button?.remove(); button = null;
-    active = saved?.active ?? false; restoring = saved?.restoring ?? false;
-    states.clear();
-    for (const [key, expanded] of saved?.states ?? []) states.set(key, expanded);
-  }
   if (currentBell !== bell) { button?.remove(); button = null; }
   currentBell = bell;
-  currentMode = mode;
   if (!button?.isConnected) {
     button = bell.cloneNode(false);
     button.removeAttribute("id");
