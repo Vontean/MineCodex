@@ -13,6 +13,8 @@ let disposed = false;
 
 function isUpsellBanner(element) {
   if (!(element instanceof window.HTMLElement)) return false;
+  // 文件侧栏也是 aside，正文中的用量说明不能使整个预览被隐藏。
+  if (element.querySelector("[role='tabpanel']")) return false;
   const text = (element.textContent ?? "").trim();
   if (!text) return false;
   const title = (
