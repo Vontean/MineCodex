@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import path from "node:path";
 import {
   assertNodeSupported,
   buildServiceRuntimeConfig,
@@ -17,7 +18,7 @@ import {
 import { resolvePaths } from "../src/paths.mjs";
 
 test("MineCodex owns the background item while runtime config keeps exact Node and CLI paths", async () => {
-  const paths = resolvePaths({ homeDir: "/Users/example" });
+  const paths = resolvePaths({ homeDir: "/Users/example", platform: "darwin" });
   const configuration = buildServiceRuntimeConfig({
     nodePath: "/Users/example/a&b/node",
     cliPath: "/Users/example/minecodex/packages/cli/bin/mcx.mjs",
@@ -38,6 +39,10 @@ test("MineCodex owns the background item while runtime config keeps exact Node a
   assert.match(infoPlist, /<key>CFBundleDisplayName<\/key>\s*<string>MineCodex<\/string>/);
   assert.match(launchAgent, /<key>BundleProgram<\/key>\s*<string>Contents\/Resources\/MineCodexServiceHost<\/string>/);
   assert.doesNotMatch(launchAgent, /Node\.js|ProgramArguments/);
+});
+
+test("packaged macOS service signature and architectures pass native tools", { skip: process.platform !== "darwin" }, () => {
+  const paths = resolvePaths({ homeDir: "/Users/example", platform: "darwin" });
   execFileSync("/usr/bin/codesign", ["--verify", "--deep", "--strict", paths.serviceBundleSource]);
   assert.match(execFileSync("/usr/bin/lipo", ["-archs", paths.serviceManagerPath.replace(paths.serviceAppPath, paths.serviceBundleSource)], { encoding: "utf8" }), /arm64/);
   assert.match(execFileSync("/usr/bin/lipo", ["-archs", `${paths.serviceBundleSource}/Contents/Resources/MineCodexServiceHost`], { encoding: "utf8" }), /x86_64/);
@@ -50,11 +55,11 @@ test("install validates Node 22.5 and resolves only supported system or user Cod
 
   const installation = await resolveCodexInstallation({
     homeDir: "/Users/example",
-    fileExists: async (filePath) => filePath === "/Users/example/Applications/ChatGPT.app/Contents/Info.plist",
+    fileExists: async (filePath) => filePath === path.join("/Users/example", "Applications", "ChatGPT.app", "Contents", "Info.plist"),
   });
   assert.deepEqual(installation, {
-    appPath: "/Users/example/Applications/ChatGPT.app",
-    executable: "/Users/example/Applications/ChatGPT.app/Contents/MacOS/ChatGPT",
+    appPath: path.join("/Users/example", "Applications", "ChatGPT.app"),
+    executable: path.join("/Users/example", "Applications", "ChatGPT.app", "Contents", "MacOS", "ChatGPT"),
   });
 });
 
@@ -74,7 +79,7 @@ test("Codex process matching requires the exact executable and managed profile i
 });
 
 test("MacPlatformAdapter snapshots and restores launchd state through injected fakes", async () => {
-  const launchAgentPath = "/tmp/minecodex-platform-fake/agent.plist";
+  const launchAgentPath = path.resolve("/tmp/minecodex-platform-fake/agent.plist");
   const files = new Map([[launchAgentPath, "previous plist"]]);
   const calls = [];
   const currentTarget = `gui/501/${SERVICE_LABEL}`;
@@ -96,12 +101,12 @@ test("MacPlatformAdapter snapshots and restores launchd state through injected f
     },
     rm: async (target) => {
       for (const filePath of [...files.keys()]) {
-        if (filePath === target || filePath.startsWith(`${target}/`)) files.delete(filePath);
+        if (filePath === target || filePath.startsWith(`${target}${path.sep}`)) files.delete(filePath);
       }
     },
     rename: async (from, to) => {
       for (const [filePath, content] of [...files.entries()]) {
-        if (filePath === from || filePath.startsWith(`${from}/`)) {
+        if (filePath === from || filePath.startsWith(`${from}${path.sep}`)) {
           files.delete(filePath);
           files.set(`${to}${filePath.slice(from.length)}`, content);
         }
@@ -111,7 +116,7 @@ test("MacPlatformAdapter snapshots and restores launchd state through injected f
   const execFile = async (file, args) => {
     calls.push([file, args]);
     if (file === "/usr/bin/ditto") {
-      files.set(`${args[1]}/Contents/MacOS/MineCodexServiceManager`, "manager");
+      files.set(path.join(args[1], "Contents", "MacOS", "MineCodexServiceManager"), "manager");
     }
     if (file.endsWith("MineCodexServiceManager") && args[0] === "status") return { stdout: "status=not-registered\n" };
     if (file.endsWith("MineCodexServiceManager") && args[0] === "register") return { stdout: "status=enabled\n" };
@@ -135,14 +140,14 @@ test("MacPlatformAdapter snapshots and restores launchd state through injected f
   });
   const paths = {
     launchAgentPath,
-    serviceDir: "/tmp/minecodex-platform-fake/service",
-    serviceAppPath: "/tmp/minecodex-platform-fake/service/MineCodex.app",
-    serviceManagerPath: "/tmp/minecodex-platform-fake/service/MineCodex.app/Contents/MacOS/MineCodexServiceManager",
+    serviceDir: path.resolve("/tmp/minecodex-platform-fake/service"),
+    serviceAppPath: path.resolve("/tmp/minecodex-platform-fake/service/MineCodex.app"),
+    serviceManagerPath: path.resolve("/tmp/minecodex-platform-fake/service/MineCodex.app/Contents/MacOS/MineCodexServiceManager"),
     serviceBundleSource: "/tmp/package/MineCodex.app",
-    serviceRuntimeConfigPath: "/tmp/minecodex-platform-fake/service-runtime.plist",
-    logsDir: "/tmp/minecodex-platform-fake/logs",
-    serviceLogPath: "/tmp/minecodex-platform-fake/runtime.log",
-    serviceErrorLogPath: "/tmp/minecodex-platform-fake/runtime-error.log",
+    serviceRuntimeConfigPath: path.resolve("/tmp/minecodex-platform-fake/service-runtime.plist"),
+    logsDir: path.resolve("/tmp/minecodex-platform-fake/logs"),
+    serviceLogPath: path.resolve("/tmp/minecodex-platform-fake/runtime.log"),
+    serviceErrorLogPath: path.resolve("/tmp/minecodex-platform-fake/runtime-error.log"),
   };
   const snapshot = await adapter.snapshotServiceState(paths);
   assert.equal(snapshot.running, true);
@@ -429,9 +434,9 @@ test("MacPlatformAdapter rejects a stale owner marker after PID reuse", async ()
 });
 
 test("MacPlatformAdapter keeps the service bundle when macOS refuses to unregister it", async () => {
-  const serviceDir = "/tmp/minecodex-unregister-failure/service";
-  const serviceAppPath = `${serviceDir}/MineCodex.app`;
-  const serviceManagerPath = `${serviceAppPath}/Contents/MacOS/MineCodexServiceManager`;
+  const serviceDir = path.resolve("/tmp/minecodex-unregister-failure/service");
+  const serviceAppPath = path.join(serviceDir, "MineCodex.app");
+  const serviceManagerPath = path.join(serviceAppPath, "Contents", "MacOS", "MineCodexServiceManager");
   let removed = false;
   const adapter = new MacPlatformAdapter({
     uid: 501,

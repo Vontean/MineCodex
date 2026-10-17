@@ -3,7 +3,7 @@ import {readFile} from "node:fs/promises";
 import test from "node:test";
 import vm from "node:vm";
 
-const source=(await readFile(new URL("../app.js",import.meta.url),"utf8")).replace(/^import .*\n/gm,"");
+const source=(await readFile(new URL("../app.js",import.meta.url),"utf8")).replace(/^import [^\r\n]*\r?\n/gm,"");
 function dashboard(savedLanguage) {
   const nodes=new Map(),storage=new Map(savedLanguage ? [["minecodex-language",savedLanguage]] : []);
   const node=()=>({textContent:"",dataset:{},attributes:{},handlers:{},setAttribute(k,v){this.attributes[k]=v;},getAttribute(k){return this.attributes[k];},addEventListener(k,v){this.handlers[k]=v;},querySelector(){return this;}});

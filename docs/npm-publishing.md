@@ -18,6 +18,8 @@ gh workflow run publish.yml --repo Vontean/MineCodex --ref main -f release_tag=v
 
 ## 完整交付流程
 
+本地包边界审计使用 `npm run pack:audit`。脚本通过 npm 提供的 CLI 路径调用当前 Node，使用宿主临时目录作默认缓存，并直接扫描原生二进制中的 ASCII 字符串，因此 Windows 不依赖 `/usr/bin/strings` 或 shell 执行 `.cmd`。该检查不验证 macOS 签名；签名检查仍须在 macOS 上运行。
+
 发布完成标准包含 GitHub Release，只有 main／标签和 npm 更新不算完整交付：
 
 1. 按逻辑边界提交功能与发布流程改动，单独提交 package／lockfile 版本升级；运行 `npm run prepublishOnly`。
