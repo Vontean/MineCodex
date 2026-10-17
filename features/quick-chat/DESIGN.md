@@ -3,7 +3,7 @@
 沿用根 DESIGN.md 的视觉与原生控件规则。功能开关为 `quick-chat`，控制台名称为「快捷聊天增强」。
 
 - 仅增强经典 ChatGPT 的 Quick Chat 浮层；全窗口页面中的 Work / 代码输入横条保留原状。
-- Codex 模式下，原生命令缺失时补回 ⌘⌥N，读取原生打开状态；完全退出后调用原生 New chat，仍打开时恢复已有会话；官方恢复 `quickChat` 命令后让原生处理。⌘⇧N 的 Temporary Chat 不受影响。此补偿随「快捷聊天增强」开关启停，仅在应用窗口内生效。页面上下文已有浮层时（含 Work）优先调用原生恢复按钮，还原最小化前的 compact / expanded 形态并聚焦；已显示时仅聚焦输入框，不另开聊天。
+- Codex 模式下，原生命令缺失时，Windows 使用 Ctrl+Alt+N，macOS 使用 ⌘⌥N，读取原生打开状态；完全退出后调用原生 New chat，仍打开时恢复已有会话；官方恢复 `quickChat` 命令后让原生处理。⌘⇧N 的 Temporary Chat 不受影响。此补偿随「快捷聊天增强」开关启停，仅在应用窗口内生效。页面上下文已有浮层时（含 Work）优先调用原生恢复按钮，还原最小化前的 compact / expanded 形态并聚焦；已显示时仅聚焦输入框，不另开聊天。
 - 打开、聚焦和输入不改变原生初始形态。用户提交进入当前会话后自动展开正文；空提交或被阻止的提交不展开。
 - History 只出现在 compact 输入横条的原生 standalone 悬浮控制区，紧邻 Minimize 左侧，边缘间距 8px。历史面板打开后只保留 Minimize；standalone Minimize 在两种状态下均保持圆形。展开后的标题栏保留原生标题历史入口，不增加按钮。复制 Minimize 热区、材质与反馈；History 使用 16×16px Lucide 官方资源，匹配原生项目选择器的小图标层级（Minimize 的 20px 画布内图形另有留白）。
 - 经典 Chat 隐藏无效的项目选择 rail，不删除 React 节点。外层 rail 没有其他内容时也收起，避免原生圆角留白和负 margin 在聚焦时引入 -4px 净偏移；有其他内容时保留外层。控制区继续锚定原生浮层顶部，聚焦不改变与输入横条的位置关系。Work、页面 annotation composer 与 widget 不接入。关闭功能或切换分支时恢复 rail。
@@ -19,7 +19,7 @@
 
 Pin 适配依据：2026-10-10，Codex 26.1007.21159 / build 20052；原生 `header button[data-quick-chat-drag-handle]`、`QuickChatWindow` boundary、经典会话 hasConversation、统一停靠 presentation 与最小化回调，以及独立 profile 的真实鼠标命中测试。透明层穿透只在固定时生效；退出修复与增强共用同一个开关。
 
-- 完全退出由原生 Quick Chat 打开 atom 的 false 判断，不由 DOM 是否仍在退出动画中判断；再次 ⌘⌥N 创建全新会话，待新会话输入框挂载后聚焦。最小化保留打开状态，恢复同一会话。
+- 完全退出由原生 Quick Chat 打开 atom 的 false 判断，不由 DOM 是否仍在退出动画中判断；再次按本平台快捷键创建全新会话，待新会话输入框挂载后聚焦。最小化保留打开状态，恢复同一会话。
 - 对外统一名称 Enhance Quick Chat（快捷聊天增强），沿用 quick-chat id 和开关；旧 quick-chat-repair 配置移除。退出登记修复、快捷键、自动展开、History 与 Pin 一起启停。
 
 发送确认适配：26.1007.21159 的原生按会话 presentation atom 经 `[value, store, atom]` 状态订阅读取，value 由 owner / presentation 标识；Adapter 解包后保留记录身份，首轮和续轮确认触发展开，最小化中的确认不抢回窗口。
