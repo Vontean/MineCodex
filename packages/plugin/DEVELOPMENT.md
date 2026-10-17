@@ -23,6 +23,7 @@ MCP 的 read/write 工具仅对 App 可见，global 入口由用户直接打开�
 安装命令将当前包的 Node 与 CLI 绝对路径写入专属本地 marketplace；开发安装因此
 引用当前 checkout。发布／全局安装时再次执行 `mcx plugin install`，更新路径并刷新
 插件安装。MCP 进程只依赖已安装的 MCX 服务；服务不可用时面板显示现有错误状态。
+Navbar 入口由原生发现与固定状态管理；Runtime 的导航 Adapter 只替换已存在入口的图标，不创建入口、不覆盖用户固定偏好。入口不显示时分别验证 CLI 注册结果、探索中的两个 global 入口和原生固定状态；操作步骤见根 README 的安装说明。Windows Codex 26.1013.4894.0 已验证注册、原生刷新、固定、页面路由和选中图标；这不替代 App 内业务操作验收。
 安装生成的 manifest、MCP server 与两个 App 使用同一发布版本。Codex 26.930
 保留沙箱的装载 effect 不直接监听 HTML 内容变化，因此发布时必须改变两个资源
 URI，不能只在旧 URI 下换内容。Prompt 输入框来源校验同时接受所属服务的无版本
