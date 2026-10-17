@@ -69,7 +69,7 @@ export async function loadNativeMarkdownToc() {
   )?.[1];
   const Tooltip = await binding(tooltipLocal);
   const layoutUrl = [...imports.values()].find((item) =>
-    item.url.includes('/floating-navigation-rail-layout-'),
+    /\/floating-navigation-rail-(?:layout-)?[\w-]+\.js(?:$|\?)/.test(item.url),
   )?.url;
   if (!layoutUrl) throw new Error('native-page-toc-layout-unavailable');
   const layout = await import(layoutUrl);
@@ -84,7 +84,7 @@ export async function loadNativeMarkdownToc() {
       mainImports.set(parts.at(-1), { name: parts[0], url: new URL(match[2], mainUrl).href });
     }
   const ReactDOM = (await binding(rootFactory, mainImports))();
-  const css = initial.match(/["']\.\/((?:floating-navigation-rail-layout)-[\w-]+\.css)["']/)?.[1];
+  const css = initial.match(/["']\.\/((?:floating-navigation-rail(?:-layout)?)-[\w-]+\.css)["']/)?.[1];
   if (!css) throw new Error('native-page-toc-styles-unavailable');
   const cssUrl = new URL(css, initialUrl).href;
   if (![...document.querySelectorAll('link[rel="stylesheet"]')].some((n) => n.href === cssUrl)) {
@@ -114,9 +114,10 @@ export async function loadNativeMarkdownToc() {
   const classes = {
     rail: requireClass(railBody, /ref:[\w$]+,className:`([^`]+)`,"data-floating-navigation-rail-list"/),
     railButton: requireClass(railBody, /className:`([^`]+)`,"aria-current"/),
-    menu: requireClass(listBody, /ref:[\w$]+,className:`([^`]+)`,children:/),
+    menu: requireClass(listBody, /ref:[\w$]+,className:`([^`]+)`,(?:variant:`viewer`,)?children:/),
     menuButton: requireClass(listBody, /className:[\w$]+\(`([^`]+)`/),
-    nav: requireClass(source, /className:`(absolute top-1\/2 left-1\.5[^`]+)`/),
+    // 按 TOC 调用角色找导航样式，避免绑定随布局变化的 top utility。
+    nav: requireClass(bodyMatching(/skipDelayKey:`page-table-of-contents`/), /jsx\)\(`nav`,\{"aria-label":[\w$]+,className:`([^`]+)`/),
   };
   const indentName = listBody.match(/`block`,([\w$]+)\[e\.level\]/)?.[1];
   const indentValue = indentName && source.match(new RegExp(`\\b${indentName}=(\\[[^\\]]+\\])`))?.[1];
