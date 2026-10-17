@@ -217,6 +217,20 @@ export function buildWindowsServiceCommand({ nodePath, cliPath, paths }) {
   ].join("\r\n");
 }
 
+export function buildWindowsServiceLauncher(paths) {
+  const serviceCmd = String(paths.serviceAppPath).replaceAll('"', '""');
+  return [
+    "Option Explicit",
+    "Dim shell, command, exitCode",
+    'Set shell = CreateObject("WScript.Shell")',
+    "' 隐藏窗口并等待服务退出，向计划任务传递真实退出码。",
+    'command = Chr(34) & shell.ExpandEnvironmentStrings("%ComSpec%") & Chr(34) & " /d /s /c " & Chr(34) & Chr(34) & "' + serviceCmd + '" & Chr(34) & Chr(34)',
+    "exitCode = shell.Run(command, 0, True)",
+    "WScript.Quit exitCode",
+    "",
+  ].join("\r\n");
+}
+
 // cmd 的引号转义是内部双引号翻倍，与 JSON 转义规则不同，不能混用。
 function cmdQuote(value) {
   return '"' + String(value).replaceAll('"', '""') + '"';
@@ -907,6 +921,8 @@ export class WindowsPlatformAdapter {
 
   async writeServiceCommand(paths, content) {
     await this.fileSystem.writeFile(paths.serviceAppPath, content, { mode: 0o700 });
+    // WSH 用 UTF-16 BOM 识别中文路径，避免依赖系统 ANSI 代码页。
+    await this.fileSystem.writeFile(paths.serviceLauncherPath, Buffer.from("\uFEFF" + buildWindowsServiceLauncher(paths), "utf16le"), { mode: 0o700 });
   }
 
   async snapshotServiceState(paths) {
@@ -956,8 +972,9 @@ export class WindowsPlatformAdapter {
   async registerServiceTask(paths) {
     // ExecutionTimeLimit 0 表示不限时：服务是常驻进程，不能被默认 72h 限制回收。
     const script = [
-      "$serviceCmd = '" + String(paths.serviceAppPath).replaceAll("'", "''") + "';",
-      '$action = New-ScheduledTaskAction -Execute \'cmd.exe\' -Argument (\'/c ""\' + $serviceCmd + \'""\');',
+      "$launcher = '" + String(paths.serviceLauncherPath).replaceAll("'", "''") + "';",
+      "$serviceDir = '" + String(paths.serviceDir).replaceAll("'", "''") + "';",
+      '$action = New-ScheduledTaskAction -Execute (Join-Path $env:SystemRoot \'System32\\wscript.exe\') -Argument (\'//B //Nologo "\' + $launcher + \'"\') -WorkingDirectory $serviceDir;',
       "$trigger = New-ScheduledTaskTrigger -AtLogOn;",
       "$settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1);",
       "Register-ScheduledTask -TaskName '" + WINDOWS_SERVICE_TASK_NAME + "' -Action $action -Trigger $trigger -Settings $settings -Force | Out-Null;",
@@ -1179,18 +1196,32 @@ export class WindowsPlatformAdapter {
 
   async openNativeCodex({ cdpPort } = {}) {
     const installation = await this.codex();
-    if (!Number.isInteger(cdpPort) || cdpPort <= 0 || cdpPort > 65_535) {
-      await this.powershell("Start-Process -FilePath '" + String(installation.executable).replaceAll("'", "''") + "'");
-      return null;
-    }
-    const existingPids = new Set((await this.listCodexProcesses()).map(({ pid }) => pid));
-    const safeExecutable = String(installation.executable).replaceAll("'", "''");
+    const withCdp = Number.isInteger(cdpPort) && cdpPort > 0 && cdpPort <= 65_535;
+    const existingPids = new Set(withCdp ? (await this.listCodexProcesses()).map(({ pid }) => pid) : []);
+    const appId = `${installation.packageFamilyName}!App`.replaceAll("'", "''");
+    const args = withCdp
+      ? `--remote-debugging-address=127.0.0.1 --remote-debugging-port=${cdpPort} --remote-allow-origins=http://127.0.0.1:${cdpPort}`
+      : "";
+    // 通过已注册应用入口激活，保留任务栏身份及扩展所需参数。
     await this.powershell([
-      "Start-Process -FilePath '" + safeExecutable + "' -ArgumentList @(",
-      "  '--remote-debugging-address=127.0.0.1',",
-      "  '--remote-debugging-port=" + cdpPort + "',",
-      "  '--remote-allow-origins=http://127.0.0.1:" + cdpPort + "');",
+      "Add-Type -TypeDefinition @'",
+      "using System;",
+      "using System.Runtime.InteropServices;",
+      "public static class MineCodexRegisteredLaunch {",
+      "  [ComImport, Guid(\"2E941141-7F97-4756-BA1D-9DECDE894A3D\"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]",
+      "  interface Activation {",
+      "    [PreserveSig] int ActivateApplication([MarshalAs(UnmanagedType.LPWStr)] string id, [MarshalAs(UnmanagedType.LPWStr)] string args, uint options, out uint pid);",
+      "  }",
+      "  public static uint Launch(string id, string args) {",
+      "    object manager = Activator.CreateInstance(Type.GetTypeFromCLSID(new Guid(\"45BA127D-10A8-46EA-8AB7-56EA9078943C\")));",
+      "    try { uint pid; Marshal.ThrowExceptionForHR(((Activation)manager).ActivateApplication(id, args, 0, out pid)); return pid; }",
+      "    finally { Marshal.ReleaseComObject(manager); }",
+      "  }",
+      "}",
+      "'@",
+      `[MineCodexRegisteredLaunch]::Launch('${appId}', '${args}') | Out-Null`,
     ].join("\n"));
+    if (!withCdp) return null;
     return this.waitForNativeCodex({ cdpPort, excludedPids: existingPids });
   }
 
