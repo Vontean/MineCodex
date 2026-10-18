@@ -24,6 +24,13 @@ export function quickChatLifecycleExports(source) {
   return {open, create:createExport, openState};
 }
 
+// 命令目录是懒初始化导出；按命令定义识别，不能要求数组已经初始化。
+export function quickChatNativeCommand(source) {
+  const ids = new Set([...source.matchAll(/\{id:[`"']([\w$.-]+)[`"'],titleIntlId:[`"']codex\.command\.[^`"']+[`"']/g)].map(match => match[1]));
+  if (!ids.has('temporaryChat') || !ids.has('newTask')) throw new Error('quick-chat-command-catalog-unavailable');
+  return ids.has('quickChat');
+}
+
 export function installQuickChatShortcut(signal, codex, discover = null) {
   const windows = navigator.platform.startsWith('Win');
   let bindings = null, disposed = false, pendingFocus = null;
@@ -68,7 +75,7 @@ export function installQuickChatShortcut(signal, codex, discover = null) {
     for (const button of document.querySelectorAll('button[aria-haspopup="menu"]')) {
       if (!button.checkVisibility({visibilityProperty:true})) continue;
       const mode = codex.props(button, p => typeof p.onModeSelect === 'function' && typeof p.mode === 'string', 80)?.mode;
-      if (mode !== 'codex') continue;
+      if (mode !== 'codex' && mode !== 'chatgpt') continue;
       for (let fiber = codex.currentFiber(button), depth = 0; fiber && depth++ < 200; fiber = fiber.return) {
         const values = [];
         for (let hook = fiber.memoizedState, n = 0; hook && n++ < 150; hook = hook.next) values.push(hook.memoizedState?.current);
@@ -84,9 +91,7 @@ export function installQuickChatShortcut(signal, codex, discover = null) {
     if (!url) throw new Error('quick-chat-module-unavailable');
     const source = await (await fetch(url, {signal})).text();
     const module = await import(url);
-    const commands = Object.values(module).find(v => Array.isArray(v) && v.some(c => c?.id === 'temporaryChat') && v.some(c => c?.id === 'newTask'));
-    if (!commands) throw new Error('quick-chat-command-catalog-unavailable');
-    if (commands.some(c => c.id === 'quickChat')) return {native:true};
+    if (quickChatNativeCommand(source)) return {native:true};
     const roles = quickChatLifecycleExports(source);
     const open = module[roles.open], create = module[roles.create], openState = module[roles.openState];
     if (typeof open !== 'function' || typeof create !== 'function' || !openState) throw new Error('quick-chat-open-action-unavailable');
