@@ -27,6 +27,9 @@ const content = {
   sites: [
     ['Codex 中的 Sites 页面。', '本地项目与常用网址分散在不同位置。', '收藏网址、发现正在运行的本地站点，并从 Sites 打开。'],
     ['The Sites page in Codex.', 'Local projects and saved links are scattered.', 'Save URLs, discover running local sites, and open them from Sites.']],
+  'composer-expand': [
+    ['Work 与 Codex 的输入框右上角。', '长指令受输入框高度限制，编辑时需要反复滚动。', '输入多行文字后点击展开；编辑完成后收起，草稿保持不变。'],
+    ['The upper-right corner of the Work and Codex composer.', 'Long drafts need repeated scrolling in a compact editor.', 'Enter a multiline draft and click Expand. Collapse when finished; your draft stays in place.']],
   'quick-chat': [
     ['Codex 的浮动 Quick Chat 窗口。', '临时提问时需要切换主窗口，历史不易继续。', '从侧栏或快捷键打开 Quick Chat，发送后展开，恢复最小化输入框并查看历史。'],
     ['The floating Quick Chat window.', 'Quick questions and continuing recent chats require window switching.', 'Open Quick Chat from the sidebar or shortcut, expand after sending, restore a minimized composer and browse history.']],

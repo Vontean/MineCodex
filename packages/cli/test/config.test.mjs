@@ -29,6 +29,7 @@ test("config keeps established defaults and enables reading by default and prese
     "mermaid-diagrams": false,
     "file-navigation": true,
     "quick-chat": true,
+    "composer-expand": true,
   });
   assert.deepEqual(config.future, { channel: "preview" });
 

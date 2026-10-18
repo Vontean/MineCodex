@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-export const FEATURE_IDS = Object.freeze(["model-slider", "notes", "images", "hide-upsell-banner", "session-status", "usage-meter", "sidebar-focus", "sites", "markdown-reading", "mermaid-diagrams", "file-navigation", "quick-chat"]);
+export const FEATURE_IDS = Object.freeze(["model-slider", "notes", "images", "hide-upsell-banner", "session-status", "usage-meter", "sidebar-focus", "sites", "markdown-reading", "mermaid-diagrams", "file-navigation", "quick-chat", "composer-expand"]);
 export const DEFAULT_CONFIG = Object.freeze({
   schemaVersion: 1,
   features: Object.freeze({
@@ -18,6 +18,7 @@ export const DEFAULT_CONFIG = Object.freeze({
     "mermaid-diagrams": false,
     "file-navigation": true,
     "quick-chat": true,
+    "composer-expand": true,
   }),
 });
 
@@ -43,7 +44,7 @@ export function normalizeConfig(value = {}) {
   };
   // 暂停的 Task 通知不继承旧配置，也不再提供开启入口。
   delete features["unread-inbox"];
-  // 退出修复归入 Quick Chat，统一沿用 quick-chat 开关。
+  // 清理已退役的独立 Quick Chat 修复开关。
   delete features["quick-chat-repair"];
   return {
     ...value,
