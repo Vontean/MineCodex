@@ -28,8 +28,8 @@ const content = {
     ['Codex 中的 Sites 页面。', '本地项目与常用网址分散在不同位置。', '收藏网址、发现正在运行的本地站点，并从 Sites 打开。'],
     ['The Sites page in Codex.', 'Local projects and saved links are scattered.', 'Save URLs, discover running local sites, and open them from Sites.']],
   'quick-chat': [
-    ['Codex 的浮动 Quick Chat 窗口。', '临时提问时需要切换主窗口，历史不易继续。', '通过快捷键打开 Quick Chat，发送后展开，恢复最小化输入框并固定聊天。'],
-    ['The floating Quick Chat window.', 'Quick questions and continuing recent chats require window switching.', 'Open Quick Chat with a shortcut, expand after sending, restore a minimized composer and pin the chat.']],
+    ['Codex 的浮动 Quick Chat 窗口。', '临时提问时需要切换主窗口，历史不易继续。', '从侧栏或快捷键打开 Quick Chat，发送后展开，恢复最小化输入框并查看历史。'],
+    ['The floating Quick Chat window.', 'Quick questions and continuing recent chats require window switching.', 'Open Quick Chat from the sidebar or shortcut, expand after sending, restore a minimized composer and browse history.']],
   'sidebar-focus': [
     ['Codex 左侧栏的分组标题。', '多个侧栏分组展开时，当前分组不容易聚焦。', '点击当前分组，一键收起其他分组；再次点击恢复先前的展开状态。'],
     ['Group headings in the Codex sidebar.', 'Several expanded groups make the current group harder to focus on.', 'Click a group to collapse other groups. Click again to restore their previous expanded state.']],

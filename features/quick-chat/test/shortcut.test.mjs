@@ -10,7 +10,7 @@ test('finds the native open role across renamed locals and fails on a changed co
   assert.throws(()=>quickChatOpenExport(source.replace('chatgpt.quick-chat','other')));
   assert.throws(()=>quickChatOpenExport(source.replace('export{renamed as opener}','export{}')));
 });
-function fixture({platform='MacIntel',mode='codex',native=false,scopeAvailable=true,minimized=false,active=false,hidden=false,visible=true,open=true}={}) {
+function fixture({platform='MacIntel',mode='codex',native=false,scopeAvailable=true,minimized=false,active=false,hidden=false,visible=true,open=true,currentDocking=false}={}) {
   const previousNavigator=Object.getOwnPropertyDescriptor(globalThis,'navigator');
   Object.defineProperty(globalThis,'navigator',{configurable:true,value:{platform}});
   const previous=globalThis.document,listeners=new Set(),calls=[];
@@ -21,6 +21,7 @@ function fixture({platform='MacIntel',mode='codex',native=false,scopeAvailable=t
   const surface={closest:()=>hidden?{}:null,querySelector:()=>editable};
   const restoreButton={checkVisibility:()=>true,click:()=>restored.push('restore')};
   const floating={isMinimized:true,unifiedDocking:true,onMinimizedChange:()=>{},onPresentationChange:()=>{}};
+  if(currentDocking){delete floating.unifiedDocking;floating.dockThreadKey='chatgpt:fixture';floating.renderMenu=()=>{};}
   const restoreProps={size:'composer',uniform:true,onClick:()=>{},onKeyDown:()=>{},onPointerDown:()=>{},onPointerEnter:()=>{}};
   const scope={get:()=>{},set:()=>{},scope:{__scopeBrand:'AppScope'}};
   const fiber={memoizedState:{memoizedState:{current:scopeAvailable?scope:null}}};
@@ -49,6 +50,22 @@ test('Windows Ctrl Alt N opens Quick Chat and rejects Meta, extra modifiers and 
 test('Codex Cmd Option N invokes the native action once and retains its scope',async()=>{
   const f=fixture();try {await f.shortcut.ready;const e=f.key();assert.equal(f.calls.length,1);assert.equal(e.defaultPrevented,true);assert.equal(e.stopped,true);}finally{f.restore()}
 });
+test('sidebar activation shares fresh, restore and focus behavior with the shortcut',async()=>{
+  for(const options of [{open:false},{minimized:true},{active:true},{}]){
+    const f=fixture(options);
+    try{
+      await f.shortcut.ready;
+      assert.equal(f.shortcut.available(),true);
+      assert.equal(f.shortcut.activate(),true);
+      assert.equal(f.created.length,options.open===false?1:0);
+      assert.equal(f.restored.length,options.minimized||options.active?1:0);
+      assert.equal(f.calls.length,Object.keys(options).length?0:1);
+      f.controller.abort();
+      assert.equal(f.shortcut.available(),false);
+      assert.equal(f.shortcut.activate(),false);
+    }finally{f.restore()}
+  }
+});
 test('Temporary Chat, repeats, composition and already-handled shortcuts remain native',async()=>{
   const f=fixture();try {await f.shortcut.ready;for(const overrides of [{shiftKey:true,altKey:false},{repeat:true},{isComposing:true},{defaultPrevented:true},{metaKey:false},{code:'KeyM'}])f.key(overrides);assert.equal(f.calls.length,0);}finally{f.restore()}
 });
@@ -66,6 +83,12 @@ test('serialized installer includes shortcut dependencies',async()=>{
 
 test('page Quick Chat restores through its native button in Work and Codex without opening a second chat',async()=>{
   for(const mode of ['work','codex']) {const f=fixture({mode,minimized:true,scopeAvailable:false});try{await f.shortcut.ready;assert.equal(f.key().defaultPrevented,true);assert.deepEqual(f.restored,['restore']);assert.equal(f.calls.length,0);f.shortcut.dispose();f.key();assert.deepEqual(f.restored,['restore']);}finally{f.restore()}}
+});
+test('26.1013 restores the dockThreadKey surface after unifiedDocking was removed',async()=>{
+  for(const options of [{minimized:true},{active:true}]){
+    const f=fixture({...options,currentDocking:true});
+    try{await f.shortcut.ready;assert.equal(f.shortcut.activate(),true);assert.equal(f.created.length,0);assert.equal(f.calls.length,0);assert.deepEqual(f.restored,[options.minimized?'restore':'focus']);}finally{f.restore()}
+  }
 });
 
 test('active page composer is focused without changing presentation or opening a chat',async()=>{

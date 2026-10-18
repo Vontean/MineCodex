@@ -1,7 +1,6 @@
-const exitRepair = installQuickChatExitRepair(signal, createQuickChatExitAdapter(config.codex));
 const native = createQuickChatAdapter(config.codex);
 const shortcut = installQuickChatShortcut(signal, config.codex);
-const pin = installQuickChatPin(signal, config);
+const sidebar = installQuickChatSidebar(signal, config, shortcut);
 const instances = new Map();
 let scheduled = false, disposed = false;
 const text = (en,zh) => (document.documentElement.lang || navigator.language).startsWith('zh') ? zh : en;
@@ -26,7 +25,6 @@ function remove(instance) { releaseBackground(instance); releaseProjectRail(inst
 function sync() {
   if (disposed) return;
   shortcut.sync();
-  pin.sync();
   const snapshots = native.surfaces(), active = new Set();
   for (const snapshot of snapshots) {
     active.add(snapshot.surface);
@@ -95,12 +93,12 @@ observer.observe(document.documentElement,{subtree:true,childList:true,attribute
 sync();
 config.registerSelfCheck?.(() => {
   const snapshots = native.surfaces(), anchors = snapshots.filter(item => item.showHistory);
-  const history = anchors.some(item => instances.get(item.surface)?.button?.isConnected), pinned = pin.status();
-  const applicable = anchors.length > 0 || pinned.applicable;
-  const available = (!anchors.length || history) && (!pinned.applicable || pinned.available);
+  const history = anchors.some(item => instances.get(item.surface)?.button?.isConnected), entry = sidebar.status();
+  const applicable = anchors.length > 0 || entry.applicable;
+  const available = (!anchors.length || history) && (!entry.applicable || entry.available);
   return {state:applicable ? available ? 'available' : 'unavailable' : 'not-applicable',
     reason:applicable ? available ? null : 'quick-chat-controls-unavailable' : 'no-classic-quick-chat-floating-controls',
-    checks:[{name:"native-exit-observer",available:exitRepair.status()}, ...(anchors.length ? [{name:'quick-chat-history',available:history}] : []), ...(pinned.applicable ? [{name:'quick-chat-pin',available:pinned.available}] : [])],
+    checks:[...(anchors.length ? [{name:'quick-chat-history',available:history}] : []), ...(entry.applicable ? [{name:'quick-chat-sidebar-entry',available:entry.available}] : [])],
     scopes:snapshots.map(item=>({name:'quick-chat',element:item.surface}))};
 });
-return () => { disposed = true; exitRepair.dispose(); shortcut.dispose(); pin.dispose(); observer.disconnect(); for (const instance of instances.values()) remove(instance); instances.clear(); style.remove(); };
+return () => { disposed = true; shortcut.dispose(); sidebar.dispose(); observer.disconnect(); for (const instance of instances.values()) remove(instance); instances.clear(); style.remove(); };
