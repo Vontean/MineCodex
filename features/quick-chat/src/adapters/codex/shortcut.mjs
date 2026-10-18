@@ -57,7 +57,8 @@ export function installQuickChatShortcut(signal, codex, discover = null) {
       if (!floating || floating.isMinimized || floating.isHidden) continue;
       const editable = surface.querySelector('[data-chatgpt-composer] [contenteditable="true"]');
       if (!editable?.checkVisibility({visibilityProperty:true})) continue;
-      editable.focus({preventScroll:true});
+      pendingFocus=null;
+      floating.onMinimizedChange(true);
       return true;
     }
     return false;

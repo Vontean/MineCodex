@@ -30,14 +30,14 @@ function fixture({platform='MacIntel',mode='codex',workModeAccess=null,native=fa
   let opened=open,surfaceSession="existing";
   const editable={checkVisibility:()=>visible,focus:()=>restored.push('focus')};
   const surface={closest:()=>hidden?{}:null,querySelector:()=>editable};
-  const restoreButton={checkVisibility:()=>true,click:()=>restored.push('restore')};
-  const floating={isMinimized:true,...(unifiedDocking===null?{}:{unifiedDocking}),onMinimizedChange:()=>{},onPresentationChange:()=>{}};
+  const restoreButton={checkVisibility:()=>true,click:()=>{minimized=false;restored.push('restore')}};
+  const floating={isMinimized:true,...(unifiedDocking===null?{}:{unifiedDocking}),onMinimizedChange:value=>{assert.equal(value,true);minimized=value;restored.push('minimize')},onPresentationChange:()=>{}};
   const restoreProps={size:'composer',uniform:true,onClick:()=>{},onKeyDown:()=>{},onPointerDown:()=>{},onPointerEnter:()=>{}};
   const scope={get:()=>{},set:()=>{},scope:{__scopeBrand:'AppScope'}};
   const fiber={memoizedState:{memoizedState:{current:scopeAvailable?scope:null}}};
   globalThis.document={documentElement:{},querySelectorAll:selector=>selector==='link[rel="modulepreload"],script[src]'?(assetReady?[{src:assetUrl}]:[]):selector==='button'?(minimized?[restoreButton]:[]):selector==='[data-floating-chat-surface]'?(active?[surface]:[]):[button],addEventListener:(name,fn)=>listeners.add(fn),removeEventListener:(name,fn)=>listeners.delete(fn)};
   const controller=new AbortController();
-  const codex={props:(node,predicate)=>node===surface?[{...floating,isMinimized:false},{session:{conversationId:surfaceSession}}].find(predicate):node===restoreButton?[restoreProps,floating].find(predicate):({mode,workModeAccess,onModeSelect:()=>{}}),currentFiber:()=>fiber,report:(...args)=>reports.push(args)};
+  const codex={props:(node,predicate)=>node===surface?[{...floating,isMinimized:minimized},{session:{conversationId:surfaceSession}}].find(predicate):node===restoreButton?[restoreProps,floating].find(predicate):({mode,workModeAccess,onModeSelect:()=>{}}),currentFiber:()=>fiber,report:(...args)=>reports.push(args)};
   const shortcut=installQuickChatShortcut(controller.signal,codex,assetUrl?null:async()=>({native,open:value=>calls.push(value),create:value=>{created.push(value);opened=true},isOpen:()=>opened}));
   const key=(overrides={})=>{
     const event={code:'KeyN',metaKey:true,altKey:true,ctrlKey:false,shiftKey:false,repeat:false,isComposing:false,defaultPrevented:false,preventDefault(){this.defaultPrevented=true},stopPropagation(){this.stopped=true},...overrides};
@@ -109,12 +109,18 @@ test('page Quick Chat restores through its native button in Work and Codex witho
 test('standalone floating chat restores and focuses when optional unifiedDocking is omitted',async()=>{
   for(const mode of ['codex','chatgpt'])for(const minimized of [true,false]){
     const f=fixture({mode,minimized,active:!minimized,unifiedDocking:null,scopeAvailable:false});
-    try{await f.shortcut.ready;assert.equal(f.key().defaultPrevented,true);assert.deepEqual(f.restored,[minimized?'restore':'focus']);assert.equal(f.calls.length,0);assert.equal(f.created.length,0);}finally{f.restore()}
+    try{await f.shortcut.ready;assert.equal(f.key().defaultPrevented,true);assert.deepEqual(f.restored,[minimized?'restore':'minimize']);assert.equal(f.calls.length,0);assert.equal(f.created.length,0);}finally{f.restore()}
   }
 });
 
-test('active page composer is focused without changing presentation or opening a chat',async()=>{
-  const f=fixture({mode:'work',active:true});try{await f.shortcut.ready;assert.equal(f.key().defaultPrevented,true);assert.deepEqual(f.restored,['focus']);assert.equal(f.calls.length,0);}finally{f.restore()}
+test('active page composer minimizes without opening another chat',async()=>{
+  const f=fixture({mode:'work',active:true});try{await f.shortcut.ready;assert.equal(f.key().defaultPrevented,true);assert.deepEqual(f.restored,['minimize']);assert.equal(f.calls.length,0);}finally{f.restore()}
+});
+test('Ctrl Alt N minimizes and restores the same open session in both modes',async()=>{
+  for(const mode of ['codex','work']){
+    const f=fixture({platform:'Win32',mode,workModeAccess:'chatgpt',active:true,open:false,unifiedDocking:null});
+    try{await f.shortcut.ready;const key=()=>f.key({ctrlKey:true,metaKey:false});key();assert.equal(f.created.length,1);f.setSession('fresh');f.shortcut.sync();key();key();key();assert.deepEqual(f.restored,['focus','minimize','restore','minimize']);assert.equal(f.created.length,1);assert.equal(f.calls.length,0);}finally{f.restore()}
+  }
 });
 test('hidden and invisible page composers cannot steal focus',async()=>{
   for(const options of [{hidden:true},{visible:false}]){const f=fixture({mode:'work',active:true,...options});try{await f.shortcut.ready;assert.equal(f.key().defaultPrevented,false);assert.deepEqual(f.restored,[]);}finally{f.restore()}}
