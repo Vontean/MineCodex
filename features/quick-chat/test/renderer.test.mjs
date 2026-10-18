@@ -128,7 +128,7 @@ test('subscription identity stays internal, changes with the native source, and 
 
 
 test('serialized renderer resolves the shared native history contract at runtime',async()=>{
-  const source=await createPageScriptSource(),declarations=source.slice(0,source.indexOf('const exitRepair ='));
+  const source=await createPageScriptSource(),declarations=source.slice(0,source.indexOf('const native = createQuickChatAdapter'));
   const create=new Function(`${declarations};return createQuickChatAdapter;`)();
   const f=fixture(),adapter=create(f.codex);
   assert.equal(adapter.read(f.surface).historyVisible,false);

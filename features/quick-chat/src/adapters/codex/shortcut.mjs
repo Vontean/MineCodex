@@ -39,7 +39,7 @@ export function quickChatNativeCommand(source) {
 export function installQuickChatShortcut(signal, codex, discover = null) {
   const windows = navigator.platform.startsWith('Win');
   let bindings = null, disposed = false, pendingFocus = null, stopWaiting = null;
-  function activateExisting() {
+  function activateExisting(minimize = false) {
     // 原生恢复按钮同时恢复 presentation、取消最小化并聚焦输入框。
     for (const button of document.querySelectorAll('button')) {
       if (!button.checkVisibility({visibilityProperty:true})) continue;
@@ -57,8 +57,8 @@ export function installQuickChatShortcut(signal, codex, discover = null) {
       if (!floating || floating.isMinimized || floating.isHidden) continue;
       const editable = surface.querySelector('[data-chatgpt-composer] [contenteditable="true"]');
       if (!editable?.checkVisibility({visibilityProperty:true})) continue;
-      pendingFocus=null;
-      floating.onMinimizedChange(true);
+      if (minimize) { pendingFocus=null; floating.onMinimizedChange(true); }
+      else editable.focus({preventScroll:true});
       return true;
     }
     return false;
@@ -122,24 +122,28 @@ export function installQuickChatShortcut(signal, codex, discover = null) {
     codex.report('quick-chat-shortcut', true);
   }).catch(error => { if (!disposed && !signal.aborted) codex.report('quick-chat-shortcut', false,
     /^quick-chat-[\w-]+$/.test(error?.message) ? error.message : 'native-shortcut-contract-unavailable'); });
-  function keydown(event) {
-    const primaryModifier = windows ? event.ctrlKey && !event.metaKey : event.metaKey && !event.ctrlKey;
-    if (disposed || signal.aborted || bindings?.native || event.defaultPrevented || event.repeat || event.isComposing
-      || !primaryModifier || !event.altKey || event.shiftKey || event.code !== 'KeyN') return;
-    const scope = bindings && context();
+  function activate({minimize=false} = {}) {
+    if (disposed || signal.aborted || !bindings || bindings.native) return false;
+    const scope = context();
     if (scope && bindings.isOpen(scope) === false) {
       pendingFocus={scope,previous:new Set([...document.querySelectorAll('[data-floating-chat-surface]')].map(sessionId))};
       bindings.create(scope);
       focusNew();
-    } else if (!activateExisting()) {
-      if (!scope) return;
+    } else if (!activateExisting(minimize)) {
+      if (!scope) return false;
       bindings.open(scope);
     }
+    return true;
+  }
+  function keydown(event) {
+    const primaryModifier = windows ? event.ctrlKey && !event.metaKey : event.metaKey && !event.ctrlKey;
+    if (event.defaultPrevented || event.repeat || event.isComposing
+      || !primaryModifier || !event.altKey || event.shiftKey || event.code !== 'KeyN' || !activate({minimize:true})) return;
     event.preventDefault();
     event.stopPropagation();
   }
   document.addEventListener('keydown', keydown, {signal});
   function dispose() { disposed = true; stopWaiting?.(); document.removeEventListener('keydown', keydown); bindings = null; pendingFocus=null; }
   signal.addEventListener('abort', dispose, {once:true});
-  return {ready, dispose, sync:focusNew};
+  return {ready, dispose, sync:focusNew, activate, available:() => Boolean(bindings && !bindings.native && !disposed && !signal.aborted)};
 }

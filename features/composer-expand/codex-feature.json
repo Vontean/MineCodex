@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "composer-expand",
+  "version": "0.1.0",
+  "label": {
+    "en": "Expand Long Drafts",
+    "zh-CN": "长指令展开编辑"
+  },
+  "description": {
+    "en": "Expand long drafts in Work and Codex with the native editor layout.",
+    "zh-CN": "在 Work 与 Codex 中展开长指令，使用原生大尺寸输入框编辑。"
+  },
+  "entry": {
+    "kind": "page-script",
+    "script": "src/entry.mjs",
+    "sourceFactory": "src/injection-source.mjs"
+  },
+  "icon": {
+    "resource": "assets/maximize-2.svg"
+  },
+  "placement": {
+    "order": 76
+  }
+}
