@@ -46,17 +46,21 @@ function fixture({platform='MacIntel',mode='codex',native=false,scopeAvailable=t
   return {shortcut,controller,calls,key,listeners,restored,created,reports,setSession:id=>{surfaceSession=id},restore:()=>{shortcut.dispose();globalThis.document=previous;if(previousNavigator)Object.defineProperty(globalThis,'navigator',previousNavigator);else delete globalThis.navigator;}};
 }
 
-test('default loader initializes with a lazy undefined catalog and exported native actions',async()=>{
+test('default loader initializes with lazy catalog and cold or warm native state',async()=>{
+ for(const cold of [false,true]) {
   const dir=await mkdtemp(join(tmpdir(),'mcx-shortcut-'));
   const previousFetch=globalThis.fetch;
-  const source='let commands;function init(){commands=[{id:`newTask`,titleIntlId:`codex.command.newThread`},{id:`temporaryChat`,titleIntlId:`codex.command.temporaryChat`}]}function open(s,opts={}){if(!s.get(cap,{name:`chatgpt.quick-chat`}).isCapable)return;let current=s.get(session),page=s.get(pageSession);if(page!=null)return;if(current==null){fresh(s,opts);return}s.get(active)||(restore(s))}function fresh(s,opts){}const active={};export{commands as catalog,open as opener,fresh as newChat,active as opened}';
+  const state=cold?'let active;const once=fn=>fn,signal=()=>({}),scope={};function boot(){return(boot=once((()=>{active=signal(scope,!1)})))()}':'const active={};';
+  const source='let commands;function init(){commands=[{id:`newTask`,titleIntlId:`codex.command.newThread`},{id:`temporaryChat`,titleIntlId:`codex.command.temporaryChat`}]}function open(s,opts={}){if(!s.get(cap,{name:`chatgpt.quick-chat`}).isCapable)return;let current=s.get(session),page=s.get(pageSession);if(page!=null)return;if(current==null){fresh(s,opts);return}s.get(active)||(restore(s))}function fresh(s,opts){}'+state+'export{commands as catalog,open as opener,fresh as newChat,active as opened'+(cold?',boot as initialize':'')+'}';
   let f;
   try{
     const path=join(dir,'app-initial-fixture.js');await writeFile(path,source);
     globalThis.fetch=async()=>({text:async()=>source});
     f=fixture({assetUrl:pathToFileURL(path).href});await f.shortcut.ready;
     assert.deepEqual(f.reports,[['quick-chat-shortcut',true]]);
+    assert.equal(typeof (await import(pathToFileURL(path).href)).opened,'object');
   }finally{f?.restore();globalThis.fetch=previousFetch;await rm(dir,{recursive:true,force:true});}
+ }
 });
 
 test('Windows Ctrl Alt N opens Quick Chat and rejects Meta, extra modifiers and invalid input states',async()=>{

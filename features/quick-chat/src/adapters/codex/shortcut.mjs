@@ -21,7 +21,12 @@ export function quickChatLifecycleExports(source) {
   const exportOf = name => name && exports.match(new RegExp(`(?:\\{|,)${escaped(name)} as ([\\w$]+)(?:,|\\})`))?.[1];
   const createExport = exportOf(create), openState = exportOf(state);
   if (!createExport || !openState) throw new Error('quick-chat-lifecycle-contract-unavailable');
-  return {open, create:createExport, openState};
+  // 冷启动时状态 atom 也可能尚未初始化，定位其所属的原生 once 初始化器。
+  const assignment = source.search(new RegExp(`(?:[,;{])${escaped(state)}=[\\w$]+\\([\\w$]+,!1\\)`));
+  const initializer = assignment < 0 ? null : source.slice(source.lastIndexOf('function ', assignment), assignment + 1)
+    .match(/^function ([\w$]+)\(\)\{return\(\1=[\w$]+\(\(\(\)=>\{/);
+  const initialize = exportOf(initializer?.[1]);
+  return {open, create:createExport, openState, ...(initialize ? {initialize} : {})};
 }
 
 // 命令目录是懒初始化导出；按命令定义识别，不能要求数组已经初始化。
@@ -93,6 +98,7 @@ export function installQuickChatShortcut(signal, codex, discover = null) {
     const module = await import(url);
     if (quickChatNativeCommand(source)) return {native:true};
     const roles = quickChatLifecycleExports(source);
+    if (!module[roles.openState] && typeof module[roles.initialize] === 'function') module[roles.initialize]();
     const open = module[roles.open], create = module[roles.create], openState = module[roles.openState];
     if (typeof open !== 'function' || typeof create !== 'function' || !openState) throw new Error('quick-chat-open-action-unavailable');
     return {native:false, open, create, isOpen:scope => scope.get(openState)};
@@ -101,7 +107,8 @@ export function installQuickChatShortcut(signal, codex, discover = null) {
     if (disposed || signal.aborted) return;
     bindings = value;
     codex.report('quick-chat-shortcut', true);
-  }).catch(() => { if (!disposed && !signal.aborted) codex.report('quick-chat-shortcut', false, 'native-shortcut-contract-unavailable'); });
+  }).catch(error => { if (!disposed && !signal.aborted) codex.report('quick-chat-shortcut', false,
+    /^quick-chat-[\w-]+$/.test(error?.message) ? error.message : 'native-shortcut-contract-unavailable'); });
   function keydown(event) {
     const primaryModifier = windows ? event.ctrlKey && !event.metaKey : event.metaKey && !event.ctrlKey;
     if (disposed || signal.aborted || bindings?.native || event.defaultPrevented || event.repeat || event.isComposing
