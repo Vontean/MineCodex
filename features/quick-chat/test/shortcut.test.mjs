@@ -26,7 +26,7 @@ function fixture({platform='MacIntel',mode='codex',workModeAccess=null,native=fa
   Object.defineProperty(globalThis,'navigator',{configurable:true,value:{platform}});
   const previous=globalThis.document,listeners=new Set(),calls=[];
   const button={checkVisibility:()=>true};
-  const restored=[],created=[],closed=[],reports=[];
+  const restored=[],created=[],reports=[];
   let opened=open,surfaceSession="existing";
   const editable={checkVisibility:()=>visible,focus:()=>restored.push('focus')};
   const surface={closest:()=>hidden?{}:null,querySelector:()=>editable};
@@ -38,12 +38,12 @@ function fixture({platform='MacIntel',mode='codex',workModeAccess=null,native=fa
   globalThis.document={documentElement:{},querySelectorAll:selector=>selector==='link[rel="modulepreload"],script[src]'?(assetReady?[{src:assetUrl}]:[]):selector==='button'?(minimized?[restoreButton]:[]):selector==='[data-floating-chat-surface]'?(active?[surface]:[]):[button],addEventListener:(name,fn)=>listeners.add(fn),removeEventListener:(name,fn)=>listeners.delete(fn)};
   const controller=new AbortController();
   const codex={props:(node,predicate)=>node===surface?[{...floating,isMinimized:false},{session:{conversationId:surfaceSession}}].find(predicate):node===restoreButton?[restoreProps,floating].find(predicate):({mode,workModeAccess,onModeSelect:()=>{}}),currentFiber:()=>fiber,report:(...args)=>reports.push(args)};
-  const shortcut=installQuickChatShortcut(controller.signal,codex,assetUrl?null:async()=>({native,close:value=>{closed.push(value);opened=false},open:value=>calls.push(value),create:value=>{created.push(value);opened=true},isOpen:()=>opened}));
+  const shortcut=installQuickChatShortcut(controller.signal,codex,assetUrl?null:async()=>({native,open:value=>calls.push(value),create:value=>{created.push(value);opened=true},isOpen:()=>opened}));
   const key=(overrides={})=>{
     const event={code:'KeyN',metaKey:true,altKey:true,ctrlKey:false,shiftKey:false,repeat:false,isComposing:false,defaultPrevented:false,preventDefault(){this.defaultPrevented=true},stopPropagation(){this.stopped=true},...overrides};
     for(const fn of listeners)fn(event);return event;
   };
-  return {shortcut,controller,calls,key,listeners,restored,created,closed,reports,mountAsset:()=>{assetReady=true},setSession:id=>{surfaceSession=id},restore:()=>{shortcut.dispose();globalThis.document=previous;if(previousNavigator)Object.defineProperty(globalThis,'navigator',previousNavigator);else delete globalThis.navigator;}};
+  return {shortcut,controller,calls,key,listeners,restored,created,reports,mountAsset:()=>{assetReady=true},setSession:id=>{surfaceSession=id},restore:()=>{shortcut.dispose();globalThis.document=previous;if(previousNavigator)Object.defineProperty(globalThis,'navigator',previousNavigator);else delete globalThis.navigator;}};
 }
 
 test('default loader initializes with lazy catalog and cold or warm native state',async()=>{
@@ -51,7 +51,7 @@ test('default loader initializes with lazy catalog and cold or warm native state
   const dir=await mkdtemp(join(tmpdir(),'mcx-shortcut-'));
   const previousFetch=globalThis.fetch,previousObserver=globalThis.MutationObserver;let observer;globalThis.MutationObserver=class {constructor(callback){this.callback=callback;observer=this}observe(){this.connected=true}disconnect(){this.connected=false}};
   const state=cold?'let active;const once=fn=>fn,signal=()=>({}),scope={};function boot(){return(boot=once((()=>{active=signal(scope,!1)})))()}':'const active={};';
-  const source='let commands;function init(){commands=[{id:`newTask`,titleIntlId:`codex.command.newThread`},{id:`temporaryChat`,titleIntlId:`codex.command.temporaryChat`}]}function open(s,opts={}){if(!s.get(cap,{name:`chatgpt.quick-chat`}).isCapable)return;let current=s.get(session),page=s.get(pageSession);if(page!=null)return;if(current==null){fresh(s,opts);return}s.get(active)||(restore(s))}function fresh(s,opts){}function shut(s,opts={}){s.set(active,!1)}'+state+'export{commands as catalog,open as opener,fresh as newChat,active as opened,shut as closer'+(cold?',boot as initialize':'')+'}';
+  const source='let commands;function init(){commands=[{id:`newTask`,titleIntlId:`codex.command.newThread`},{id:`temporaryChat`,titleIntlId:`codex.command.temporaryChat`}]}function open(s,opts={}){if(!s.get(cap,{name:`chatgpt.quick-chat`}).isCapable)return;let current=s.get(session),page=s.get(pageSession);if(page!=null)return;if(current==null){fresh(s,opts);return}s.get(active)||(restore(s))}function fresh(s,opts){}'+state+'export{commands as catalog,open as opener,fresh as newChat,active as opened'+(cold?',boot as initialize':'')+'}';
   let f;
   try{
     const path=join(dir,'app-initial-fixture.js');await writeFile(path,source);
@@ -127,21 +127,9 @@ test('fully closed Quick Chat creates a fresh session, including retained exit D
     try{await f.shortcut.ready;assert.equal(f.key().defaultPrevented,true);assert.equal(f.created.length,1);assert.equal(f.calls.length,0);assert.deepEqual(f.restored,[]);}finally{f.restore();}
   }
 });
-test('Ctrl Alt N opens, closes through the native action, then opens a fresh chat in both modes',async()=>{
-  for(const mode of ['codex','work']){
-    const f=fixture({platform:'Win32',mode,workModeAccess:'chatgpt',open:false,active:true,unifiedDocking:null});
-    try{
-      await f.shortcut.ready;const key=()=>f.key({ctrlKey:true,metaKey:false});
-      assert.equal(key().defaultPrevented,true);assert.equal(f.created.length,1);
-      f.setSession('fresh');f.shortcut.sync();
-      assert.equal(key().defaultPrevented,true);assert.equal(f.closed.length,1);assert.equal(f.created.length,1);
-      assert.equal(key().defaultPrevented,true);assert.equal(f.created.length,2);assert.equal(f.closed.length,1);
-    }finally{f.restore()}
-  }
-});
 
 test('open and minimized sessions are retained rather than recreated',async()=>{
-  for(const options of [{minimized:true}]) {
+  for(const options of [{active:true},{minimized:true}]) {
     const f=fixture({...options,open:true});
     try{await f.shortcut.ready;f.key();assert.equal(f.created.length,0);assert.equal(f.calls.length,0);assert.equal(f.restored.length,1);}finally{f.restore();}
   }
