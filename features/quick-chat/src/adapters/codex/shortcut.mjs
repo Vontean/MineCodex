@@ -43,7 +43,7 @@ export function installQuickChatShortcut(signal, codex, discover = null) {
     // 原生恢复按钮同时恢复 presentation、取消最小化并聚焦输入框。
     for (const button of document.querySelectorAll('button')) {
       if (!button.checkVisibility({visibilityProperty:true})) continue;
-      const floating = codex.props(button, p => p.unifiedDocking === true && typeof p.onMinimizedChange === 'function' && typeof p.onPresentationChange === 'function');
+      const floating = codex.props(button, p => typeof p.isMinimized === 'boolean' && typeof p.onMinimizedChange === 'function' && typeof p.onPresentationChange === 'function');
       if (!floating?.isMinimized || floating.isHidden) continue;
       const restore = codex.props(button, p => p.uniform === true && p.size === 'composer' && typeof p.onClick === 'function'
         && typeof p.onPointerEnter === 'function' && typeof p.onPointerDown === 'function' && typeof p.onKeyDown === 'function');
@@ -53,7 +53,7 @@ export function installQuickChatShortcut(signal, codex, discover = null) {
     }
     for (const surface of document.querySelectorAll('[data-floating-chat-surface]')) {
       if (surface.closest('[hidden], [inert], [aria-hidden="true"]')) continue;
-      const floating = codex.props(surface, p => p.unifiedDocking === true && typeof p.onMinimizedChange === 'function' && typeof p.onPresentationChange === 'function');
+      const floating = codex.props(surface, p => typeof p.isMinimized === 'boolean' && typeof p.onMinimizedChange === 'function' && typeof p.onPresentationChange === 'function');
       if (!floating || floating.isMinimized || floating.isHidden) continue;
       const editable = surface.querySelector('[data-chatgpt-composer] [contenteditable="true"]');
       if (!editable?.checkVisibility({visibilityProperty:true})) continue;
@@ -79,8 +79,9 @@ export function installQuickChatShortcut(signal, codex, discover = null) {
   function context() {
     for (const button of document.querySelectorAll('button[aria-haspopup="menu"]')) {
       if (!button.checkVisibility({visibilityProperty:true})) continue;
-      const mode = codex.props(button, p => typeof p.onModeSelect === 'function' && typeof p.mode === 'string', 80)?.mode;
-      if (mode !== 'codex' && mode !== 'chatgpt') continue;
+      const picker = codex.props(button, p => typeof p.onModeSelect === 'function' && typeof p.mode === 'string', 80);
+      // 原生 ChatGPT 也使用 work 路由，具体产品由 workModeAccess 区分。
+      if (picker?.mode !== 'codex' && !(picker?.mode === 'work' && picker.workModeAccess === 'chatgpt')) continue;
       for (let fiber = codex.currentFiber(button), depth = 0; fiber && depth++ < 200; fiber = fiber.return) {
         const values = [];
         for (let hook = fiber.memoizedState, n = 0; hook && n++ < 150; hook = hook.next) values.push(hook.memoizedState?.current);

@@ -21,7 +21,7 @@ test('command definitions remain discoverable before lazy catalog initialization
   assert.equal(quickChatNativeCommand(definitions+';other={id:`quickChat`}'),false);
   assert.throws(()=>quickChatNativeCommand(definitions.replace('temporaryChat','other')),/command-catalog/);
 });
-function fixture({platform='MacIntel',mode='codex',native=false,scopeAvailable=true,minimized=false,active=false,hidden=false,visible=true,open=true,assetUrl=null}={}) {
+function fixture({platform='MacIntel',mode='codex',workModeAccess=null,native=false,scopeAvailable=true,minimized=false,active=false,hidden=false,visible=true,open=true,assetUrl=null,unifiedDocking=true}={}) {
   const previousNavigator=Object.getOwnPropertyDescriptor(globalThis,'navigator');
   Object.defineProperty(globalThis,'navigator',{configurable:true,value:{platform}});
   const previous=globalThis.document,listeners=new Set(),calls=[];
@@ -31,13 +31,13 @@ function fixture({platform='MacIntel',mode='codex',native=false,scopeAvailable=t
   const editable={checkVisibility:()=>visible,focus:()=>restored.push('focus')};
   const surface={closest:()=>hidden?{}:null,querySelector:()=>editable};
   const restoreButton={checkVisibility:()=>true,click:()=>restored.push('restore')};
-  const floating={isMinimized:true,unifiedDocking:true,onMinimizedChange:()=>{},onPresentationChange:()=>{}};
+  const floating={isMinimized:true,...(unifiedDocking===null?{}:{unifiedDocking}),onMinimizedChange:()=>{},onPresentationChange:()=>{}};
   const restoreProps={size:'composer',uniform:true,onClick:()=>{},onKeyDown:()=>{},onPointerDown:()=>{},onPointerEnter:()=>{}};
   const scope={get:()=>{},set:()=>{},scope:{__scopeBrand:'AppScope'}};
   const fiber={memoizedState:{memoizedState:{current:scopeAvailable?scope:null}}};
   globalThis.document={querySelectorAll:selector=>selector==='link[rel="modulepreload"],script[src]'?[{src:assetUrl}]:selector==='button'?(minimized?[restoreButton]:[]):selector==='[data-floating-chat-surface]'?(active?[surface]:[]):[button],addEventListener:(name,fn)=>listeners.add(fn),removeEventListener:(name,fn)=>listeners.delete(fn)};
   const controller=new AbortController();
-  const codex={props:(node,predicate)=>node===surface?[{...floating,isMinimized:false},{session:{conversationId:surfaceSession}}].find(predicate):node===restoreButton?[restoreProps,floating].find(predicate):({mode,onModeSelect:()=>{}}),currentFiber:()=>fiber,report:(...args)=>reports.push(args)};
+  const codex={props:(node,predicate)=>node===surface?[{...floating,isMinimized:false},{session:{conversationId:surfaceSession}}].find(predicate):node===restoreButton?[restoreProps,floating].find(predicate):({mode,workModeAccess,onModeSelect:()=>{}}),currentFiber:()=>fiber,report:(...args)=>reports.push(args)};
   const shortcut=installQuickChatShortcut(controller.signal,codex,assetUrl?null:async()=>({native,open:value=>calls.push(value),create:value=>{created.push(value);opened=true},isOpen:()=>opened}));
   const key=(overrides={})=>{
     const event={code:'KeyN',metaKey:true,altKey:true,ctrlKey:false,shiftKey:false,repeat:false,isComposing:false,defaultPrevented:false,preventDefault(){this.defaultPrevented=true},stopPropagation(){this.stopped=true},...overrides};
@@ -78,13 +78,13 @@ test('Codex Cmd Option N invokes the native action once and retains its scope',a
   const f=fixture();try {await f.shortcut.ready;const e=f.key();assert.equal(f.calls.length,1);assert.equal(e.defaultPrevented,true);assert.equal(e.stopped,true);}finally{f.restore()}
 });
 test('Windows Ctrl Alt N opens and creates Quick Chat in ChatGPT mode',async()=>{
-  for(const open of [true,false]){const f=fixture({platform:'Win32',mode:'chatgpt',open});try{await f.shortcut.ready;assert.equal(f.key({ctrlKey:true,metaKey:false}).defaultPrevented,true);assert.equal(f.calls.length,open?1:0);assert.equal(f.created.length,open?0:1);}finally{f.restore()}}
+  for(const open of [true,false]){const f=fixture({platform:'Win32',mode:'work',workModeAccess:'chatgpt',open});try{await f.shortcut.ready;assert.equal(f.key({ctrlKey:true,metaKey:false}).defaultPrevented,true);assert.equal(f.calls.length,open?1:0);assert.equal(f.created.length,open?0:1);}finally{f.restore()}}
 });
 test('Temporary Chat, repeats, composition and already-handled shortcuts remain native',async()=>{
   const f=fixture();try {await f.shortcut.ready;for(const overrides of [{shiftKey:true,altKey:false},{repeat:true},{isComposing:true},{defaultPrevented:true},{metaKey:false},{code:'KeyM'}])f.key(overrides);assert.equal(f.calls.length,0);}finally{f.restore()}
 });
 test('Work mode, restored native command and missing scope never consume the shortcut',async()=>{
-  for(const options of [{mode:'work'},{native:true},{scopeAvailable:false}]){const f=fixture(options);try{await f.shortcut.ready;assert.equal(f.key().defaultPrevented,false);assert.equal(f.calls.length,0);}finally{f.restore()}}
+  for(const options of [{mode:'work'},{mode:'work',workModeAccess:'chatgpt_work'},{mode:'work',workModeAccess:'work'},{native:true},{scopeAvailable:false}]){const f=fixture(options);try{await f.shortcut.ready;assert.equal(f.key().defaultPrevented,false);assert.equal(f.calls.length,0);}finally{f.restore()}}
 });
 test('unload and abort remove the listener; late discovery cannot revive it',async()=>{
   const f=fixture();try{f.shortcut.dispose();await f.shortcut.ready;assert.equal(f.listeners.size,0);f.key();assert.equal(f.calls.length,0)}finally{f.restore()}
@@ -97,6 +97,12 @@ test('serialized installer includes shortcut dependencies',async()=>{
 
 test('page Quick Chat restores through its native button in Work and Codex without opening a second chat',async()=>{
   for(const mode of ['work','codex']) {const f=fixture({mode,minimized:true,scopeAvailable:false});try{await f.shortcut.ready;assert.equal(f.key().defaultPrevented,true);assert.deepEqual(f.restored,['restore']);assert.equal(f.calls.length,0);f.shortcut.dispose();f.key();assert.deepEqual(f.restored,['restore']);}finally{f.restore()}}
+});
+test('standalone floating chat restores and focuses when optional unifiedDocking is omitted',async()=>{
+  for(const mode of ['codex','chatgpt'])for(const minimized of [true,false]){
+    const f=fixture({mode,minimized,active:!minimized,unifiedDocking:null,scopeAvailable:false});
+    try{await f.shortcut.ready;assert.equal(f.key().defaultPrevented,true);assert.deepEqual(f.restored,[minimized?'restore':'focus']);assert.equal(f.calls.length,0);assert.equal(f.created.length,0);}finally{f.restore()}
+  }
 });
 
 test('active page composer is focused without changing presentation or opening a chat',async()=>{
