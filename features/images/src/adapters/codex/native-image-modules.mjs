@@ -73,12 +73,18 @@ export function createNativeImageModules({read = async url => (await fetch(url))
       const mainUrl = urls.find(url => /\/app-main-[^/]+\.js/.test(url));
       if (!initialUrl || !mainUrl) throw new Error("Native Images modules are unavailable");
       const [initialSource, mainSource] = await Promise.all([read(initialUrl), read(mainUrl)]);
+      const initial = await load(initialUrl);
       const asset = (name, references = initialSource) => {
         const file = references.match(new RegExp(`(?:["'./])(${name}-[\\w-]+\\.js)`))?.[1];
         if (!file) throw new Error(`Native Images capability is unavailable: ${name}`);
         return new URL(file, initialUrl).href;
       };
       const module = async (name,references) => {
+        // 26.1013 将图库排布与卡片合入入口，其他能力仍按独立模块发现。
+        if (["library-masonry", "library-item-layout"].includes(name)
+          && !new RegExp(`(?:["'./])(${name}-[\\w-]+\\.js)`).test(references ?? initialSource)) {
+          return {url:initialUrl, source:initialSource, exports:initial};
+        }
         const url = asset(name,references);
         const [source, exports] = await Promise.all([read(url), load(url)]);
         // 调用产物公开的惰性初始化器，不扫描或执行任意导出函数。
@@ -94,6 +100,10 @@ export function createNativeImageModules({read = async url => (await fetch(url))
       };
       const binding = async (source, url, local) => {
         if (!local) throw new Error("Native Images component contract changed");
+        const exported = source.slice(source.lastIndexOf("export{"));
+        const escaped = local.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
+        const alias = exported.match(new RegExp(`(?:\\{|,)${escaped} as ([\\w$]+)(?:,|\\})`))?.[1];
+        if (alias) return (await load(url))[alias];
         const importedBinding = imported(source, local);
         return (await load(new URL(importedBinding.file, url).href))[importedBinding.name];
       };
@@ -106,7 +116,6 @@ export function createNativeImageModules({read = async url => (await fetch(url))
         binding(masonry.source, masonry.url, reactInit), binding(mainSource, mainUrl, rootInit),
       ]);
       const React = reactFactory(), ReactDOM = rootFactory();
-      const initial = await load(initialUrl);
       return {React,ReactDOM,module,component,binding,initialUrl,initialSource,initial};
     })().catch(error=>{starting=null;throw error;});
     return starting;

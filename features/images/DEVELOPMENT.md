@@ -25,6 +25,8 @@ Images 在 Codex 原生 **Space → Images** 中增加 **Image Gen**，集中浏
 
 视觉与能力边界见 [DESIGN.md](DESIGN.md)。
 
+2026-10-17，macOS Codex `26.1013.40934` 将 `library-masonry` 与 `library-item-layout` 合入 `app-initial`，图库动作使用的部分 atom 也改为入口本地导出。模块发现兼容旧独立资源与当前入口导出，绑定先识别本地公开导出，再按 import 关系解析；不遍历执行入口中不相关的初始化器。隔离 Renderer 已验证导航、图库和画布能力加载，Image Gen 原生 tab 的选择、切回 Images 及卸载恢复。此轮使用空列表验证来源容器，未验收真实本地图片、上传或编辑操作。
+
 ```bash
 node --test features/images/test/*.test.mjs
 ```

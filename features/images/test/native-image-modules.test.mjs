@@ -35,6 +35,30 @@ test("missing editor assets fail only canvas discovery; navigation remains avail
   await assert.rejects(modules.canvas(),/image-side-panel/);
 });
 
+test("26.1013 navigation uses entry-owned masonry and local exports without running unrelated initializers",async context=>{
+  const initial="file:///assets/app-initial-current.js",main="file:///assets/app-main-current.js";
+  globalThis.document={querySelectorAll:()=>[{src:initial},{src:main}]};
+  context.after(()=>delete globalThis.document);
+  const React={createElement(){}},ReactDOM={createRoot(){}};
+  let unrelatedCalls=0;
+  const sources=new Map([
+    [initial,'owner=react$();owner.useRef;export{react$ as R,unrelated as U}'],
+    [main,'import{root as init}from"./factories.js";renderer=init();(0,renderer.createRoot)'],
+  ]);
+  const modules=createNativeImageModules({read:async url=>{
+    assert.ok(sources.has(url),`unexpected asset ${url}`);
+    return sources.get(url);
+  },load:async url=>url===initial
+    ? {R:()=>React,U:()=>{unrelatedCalls++;}}
+    : {root:()=>ReactDOM}});
+  const navigation=await modules.navigation();
+  assert.equal(navigation.React,React);
+  assert.equal(navigation.ReactDOM,ReactDOM);
+  assert.equal(unrelatedCalls,0);
+  await assert.rejects(modules.canvas(),/image-side-panel/);
+  assert.deepEqual(await modules.navigation(),navigation);
+});
+
 
 test("image actions survive local variable renaming in Codex 26.930.51102", () => {
   for (const source of [
