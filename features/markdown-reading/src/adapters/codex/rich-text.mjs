@@ -8,11 +8,24 @@ export async function loadNativeMarkdownRichText(native) {
   const sharedSource = await (await fetch(sharedUrl)).text(),
     shared = await import(sharedUrl);
   const codeAt = sharedSource.indexOf('id:`codeSnippet.wrap.disable`');
-  const codeSection = sharedSource.slice(
+  let codeSection = sharedSource.slice(
     sharedSource.lastIndexOf('function ', codeAt),
     sharedSource.indexOf('function ', codeAt),
   );
-  const codeName = codeSection.match(/^function ([\w$]+)/)?.[1];
+  let codeName = codeSection.match(/^function ([\w$]+)/)?.[1];
+  // 新版将高亮内容放在上层组件，底层只负责外壳，不能直接用作代码渲染器。
+  const wrapper = [...sharedSource.matchAll(/function ([\w$]+)\(/g)]
+    .map((match) => sharedSource.slice(match.index, sharedSource.indexOf('function ', match.index + 9)))
+    .find((section) =>
+      section.includes('renderSvgAsImage:') &&
+      section.includes('codeContainerClassName:') &&
+      section.includes(`jsx)(${codeName},{`) &&
+      section.includes('source:'),
+    );
+  if (wrapper) {
+    codeSection = wrapper;
+    codeName = wrapper.match(/^function ([\w$]+)/)?.[1];
+  }
   const sharedExports = sharedSource.slice(sharedSource.lastIndexOf('export{'));
   const sharedBinding = (name) =>
     shared[sharedExports.match(new RegExp(`${name.replace(/\$/g, '\\$')} as ([\\w$]+)`))?.[1]];

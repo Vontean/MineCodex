@@ -163,3 +163,8 @@ TOC 的纵向中心以整个 File Panel（包含文件 Toolbar）的边界计算
 Mermaid 增强已拆为独立、默认关闭的 [Mermaid Diagrams](../mermaid-diagrams/DESIGN.md) 功能。阅读增强不加载 QV 资源、不替换原生图表，也不将图表状态计入阅读自检。
 
 原生 Preview 识别、所属 CodeMirror API、Provider 和块操作组件由 `packages/codex-adapter/src/markdown/` 维护，供阅读与图表两个功能共用；阅读排版、表格和目录的安装仍归本功能。
+
+
+## 代码组件兼容
+
+Codex 当前 macOS 构建的代码块分为接收 `content` 的高亮渲染组件与接收 `source` React 内容的展示外壳。Markdown Reader 必须发现上层内容组件，保留原生高亮、复制与换行；只发现外壳会出现有背景但无文字的空块。旧版单组件结构继续使用原入口。组件选择与初始化回归见 `test/preview.test.mjs`；不得用修改 Markdown 原文规避适配问题。
