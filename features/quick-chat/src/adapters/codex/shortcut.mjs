@@ -38,7 +38,7 @@ export function quickChatNativeCommand(source) {
 
 export function installQuickChatShortcut(signal, codex, discover = null) {
   const windows = navigator.platform.startsWith('Win');
-  let bindings = null, disposed = false, pendingFocus = null;
+  let bindings = null, disposed = false, pendingFocus = null, stopWaiting = null;
   function activateExisting() {
     // 原生恢复按钮同时恢复 presentation、取消最小化并聚焦输入框。
     for (const button of document.querySelectorAll('button')) {
@@ -93,8 +93,19 @@ export function installQuickChatShortcut(signal, codex, discover = null) {
     return null;
   }
   async function load() {
-    const url = [...document.querySelectorAll('link[rel="modulepreload"],script[src]')].map(e => e.href || e.src).find(url => /\/app-initial-[^/]+\.js(?:$|\?)/.test(url));
-    if (!url) throw new Error('quick-chat-module-unavailable');
+    const findUrl = () => [...document.querySelectorAll('link[rel="modulepreload"],script[src]')].map(e => e.href || e.src).find(url => /\/app-initial-[^/]+\.js(?:$|\?)/.test(url));
+    // 宿主可早于原生模块入口注入；等待入口挂载，不能把正常启动顺序当作协议失效。
+    const url = findUrl() ?? await new Promise((resolve, reject) => {
+      codex.report('quick-chat-shortcut', false, 'quick-chat-module-pending');
+      const cleanup = () => { observer.disconnect(); signal.removeEventListener('abort', cancel); stopWaiting=null; };
+      const cancel = () => { cleanup(); reject(new Error('quick-chat-load-aborted')); };
+      const check = () => { const found=findUrl(); if (found) { cleanup(); resolve(found); } };
+      const observer = new MutationObserver(check);
+      stopWaiting=cancel;
+      observer.observe(document.documentElement, {childList:true,subtree:true,attributes:true,attributeFilter:['href','src']});
+      signal.addEventListener('abort', cancel, {once:true});
+      if (disposed || signal.aborted) cancel(); else check();
+    });
     const source = await (await fetch(url, {signal})).text();
     const module = await import(url);
     if (quickChatNativeCommand(source)) return {native:true};
@@ -127,7 +138,7 @@ export function installQuickChatShortcut(signal, codex, discover = null) {
     event.stopPropagation();
   }
   document.addEventListener('keydown', keydown, {signal});
-  function dispose() { disposed = true; document.removeEventListener('keydown', keydown); bindings = null; pendingFocus=null; }
+  function dispose() { disposed = true; stopWaiting?.(); document.removeEventListener('keydown', keydown); bindings = null; pendingFocus=null; }
   signal.addEventListener('abort', dispose, {once:true});
   return {ready, dispose, sync:focusNew};
 }

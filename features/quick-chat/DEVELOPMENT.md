@@ -4,6 +4,8 @@
 
 模式选择器的 ChatGPT 入口使用 mode=work、workModeAccess=chatgpt；不能把界面名称当成 mode 值，也不能对所有 work 分支都启用独立聊天补偿。Codex 使用 mode=codex。其他 Work 分支只保留已有浮层的恢复与聚焦。
 
+宿主注入可能早于 app-initial 入口标签挂载。入口缺失时用 MutationObserver 等待原生 modulepreload / script 就绪后再加载，期间自检为 quick-chat-module-pending；不使用定时轮询。加载成功、卸载或 AbortSignal 必须断开观察器，不能一次查找失败后永久停用。
+
 快捷键冷启动时，原生打开状态 atom 可能仍为未初始化的导出。Adapter 按状态赋值与 once 包装定位所属的原生初始化器，仅在状态缺失时调用，再读取模块的实时导出；不依赖其他功能或切换页面顺带初始化。初始化器缺失或协议不匹配时停止补偿，自检保留已知协议错误码，不输出原始异常内容。测试必须覆盖冷、热两种加载顺序，不能只构造已经初始化的状态对象。
 
 - `src/adapters/codex/renderer.mjs` 识别经典聊天浮层，提供当前会话、原生提交许可、发送确认呈现记录身份、standalone Minimize 模板、项目 rail、展开和历史动作。入口不遍历 React。
