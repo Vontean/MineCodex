@@ -62,9 +62,18 @@ test('loader follows native expand Button, paired icons and transaction observer
   };
   for(const [name,value]of Object.entries(files))await writeFile(path.join(dir,name),value);
   const previous=globalThis.document;t.after(()=>{globalThis.document=previous;});
-  globalThis.document={querySelectorAll:()=>[{src:url('app-initial-fixture.js')},{src:url('app-main-fixture.js')}]};
+  const nodes=[{src:url('app-initial-fixture.js')}];
+  let onModules,disconnected=0;
+  const previousObserver=globalThis.MutationObserver;
+  t.after(()=>{globalThis.MutationObserver=previousObserver;});
+  globalThis.MutationObserver=class{constructor(callback){onModules=callback;}observe(){}disconnect(){disconnected++;}};
+  globalThis.document={documentElement:{},querySelectorAll:()=>nodes};
   t.mock.method(globalThis,'fetch',async resource=>({ok:true,text:()=>readFile(fileURLToPath(resource),'utf8')}));
-  const native=await loadComposerExpandControls(new AbortController().signal),container={};
+  const pending=loadComposerExpandControls(new AbortController().signal);
+  nodes.push({src:url('app-main-fixture.js')});
+  onModules?.();
+  const native=await pending,container={};
+  assert.equal(disconnected,1);
   const control=native.mount(container,()=>{});control.render(false,'Expand');
   assert.equal(container.rendered.type,'native-button');assert.equal(container.rendered.props.children.type,'native-expand');assert.equal(container.rendered.props.color,'ghostSecondary');
   control.render(true,'Collapse');assert.equal(container.rendered.props.children.type,'native-collapse');assert.equal(container.rendered.props['data-expanded-composer'],'');
@@ -72,6 +81,19 @@ test('loader follows native expand Button, paired icons and transaction observer
   control.dispose();assert.equal(container.unmounted,true);
   await writeFile(path.join(dir,'app-primary-fixture.js'),'export const changed=true;');
   await assert.rejects(loadComposerExpandControls(new AbortController().signal),/binding-unavailable/);
+});
+
+test('aborting module readiness releases the observer without loading controls',async t=>{
+  const previousDocument=globalThis.document,previousObserver=globalThis.MutationObserver;
+  t.after(()=>{globalThis.document=previousDocument;globalThis.MutationObserver=previousObserver;});
+  let disconnected=0;
+  globalThis.document={documentElement:{},querySelectorAll:()=>[]};
+  globalThis.MutationObserver=class{observe(){}disconnect(){disconnected++;}};
+  const abort=new AbortController();
+  const pending=loadComposerExpandControls(abort.signal);
+  abort.abort();
+  await assert.rejects(pending,{name:'AbortError'});
+  assert.equal(disconnected,1);
 });
 
 test('Work and Codex home select different anchors despite sharing the same composer root',()=>{

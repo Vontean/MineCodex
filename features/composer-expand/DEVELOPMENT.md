@@ -20,6 +20,8 @@ Work 首页有明确的 MCX 布局选择：仅当任务输入框出现长文本�
 
 ## 生命周期与失败
 
+Windows Codex `26.1016.8120.0` 的冷启动中，`app-main` 标签可能晚于 DOMContentLoaded 挂载。加载器使用 MutationObserver 等待 `app-initial` 与 `app-main` 同时就绪，成功或 AbortSignal 取消后释放监听，不通过一次查找失败永久停止安装。该构建已在隔离 profile 复现旧版失败并验证修复后的冷启动安装；完整草稿编辑交互仍按下述场景验收。
+
 每个输入框独立持有开关状态和进入前的 Enter 行为。清空内容、改为单行布局、切换页面、替换 controller 或禁用功能时收起并撤销入口与订阅。保留同一份 ProseMirror 文档、selection 与撤销记录。原生绑定不再匹配时安装失败并交由宿主显示不可用，不猜图标或模拟输入。
 
 ## 验证
