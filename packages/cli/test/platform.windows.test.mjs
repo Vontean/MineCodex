@@ -71,6 +71,37 @@ test("WindowsPlatformAdapter verifies the official MSIX package and signing iden
   assert.equal(installation.verified, true);
 });
 
+test("WindowsPlatformAdapter rediscovers the verified package after an update removes its cached path", async () => {
+  let updated = false;
+  let discoveries = 0;
+  const newExe = FAKE_EXE.replace("26.903.9818.0", "26.1016.8120.0");
+  const adapter = new WindowsPlatformAdapter({
+    platform: "win32",
+    execFile: async () => {
+      discoveries += 1;
+      return { stdout: JSON.stringify({
+        installLocation: updated ? "C:\\updated" : "C:\\original",
+        packageFamilyName: CODEX_WINDOWS_PACKAGE_FAMILY,
+        version: updated ? "26.1016.8120.0" : "26.903.9818.0",
+        exePath: updated ? newExe : FAKE_EXE,
+        signatureStatus: "Valid",
+        signerSubject: "CN=OpenAI, Inc.",
+      }) };
+    },
+    fileSystem: { stat: async filePath => {
+      if (updated && (filePath === FAKE_EXE || filePath.startsWith("C:\\original"))) {
+        throw Object.assign(new Error("old package removed"), { code: "ENOENT" });
+      }
+      return { dev: 1, ino: 2, size: 3, mtimeMs: 4 };
+    } },
+  });
+  await adapter.codex();
+  updated = true;
+  assert.equal((await adapter.codex()).executable, newExe);
+  assert.equal(await adapter.codexBuild(), "26.1016.8120.0");
+  assert.equal(discoveries, 2);
+});
+
 test("WindowsPlatformAdapter refuses foreign package family or broken signatures", async () => {
   const response = (overrides) => JSON.stringify({
     installLocation: "C:\\x",

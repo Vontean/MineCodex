@@ -851,7 +851,14 @@ export class WindowsPlatformAdapter {
   async codex() {
     if (!this.codexInstallation) return this.assertCodexInstalled();
     if (this.codexInstallationInjected) return this.codexInstallation;
-    const currentFingerprint = await this.readCodexInstallationFingerprint(this.codexInstallation);
+    let currentFingerprint;
+    try {
+      currentFingerprint = await this.readCodexInstallationFingerprint(this.codexInstallation);
+    } catch (error) {
+      // MSIX 更新会删除旧版本目录，重新发现并校验当前官方包。
+      if (error.code !== "ENOENT") throw error;
+      return this.assertCodexInstalled();
+    }
     if (this.codexInstallationFingerprint == null) {
       this.codexInstallationFingerprint = currentFingerprint;
     } else if (currentFingerprint !== this.codexInstallationFingerprint) {
