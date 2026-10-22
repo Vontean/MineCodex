@@ -3,7 +3,7 @@ export async function loadQuickChatSidebarIcon(signal) {
   const initialUrl = urls.find(url => /\/app-initial-[^/]+\.js/.test(url));
   if (!initialUrl) throw new Error('quick-chat-icon-module-unavailable');
   const initial = await (await fetch(initialUrl,{signal})).text();
-  const file = initial.match(/["']\.\/(quick-chat-floating-surface-[\w-]+\.js)["']/)?.[1];
+  const file = initial.match(/["']\.\/((?:quick-chat-floating-surface|floating-chat-surface)-[\w-]+\.js)["']/)?.[1];
   if (!file) throw new Error('quick-chat-icon-module-unavailable');
   const url = new URL(file,initialUrl).href;
   const source = await (await fetch(url,{signal})).text();

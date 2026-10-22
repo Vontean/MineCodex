@@ -21,6 +21,8 @@
 
 ## 侧栏入口
 
+Windows Codex `26.1016.8120.0` 将浮层资源从 `quick-chat-floating-surface` 更名为 `floating-chat-surface`。图标发现接受这两个名称，仍通过原生 Restore 默认图标的调用关系解析导入，不绑定构建哈希。
+
 `src/adapters/codex/sidebar.mjs` 从可见侧栏行的 `animatedIcon:sidebar-new-chat`、excludeFromNavigation 和 sidebarMode 识别 Codex New chat，不匹配标题文字；图标从原生浮层 Restore 的默认 minimizedIcon 调用关系发现，再使用该图标的 createElement 工厂。资源变化时不以第三方图标猜测替代。
 
 `src/frontend/sidebar.mjs` 管同级按钮、hover / focus-within、模式切换与卸载；复用 `installQuickChatShortcut` 提供的 activate 动作，避免构造键盘事件或重复一份新建／恢复／聚焦逻辑。新原生会话挂载后的聚焦仍由原适配器维护。
