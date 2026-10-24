@@ -10,6 +10,8 @@
 
 运行时按 `data-composer-expand-toggle` 语义定位 Chat 原生按钮的 Button、Expand 与 Collapse 导出，实际渲染原生控件。交易订阅使用原生 ProseMirror transaction observer；不改写 dispatch 或 React props。
 
+Windows Codex `26.1021.3705.0` 的布局 className 也含同名 CSS 标记，因此定位必须匹配对象属性键及冒号，不能使用首次字符串命中。该构建的共享图标导出可能尚未初始化；仅在绑定值缺失时，沿真实导出和赋值发现其原生 once 初始化器，调用后重新读取实时导出。无法确认初始化契约时停止安装，不能渲染含 undefined 图标的控件。
+
 展开尺寸由原生 `data-expanded-composer` 样式驱动，高度同时考虑窗口、内容容器与原生最大尺寸。会话页沿用原生底边锚定。
 
 Codex 首页的原生任务输入区以 `flex-col justify-end` 锚定底边；通用展开标记会把外层首页 group 改成居中，因此需对这个底部输入区保留 `justify-content:flex-end`，使展开、收起时底边不跳动。Adapter 读取实际存在的原生首页与底部输入区，经典 Chat 和居中的 Work 首页不应用此分支。
@@ -26,6 +28,6 @@ Windows Codex `26.1016.8120.0` 的冷启动中，`app-main` 标签可能晚于 D
 
 ## 验证
 
-自动化验证原生绑定发现、入口阈值、场景排除、展开收起的 Enter 恢复与卸载清理，以及源码工厂序列化。隔离窗口验证 Work/Codex 首页与会话的原生增长方式、草稿/光标、Enter 换行、短文本收起和页面切换。Windows 本轮未做 GUI 验收。测试指令不发送。
+自动化验证原生绑定发现、入口阈值、场景排除、展开收起的 Enter 恢复与卸载清理，以及源码工厂序列化。隔离窗口验证 Work/Codex 首页与会话的原生增长方式、草稿/光标、Enter 换行、短文本收起和页面切换。Windows `26.1021.3705.0` 已在独立 profile 通过 Renderer 交互验证 Codex 首页多段草稿的按钮显示、展开/收起、编辑器/文档/selection 身份保留、Enter 行为切换与短文本入口清理；Work、会话页及视觉布局未在该构建逐项复核。测试指令不发送。
 
 控制台图标使用 Lucide `maximize-2`，MIT 许可随功能附带；编辑器中的图标来自安装中的原生组件。

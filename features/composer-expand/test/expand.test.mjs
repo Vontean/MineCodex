@@ -55,10 +55,10 @@ test('loader follows native expand Button, paired icons and transaction observer
   const dir=await mkdtemp(path.join(os.tmpdir(),'mcx-expand-'));t.after(()=>rm(dir,{recursive:true,force:true}));
   const url=name=>pathToFileURL(path.join(dir,name)).href;
   const files={
-    'runtime.mjs':`export function react(){return {createElement:(type,props)=>({type,props})}};export function dom(){return {createRoot:n=>({render:v=>{n.rendered=v},unmount:()=>{n.unmounted=true}})}};export const Button='native-button',Collapse='native-collapse',Expand='native-expand';`,
+    'runtime.mjs':`export function react(){return {createElement:(type,props)=>({type,props})}};export function dom(){return {createRoot:n=>({render:v=>{n.rendered=v},unmount:()=>{n.unmounted=true}})}};export const Button='native-button';let Collapse,Expand;const once=fn=>fn;function init(){return(init=once((()=>{Collapse='native-collapse',Expand='native-expand'})))()}export{Collapse as C,Expand as E,init as boot};`,
     'app-initial-fixture.js':`import{react as factory}from'./runtime.mjs';const R=factory();/*R.useRef*/const file='./app-primary-fixture.js';function watcher(e,t){let{eventTarget:n}=e;return n(t)};export{watcher as observed};`,
     'app-main-fixture.js':`import{dom as factory}from'./runtime.mjs';const D=factory();/*(0,D.createRoot)*/`,
-    'app-primary-fixture.js':`import{Button as B,Collapse as C,Expand as E}from'./runtime.mjs';function Control(){return (0,R.jsx)(B,{"aria-label":label,"data-composer-expand-toggle":"",children:expanded?(0,R.jsx)(C,{}):(0,R.jsx)(E,{})})}var end;`,
+    'app-primary-fixture.js':`import{Button as B,C as C,E as E}from'./runtime.mjs';function Layout(){return {className:"has-[[data-composer-expand-toggle]]:flex"}}var layoutEnd;function Control(){return (0,R.jsx)(Tooltip,{children:(0,R.jsx)(B,{"aria-label":label,"data-composer-expand-toggle":"",children:expanded?(0,R.jsx)(C,{}):(0,R.jsx)(E,{})})})}var end;`,
   };
   for(const [name,value]of Object.entries(files))await writeFile(path.join(dir,name),value);
   const previous=globalThis.document;t.after(()=>{globalThis.document=previous;});
