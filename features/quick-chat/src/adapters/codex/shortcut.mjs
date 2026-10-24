@@ -109,7 +109,18 @@ export function installQuickChatShortcut(signal, codex, discover = null) {
     });
     const source = await (await fetch(url, {signal})).text();
     const module = await import(url);
-    if (quickChatNativeCommand(source)) return {native:true};
+    let native;
+    try { native=quickChatNativeCommand(source); }
+    catch (error) {
+      if (error.message !== 'quick-chat-command-catalog-unavailable') throw error;
+      // 新版命令目录移入共享模块；打开动作仍由入口模块导出。
+      const file=source.match(/["'`]\.\/(app-shared-[\w-]+\.js)["'`]/)?.[1];
+      if (!file) throw error;
+      const response=await fetch(new URL(file,url).href,{signal});
+      if (!response.ok) throw error;
+      native=quickChatNativeCommand(await response.text());
+    }
+    if (native) return {native:true};
     const roles = quickChatLifecycleExports(source);
     if (!module[roles.openState] && typeof module[roles.initialize] === 'function') module[roles.initialize]();
     const open = module[roles.open], create = module[roles.create], openState = module[roles.openState];
