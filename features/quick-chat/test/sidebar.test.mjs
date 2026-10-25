@@ -37,6 +37,10 @@ test('Quick Chat icon follows the native Restore fallback import and rejects cha
   t.mock.method(globalThis,'fetch',async resource=>({text:()=>readFile(fileURLToPath(resource),'utf8')}));
   const icon=await loadQuickChatSidebarIcon(new AbortController().signal);
   assert.equal(icon.createElement(),'native-quick-chat');
+  await writeFile(path.join(dir,'app-initial-fixture.js'),'"./floating-chat-surface-fixture.js"');
+  await writeFile(path.join(dir,'floating-chat-surface-fixture.js'),await readFile(surface,'utf8'));
+  assert.equal((await loadQuickChatSidebarIcon(new AbortController().signal)).createElement(),'native-quick-chat');
+  await writeFile(path.join(dir,'app-initial-fixture.js'),'"./quick-chat-floating-surface-fixture.js"');
   await writeFile(surface,'import{icon as native}from"./icons.js";children:changedRole');
   await assert.rejects(loadQuickChatSidebarIcon(new AbortController().signal),/icon-contract/);
 });
