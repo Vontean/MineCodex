@@ -1,8 +1,21 @@
 export async function loadComposerExpandControls(signal) {
-  const urls = [...document.querySelectorAll('link[rel="modulepreload"],script[src]')].map(node => node.href || node.src);
-  const initialUrl = urls.find(url => /\/app-initial-[^/]+\.js/.test(url));
-  const mainUrl = urls.find(url => /\/app-main-[^/]+\.js/.test(url));
-  if (!initialUrl || !mainUrl) throw new Error('composer-expand-modules-unavailable');
+  signal.throwIfAborted();
+  function modules() {
+    const urls = [...document.querySelectorAll('link[rel="modulepreload"],script[src]')].map(node => node.href || node.src);
+    const initialUrl = urls.find(url => /\/app-initial-[^/]+\.js/.test(url));
+    const mainUrl = urls.find(url => /\/app-main-[^/]+\.js/.test(url));
+    return initialUrl && mainUrl ? {initialUrl,mainUrl} : null;
+  }
+  // 冷启动时入口标签可能晚于 DOMContentLoaded 挂载。
+  const {initialUrl,mainUrl} = modules() ?? await new Promise((resolve,reject) => {
+    const observer = new MutationObserver(check);
+    function cleanup() { observer.disconnect();signal.removeEventListener('abort',abort); }
+    function abort() { cleanup();reject(signal.reason); }
+    function check() { const found=modules();if(found){cleanup();resolve(found);} }
+    observer.observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['src','href','rel']});
+    signal.addEventListener('abort',abort,{once:true});
+    check();
+  });
   const read = async url => { const response=await fetch(url,{signal}); if(!response.ok) throw new Error('composer-expand-source-unavailable'); return response.text(); };
   const [initialSource,mainSource] = await Promise.all([read(initialUrl),read(mainUrl)]);
   const file = initialSource.match(/["'`]\.\/(app-primary-[\w-]+\.js)["'`]/)?.[1];
@@ -13,17 +26,40 @@ export async function loadComposerExpandControls(signal) {
     if (!local) throw new Error('composer-expand-binding-unavailable');
     const escaped = local.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
     const alias = source.slice(source.lastIndexOf('export{')).match(new RegExp(`(?:\\{|,)${escaped} as ([\\w$]+)(?:,|\\})`))?.[1];
-    if (alias) return (await import(url))[alias];
+    if (alias) {
+      const module=await import(url);
+      if (module[alias]===undefined) {
+        // 图标导出可能仍在原生 once 初始化器中，先初始化再读取实时导出。
+        const assignment=source.search(new RegExp(`(?:[,;{])${escaped}=`));
+        const initializer=assignment<0?null:source.slice(source.lastIndexOf('function ',assignment),assignment+1)
+          .match(/^function ([\w$]+)\(\)\{return\(\1=[\w$]+\(\(\(\)=>\{/);
+        if (!initializer) throw new Error('composer-expand-binding-unavailable');
+        const initialize=await binding(source,url,initializer[1]);
+        if (typeof initialize!=='function') throw new Error('composer-expand-binding-unavailable');
+        initialize();
+      }
+      if (module[alias]===undefined) throw new Error('composer-expand-binding-unavailable');
+      return module[alias];
+    }
     for (const match of source.matchAll(/import\{([^}]+)\}from["'`]([^"'`]+)["'`]/g)) {
       for (const entry of match[1].split(',')) {
         const parts=entry.trim().split(/\s+as\s+/);
-        if (parts.at(-1)===local) return (await import(new URL(match[2],url).href))[parts[0]];
+        if (parts.at(-1)===local) {
+          const dependencyUrl=new URL(match[2],url).href,module=await import(dependencyUrl);
+          if (module[parts[0]]!==undefined) return module[parts[0]];
+          const dependency=await read(dependencyUrl);
+          const exported=parts[0].replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+          const name=dependency.slice(dependency.lastIndexOf('export{')).match(new RegExp(`(?:\\{|,)([\\w$]+) as ${exported}(?:,|\\})`))?.[1];
+          return binding(dependency,dependencyUrl,name);
+        }
       }
     }
     throw new Error('composer-expand-binding-unavailable');
   }
   // 语义定位原生展开按钮，导入它实际使用的控件和成对图标。
-  const start=source.indexOf('function ',source.lastIndexOf('function ',source.indexOf('data-composer-expand-toggle')));
+  // 只匹配控件属性，避免先命中布局 className 中的同名 CSS 选择器。
+  const marker=source.search(/["'`]data-composer-expand-toggle["'`]:/);
+  const start=marker<0?-1:source.lastIndexOf('function ',marker);
   const control=source.slice(start,source.indexOf('var ',start));
   const button=control.match(/jsx\)\(([\w$]+),\{"aria-label"/ )?.[1];
   const icons=control.match(/children:[\w$]+\?\(0,[\w$]+\.jsx\)\(([\w$]+),\{\}\):\(0,[\w$]+\.jsx\)\(([\w$]+),\{\}\)/);
