@@ -19,4 +19,6 @@ Codex 26.930.21537：依据安装包 breadcrumb、workspace-directory-entries-qu
 
 领域仅拥有路径压缩与分支选择规则。Adapter 负责原生路径上下文、宿主目录请求、文件选择回调、模块依赖与 Provider 接入，输出内部条目及命名动作。前端不解析 React、原生事件路径或响应对象。sourceFactory 显式序列化所有函数，不依赖 Renderer imports。
 
+Codex 26.1021.31345 的目录 query 将读取委托给 `workspace-directory` 导出的 `workspaceFiles.listDirectory` 包装函数；Adapter 沿用其 host/workspace/directory 参数与 AbortSignal，兼容旧请求绑定，不向业务层暴露新宿主协议。当前 macOS 隔离 Renderer 已验证组件加载与仓库目录读取；完整鼠标级联仍需原生窗口验收。
+
 原生导航节点原位保留，禁用恢复显示。关闭或分支变化后丢弃过期异步结果；列 React 根在关闭与卸载时释放。原生模块失效时恢复原生入口，目录加载失败只在所属列提供重试。
