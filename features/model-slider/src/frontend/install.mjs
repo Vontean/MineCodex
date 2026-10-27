@@ -1,3 +1,13 @@
+// 强度提交会重建面板；只延续滑条自身的焦点，不抢走其他控件或已关闭菜单的焦点。
+export function replaceModelSliderShell(parentMenu, existing, shell) {
+  const previousRail = existing?.querySelector('[data-codex-model-slider-rail]');
+  const restore = Boolean(previousRail && document.activeElement === previousRail);
+  existing?.remove();
+  parentMenu.append(shell);
+  if (restore && parentMenu.isConnected && shell.isConnected)
+    shell.querySelector('[data-codex-model-slider-rail]')?.focus({preventScroll:true});
+}
+
 // 专有原生控制器适配与呈现由插件维护；宿主只提供刷新和共用 UI。
 export function installModelSlider(signal, { feature, ui, createIcon, requestRefresh, locale, codex, requestAction }, rules, createModelControllerAdapter) {
   const modelSelectorFeature = feature;
@@ -2079,7 +2089,6 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
       return false;
     }
     modelSelectorGenericContainers.get(nativeContainer)?.effectMirror?.disconnect();
-    existing?.remove();
     if (!modelSelectorGenericContainers.has(nativeContainer)) {
       modelSelectorGenericContainers.set(nativeContainer, {
         position: nativeContainer.style.position,
@@ -2099,7 +2108,7 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
     nativeContainer.inert = true;
     shell.setAttribute("data-codex-model-slider-generic", key);
     shell.setAttribute("data-codex-model-slider-structure-key", structureKey);
-    parentMenu.append(shell);
+    replaceModelSliderShell(parentMenu, existing, shell);
     modelSelectorGenericContainers.get(nativeContainer).effectMirror = syncClonedPowerEffects(nativeContainer, shell);
     centerGenericModelPicker(parentMenu);
     return true;
