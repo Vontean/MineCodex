@@ -111,5 +111,5 @@ test('model favorites migrate legacy once, merge portably, and retain removals',
   await service.import(bundle);
   assert.deepEqual(store.read().favorites,['gpt-c','provider/model-b']);
   assert.equal((await service.import(bundle)).features.find(row=>row.id==='model-slider').added,0);
-  assert.equal((await service.inventory()).features.length,13);
+  assert.equal((await service.inventory()).features.length,12);
 });

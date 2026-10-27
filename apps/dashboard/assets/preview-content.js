@@ -36,9 +36,7 @@ const content = {
   'sidebar-focus': [
     ['Codex 左侧栏的分组标题。', '多个侧栏分组展开时，当前分组不容易聚焦。', '点击当前分组，一键收起其他分组；再次点击恢复先前的展开状态。'],
     ['Group headings in the Codex sidebar.', 'Several expanded groups make the current group harder to focus on.', 'Click a group to collapse other groups. Click again to restore their previous expanded state.']],
-  'hide-upsell-banner': [
-    ['Codex 的额度推广提示区域。', '推广提示占用日常操作空间。', '隐藏额度推广提示，保留真实额度与运行错误反馈。'],
-    ['Usage promotion banners in Codex.', 'Promotions take space during everyday tasks.', 'Hide usage promotions while retaining real usage and error feedback.']],
+
 };
 export function previewContent(id, locale) {
   return content[id]?.[locale === 'zh-CN' ? 0 : 1] ?? (locale === 'zh-CN'

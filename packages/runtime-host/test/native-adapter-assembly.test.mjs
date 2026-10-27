@@ -5,8 +5,8 @@ import {fileURLToPath} from 'node:url';
 
 test('all registered adapter factories produce self-contained page-script function bodies',async()=>{
   const features=await discoverFeatures(fileURLToPath(new URL('../../../features/',import.meta.url)));
-  assert.equal(features.length,13);
-  assert.equal(features.some(feature=>feature.id==='unread-inbox'),false);
+  assert.equal(features.length,12);
+  assert.equal(features.some(feature=>['unread-inbox','hide-upsell-banner'].includes(feature.id)),false);
   for(const feature of features) {
     if(feature.entry.kind!=='page-script')continue;
     assert.equal(typeof feature.pageScript.source,'string',feature.id);

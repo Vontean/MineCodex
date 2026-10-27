@@ -20,7 +20,6 @@ test("config keeps established defaults and enables reading by default and prese
     "future-plugin": true,
     "model-slider": true,
     images: true,
-    "hide-upsell-banner": true,
     "session-status": true,
     "usage-meter": true,
     "sidebar-focus": true,
@@ -107,4 +106,12 @@ test("Mermaid is opt-in for new and existing configs and independent from readin
   const config=normalizeConfig({features:{"mermaid-diagrams":true,"markdown-reading":false}});
   assert.equal(config.features["mermaid-diagrams"],true);
   assert.equal(config.features["markdown-reading"],false);
+});
+
+test("removed usage promotion feature is discarded without changing other settings", async () => {
+  const config = normalizeConfig({features:{"hide-upsell-banner":true,images:false,"future-plugin":true}});
+  assert.equal("hide-upsell-banner" in config.features,false);
+  assert.equal(config.features.images,false);
+  assert.equal(config.features["future-plugin"],true);
+  await assert.rejects(updateFeature("/unused/config.json","hide-upsell-banner",true),/Unknown MineCodex plugin/);
 });

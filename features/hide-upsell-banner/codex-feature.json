@@ -20,5 +20,6 @@
   },
   "placement": {
     "order": 40
-  }
+  },
+  "disabled": true
 }

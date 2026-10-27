@@ -133,7 +133,7 @@ CLI 继续通过一次性 browser exchange 打开控制台。macOS 默认 Safari
 
 ### 暂停功能的接入
 
-`codex-feature.json` 的 `disabled:true` 表示保留源码但暂停运行时接入。发现阶段在加载 Adapter、资源和注入源码之前跳过该功能，显式启用 ID 也不能恢复它。Task Toast（`unread-inbox`）于 2026-10-03 暂停；CLI／控制台已移除其注册入口，配置归一化清除旧启用项。恢复时须同时重新评估注入场景并恢复 manifest 与用户入口。
+`codex-feature.json` 的 `disabled:true` 表示保留源码但暂停运行时接入。发现阶段在加载 Adapter、资源和注入源码之前跳过该功能，显式启用 ID 也不能恢复它。Task Toast（`unread-inbox`）暂停；隐藏额度推广（`hide-upsell-banner`）已移除并保留注释源码，不再打包。CLI／控制台已移除其注册入口，配置归一化清除旧启用项。恢复时须同时重新评估注入场景并恢复 manifest 与用户入口。
 
 ## 更新后的注入自检
 
