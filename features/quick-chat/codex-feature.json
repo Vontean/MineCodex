@@ -15,7 +15,8 @@
     "script": "src/frontend/entry.mjs",
     "sourceFactory": "src/injection-source.mjs",
     "resources": {
-      "history": "assets/history.svg"
+      "history": "assets/history.svg",
+      "close": "assets/close.svg"
     }
   },
   "icon": {

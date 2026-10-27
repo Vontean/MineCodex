@@ -135,3 +135,15 @@ test('serialized renderer resolves the shared native history contract at runtime
   adapter.read(f.surface).history();
   assert.equal(adapter.read(f.surface).historyVisible,true);
 });
+
+
+test('expanded body and history use native header Minimize for Close, compact keeps History only',()=>{
+  const f=fixture(),header={checkVisibility:()=>true,hasAttribute:()=>false};
+  f.buttons.push(header);f.props.set(header,[{onMinimize(){},isCompact:false}]);
+  assert.equal(f.adapter.read(f.surface).minimize,undefined);
+  for(const history of [false,true]) {
+    f.floating.presentation=history?'compact':'expanded';f.floating.forceExpanded=history;
+    const current=f.adapter.read(f.surface);
+    assert.equal(current.minimize,header);assert.equal(current.showClose,true);assert.equal(current.showHistory,false);assert.equal(current.standalone,false);
+  }
+});

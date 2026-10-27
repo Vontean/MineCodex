@@ -21,11 +21,11 @@ test('command definitions remain discoverable before lazy catalog initialization
   assert.equal(quickChatNativeCommand(definitions+';other={id:`quickChat`}'),false);
   assert.throws(()=>quickChatNativeCommand(definitions.replace('temporaryChat','other')),/command-catalog/);
 });
-function fixture({platform='MacIntel',mode='codex',workModeAccess=null,native=false,scopeAvailable=true,minimized=false,active=false,hidden=false,visible=true,open=true,assetUrl=null,assetReady=true,unifiedDocking=true,currentDocking=false}={}) {
+function fixture({platform='MacIntel',mode='codex',workModeAccess=null,native=false,scopeAvailable=true,minimized=false,active=false,hidden=false,visible=true,open=true,assetUrl=null,assetReady=true,unifiedDocking=true,currentDocking=false,pickerVisible=true,pickerMounted=true,stableAnchor=false}={}) {
   const previousNavigator=Object.getOwnPropertyDescriptor(globalThis,'navigator');
   Object.defineProperty(globalThis,'navigator',{configurable:true,value:{platform}});
   const previous=globalThis.document,listeners=new Set(),calls=[];
-  const button={checkVisibility:()=>true};
+  const button={checkVisibility:()=>pickerVisible};
   const restored=[],created=[],reports=[];
   let opened=open,surfaceSession="existing";
   const editable={checkVisibility:()=>visible,focus:()=>restored.push('focus')};
@@ -36,10 +36,10 @@ function fixture({platform='MacIntel',mode='codex',workModeAccess=null,native=fa
   const restoreProps={size:'composer',uniform:true,onClick:()=>{},onKeyDown:()=>{},onPointerDown:()=>{},onPointerEnter:()=>{}};
   const scope={get:()=>{},set:()=>{},scope:{__scopeBrand:'AppScope'}};
   const fiber={memoizedState:{memoizedState:{current:scopeAvailable?scope:null}}};
-  globalThis.document={documentElement:{},querySelectorAll:selector=>selector==='link[rel="modulepreload"],script[src]'?(assetReady?[{src:assetUrl}]:[]):selector==='button'?(minimized?[restoreButton]:[]):selector==='[data-floating-chat-surface]'?(active?[surface]:[]):[button],addEventListener:(name,fn)=>listeners.add(fn),removeEventListener:(name,fn)=>listeners.delete(fn)};
+  globalThis.document={documentElement:{},querySelectorAll:selector=>selector==='link[rel="modulepreload"],script[src]'?(assetReady?[{src:assetUrl}]:[]):selector==='button'?(minimized?[restoreButton]:[]):selector==='[data-floating-chat-surface]'?(active?[surface]:[]):selector==='button[aria-haspopup="menu"]'?(pickerMounted?[button]:[]):stableAnchor?[surface]:[],addEventListener:(name,fn)=>listeners.add(fn),removeEventListener:(name,fn)=>listeners.delete(fn)};
   const controller=new AbortController();
   const codex={props:(node,predicate)=>node===surface?[{...floating,isMinimized:minimized},{session:{conversationId:surfaceSession}}].find(predicate):node===restoreButton?[restoreProps,floating].find(predicate):({mode,workModeAccess,onModeSelect:()=>{}}),currentFiber:()=>fiber,report:(...args)=>reports.push(args)};
-  const shortcut=installQuickChatShortcut(controller.signal,codex,assetUrl?null:async()=>({native,open:value=>calls.push(value),create:value=>{created.push(value);opened=true},isOpen:()=>opened}));
+  const shortcut=installQuickChatShortcut(controller.signal,codex,assetUrl?null:async()=>({native,open:value=>calls.push(value),create:value=>{created.push(value);opened=true},isOpen:()=>opened,mode:()=>mode}));
   const key=(overrides={})=>{
     const event={code:'KeyN',metaKey:true,altKey:true,ctrlKey:false,shiftKey:false,repeat:false,isComposing:false,defaultPrevented:false,preventDefault(){this.defaultPrevented=true},stopPropagation(){this.stopped=true},...overrides};
     for(const fn of listeners)fn(event);return event;
@@ -179,4 +179,14 @@ test('26.1013 restores the dockThreadKey surface after unifiedDocking was remove
     const f=fixture({...options,currentDocking:true});
     try{await f.shortcut.ready;assert.equal(f.shortcut.activate(),true);assert.equal(f.created.length,0);assert.equal(f.calls.length,0);assert.deepEqual(f.restored,[options.minimized?'restore':'focus']);}finally{f.restore()}
   }
+});
+
+
+test('Codex shortcut opens from the current window when the sidebar picker is hidden or unmounted',async()=>{
+  for(const platform of ['MacIntel','Win32']) for(const pickerMounted of [true,false]) {
+    const f=fixture({platform,pickerVisible:false,pickerMounted,stableAnchor:true,open:false});
+    try {await f.shortcut.ready;const event=f.key(platform==='Win32'?{ctrlKey:true,metaKey:false}:{});assert.equal(event.defaultPrevented,true);assert.equal(f.created.length,1);assert.equal(f.calls.length,0);} finally {f.restore();}
+  }
+  const f=fixture({mode:'work',pickerVisible:false,stableAnchor:true,open:false});
+  try {await f.shortcut.ready;assert.equal(f.key().defaultPrevented,false);assert.equal(f.created.length,0);}finally{f.restore();}
 });

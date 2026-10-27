@@ -1,3 +1,4 @@
+import {quickChatLifecycleActions, quickChatScope} from "./lifecycle.mjs";
 // 通过原生能力检查与已有会话分支定位打开动作，不依赖构建哈希或压缩名称。
 export function quickChatOpenExport(source) {
   const match = source.match(/function ([\w$]+)\(([\w$]+),[\w$]+=\{\}\)\{if\(!\2\.get\([\w$]+,\{name:[`"']chatgpt\.quick-chat[`"']\}\)\.isCapable\)return;let [\w$]+=\2\.get\([\w$]+\),[\w$]+=\2\.get\([\w$]+\);if\(/);
@@ -83,13 +84,13 @@ export function installQuickChatShortcut(signal, codex, discover = null) {
       const picker = codex.props(button, p => typeof p.onModeSelect === 'function' && typeof p.mode === 'string', 80);
       // 原生 ChatGPT 也使用 work 路由，具体产品由 workModeAccess 区分。
       if (picker?.mode !== 'codex' && !(picker?.mode === 'work' && picker.workModeAccess === 'chatgpt')) continue;
-      for (let fiber = codex.currentFiber(button), depth = 0; fiber && depth++ < 200; fiber = fiber.return) {
-        const values = [];
-        for (let hook = fiber.memoizedState, n = 0; hook && n++ < 150; hook = hook.next) values.push(hook.memoizedState?.current);
-        for (const row of fiber.updateQueue?.memoCache?.data ?? []) values.push(...row);
-        const scope = values.find(v => typeof v?.get === 'function' && typeof v.set === 'function' && v.scope?.__scopeBrand === 'AppScope');
-        if (scope) return scope;
-      }
+      const scope=quickChatScope(codex,button);
+      if (scope) return scope;
+    }
+    // 侧栏可能卸载；从仍挂载的窗口内容取当前 scope，模式由原生状态判定。
+    if (bindings?.mode) for (const anchor of document.querySelectorAll('[data-app-navigation-rail], [data-codex-composer-root], [data-chatgpt-composer], main, #root > *, #app > *')) {
+      const scope=quickChatScope(codex,anchor);
+      if (scope && bindings.mode(scope)==='codex') return scope;
     }
     return null;
   }
@@ -120,12 +121,29 @@ export function installQuickChatShortcut(signal, codex, discover = null) {
       if (!response.ok) throw error;
       native=quickChatNativeCommand(await response.text());
     }
-    if (native) return {native:true};
-    const roles = quickChatLifecycleExports(source);
-    if (!module[roles.openState] && typeof module[roles.initialize] === 'function') module[roles.initialize]();
-    const open = module[roles.open], create = module[roles.create], openState = module[roles.openState];
-    if (typeof open !== 'function' || typeof create !== 'function' || !openState) throw new Error('quick-chat-open-action-unavailable');
-    return {native:false, open, create, isOpen:scope => scope.get(openState)};
+    const bindings={native};
+    if (!native) {
+      const roles = quickChatLifecycleExports(source);
+      if (!module[roles.openState] && typeof module[roles.initialize] === 'function') module[roles.initialize]();
+      const open = module[roles.open], create = module[roles.create], openState = module[roles.openState];
+      if (typeof open !== 'function' || typeof create !== 'function' || !openState) throw new Error('quick-chat-open-action-unavailable');
+      Object.assign(bindings,{open,create,isOpen:scope=>scope.get(openState)});
+    }
+    try {
+      const actions=quickChatLifecycleActions(source);
+      if (actions.mode && module[actions.mode]) bindings.mode=scope=>scope.get(module[actions.mode]);
+      if (['close','draft','text'].every(key=>typeof module[actions[key]]==='function') && module[actions.session] && module[actions.attachments]) {
+        bindings.close=(scope,id)=>{
+          if (scope.get(module[actions.session])?.conversationId!==id) return false;
+          module[actions.draft](scope,{draftKey:id,content:null});
+          module[actions.text](scope,id,'');
+          scope.set(module[actions.attachments],id,[]);
+          module[actions.close](scope);
+          return true;
+        };
+      }
+    } catch { codex.report('quick-chat-close',false,'quick-chat-close-contract-unavailable'); }
+    return bindings;
   }
   const ready = (discover ?? load)().then(value => {
     if (disposed || signal.aborted) return;
@@ -146,6 +164,12 @@ export function installQuickChatShortcut(signal, codex, discover = null) {
     }
     return true;
   }
+  function close(surface,id) {
+    const scope=quickChatScope(codex,surface);
+    if (!scope || !bindings?.close || disposed || signal.aborted) return false;
+    pendingFocus=null;
+    return bindings.close(scope,id);
+  }
   function keydown(event) {
     const primaryModifier = windows ? event.ctrlKey && !event.metaKey : event.metaKey && !event.ctrlKey;
     if (event.defaultPrevented || event.repeat || event.isComposing
@@ -156,5 +180,5 @@ export function installQuickChatShortcut(signal, codex, discover = null) {
   document.addEventListener('keydown', keydown, {signal});
   function dispose() { disposed = true; stopWaiting?.(); document.removeEventListener('keydown', keydown); bindings = null; pendingFocus=null; }
   signal.addEventListener('abort', dispose, {once:true});
-  return {ready, dispose, sync:focusNew, activate, available:() => Boolean(bindings && !bindings.native && !disposed && !signal.aborted)};
+  return {ready, dispose, sync:focusNew, activate, close, canClose:() => Boolean(bindings?.close && !disposed && !signal.aborted), available:() => Boolean(bindings && !bindings.native && !disposed && !signal.aborted)};
 }

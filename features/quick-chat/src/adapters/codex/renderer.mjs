@@ -18,10 +18,14 @@ export function createQuickChatAdapter(codex) {
     if (!history) return null;
     const state = codex.props(editable, props => typeof props.submitDisabled === "boolean" && props.conversationId);
     const controller = codex.props(editable, props => props.composerController?.eventEmitter)?.composerController;
+    const expanded = Boolean(floating.presentation === "expanded" || floating.forceExpanded);
     const minimize = [...surface.querySelectorAll('button')].find(button => {
-      const props = codex.props(button, props => props.standalone === true && typeof props.onMinimize === "function" && typeof props.isCompact === "boolean", 5);
-      return Boolean(props && button.checkVisibility({visibilityProperty:true}) && !button.hasAttribute('data-mcx-quick-chat-history'));
+      const props = codex.props(button, props => (props.standalone === true || expanded) && typeof props.onMinimize === "function" && typeof props.isCompact === "boolean"
+        && Object.keys(props).every(key => ["standalone","isCompact","onMinimize"].includes(key)), 5);
+      return Boolean(props && button.checkVisibility({visibilityProperty:true}) && !button.hasAttribute('data-mcx-quick-chat-history') && !button.hasAttribute('data-mcx-quick-chat-close'));
     });
+    const drag = expanded && [...surface.querySelectorAll('header button[data-quick-chat-drag-handle]')]
+      .find(button => button.checkVisibility({visibilityProperty:true}));
     let receipt = null;
     for (let fiber = codex.currentFiber(surface), depth = 0; fiber && depth < 80; depth++, fiber = fiber.return) {
       if (fiber.memoizedProps?.session?.conversationId !== session.conversationId) continue;
@@ -41,13 +45,12 @@ export function createQuickChatAdapter(codex) {
     const project = [...surface.querySelectorAll('[data-composer-rail-item] button')].find(button =>
       codex.props(button, props => props.variant === "composer" && typeof props.onProjectChange === "function"));
     const projectRail = project?.closest('[data-composer-rail-item]') ?? null;
-    const expanded = Boolean(floating.presentation === "expanded" || floating.forceExpanded);
     const emitter = controller?.eventEmitter;
     const subscribable = typeof emitter?.addListener === "function" && typeof emitter?.removeListener === "function";
     if (subscribable && !subscriptions.has(emitter)) subscriptions.set(emitter, nextSubscription++);
-    const snapshot = {surface, editable, minimize, projectRail, background:!session.hasConversation && floating.forceExpanded ? background : null, sessionId:session.conversationId, hasConversation:session.hasConversation,
+    const snapshot = {surface, editable, minimize, closeAnchor:drag || minimize, projectRail, background:!session.hasConversation && floating.forceExpanded ? background : null, sessionId:session.conversationId, hasConversation:session.hasConversation,
       canSubmit:Boolean(state && !state.submitDisabled && !state.submitLoading), receiptId:receipt ? receipts.get(receipt) : 0, receiptPresentation:receipt?.presentation ?? null, subscriptionId:subscribable ? subscriptions.get(emitter) : 0,
-      expanded, showHistory:Boolean(minimize && !expanded), historyVisible:quickChatHistoryVisible(floating.renderTranscript?.()),
+      expanded, standalone:Boolean(minimize && codex.props(minimize,props=>props.standalone===true,5)), showHistory:Boolean(minimize && !expanded), showClose:Boolean(minimize && expanded), historyVisible:quickChatHistoryVisible(floating.renderTranscript?.()),
       expand:() => floating.onPresentationChange("expanded"),
       // 历史动作通过 forceExpanded 临时展开；不要覆盖最小化后的恢复形态。
       history:() => history.onSelect()};
