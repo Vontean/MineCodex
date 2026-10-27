@@ -1,6 +1,6 @@
 # Images · Image Gen 与图片提示词
 
-Images 在 Codex 原生 **Space → Images** 中增加 **Image Gen**，集中浏览本机 Codex 或本地 Work 生成的图片。
+Images 按当前账号接入原生页面：Plus 使用 **Library**，Pro 使用 **Space → Images**，并增加 **Image Gen**，集中浏览本机 Codex 或本地 Work 生成的图片。
 
 - Image Gen 位于 Your creations、Uploads 后，图片按生成时间倒序显示，支持搜索和滚动加载。
 - 标签、加载骨架、图片排布、悬浮卡片和菜单复用原生组件。
@@ -37,3 +37,5 @@ node --test features/images/test/*.test.mjs
 
 
 Image Gen 支持原生圆形多选框、Shift 区间选择和底部动作条。Delete 会先二次确认，仅从 Image Gen 隐藏；本地原图和云端副本保留。隐藏状态由 MineCodex 当前 Runtime profile 持久维护，确认后立即生效，刷新／重启不再显示。缩略卡片沿用 Library 的 1:2 至 20:13 比例范围；极宽和极窄图片在卡片内完整缩放、居中留白，不裁切内容。
+
+原生接入失败以当前标签节点、账号与页面分支为边界停止自动重试；清理产生的 DOM 变化不能重新挂载同一失败实例。离开页面再进入或重新注入后可重新连接。原生标签没有变化时不重复渲染替代导航。Codex 26.1021.31345 的 Plus 隔离窗口已验证连接失败时 Library 仍响应、原生标签可切换、Home → Library 可往返；新版 Library 动作从 `selectable-library-item` 移到 `library-item-menu`，选择框仍由原模块提供；资源发现优先使用当前已加载的精确模块，再使用声明的 import 关系与旧入口分支。当前隔离 Renderer 已验证导航、图库与画布全部能力加载，以及失配时的原生降级；真实图片浏览、菜单与画布交互仍需独立窗口验收，不将能力加载记为完整浏览验收。

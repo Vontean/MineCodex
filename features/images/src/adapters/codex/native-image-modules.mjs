@@ -75,13 +75,18 @@ export function createNativeImageModules({read = async url => (await fetch(url))
       const [initialSource, mainSource] = await Promise.all([read(initialUrl), read(mainUrl)]);
       const initial = await load(initialUrl);
       const asset = (name, references = initialSource) => {
+        const loaded = [...document.querySelectorAll('link[rel="modulepreload"],script[src]')].map(node => node.href || node.src)
+          .find(url => new RegExp(`/${name}-[\\w-]+\\.js$`).test(url));
+        if (loaded) return loaded;
         const file = references.match(new RegExp(`(?:["'./])(${name}-[\\w-]+\\.js)`))?.[1];
         if (!file) throw new Error(`Native Images capability is unavailable: ${name}`);
         return new URL(file, initialUrl).href;
       };
       const module = async (name,references) => {
         // 26.1013 将图库排布与卡片合入入口，其他能力仍按独立模块发现。
-        if (["library-masonry", "library-item-layout"].includes(name)
+        const loaded = [...document.querySelectorAll('link[rel="modulepreload"],script[src]')].some(node =>
+          new RegExp(`/${name}-[\\w-]+\\.js$`).test(node.href || node.src));
+        if (!loaded && ["library-masonry", "library-item-layout"].includes(name)
           && !new RegExp(`(?:["'./])(${name}-[\\w-]+\\.js)`).test(references ?? initialSource)) {
           return {url:initialUrl, source:initialSource, exports:initial};
         }
@@ -129,7 +134,9 @@ export function createNativeImageModules({read = async url => (await fetch(url))
         module("generated-image-context-menu"),module("library-selection-toolbar"),
       ]);
       // 26.1007 将选择状态与图库动作移到 selectable-library-item；工具栏保留按钮与材质。
-      const selection=await module("selectable-library-item",toolbar.source);
+      const selectionRows=await module("selectable-library-item",toolbar.source);
+      const selection = /library-move-dialog-[\w-]+\.js/.test(selectionRows.source)
+        ? selectionRows : await module("library-item-menu",selectionRows.source);
       const [moveDialog,dialogs]=await Promise.all([module("library-move-dialog",selection.source),module("library-item-dialogs",toolbar.source)]);
       const routerLocal = selection.source.match(/get\(([\w$]+)\)\.prepareNavigation\(/)?.[1];
       const routerAtom = await binding(selection.source, selection.url, routerLocal);
@@ -143,9 +150,9 @@ export function createNativeImageModules({read = async url => (await fetch(url))
       const iconLocal = toolbar.source.match(/id:`libraryNext.selection.more`[^;]+?children:\(0,[\w$]+\.jsx\)\(([\w$]+),\{\}\)/)?.[1];
       const [Dropdown, Menu] = await Promise.all([dropdownLocal, itemsLocal].map(local => binding(selection.source, selection.url, local)));
       const [Button, MoreIcon] = await Promise.all([buttonLocal, iconLocal].map(local => binding(toolbar.source, toolbar.url, local)));
-      const checkboxFunction = component(selection.exports,source=>/onCheckedChange:/.test(source)&&/viewMode:/.test(source),"selection checkbox");
+      const checkboxFunction = component(selectionRows.exports,source=>/onCheckedChange:/.test(source)&&/viewMode:/.test(source),"selection checkbox");
       const checkboxLocal = String(checkboxFunction).match(/jsx\)\(([\w$]+),\{className:`cursor-interaction`,/)?.[1];
-      const Checkbox = await binding(selection.source,selection.url,checkboxLocal);
+      const Checkbox = await binding(selectionRows.source,selectionRows.url,checkboxLocal);
       const rangeSelection = component(selection.exports,source=>/^function [\w$]+\(\{orderedIds:/.test(source)&&/extendRange:/.test(source),"range selection");
       const selectionLocal = toolbar.source.match(/\.set\(([\w$]+),new Set[,)]/)?.[1];
       const nativeSelectedIds = await binding(toolbar.source,toolbar.url,selectionLocal);

@@ -79,3 +79,18 @@ test("26.1007 imageSrc scopes and memoized Composer preserve semantic roles",()=
     useComposerController:'Controller',useHomeComposer:'homeHook',Composer:'Composer',ComposerSurface:'Surface',ScopeProvider:'Provider',composerScope:'scope',createComposerValue:'make',composerRouteScope:'route',FileComposer:'File',fileComposerAvailability:'available',localAttachmentService:'attach',deleteLocalAttachment:'remove',useFileNavigate:'Navigate',localThreadRoute:'routeFor',
   });
 });
+
+test("26.1021 preloaded masonry takes precedence over the entry-owned fallback",async context=>{
+  const initial='file:///assets/app-initial-current.js',main='file:///assets/app-main-current.js',masonry='file:///assets/library-masonry-current.js';
+  const previous=globalThis.document;context.after(()=>{globalThis.document=previous;});
+  globalThis.document={querySelectorAll:()=>[{src:initial},{src:main},{href:masonry}]};
+  const React={createElement(){}},ReactDOM={createRoot(){}},reads=[];
+  const sources=new Map([
+    [initial,'export{unrelated as U}'],
+    [main,'import{root as init}from"./factories.js";renderer=init();(0,renderer.createRoot)'],
+    [masonry,'import{react as init}from"./factories.js";owner=init();owner.useRef'],
+  ]);
+  const modules=createNativeImageModules({read:async url=>{reads.push(url);assert.ok(sources.has(url));return sources.get(url);},load:async url=>url.endsWith('factories.js')?{root:()=>ReactDOM,react:()=>React}:{U:()=>{throw Error('unrelated entry initializer');}}});
+  const result=await modules.navigation();assert.equal(result.React,React);assert.equal(result.ReactDOM,ReactDOM);
+  assert.ok(reads.includes(masonry));assert.equal(reads.filter(url=>url===masonry).length,1);
+});

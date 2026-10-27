@@ -1,6 +1,7 @@
 // 只编排来源与加载状态；图库、标签、菜单及详情由原生 Adapter 承载。
 export function installLocalImageSource(config, signal, sources, native) {
   let mounted;
+  let failedEntry;
   let revision = 0;
   let pendingPrompt;
   const text = (en, zh) => (document.documentElement.lang || navigator.language).startsWith("zh") ? zh : en;
@@ -71,6 +72,7 @@ export function installLocalImageSource(config, signal, sources, native) {
     record.entry.content.hidden = record.active || record.contentHidden;
     record.area.hidden = !record.active;
     if (record.entry.search) record.entry.search.value = record.active ? record.query : record.searchValue;
+    record.selectedKey = key;
     record.nav.render(key);
     if (record.active) void fetchPage(record, true);
   }
@@ -79,9 +81,14 @@ export function installLocalImageSource(config, signal, sources, native) {
     if (signal.aborted) return;
     const entry = sources.read();
     if (mounted && mounted.entry.tabs === entry?.tabs && mounted.entry.accountKey === entry?.accountKey && mounted.entry.mode === entry?.mode) {
-      if (!mounted.active) mounted.nav?.render(entry.selectedKey);
+      if (!mounted.active && mounted.nav && mounted.selectedKey !== entry.selectedKey) {
+        mounted.selectedKey = entry.selectedKey;
+        mounted.nav.render(entry.selectedKey);
+      }
       return;
     }
+    if (failedEntry?.tabs === entry?.tabs && failedEntry?.accountKey === entry?.accountKey && failedEntry?.mode === entry?.mode) return;
+    failedEntry = null;
     unmount();
     if (!entry) return;
     const navigation = document.createElement("div");
@@ -126,6 +133,7 @@ export function installLocalImageSource(config, signal, sources, native) {
           onRetry:error => {
             console.error("MineCodex native Images rendering",error);
             if (mounted !== record) return;
+            failedEntry = entry;
             unmount();
             config.codex.report("images.local-source", false, "Native image rendering failed");
           },
@@ -145,6 +153,7 @@ export function installLocalImageSource(config, signal, sources, native) {
       record.nav = nav;
       record.view = view;
       entry.tabs.hidden = true;
+      record.selectedKey = entry.selectedKey;
       nav.render(entry.selectedKey);
       retry.onclick = () => fetchPage(record, true);
       record.observer = new IntersectionObserver(entries => {
@@ -169,6 +178,7 @@ export function installLocalImageSource(config, signal, sources, native) {
       entry.search?.addEventListener("keydown", record.onSearchKey, true);
     } catch {
       if (mounted === record) {
+        failedEntry = entry;
         unmount();
         config.codex.report("images.local-source", false, "Native image capability unavailable");
       }
