@@ -21,6 +21,9 @@ const content = {
   'file-navigation': [
     ['Codex 文件预览上方的路径区域。', '浏览相邻目录和文件需要额外跳转。', '点击路径展开分列目录，逐级浏览并打开另一个文件。'],
     ['The path above a file preview in Codex.', 'Browsing nearby files and folders takes extra navigation.', 'Open the path to browse cascading folder columns and choose another file.']],
+  'files-auto-refresh': [
+    ['Codex Side Panel 的 Files 目录列表。', 'Agent 改变项目文件后，需要反复收起、展开才能看到新列表。', '保持 Files 打开，自动同步根目录和已展开目录；保留当前文件与浏览位置。'],
+    ['The Files tree in the Codex side panel.', 'File changes can require collapsing and reopening the tree.', 'Keep Files open to refresh the root and expanded folders while preserving the current file and browsing position.']],
   images: [
     ['Codex Library 的图片集合与图片查看器。', '查找图片及其提示词需要来回切换。', '浏览图片集合，打开图片查看大图及可追溯的提示词信息。'],
     ['Image collections in Codex Library and the image viewer.', 'Finding images and their prompts requires switching views.', 'Browse collections, open an image, and inspect available prompt provenance.']],

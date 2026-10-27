@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-export const FEATURE_IDS = Object.freeze(["model-slider", "notes", "images", "session-status", "usage-meter", "sidebar-focus", "sites", "markdown-reading", "mermaid-diagrams", "file-navigation", "quick-chat", "composer-expand"]);
+export const FEATURE_IDS = Object.freeze(["model-slider", "notes", "images", "session-status", "usage-meter", "sidebar-focus", "sites", "markdown-reading", "mermaid-diagrams", "file-navigation", "files-auto-refresh", "quick-chat", "composer-expand"]);
 export const DEFAULT_CONFIG = Object.freeze({
   schemaVersion: 1,
   features: Object.freeze({
@@ -16,6 +16,7 @@ export const DEFAULT_CONFIG = Object.freeze({
     "markdown-reading": true,
     "mermaid-diagrams": false,
     "file-navigation": true,
+    "files-auto-refresh": true,
     "quick-chat": true,
     "composer-expand": true,
   }),

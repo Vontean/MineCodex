@@ -65,7 +65,7 @@ test("control server exchanges a short-lived one-time value for a cookie and pro
 
     const status = await fetch(`${origin}/api/status`, { headers: { Cookie: cookie, "Accept-Language": "zh-CN" } });
     const initial = await status.json();
-    assert.deepEqual(initial.features.map(feature => feature.label), ["模型窗口", "提示词库", "额度环", "会话状态", "Markdown 阅读增强", "Mermaid 图表增强（实验性）", "文件级联浏览", "图片集合", "站点收藏", "快捷聊天增强", "长指令展开编辑", "侧栏聚焦"]);
+    assert.deepEqual(initial.features.map(feature => feature.label), ["模型窗口", "提示词库", "额度环", "会话状态", "Markdown 阅读增强", "Mermaid 图表增强（实验性）", "文件级联浏览", "Files 自动刷新", "图片集合", "站点收藏", "快捷聊天增强", "长指令展开编辑", "侧栏聚焦"]);
     assert.equal(initial.features.some(feature=>feature.id==="unread-inbox"),false);
     const retiredIcon=await fetch(`${origin}/api/icons/unread-inbox.svg`,{headers:{Cookie:cookie}});
     assert.equal(retiredIcon.status,404);
@@ -154,7 +154,7 @@ test("control server exchanges a short-lived one-time value for a cookie and pro
     assert.equal(usageIcon.status, 200);
     assert.match(await usageIcon.text(), /<circle/);
 
-    for (const id of ["sidebar-focus", "sites", "markdown-reading", "file-navigation"]) {
+    for (const id of ["sidebar-focus", "sites", "markdown-reading", "file-navigation", "files-auto-refresh"]) {
       const response = await fetch(`${origin}/api/icons/${id}.svg`, { headers: { Cookie: cookie } });
       assert.equal(response.status, 200, `${id} must have a dashboard icon`);
       assert.match(await response.text(), /<svg[^>]+viewBox="0 0 24 24"/);

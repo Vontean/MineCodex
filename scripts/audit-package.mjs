@@ -35,6 +35,11 @@ if (packageMetadata.license !== "MIT") {
 
 const files = report.files.map(({ path: filePath }) => filePath).sort();
 const requiredFiles = [
+  "features/files-auto-refresh/codex-feature.json",
+  "features/files-auto-refresh/src/injection-source.mjs",
+  "features/files-auto-refresh/src/adapters/codex/directories.mjs",
+  "features/files-auto-refresh/assets/folder-sync.svg",
+  "features/files-auto-refresh/vendor/lucide-LICENSE",
   "packages/codex-adapter/src/markdown/editor-api.mjs",
   "packages/codex-adapter/src/markdown/block-actions.mjs",
   "features/mermaid-diagrams/codex-feature.json",

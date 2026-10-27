@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "files-auto-refresh",
+  "version": "0.1.0",
+  "label": { "en": "Files Auto Refresh", "zh-CN": "Files 自动刷新" },
+  "description": {
+    "en": "Keep the open Files tree up to date as files and folders are created, removed or renamed.",
+    "zh-CN": "文件或文件夹新增、删除、重命名后，自动更新打开的 Files 目录列表。"
+  },
+  "entry": {
+    "kind": "page-script",
+    "script": "src/entry.mjs",
+    "sourceFactory": "src/injection-source.mjs"
+  },
+  "icon": { "resource": "assets/folder-sync.svg" },
+  "placement": { "order": 92 }
+}

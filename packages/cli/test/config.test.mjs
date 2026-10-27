@@ -27,6 +27,7 @@ test("config keeps established defaults and enables reading by default and prese
     "markdown-reading": true,
     "mermaid-diagrams": false,
     "file-navigation": true,
+    "files-auto-refresh": true,
     "quick-chat": true,
     "composer-expand": true,
   });
@@ -114,4 +115,10 @@ test("removed usage promotion feature is discarded without changing other settin
   assert.equal(config.features.images,false);
   assert.equal(config.features["future-plugin"],true);
   await assert.rejects(updateFeature("/unused/config.json","hide-upsell-banner",true),/Unknown MineCodex plugin/);
+});
+
+test("Files refresh is independent from reading and file navigation", async () => {
+  const config = normalizeConfig({features:{"markdown-reading":false,"file-navigation":false}});
+  assert.equal(config.features["files-auto-refresh"],true);
+  assert.equal(normalizeConfig({features:{"files-auto-refresh":false}}).features["files-auto-refresh"],false);
 });
