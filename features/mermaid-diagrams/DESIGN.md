@@ -4,7 +4,7 @@
 
 关闭时保留 Codex 原生 Mermaid，无 QV 资源、iframe、下载能力或图表诊断加载。开启后只作用于 Markdown File Panel 的 Preview，不进入 Source、Pages 或聊天。运行时独立拥有 Preview 会话、主题映射、资源和自检；卸载移除自己的 CodeMirror 扩展并恢复原生图表，不释放阅读增强资源。
 
-原生 Preview、CodeMirror API、Provider 与块操作组件的发现复用 Codex Adapter 的 `src/markdown/`，只消费已核对的接口。图表特有的保存协议由本功能的 `native.mjs` 维护，加载失败不影响阅读增强。
+原生 Preview、CodeMirror API、Provider 与块操作组件的发现复用 Codex Adapter 的 `src/markdown/`，只消费已核对的接口。图表特有的保存协议由本功能的 `native.mjs` 维护，加载失败不影响阅读增强。Codex 26.1021.31345 使用原生导出的下载函数接入 `workspaceFiles.saveStream`，将 PNG Blob 直接交给原生保存流程；旧构建仍使用已核对的 `save-file` 请求。组件与下载函数同时支持本地导出及 import 绑定，不依赖压缩变量名。
 
 
 闭合 Mermaid 围栏（源码不超过 50,000 字符）使用真正的 QV 模型、布局、绘制与样式。所有已收录的 QV 图型走同一入口；不支持的图型或显式自定义样式由 QV 自身保留 Mermaid 原生外观。不改写源文件。不闭合或过长的围栏保留宿主行为。
