@@ -14,7 +14,7 @@ import { loadNativeMarkdownLinks, installMarkdownLinks } from './adapters/codex/
 import { loadNativeMarkdownToc } from '../../../packages/codex-adapter/src/markdown/toc-native.mjs';
 import { installMarkdownToc } from './adapters/codex/toc.mjs';
 import { readFile } from 'node:fs/promises';
-import { installMarkdownTables } from './adapters/codex/tables.mjs';
+import { installMarkdownTables, markdownTableActionGeometry } from './adapters/codex/tables.mjs';
 import { installMarkdownLists } from './adapters/codex/lists.mjs';
 import { createMarkdownPreviewAdapter } from '../../../packages/codex-adapter/src/markdown/preview.mjs';
 export async function createPageScriptSource() {
@@ -29,6 +29,7 @@ export async function createPageScriptSource() {
     installMarkdownLists,
     loadNativeMarkdownLinks,
     installMarkdownLinks,
+    markdownTableActionGeometry,
     installMarkdownTables,
     loadNativeMarkdownToc,
     installMarkdownToc,

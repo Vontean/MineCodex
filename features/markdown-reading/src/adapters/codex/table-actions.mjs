@@ -68,23 +68,22 @@ export function installMarkdownTableActions(view, native, codex, controller) {
         h(
           Actions,
           { 'data-visible': item.visible, 'data-markdown-copy': 'exclude' },
-          item.fit || item.overflow
-            ? h(
-                Tooltip,
-                { tooltipContent: wrap, delayOpen: true },
-                h(
-                  Button,
-                  {
-                    'aria-label': wrap,
-                    color: 'blockAction',
-                    radius: 'full',
-                    size: 'inputIcon',
-                    onClick: () => controller.toggle(),
-                  },
-                  h(item.fit ? wrapIcons.disable : wrapIcons.enable),
-                ),
-              )
-            : null,
+          h(
+            Tooltip,
+            { tooltipContent: wrap, delayOpen: true },
+            h(
+              Button,
+              {
+                'aria-label': wrap,
+                'aria-pressed': item.fit,
+                color: 'blockAction',
+                radius: 'full',
+                size: 'inputIcon',
+                onClick: () => controller.toggle(),
+              },
+              h(item.fit ? wrapIcons.disable : wrapIcons.enable),
+            ),
+          ),
           h(CopyButton, {
             ariaLabel: copy,
             buttonText: copy,

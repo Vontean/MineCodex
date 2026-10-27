@@ -1,3 +1,13 @@
+// 操作栏锚定阅读区域；表格横向展开与滚动不改变恢复按钮的位置。
+export function markdownTableActionGeometry(first, last, frame, scale, scrollTop, padding, headerInset) {
+  const left = padding.left;
+  const width = Math.max(0, frame.width / scale - padding.left - padding.right);
+  const viewportTop = Math.max(0, (first.top - frame.top) / scale + headerInset - 40);
+  const visibleBottom = (Math.min(last.bottom, frame.bottom) - frame.top) / scale;
+  return {left, width, top: scrollTop + Math.min(viewportTop, Math.max(0, visibleBottom - 48)),
+    inView: last.bottom > frame.top && first.top < frame.bottom};
+}
+
 // 保留原生逐行表格及选区；每张表的行共享横向位置，不移动正文节点。
 export function installMarkdownTables(view, api, wrapState) {
   const { Decoration, ViewPlugin, StateEffect, Compartment, WidgetType } = api;
@@ -323,14 +333,18 @@ export function installMarkdownTables(view, api, wrapState) {
         if (!rows.length) continue;
         const first = rows[0].getBoundingClientRect();
         const headerInset = parseFloat(getComputedStyle(rows[0]).paddingTop);
+        const padding = getComputedStyle(view.scrollDOM);
+        const geometry = markdownTableActionGeometry(first, rows.at(-1).getBoundingClientRect(), frameRect, scale,
+          view.scrollDOM.scrollTop, {left:parseFloat(padding.paddingLeft),right:parseFloat(padding.paddingRight)}, headerInset);
         items.push({
           id,
           fit: wrapState.get(),
           overflow: (scrollLimits.get(id) ?? 0) > 0,
-          visible: hovered === id,
-          left: (first.left - frameRect.left) / scale,
-          top: (first.top - frameRect.top) / scale + view.scrollDOM.scrollTop + headerInset - 40,
-          width: first.width / scale,
+          // 关闭换行后常显恢复入口；键盘用户聚焦任一表格控件也保持显示。
+          visible: geometry.inView && (hovered === id || tableId(document.activeElement) === id || !wrapState.get()),
+          left: geometry.left,
+          top: geometry.top,
+          width: geometry.width,
           source: view.state.sliceDoc(Number(id), Number(table.dataset.to)),
         });
       }
