@@ -44,6 +44,13 @@ function findAvatar(rail) {
     ?? buttons.findLast(button => button.querySelector('img[alt], img[src], [data-avatar]'))
     ?? null;
 }
+function findUsage(rail) {
+  // 原生图表的轨道 token 是语义锚点，避免依赖构建生成的 class 或界面语言。
+  return [...(rail?.querySelectorAll("button") ?? [])].find(button =>
+    !button.hasAttribute?.("data-minecodex-usage-meter") &&
+    (button.querySelector?.('[stroke="var(--color-usage-meter-track)"]') ||
+      /^(Usage|用量|使用量|使用情况|使用情況)$/.test(button.getAttribute("aria-label") ?? ""))) ?? null;
+}
 function avatarAnchor(avatar, rail) {
   // 头像内部是横向行；在最近的原生纵向容器中插入独立一项。
   let anchor = avatar;
@@ -58,13 +65,16 @@ function avatarAnchor(avatar, rail) {
       unsubscribe?.(); client=context.client;
       unsubscribe=client?.getQueryCache().subscribe(event=>{ if (event.query?.queryKey?.[0] === "rate-limit-status") invalidate(); });
     }
-    const windows=currentWindows(context), avatar=findAvatar(rail);
-    const available=Boolean(avatar && context.router && windows);
+    const windows=currentWindows(context), avatar=findAvatar(rail), usage=findUsage(rail);
+    const available=Boolean((usage || avatar) && context.router && windows);
     codex.report("usage-meter",available,available ? null : "account-quota-or-anchor-unavailable");
-    return { rail,avatar,windows,available,anchorAvailable:Boolean(avatar && context.router),
+    return { rail,avatar,usage,windows,available,anchorAvailable:Boolean((usage || avatar) && context.router),
       applicable:context.auth?.isLoading ? null : context.auth ? ["chatgpt","chatgptAuthTokens"].includes(context.auth.authMethod) : null };
   }
   function open(rail) { const {router}=nativeContext(rail); return router?.navigate("/settings/usage?tab=overview",{state:router.state?.location?.state}); }
   signal.addEventListener("abort",()=>unsubscribe?.(),{once:true});
-  return { read,open,anchor:avatarAnchor };
+  return { read,open,anchor:avatarAnchor,
+    conceal: usage => usage?.setAttribute("data-minecodex-native-usage", ""),
+    reveal: usage => usage?.removeAttribute("data-minecodex-native-usage") };
+
 }

@@ -4,7 +4,7 @@
 
 ## 用户任务与范围
 
-在原生导航栏 Avatar 上方查看当前账号剩余额度，点击直达 Settings → Usage。
+在原生导航栏 Usage 位置查看当前账号剩余额度，点击直达 Settings → Usage。
 仅向 `nav[data-app-navigation-rail="true"]` 注入一个控件，不注册通用侧栏
 菜单项，不向 Settings 的分类列表插入内容。
 
@@ -30,15 +30,15 @@ primary/secondary 顺序或套餐字符串。剩余百分比为 clamp(100-used_p
 
 | 角色 | 权威 token / 值 | 用途 |
 | --- | --- | --- |
-| 点击区域 | 克隆 Avatar 的原生按钮 class 和布局样式属性；目标 36×36px | 与导航项对齐 |
-| 环图 | 24×24px；viewBox 32；圆心 16；统一半径 43/3；描边 10/3 viewBox units（渲染 2.5px） | 自定义数据图，不是替代导航图标 |
-| 进度环 | `--color-text-tertiary`（原生中性灰） | 单圈及双扇区统一颜色；额度类型由扇区位置与 Tooltip 区分，保持 Plus 与 Pro 视觉一致 |
-| 轨道 | 对应环色 18% alpha | 剩余额度的底轨 |
-| 中央数字 | 继承环的中性灰；`--font-sans-default`；`--text-xs` × 2/3（8px），单双圈与三位数均一致；500、tabular-nums、line-height:1 | 优先五小时 |
+| 点击区域 | 克隆 Usage（旧版回退 Avatar）的原生按钮 class 和布局样式属性；目标 36×36px | 与导航项对齐 |
+| 环图 | 24×24px；viewBox 32；圆心 16；统一半径 44/3；描边 2px，使用 non-scaling-stroke | 自定义数据图，不是替代导航图标 |
+| 进度环 | `--color-usage-meter-fill`，由共享 UI 映射为 `--mcx-color-usage-meter-fill`，旧版回退文字三级色 | 单圈及双扇区统一颜色；额度类型由扇区位置与 Tooltip 区分，保持 Plus 与 Pro 视觉一致 |
+| 轨道 | `--color-usage-meter-track`，由共享 UI 映射为 `--mcx-color-usage-meter-track`；旧版回退对应环色 18% alpha | 剩余额度的底轨 |
+| 中央数字 | 与可用额度进度环使用相同的 `--mcx-color-usage-meter-fill`（旧版同样回退文字三级色）；`--font-sans-default`；`--text-xs` × 2/3，单双圈与三位数均一致；500、tabular-nums、line-height:1 | 优先五小时 |
 
 单周环保留从顶部顺时针填充。双段环的扇区分界位于左下与右下（以顶部为 0°，
 顺时针角度为 225° 与 135°）；每个分界两侧各退让 12°，所有末端用圆头。
-圆头中心间距为 24°，在 24px 实际尺寸下净空约 2px，满额与耗尽时底轨也保留切口。
+圆头中心间距为 24°，在 24px 实际尺寸下净空约 2.6px，满额与耗尽时底轨也保留切口。
 3/4 与 1/4 表示扇区占比，切口从扇区两端等量扣除。五小时路径从 237° 到 483°，
 周路径从 213° 逆时针到 147°。额度扣减时，两段都从左下切口开始露出底轨，
 上段经左侧、顶部向右侧扣减，下段经底部向右侧扣减。0% 只显示底轨，不保留进度圆点。
@@ -53,11 +53,13 @@ primary/secondary 顺序或套餐字符串。剩余百分比为 clamp(100-used_p
 
 原生 Avatar 点击区域目标为 36px，头像可见直径为 24px；额度外环含描边的可见直径同为 24px，
 数字与环均以按钮几何中心对齐；中性灰取自原生 navbar，不使用彩色强调。
-注入点为头像整行在最近原生纵向容器中的前一项，复用该容器的 8px 间距；不向头像内部横向行插入按钮，不改动原生容器布局。
-单双圈使用同一实现，双圈验收图采用模拟值，不更改账号缓存。减少动画偏好不添加进度过渡。
+优先在原生 Usage 按钮前挂载替代按钮，并通过专有标记隐藏原生按钮；不删除或修改其 React 子树。原生重建时重新接管，关闭、卸载或额度数据不可用时移除标记，立即恢复原生入口。旧版缺少 Usage 时才使用头像整行前一项，复用原生纵向容器间距。
+
+原生依据：Codex `26.1021.31345` 的实际 Renderer DOM、计算样式与样式表；Usage 使用 36px 热区、1.75px non-scaling-stroke，以及独立的 fill / track token。本功能按用户选择采用 2px 描边，保留自己的 24px 数据图、中央数字和分段语义；不复制原生额度菜单。
+单双圈使用同一实现；需模拟边界值时仅替换测试输入，不更改账号缓存。减少动画偏好不添加进度过渡。
 
 ## 跳转与生命周期
 
-已确认原生入口指向 `/settings/usage?tab=overview`。使用当前 React Router
+本功能点击后导航至 `/settings/usage?tab=overview`。使用当前 React Router
 的 navigate，并保留当前路由 state；不模拟设置菜单内部点击。
 移除功能时清除缓存订阅、DOM observer、事件、Tooltip 与按钮。

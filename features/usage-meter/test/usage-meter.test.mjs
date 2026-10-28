@@ -96,11 +96,22 @@ test("usage button mounts immediately above the Avatar without inheriting accoun
   row.append(inner); inner.parentElement = row;
   inner.append(avatar); avatar.parentElement = inner;
   const document = { createElement: () => new Node(), body: new Node() };
-  const mount = new Function("document", "MARKER", "TIP_ID", "config", "nativeUsage", `let record, hoverTimer; const hideTooltip = () => {}, showTooltip = () => {}; ${source.slice(source.indexOf("function mount("), source.indexOf("function sync()"))}\nreturn (avatar, rail) => { mount(avatar, rail); return record; };`)(document, "data-minecodex-usage-meter", "minecodex-usage-tooltip", {ui:{tooltipSurface:node=>node}},{anchor:createUsageAdapter(new AbortController().signal,{},()=>{}).anchor});
+  const mount = new Function("document", "MARKER", "TIP_ID", "config", "nativeUsage", `let record, hoverTimer; const hideTooltip = () => {}, showTooltip = () => {}; ${source.slice(source.indexOf("function mount("), source.indexOf("function sync()"))}\nreturn (avatar, rail, usage) => { mount(avatar, rail, usage); return record; };`)(document, "data-minecodex-usage-meter", "minecodex-usage-tooltip", {ui:{tooltipSurface:node=>node,theme:{bindScope(){}}}},createUsageAdapter(new AbortController().signal,{},()=>{}));
   const record = mount(avatar, rail);
   assert.deepEqual(footer.children, [record.button, row]);
   assert.deepEqual(inner.children, [avatar]);
   assert.equal(record.button.attributes.some(attribute => attribute.name === "data-sidebar-destination" || attribute.name === "title"), false);
+  const usage = new Node();
+  usage.setAttribute("aria-haspopup", "menu");
+  usage.setAttribute("aria-label", "Usage");
+  footer.children.unshift(usage); usage.parentElement = footer;
+  const replacement = mount(avatar, rail, usage);
+  assert.equal(footer.children[0], replacement.button);
+  assert.equal(footer.children[1], usage);
+  assert.ok(usage.attributes.some(attribute => attribute.name === "data-minecodex-native-usage"));
+  assert.equal(replacement.button.attributes.some(attribute => attribute.name === "aria-haspopup"), false);
+  createUsageAdapter(new AbortController().signal, {}, () => {}).reveal(usage);
+  assert.equal(usage.attributes.some(attribute => attribute.name === "data-minecodex-native-usage"), false);
 });
 
 // 用轻量 DOM 验证真实渲染函数的行顺序和环数据，不改动原生账号缓存。
@@ -143,7 +154,7 @@ test("full quota has two round-ended segments on one radius with visible gaps", 
     assert.equal(group.attributes["stroke-linecap"], "round");
     assert.equal(group.children[1].attributes.d, group.children[0].attributes.d);
     // 扣除圆头直径后，实际 24px 图上两处净空均至少 1.9px。
-    for (const gap of [leftGap, rightGap]) assert.ok((gap - Number(group.attributes["stroke-width"])) * 24 / 32 >= 1.9);
+    for (const gap of [leftGap, rightGap]) assert.ok(gap * 24 / 32 - Number(group.attributes["stroke-width"]) >= 1.9);
   }
 });
 
@@ -209,4 +220,14 @@ test("tooltip shows local reset dates to the minute within each quota group", ()
   const single = render({ weekly: 75, fiveHour: null, primary: 75, resetAt: { weekly } }).tooltip;
   assert.equal(single.children[0].children.length, 1);
   assert.deepEqual(single.children[0].children[0].children.map(node => node.textContent), ["Weekly Limit", "75%", "Reset in", "10/20 18:30"]);
+});
+
+
+test("native Usage discovery excludes our replacement and follows the track token across locales", () => {
+  const native = { getAttribute: () => "使用量", querySelector: selector => selector.includes("color-usage-meter-track") ? {} : null };
+  const own = { hasAttribute: () => true, getAttribute: () => "Usage", querySelector: () => ({}) };
+  const result = createUsageAdapter(new AbortController().signal, {
+    rail: () => ({querySelectorAll: () => [own, native, avatar]}), props: () => null, report() {},
+  }, () => {}).read();
+  assert.equal(result.usage, native);
 });

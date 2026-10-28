@@ -17,9 +17,10 @@ let hoverTimer = null;
 const style = document.createElement("style");
 style.id = STYLE_ID;
 style.textContent = `
-[${MARKER}] { position:relative; display:flex; align-items:center; justify-content:center; flex:none; color:var(--mcx-color-text-tertiary); -webkit-app-region:no-drag; }
+[${MARKER}] { position:relative; display:flex; align-items:center; justify-content:center; flex:none; color:var(--mcx-color-usage-meter-fill,var(--mcx-color-text-tertiary)); -webkit-app-region:no-drag; }
+[data-minecodex-native-usage] { display:none !important; }
 [${MARKER}] .mcx-usage-ring { display:block; width:24px; height:24px; overflow:visible; }
-[${MARKER}] .mcx-usage-number { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:inherit; font-family:var(--mcx-font-sans-default); font-size:calc(var(--mcx-text-xs) * 2 / 3); line-height:1; font-weight:var(--font-weight-medium,500); letter-spacing:0; font-variant-numeric:tabular-nums; pointer-events:none; }
+[${MARKER}] .mcx-usage-number { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:var(--mcx-color-usage-meter-fill,var(--mcx-color-text-tertiary)); font-family:var(--mcx-font-sans-default); font-size:calc(var(--mcx-text-xs) * 2 / 3); line-height:1; font-weight:var(--font-weight-medium,500); letter-spacing:0; font-variant-numeric:tabular-nums; pointer-events:none; }
 #${TIP_ID} { width:max-content; max-width:calc(100vw - 16px); }
 #${TIP_ID}[hidden] { display:none; }
 #${TIP_ID} dl { display:grid; grid-template-columns:auto auto; gap:2px 16px; margin:0; }
@@ -31,13 +32,14 @@ style.textContent = `
 document.head.append(style);
 
 function svgNode(name, attributes) {
+  if (name === "path" || name === "circle") attributes = { ...attributes, "vector-effect": "non-scaling-stroke" };
   const node = document.createElementNS("http://www.w3.org/2000/svg", name);
   for (const [key, value] of Object.entries(attributes)) node.setAttribute(key, String(value));
   return node;
 }
 
 function quotaArc(start, end, clockwise) {
-  const radius = 43 / 3;
+  const radius = 44 / 3;
   const point = angle => {
     const radians = (angle - 90) * Math.PI / 180;
     return [16 + radius * Math.cos(radians), 16 + radius * Math.sin(radians)];
@@ -52,8 +54,8 @@ function draw(windows) {
   if (windows.fiveHour != null) {
     // 左下、右下各留 24° 圆头中心间距；两段都从左下切口扣减。
     for (const [key, start, end, clockwise] of [["fiveHour", 237, 483, true], ["weekly", 213, 147, false]]) {
-      const group = svgNode("g", { "data-window": key, fill: "none", stroke: "currentColor", "stroke-width": 10 / 3, "stroke-linecap": "round" });
-      group.append(svgNode("path", { d: quotaArc(start, end, clockwise), opacity: 0.18 }));
+      const group = svgNode("g", { "data-window": key, fill: "none", stroke: "currentColor", "stroke-width": 2, "stroke-linecap": "round" });
+      group.append(svgNode("path", { d: quotaArc(start, end, clockwise), stroke: "var(--mcx-color-usage-meter-track,color-mix(in srgb,currentColor 18%,transparent))" }));
       if (windows[key] > 0) {
         const remainingStart = start + (end - start) * (1 - windows[key] / 100);
         group.append(svgNode("path", { d: quotaArc(remainingStart, end, clockwise) }));
@@ -61,9 +63,9 @@ function draw(windows) {
       svg.append(group);
     }
   } else {
-    const key = "weekly", radius = 43 / 3;
-    const group = svgNode("g", { "data-window": key, fill: "none", stroke: "currentColor", "stroke-width": 10 / 3 });
-    group.append(svgNode("circle", { cx: 16, cy: 16, r: radius, opacity: 0.18 }));
+    const key = "weekly", radius = 44 / 3;
+    const group = svgNode("g", { "data-window": key, fill: "none", stroke: "currentColor", "stroke-width": 2 });
+    group.append(svgNode("circle", { cx: 16, cy: 16, r: radius, stroke: "var(--mcx-color-usage-meter-track,color-mix(in srgb,currentColor 18%,transparent))" }));
     if (windows[key] > 0) group.append(svgNode("circle", {
       cx: 16, cy: 16, r: radius, pathLength: 100,
       "stroke-dasharray": `${windows[key]} 100`, "stroke-linecap": "round", transform: "rotate(-90 16 16)",
@@ -127,6 +129,7 @@ function hideTooltip() {
 }
 function removeControl() {
   hideTooltip();
+  nativeUsage.reveal(record?.usage);
   record?.button.remove();
   record?.tooltip.remove();
   record = null;
@@ -136,21 +139,23 @@ function removeControl() {
 
 
 
-function mount(avatar, rail) {
-  // 克隆 Avatar 热区的外观，不携带原生账号菜单行为。
-  const button = avatar.cloneNode(false);
+function mount(avatar, rail, usage) {
+  // 复用原生 Usage 热区；旧版宿主才使用 Avatar 模板。
+  const button = (usage || avatar).cloneNode(false);
   for (const attribute of [...button.attributes]) {
-    if (attribute.name.startsWith("aria-") || ["id", "title", "data-state", "data-sidebar-destination", "data-testid"].includes(attribute.name)) button.removeAttribute(attribute.name);
+    if (attribute.name.startsWith("aria-") || ["id", "title", "data-state", "data-sidebar-destination", "data-testid", "data-minecodex-native-usage"].includes(attribute.name)) button.removeAttribute(attribute.name);
   }
   button.setAttribute(MARKER, "");
+  config.ui.theme.bindScope(button, ["--color-usage-meter-fill", "--color-usage-meter-track"]);
   const tooltip = document.createElement("div");
   tooltip.id = TIP_ID;
   config.ui.tooltipSurface(tooltip);
   tooltip.setAttribute("role", "tooltip");
   tooltip.hidden = true;
-  nativeUsage.anchor(avatar, rail).before(button);
+  (usage || nativeUsage.anchor(avatar, rail)).before(button);
+  nativeUsage.conceal(usage);
   document.body.append(tooltip);
-  record = { button, tooltip, rail, avatar, signature: null };
+  record = { button, tooltip, rail, avatar, usage, signature: null };
   button.addEventListener("pointerenter", () => { hoverTimer = setTimeout(showTooltip, 350); });
   button.addEventListener("pointerleave", hideTooltip);
   button.addEventListener("focus", showTooltip);
@@ -165,10 +170,10 @@ function mount(avatar, rail) {
 function sync() {
   queued = false;
   if (signal.aborted) return;
-  const { rail,avatar,windows,available } = nativeUsage.read();
+  const { rail,avatar,usage,windows,available } = nativeUsage.read();
   if (!available) { removeControl(); return; }
-  if (record?.avatar !== avatar || !record?.button.isConnected) { removeControl(); mount(avatar, rail); }
-  else if (record.button.nextElementSibling !== nativeUsage.anchor(avatar, rail)) nativeUsage.anchor(avatar, rail).before(record.button);
+  if (record?.avatar !== avatar || record?.usage !== usage || !record?.button.isConnected) { removeControl(); mount(avatar, rail, usage); }
+  else if (record.button.nextElementSibling !== (usage || nativeUsage.anchor(avatar, rail))) (usage || nativeUsage.anchor(avatar, rail)).before(record.button);
   const signature = JSON.stringify(windows);
   if (record.signature !== signature) { record.signature = signature; draw(windows); }
 }
@@ -196,8 +201,8 @@ config.registerSelfCheck?.(() => {
   const snapshot=nativeUsage.read();
   const available=Boolean(snapshot.available && record?.button.isConnected);
   return {state:available ? "available" : snapshot.applicable === false ? "not-applicable" : !snapshot.anchorAvailable && snapshot.rail ? "unavailable" : "unknown",reason:available ? null : "quota-data-or-anchor-unavailable",
-    checks:[{name:"account-anchor",available:Boolean(snapshot.avatar)},{name:"account-quota",available:Boolean(snapshot.windows)},{name:"usage-meter-mount",available:Boolean(record?.button.isConnected)}],
-    scopes:[{name:"account",element:snapshot.avatar}]};
+    checks:[{name:"usage-anchor",available:Boolean(snapshot.usage || snapshot.avatar)},{name:"account-quota",available:Boolean(snapshot.windows)},{name:"usage-meter-mount",available:Boolean(record?.button.isConnected)}],
+    scopes:[{name:"account",element:snapshot.usage || snapshot.avatar}]};
 });
 
 return cleanup;

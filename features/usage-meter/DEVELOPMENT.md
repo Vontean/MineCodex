@@ -1,7 +1,7 @@
 # Usage Meter · 额度环
 
-在 Codex 原生 navbar 的 Avatar 上方显示当前登录账号的**剩余额度**。
-额度按钮与头像整行同属原生纵向容器，沿用其间距与居中对齐；不挤入头像内部横向行。
+在 Codex 原生 navbar 的 Usage 位置显示当前登录账号的**剩余额度**，替换原生入口，避免双环。
+旧版没有 Usage 入口时才在 Avatar 上方插入，沿用原生纵向容器的间距与居中对齐。
 
 环图的单窗口 / 双扇区选择与提示内容统一见 [DESIGN.md](DESIGN.md)。
 点击进入原生 Settings → Usage。

@@ -102,6 +102,8 @@ export const CODEX_THEME_TOKENS = Object.freeze([
   "--color-text-primary",
   "--color-text-secondary",
   "--color-text-tertiary",
+  "--color-usage-meter-fill",
+  "--color-usage-meter-track",
   "--color-border-overlay",
   "--color-ring",
   "--color-dialog-overlay",
