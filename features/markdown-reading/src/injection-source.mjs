@@ -1,3 +1,4 @@
+import { findCodexModule, codexModuleStyles } from '../../../packages/codex-adapter/src/renderer/modules.mjs';
 import { loadMarkdownListAPI } from '../../../packages/codex-adapter/src/markdown/editor-api.mjs';
 import { markdownExportAlias, loadNativeMarkdownTableActions } from '../../../packages/codex-adapter/src/markdown/block-actions.mjs';
 import { loadNativeMarkdownRenderer } from '../../../packages/codex-adapter/src/markdown/markdown-native.mjs';
@@ -18,7 +19,7 @@ import { installMarkdownTables, markdownTableActionGeometry } from './adapters/c
 import { installMarkdownLists } from './adapters/codex/lists.mjs';
 import { createMarkdownPreviewAdapter } from '../../../packages/codex-adapter/src/markdown/preview.mjs';
 export async function createPageScriptSource() {
-  const bindings = [
+  const bindings = [findCodexModule, codexModuleStyles,
     collectMarkdownFootnotes,
     captureMarkdownProviders,
     createMarkdownReadingRuntime,

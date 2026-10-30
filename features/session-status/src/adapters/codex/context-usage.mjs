@@ -1,3 +1,4 @@
+import { findCodexModule } from '../../../../../packages/codex-adapter/src/renderer/modules.mjs';
 export function contextUsageExport(source) {
   // 新版从宿主感知的 tokenUsageInfo selector 派生 thread atom family。
   const selector = source.match(/([\w$]+)=[\w$]+\(([`"'])tokenUsageInfo\2\),([\w$]+)=[\w$]+\(/);
@@ -38,24 +39,12 @@ export function createContextUsageAdapter(signal, codex, onChange, loadFamily = 
   }
   async function discover() {
     if (loadFamily) return loadFamily();
-    const urls=[...document.querySelectorAll('link[rel=modulepreload],script[src]')].map(node=>node.href || node.src);
-    const matching = pattern => urls.filter(url=>pattern.test(url));
-    const queue=[...matching(/\/app-initial-[^/]+\.js(?:$|\?)/),
-      ...matching(/\/app-shared-[^/]+\.js(?:$|\?)/),
-      ...matching(/\/(?:app-main|index)-[^/]+\.js(?:$|\?)/)];
-    if (!queue.length) throw new Error("context-bundle-unavailable");
-    const visited=new Set();
-    while (queue.length) {
-      const url=queue.shift();
-      if (visited.has(url)) continue;
-      visited.add(url);
+    for (const name of ['app-initial','app-shared']) {
+      const url=await findCodexModule(name,{signal});
+      if (!url) continue;
       const source=await (await fetch(url,{signal})).text();
       const exported=contextUsageExport(source);
       if (exported) return (await import(url))[exported];
-      // modulepreload 只是优化提示；沿真实入口引用发现不再预加载的原生状态模块。
-      const references=[...source.matchAll(/["'`](\.\/app-(?:initial|main|shared)-[^/"'`]+\.js)["'`]/g)]
-        .map(match=>new URL(match[1],url).href);
-      queue.push(...references);
     }
     throw new Error("context-export-unavailable");
   }

@@ -190,3 +190,9 @@ test('Codex shortcut opens from the current window when the sidebar picker is hi
   const f=fixture({mode:'work',pickerVisible:false,stableAnchor:true,open:false});
   try {await f.shortcut.ready;assert.equal(f.key().defaultPrevented,false);assert.equal(f.created.length,0);}finally{f.restore();}
 });
+
+test('open and create roles survive native conditional-expression bundling',()=>{
+  const source='function open(s,opts={}){if(!s.get(cap,{name:`chatgpt.quick-chat`}).isCapable)return;let current=s.get(session),page=s.get(pageSession);page==null?current==null?fresh(s,opts):s.get(active)||(restore(s,current.hasConversation),telemetry(s,opts)):restore(s,page.hasConversation)}function fresh(s,opts){}export{open as opener,fresh as creator,active as opened}';
+  assert.deepEqual(quickChatLifecycleExports(source),{open:'opener',create:'creator',openState:'opened'});
+  assert.throws(()=>quickChatLifecycleExports(source.replace('chatgpt.quick-chat','unrelated')),/open-contract/);
+});

@@ -1,10 +1,12 @@
+import { findCodexModule, codexModuleStyles } from '../renderer/modules.mjs';
 // 直接导入原生 Marker、目录浮层和 Tooltip；仅按源码调用关系发现公开角色。
 export async function loadNativeMarkdownToc() {
   const urls = [...document.querySelectorAll('link[rel="modulepreload"],script[src]')].map(
     (n) => n.href || n.src,
   );
-  const initialUrl = urls.find((url) => /\/app-initial-[^/]+\.js/.test(url));
-  const mainUrl = urls.find((url) => /\/app-main-[^/]+\.js/.test(url));
+  const [initialUrl,mainUrl]=await Promise.all([
+    findCodexModule('app-initial'),findCodexModule('app-main'),
+  ]);
   if (!initialUrl || !mainUrl) throw new Error('native-page-toc-modules-unavailable');
   const read = async (url) => {
     const response = await fetch(url);
@@ -12,8 +14,10 @@ export async function loadNativeMarkdownToc() {
     return response.text();
   };
   const [initial, main] = await Promise.all([read(initialUrl), read(mainUrl)]);
+  const discovered=await findCodexModule('content',{all:true});
   const candidates = [
     ...new Set([
+      ...discovered,
       ...urls.filter((url) => /\/content-[^/]+\.js/.test(url)),
       ...[...initial.matchAll(/["']\.\/((?:content)-[\w-]+\.js)["']/g)].map(
         (m) => new URL(m[1], initialUrl).href,
@@ -85,18 +89,18 @@ export async function loadNativeMarkdownToc() {
     }
   const ReactDOM = (await binding(rootFactory, mainImports))();
   const css = initial.match(/["']\.\/((?:floating-navigation-rail(?:-layout)?)-[\w-]+\.css)["']/)?.[1];
-  if (!css) throw new Error('native-page-toc-styles-unavailable');
-  const cssUrl = new URL(css, initialUrl).href;
-  if (![...document.querySelectorAll('link[rel="stylesheet"]')].some((n) => n.href === cssUrl)) {
-    const link = document.createElement('link');
-    link.rel = 'stylesheet';
-    link.href = cssUrl;
-    document.head.append(link);
-    await new Promise((resolve, reject) => {
-      link.onload = resolve;
-      link.onerror = () => reject(new Error('native-page-toc-styles-unavailable'));
+  const cssUrls=css ? [new URL(css,initialUrl).href] : codexModuleStyles(initial,initialUrl,sourceUrl);
+  if (!cssUrls.length) throw new Error('native-page-toc-styles-unavailable');
+  await Promise.all(cssUrls.map(async cssUrl=>{
+    if ([...document.querySelectorAll('link[rel="stylesheet"]')].some(node=>node.href===cssUrl)) return;
+    const link=document.createElement('link');link.rel='stylesheet';link.href=cssUrl;
+    await new Promise((resolve,reject)=>{
+      link.onload=resolve;
+      link.onerror=()=>reject(new Error('native-page-toc-styles-unavailable'));
+      document.head.append(link);
     });
-  }
+  }));
+
   const component = (predicate) => {
     const matches = Object.values(layout).filter(
       (value) => typeof value === 'function' && predicate(String(value)),

@@ -348,6 +348,7 @@ async function executeModelSliderInjection({
       return selector === 'link[href*="/assets/app-initial-"][href$=".js"]' ? sourceLink : null;
     },
     querySelectorAll(selector) {
+      if (selector === 'link[rel="modulepreload"],script[src]') return [sourceLink];
       if (selector === "[data-codex-intelligence-trigger]") return [trigger];
       if (selector === "button") {
         return [toolbarAnchor, ...header.querySelectorAll("button")];
@@ -506,6 +507,7 @@ window.__toolbarProbe = {
   const resizeCallbacks = [];
   const context = {
     AbortController,
+    URL,
     Element: FixtureElement,
     HTMLElement: FixtureElement,
     File: class FixtureFile {},
@@ -525,7 +527,7 @@ window.__toolbarProbe = {
     document,
     fetch: async () => {
       fetchCalls += 1;
-      return { async text() { return ""; } };
+      return { ok:true, async text() { return ""; } };
     },
     getComputedStyle(element) {
       return {
@@ -694,7 +696,7 @@ test("keeps Model Slider available when persisted Fast icons cannot be read", as
   for (const scenario of scenarios) {
     const result = await executeModelSliderInjection(scenario.options);
     assert.equal(result.runtimeInstalled, true, scenario.name);
-    assert.equal(result.fetchCalls, 1, scenario.name);
+    assert.ok(result.fetchCalls > 0, scenario.name);
   }
 });
 
@@ -1558,7 +1560,7 @@ test("opens detail views only in Codex native right-panel tabs", () => {
     hostActions: ["open-detail-tab"],
   }]);
 
-  assert.match(source, /function nativeTabModuleUrl\(\)/);
+  assert.match(source, /findCodexModule\('app-initial'/);
   assert.match(source, /async function loadNativeTabCapability\(\)/);
   assert.match(source, /const rightPanelRouteKinds = new Set\(config\.rightPanelRouteKinds\)/);
   assert.match(source, /async function waitForCurrentRightPanelScope\(\)/);

@@ -1,18 +1,19 @@
+import { findCodexModule } from '../../../../../packages/codex-adapter/src/renderer/modules.mjs';
 // 唯一的 Library 构建产物协议；调用方只消费命名操作。
 export function createLibraryApi({read:readSource=async url=>(await fetch(url)).text(),load:loadModule=url=>import(url)} = {}) {
   let capability=null, downloadCapability=null;
   async function connect() {
     if (!capability) capability=(async()=>{
-      const initialUrl = [...document.querySelectorAll('link[rel="modulepreload"],script[src]')]
-        .map(element => element.href || element.src).find(url => /\/app-initial-[^/]+\.js/.test(url));
+      const initialUrl = await findCodexModule('app-initial',{read:readSource});
       if (!initialUrl) throw new Error("Cloud Library is unavailable in this Codex version");
       const initialSource = await readSource(initialUrl);
-      const asset = name => {
+      const asset = async name => {
         const file = initialSource.match(new RegExp(`${name}-[\\w-]+\\.js`))?.[0];
-        if (!file) throw new Error(`Cloud Library capability ${name} is unavailable`);
-        return new URL(file, initialUrl).href;
+        const url=file ? new URL(file, initialUrl).href : await findCodexModule(name,{read:readSource,via:['library-page']});
+        if (!url) throw new Error(`Cloud Library capability ${name} is unavailable`);
+        return url;
       };
-      const metadataUrl = asset("library-file-metadata");
+      const metadataUrl = await asset("library-file-metadata");
       const metadataSource = await readSource(metadataUrl);
       const apiLocal = metadataSource.match(/([\w$]+)\.safePost\(`\/files\/library`/)?.[1];
       const importBlock = [...metadataSource.matchAll(/import\{([^}]+)\}from["']([^"']+)["']/g)].find(match => match[1].split(",").some(binding=>binding.trim().split(/\s+as\s+/).at(-1)===apiLocal));
@@ -33,7 +34,7 @@ export function createLibraryApi({read:readSource=async url=>(await fetch(url)).
   async function download(file,signal) {
     if (!downloadCapability) downloadCapability=(async()=>{
       const {asset}=await connect();
-      const downloadUrl = asset("library-file-download");
+      const downloadUrl = await asset("library-file-download");
       const downloadSource = await readSource(downloadUrl);
       const exports = downloadSource.match(/export\{([^}]+)\}/)?.[1].split(",").map(s => s.trim().split(/\s+as\s+/)) ?? [];
       const responseLocal = downloadSource.match(/async function ([\w$]+)\([^)]*\)\{return [\w$]+\(await [\w$]+\([^;]+showInline:!0/)?.[1];

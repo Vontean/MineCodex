@@ -1,7 +1,8 @@
+import { findCodexModule } from '../../../../../packages/codex-adapter/src/renderer/modules.mjs';
 import {quickChatLifecycleActions, quickChatScope} from "./lifecycle.mjs";
 // 通过原生能力检查与已有会话分支定位打开动作，不依赖构建哈希或压缩名称。
 export function quickChatOpenExport(source) {
-  const match = source.match(/function ([\w$]+)\(([\w$]+),[\w$]+=\{\}\)\{if\(!\2\.get\([\w$]+,\{name:[`"']chatgpt\.quick-chat[`"']\}\)\.isCapable\)return;let [\w$]+=\2\.get\([\w$]+\),[\w$]+=\2\.get\([\w$]+\);if\(/);
+  const match = source.match(/function ([\w$]+)\(([\w$]+),[\w$]+=\{\}\)\{if\(!\2\.get\([\w$]+,\{name:[`"']chatgpt\.quick-chat[`"']\}\)\.isCapable\)return;let [\w$]+=\2\.get\([\w$]+\),[\w$]+=\2\.get\([\w$]+\);(?:if\(|[\w$]+==null\?)/);
   if (!match) throw new Error('quick-chat-open-contract-unavailable');
   const escaped = match[1].replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const name = source.slice(source.lastIndexOf('export{')).match(new RegExp(`(?:\\{|,)${escaped} as ([\\w$]+)(?:,|\\})`))?.[1];
@@ -17,7 +18,8 @@ export function quickChatLifecycleExports(source) {
   const local = exports.match(new RegExp(`(?:\\{|,)([\\w$]+) as ${escaped(open)}(?:,|\\})`))?.[1];
   const start = source.indexOf(`function ${local}(`);
   const body = source.slice(start, source.indexOf('function ', start + 9));
-  const create = body.match(/if\([\w$]+==null\)\{([\w$]+)\([\w$]+,[\w$]+\);return\}/)?.[1];
+  const create = body.match(/if\([\w$]+==null\)\{([\w$]+)\([\w$]+,[\w$]+\);return\}/)?.[1]
+    ?? body.match(/[\w$]+==null\?([\w$]+)\([\w$]+,[\w$]+\):/)?.[1];
   const state = body.match(/[\w$]+\.get\(([\w$]+)\)\|\|/)?.[1];
   const exportOf = name => name && exports.match(new RegExp(`(?:\\{|,)${escaped(name)} as ([\\w$]+)(?:,|\\})`))?.[1];
   const createExport = exportOf(create), openState = exportOf(state);
@@ -39,7 +41,8 @@ export function quickChatNativeCommand(source) {
 
 export function installQuickChatShortcut(signal, codex, discover = null) {
   const windows = navigator.platform.startsWith('Win');
-  let bindings = null, disposed = false, pendingFocus = null, stopWaiting = null;
+  let bindings = null, disposed = false, pendingFocus = null;
+  const loading=new AbortController();
   function activateExisting(minimize = false) {
     // 原生恢复按钮同时恢复 presentation、取消最小化并聚焦输入框。
     for (const button of document.querySelectorAll('button')) {
@@ -95,20 +98,10 @@ export function installQuickChatShortcut(signal, codex, discover = null) {
     return null;
   }
   async function load() {
-    const findUrl = () => [...document.querySelectorAll('link[rel="modulepreload"],script[src]')].map(e => e.href || e.src).find(url => /\/app-initial-[^/]+\.js(?:$|\?)/.test(url));
-    // 宿主可早于原生模块入口注入；等待入口挂载，不能把正常启动顺序当作协议失效。
-    const url = findUrl() ?? await new Promise((resolve, reject) => {
-      codex.report('quick-chat-shortcut', false, 'quick-chat-module-pending');
-      const cleanup = () => { observer.disconnect(); signal.removeEventListener('abort', cancel); stopWaiting=null; };
-      const cancel = () => { cleanup(); reject(new Error('quick-chat-load-aborted')); };
-      const check = () => { const found=findUrl(); if (found) { cleanup(); resolve(found); } };
-      const observer = new MutationObserver(check);
-      stopWaiting=cancel;
-      observer.observe(document.documentElement, {childList:true,subtree:true,attributes:true,attributeFilter:['href','src']});
-      signal.addEventListener('abort', cancel, {once:true});
-      if (disposed || signal.aborted) cancel(); else check();
-    });
-    const source = await (await fetch(url, {signal})).text();
+    codex.report('quick-chat-shortcut', false, 'quick-chat-module-pending');
+    const url=await findCodexModule('app-initial',{signal:loading.signal,waitForEntry:true});
+    if (!url) throw new Error('quick-chat-module-unavailable');
+    const source = await (await fetch(url, {signal:loading.signal})).text();
     const module = await import(url);
     let native;
     try { native=quickChatNativeCommand(source); }
@@ -117,7 +110,7 @@ export function installQuickChatShortcut(signal, codex, discover = null) {
       // 新版命令目录移入共享模块；打开动作仍由入口模块导出。
       const file=source.match(/["'`]\.\/(app-shared-[\w-]+\.js)["'`]/)?.[1];
       if (!file) throw error;
-      const response=await fetch(new URL(file,url).href,{signal});
+      const response=await fetch(new URL(file,url).href,{signal:loading.signal});
       if (!response.ok) throw error;
       native=quickChatNativeCommand(await response.text());
     }
@@ -178,7 +171,7 @@ export function installQuickChatShortcut(signal, codex, discover = null) {
     event.stopPropagation();
   }
   document.addEventListener('keydown', keydown, {signal});
-  function dispose() { disposed = true; stopWaiting?.(); document.removeEventListener('keydown', keydown); bindings = null; pendingFocus=null; }
+  function dispose() { disposed = true; loading.abort(); document.removeEventListener('keydown', keydown); bindings = null; pendingFocus=null; }
   signal.addEventListener('abort', dispose, {once:true});
   return {ready, dispose, sync:focusNew, activate, close, canClose:() => Boolean(bindings?.close && !disposed && !signal.aborted), available:() => Boolean(bindings && !bindings.native && !disposed && !signal.aborted)};
 }

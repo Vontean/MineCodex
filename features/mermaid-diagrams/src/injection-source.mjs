@@ -1,3 +1,4 @@
+import { findCodexModule, codexModuleStyles } from '../../../packages/codex-adapter/src/renderer/modules.mjs';
 import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -16,7 +17,7 @@ import { loadNativeMermaidActions } from './adapters/codex/native.mjs';
 import { createMermaidRuntime } from './adapters/codex/runtime.mjs';
 
 export async function createPageScriptSource() {
-  const bindings = [createMarkdownPreviewAdapter, loadMarkdownListAPI, captureMarkdownProviders,
+  const bindings = [findCodexModule, codexModuleStyles, createMarkdownPreviewAdapter, loadMarkdownListAPI, captureMarkdownProviders,
     loadNativeMarkdownToc, loadNativeMarkdownRenderer, markdownExportAlias, loadNativeMarkdownTableActions,
     createQvResources, createQvFrame, readQvTheme, exportQvDiagram, saveQvDiagram, createQvLoading,
     createMarkdownMermaidControls, installMarkdownMermaid, loadNativeMermaidActions, createMermaidRuntime];

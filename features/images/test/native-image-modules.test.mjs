@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import {createNativeImageModules,discoverImageActionBinding,discoverFilePreviewComposerBindings} from "../src/adapters/codex/native-image-modules.mjs";
+import {createNativeImageModules,discoverImageCanvasComponents,discoverImageActionBinding,discoverFilePreviewComposerBindings} from "../src/adapters/codex/native-image-modules.mjs";
 
 // 26.930.21537 文件预览调用关系的最小样例，省略 React memo 缓存。
 const preview = 'function scope(e){let{draftId:i,imageDataUrl:a}=e,g=kr(),_=ke,v=ke,S=P,C=route,b=hn,x=tn(e,r==null?i:i??r.id);return jsx)(_,{scope:b,value:x,children:jsx)(v,{scope:S,value:C,composerController:g})})}function home(e){let h={homeComposerController:n,homeComposerMode:p};let g=Qn(h),_=g?.composerProps;}function composer(e){return jsx)(rr,{placement:f,children:jsx)($n,{...r,className:`mx-auto w-full max-w-2xl px-toolbar`,composerLayoutMode:`auto-single-line`,lockedLayout:`single-line`})})}function local(e){let nav=Te();return jsx)(Yn,{...surface,aboveComposerContent:warning,composerModeAvailability:tr,prepareLocalConversationAttachments:async e=>{const file=await oe(scope,host).createFileAttachment({contents:bytes});signal.aborted&&(Vt(scope,host,file.path));nav(rt(id),{state:state});}})}';
@@ -93,4 +93,13 @@ test("26.1021 preloaded masonry takes precedence over the entry-owned fallback",
   const modules=createNativeImageModules({read:async url=>{reads.push(url);assert.ok(sources.has(url));return sources.get(url);},load:async url=>url.endsWith('factories.js')?{root:()=>ReactDOM,react:()=>React}:{U:()=>{throw Error('unrelated entry initializer');}}});
   const result=await modules.navigation();assert.equal(result.React,React);assert.equal(result.ReactDOM,ReactDOM);
   assert.ok(reads.includes(masonry));assert.equal(reads.filter(url=>url===masonry).length,1);
+});
+
+test('canvas roles survive renamed compressed exports and reject ambiguous components',()=>{
+  function Preview(props){return {attachmentSrc:props.src,onImageEditSubmit:props.submit,downloadSrc:props.download};}
+  function Layout(props){return {reserveImageComposerSpace:props.reserve,contentOwnsHeader:props.header};}
+  function unrelated(){}
+  assert.deepEqual(discoverImageCanvasComponents({renamed:Preview,other:unrelated},{changed:Layout}),{Canvas:Preview,CanvasLayout:Layout});
+  assert.throws(()=>discoverImageCanvasComponents({a:Preview,b:function Duplicate(p){return {attachmentSrc:p.src,onImageEditSubmit:p.submit,downloadSrc:p.download};}},{changed:Layout}),/canvas role/);
+  assert.throws(()=>discoverImageCanvasComponents({a:unrelated},{changed:Layout}),/canvas role/);
 });

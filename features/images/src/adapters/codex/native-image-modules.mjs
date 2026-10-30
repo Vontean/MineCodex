@@ -1,3 +1,4 @@
+import { findCodexModule } from '../../../../../packages/codex-adapter/src/renderer/modules.mjs';
 // 以调用位置和参数结构识别角色，不绑定压缩后的局部变量名。
 export function discoverImageActionBinding(source, role) {
   const patterns = {
@@ -53,6 +54,18 @@ export function discoverFilePreviewComposerBindings(source) {
   return roles;
 }
 
+export function discoverImageCanvasComponents(canvas,layout) {
+  const select=(exports,predicate,name)=>{
+    const matches=Object.values(exports).filter(value=>typeof value==='function'&&predicate(String(value)));
+    if(matches.length!==1)throw new Error(`Native Images canvas role unavailable: ${name}`);
+    return matches[0];
+  };
+  return {
+    Canvas:select(canvas,source=>/attachmentSrc:/.test(source)&&/onImageEditSubmit:/.test(source)&&/downloadSrc:/.test(source),'image preview'),
+    CanvasLayout:select(layout,source=>/reserveImageComposerSpace:/.test(source)&&/contentOwnsHeader:/.test(source),'preview layout'),
+  };
+}
+
 // 构建产物发现只返回当前能力；原生组件呈现不参与引用解析。
 export function createNativeImageModules({read = async url => (await fetch(url)).text(), load = url => import(url)} = {}) {
   let starting, connecting, canvasConnecting;
@@ -68,29 +81,27 @@ export function createNativeImageModules({read = async url => (await fetch(url))
 
   async function bootstrap() {
     if (!starting) starting = (async () => {
-      const urls = [...document.querySelectorAll('link[rel="modulepreload"],script[src]')].map(node => node.href || node.src);
-      const initialUrl = urls.find(url => /\/app-initial-[^/]+\.js/.test(url));
-      const mainUrl = urls.find(url => /\/app-main-[^/]+\.js/.test(url));
+      const [initialUrl,mainUrl]=await Promise.all([
+        findCodexModule('app-initial',{read}),findCodexModule('app-main',{read}),
+      ]);
       if (!initialUrl || !mainUrl) throw new Error("Native Images modules are unavailable");
       const [initialSource, mainSource] = await Promise.all([read(initialUrl), read(mainUrl)]);
       const initial = await load(initialUrl);
-      const asset = (name, references = initialSource) => {
+      const asset = async (name, references = initialSource) => {
         const loaded = [...document.querySelectorAll('link[rel="modulepreload"],script[src]')].map(node => node.href || node.src)
           .find(url => new RegExp(`/${name}-[\\w-]+\\.js$`).test(url));
         if (loaded) return loaded;
         const file = references.match(new RegExp(`(?:["'./])(${name}-[\\w-]+\\.js)`))?.[1];
-        if (!file) throw new Error(`Native Images capability is unavailable: ${name}`);
-        return new URL(file, initialUrl).href;
+        const url=file ? new URL(file, initialUrl).href : await findCodexModule(name,{read,via:['library-page','library-trash-banner','library-item-menu','pinned-pages','recent-pages','space-trash-items','tab','cloud-file-preview.electron','library-marquee-selection','preview-tab','preview']});
+        return url;
       };
       const module = async (name,references) => {
-        // 26.1013 将图库排布与卡片合入入口，其他能力仍按独立模块发现。
-        const loaded = [...document.querySelectorAll('link[rel="modulepreload"],script[src]')].some(node =>
-          new RegExp(`/${name}-[\\w-]+\\.js$`).test(node.href || node.src));
-        if (!loaded && ["library-masonry", "library-item-layout"].includes(name)
-          && !new RegExp(`(?:["'./])(${name}-[\\w-]+\\.js)`).test(references ?? initialSource)) {
-          return {url:initialUrl, source:initialSource, exports:initial};
+        const url = await asset(name,references);
+        // 原生曾将这两个角色合入入口；先按实际资源引用查找，再使用已验证的内联分支。
+        if (!url && ['library-masonry','library-item-layout'].includes(name)) {
+          return {url:initialUrl,source:initialSource,exports:initial};
         }
-        const url = asset(name,references);
+        if (!url) throw new Error(`Native Images capability is unavailable: ${name}`);
         const [source, exports] = await Promise.all([read(url), load(url)]);
         // 调用产物公开的惰性初始化器，不扫描或执行任意导出函数。
         for (const value of Object.values(exports)) {
@@ -233,14 +244,15 @@ export function createNativeImageModules({read = async url => (await fetch(url))
       // 文件画布使用原生 Home Composer 的控制器、附件 scope 和输入组件。
       const composerLocals=Object.values(discoverFilePreviewComposerBindings(filePreview.source));
       const [useComposerController,useHomeComposer,Composer,ComposerSurface,ScopeProvider,composerScope,createComposerValue,composerRouteScope,FileComposer,fileComposerAvailability,localAttachmentService,deleteLocalAttachment,useFileNavigate,localThreadRoute] = await Promise.all(composerLocals.map(local=>binding(filePreview.source,filePreview.url,local)));
-      if (!canvas.exports.t || !canvasLayout.exports.r || !Composer || !ComposerSurface || !ScopeProvider
+      const {Canvas,CanvasLayout}=discoverImageCanvasComponents(canvas.exports,canvasLayout.exports);
+      if (!Canvas || !CanvasLayout || !Composer || !ComposerSurface || !ScopeProvider
         || !composerScope || !composerRouteScope?.parent
         || !FileComposer || !fileComposerAvailability
         || [createPortal,useComposerController,useHomeComposer,createComposerValue,localAttachmentService,deleteLocalAttachment,useFileNavigate,localThreadRoute].some(value=>typeof value!=="function")) {
         throw new Error("Native Images canvas contract changed");
       }
       return {
-        createPortal,Canvas:canvas.exports.t,CanvasLayout:canvasLayout.exports.r,
+        createPortal,Canvas,CanvasLayout,
         useComposerController,useHomeComposer,Composer,ComposerSurface,ScopeProvider,composerScope,createComposerValue,composerRouteScope,
         FileComposer,fileComposerAvailability,localAttachmentService,deleteLocalAttachment,useFileNavigate,localThreadRoute,
         editImage:component(initial,source=>/async function/.test(source)&&/requireDispatchAcceptance:/.test(source)&&/sourceAttachment:/.test(source)&&/imageVariant/.test(source),"image edit submission"),

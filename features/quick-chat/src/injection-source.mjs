@@ -1,3 +1,4 @@
+import { findCodexModule } from '../../../packages/codex-adapter/src/renderer/modules.mjs';
 import {quickChatLifecycleActions, quickChatScope} from "./adapters/codex/lifecycle.mjs";
 import {quickChatHistoryVisible} from "./adapters/codex/history.mjs";
 import { readFile } from "node:fs/promises";
@@ -9,7 +10,7 @@ import { installQuickChatSidebar } from "./frontend/sidebar.mjs";
 import { createHistoryTracker } from "./domain/history.mjs";
 export async function createPageScriptSource() {
   const source = await readFile(new URL("./frontend/entry.mjs", import.meta.url), "utf8");
-  const functions = [quickChatHistoryVisible, loadQuickChatSidebarIcon, createQuickChatSidebarAdapter, installQuickChatSidebar,
+  const functions = [findCodexModule, quickChatHistoryVisible, loadQuickChatSidebarIcon, createQuickChatSidebarAdapter, installQuickChatSidebar,
     quickChatLifecycleActions, quickChatScope, quickChatOpenExport, quickChatLifecycleExports, quickChatNativeCommand, installQuickChatShortcut, createQuickChatAdapter,
     createSubmissionTracker, createHistoryTracker];
   return functions.map(fn => `const ${fn.name}=${fn.toString()};`).join('\n') + '\n' + source;

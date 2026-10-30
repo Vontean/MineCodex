@@ -1,3 +1,4 @@
+import { findCodexModule } from '../../../../../packages/codex-adapter/src/renderer/modules.mjs';
 export function createModelControllerAdapter(codex,comparableModelLabel) {
 function controllerView(props) {const view=Object.fromEntries(["models","model","reasoningEffort","powerSelections","selectedPowerSelection","fallbackPowerSelection","serviceTierOptions","selectedServiceTier","onSelectModel","onSelectReasoningEffort","onSelectPower","onCommitPower","onSelectServiceTier"].map(key=>[key,props[key]]));codex.report('model-controller',true);return view;}
 function nativeComposerTriggers() {
@@ -83,10 +84,9 @@ function invokeNativeMenuItemSelect(item) {
   }
 
   async function fastIcons(signal) {
-    const sourceLink=document.querySelector('link[href*="/assets/app-primary-"][href$=".js"]')
-      ?? document.querySelector('link[href*="/assets/app-initial-"][href$=".js"]');
-    if (!sourceLink?.href) {codex.report("fast-icons",false,"bundle-unavailable");return null;}
-    const source=await (await fetch(sourceLink.href,{signal})).text();
+    const sourceUrl=await findCodexModule('app-primary',{signal}) ?? await findCodexModule('app-initial',{signal});
+    if (!sourceUrl) {codex.report("fast-icons",false,"bundle-unavailable");return null;}
+    const source=await (await fetch(sourceUrl,{signal})).text();
     const active=extractFastIconPath(source,"M11\\.9125 21\\.4125"),inactive=extractFastIconPath(source,"M9\\.80999 17\\.8302");
     codex.report("fast-icons",Boolean(active && inactive),active && inactive ? null : "icon-resource-contract-changed");
     return {active:{path:active,viewBox:"0 0 24 24"},inactive:{path:inactive,viewBox:"0 0 20 20"}};

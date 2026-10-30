@@ -1,3 +1,4 @@
+import { findCodexModule } from '../../codex-adapter/src/renderer/modules.mjs';
 import { createRendererSelfCheck, tokenRequirements } from "./renderer-self-check.mjs";
 import { createCodexEnvironment } from "../../codex-adapter/src/renderer/environment.mjs";
 // 注入源生成：createInjectionSource 产出注入到 Codex Renderer 的自包含脚本字符串。
@@ -10,7 +11,7 @@ import { MCP_NAVIGATION_ICONS } from "../../plugin/src/navigation-icons.mjs";
 import { randomBytes } from "node:crypto";
 import { CODEX_THEME_TOKENS, CODEX_THEME_TOKEN_ALIASES, MINECODEX_THEME_BINDINGS } from "../../ui/src/native/tokens.mjs";
 
-export const RUNTIME_VERSION = 113;
+export const RUNTIME_VERSION = 114;
 export const HOST_BINDING_NAME = "__codexPersonalHostAction";
 export const CSP_BOOTSTRAP_VERSION = 1;
 export const CSP_BOOTSTRAP_KEY = "__mineCodexCspBootstrapVersion";
@@ -124,14 +125,14 @@ export function createInjectionSource(features, {
   bindingToken = "test-binding-token",
   runtimeSessionId = randomBytes(16).toString("hex"),
 } = {}) {
-  function install(config, installUI, installModelSliderFeature, createCodexEnvironment, createRendererSelfCheck) {
+  function install(config, installUI, installModelSliderFeature, createCodexEnvironment, createRendererSelfCheck, findCodexModule) {
     if (window.top !== window) return;
     if (!document.documentElement) {
       // The document bootstrap runs before the root element exists. Defer the
       // whole install until the DOM is ready instead of crashing on a null
       // documentElement (which previously left the runtime permanently absent
       // after a renderer reload).
-      document.addEventListener("DOMContentLoaded", () => install(config, installUI, installModelSliderFeature, createCodexEnvironment, createRendererSelfCheck), { once: true });
+      document.addEventListener("DOMContentLoaded", () => install(config, installUI, installModelSliderFeature, createCodexEnvironment, createRendererSelfCheck, findCodexModule), { once: true });
       return;
     }
     const currentRuntime = window.__codexPersonalRuntime;
@@ -1506,11 +1507,6 @@ export function createInjectionSource(features, {
     // 原生 Detail Tab capability — React fiber/右侧面板探测、原生详情页签打开与线程跳转
     // ========================================================================
 
-    function nativeTabModuleUrl() {
-      return Array.from(document.querySelectorAll('link[rel="modulepreload"]'))
-        .map((link) => link.href)
-        .find((url) => /\/assets\/app-initial-[^/]+\.js(?:\?|$)/.test(url)) ?? null;
-    }
 
     function reactFiberFor(element) {
       if (!(element instanceof Element)) return null;
@@ -1600,13 +1596,7 @@ export function createInjectionSource(features, {
     }
 
     async function waitForNativeTabModuleUrl() {
-      const deadline = performance.now() + 2_000;
-      do {
-        const moduleUrl = nativeTabModuleUrl();
-        if (moduleUrl) return moduleUrl;
-        await new Promise((resolve) => setTimeout(resolve, 50));
-      } while (performance.now() < deadline);
-      return null;
+      return findCodexModule('app-initial',{signal:lifetime.signal,waitForEntry:true});
     }
 
     async function loadNativeTabCapability() {
@@ -1615,7 +1605,7 @@ export function createInjectionSource(features, {
       nativeTabCapabilityPromise = (async () => {
         try {
           const moduleUrl = await waitForNativeTabModuleUrl();
-          if (!moduleUrl) throw new Error("Codex app-initial modulepreload was not found");
+          if (!moduleUrl) throw new Error("Codex app-initial module was not found");
           const appModule = await import(moduleUrl);
           const controller = Object.values(appModule).find((value) => (
             value
@@ -2468,7 +2458,7 @@ export function createInjectionSource(features, {
     themeBindings: MINECODEX_THEME_BINDINGS,
     mcpNavigationIcons: MCP_NAVIGATION_ICONS,
     features: runtimeFeatures,
-  })}, ${createUIInstallerSource()}, ${createModelSliderInstallerSource()}, ${createCodexEnvironment.toString()}, ${createRendererSelfCheck.toString()})`;
+  })}, ${createUIInstallerSource()}, ${createModelSliderInstallerSource()}, ${createCodexEnvironment.toString()}, ${createRendererSelfCheck.toString()}, ${findCodexModule.toString()})`;
 }
 
 export function createRuntimeReadyContract({

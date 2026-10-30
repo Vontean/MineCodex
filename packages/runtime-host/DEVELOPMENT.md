@@ -109,7 +109,7 @@ Host 会再次发送当前状态。功能页面可据此暂停隐藏状态下的
 | --- | --- | --- |
 | loopback HTTP、manifest、Surface message schema | 项目自有稳定接口 | 可由测试直接覆盖 |
 | `window.electronBridge.getPathForFile` | 当前稳定 internal/preload | 仅用于 Finder `File` 路径解析 |
-| React right-panel `openTab`、Task scope、JSX runtime | private internal capability | 动态发现 bundle 并做能力检测；失败时返回明确的不可用错误 |
+| React right-panel `openTab`、Task scope、JSX runtime | private internal capability | 通过共享 Codex Adapter 定位模块并做能力检测；失败时返回明确的不可用错误 |
 | toolbar、summary、tabs、Composer selectors | DOM inference | 共享 Surface 接入归宿主；功能专有协议归所属 Adapter |
 | `Runtime.addBinding`、`DOM.setFileInputFiles`、注入脚本 | high-risk CDP | 必须使用隔离 profile 验收 |
 | `togglePinnedSummary`、`composer.addFiles` 字符串 | 探索证据 | 当前实现不把它们当契约 |

@@ -125,7 +125,10 @@ export function createCodexEnvironment() {
       const unknown = {status:"unknown", planType:null, source:null, key:null};
       if (signal?.aborted || !auth || auth.isLoading || !auth.userId || !auth.accountId
         || !["chatgpt", "chatgptAuthTokens"].includes(auth.authMethod)) return unknown;
-      const data = client?.getQueryData(["accounts", "check"]);
+      const data = client?.getQueryCache().findAll({queryKey:["accounts","check"]})
+        .filter(query=>query.state.data)
+        .sort((a,b)=>(b.state.dataUpdatedAt??0)-(a.state.dataUpdatedAt??0))[0]?.state.data;
+      if (data && !Array.isArray(data.accounts)) return unknown;
       const current = data?.accounts?.find(value => value.id === auth.accountId);
       // 已有账号清单却找不到当前身份时，不借用上一个账号的登录套餐。
       if (data && !current) return unknown;

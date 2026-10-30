@@ -1,3 +1,4 @@
+import {findCodexModule} from '../../../packages/codex-adapter/src/renderer/modules.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
@@ -11,7 +12,7 @@ for (const renamed of [false,true]) test(`native stream download uses current ex
   const calls=[],downloadImage=payload=>{calls.push(payload);return true;},Icon=()=>{};
   const load=async url=>url.endsWith('icons.js')?{icon:Icon}:{D:downloadImage};
   const context=vm.createContext({URL,document:{querySelectorAll:()=>[{href:'file:///assets/app-initial-current.js'}]},markdownExportAlias,saveQvDiagram});
-  const loader=vm.runInContext(`(${loadNativeMermaidActions})`,context);
+  const loader=vm.runInContext(`const findCodexModule=${findCodexModule};(${loadNativeMermaidActions})`,context);
   const native=await loader({Button:'button'},{read:async()=>source,load});
   assert.equal(native.DownloadIcon,Icon);assert.equal(native.Button,'button');
   const blob=new Blob(['png']);assert.equal(await native.downloadImage({downloadSrc:blob,suggestedFilename:'mermaid-diagram.png'}),true);

@@ -1,11 +1,11 @@
+import { findCodexModule } from '../../../../../packages/codex-adapter/src/renderer/modules.mjs';
 export async function loadQuickChatSidebarIcon(signal) {
-  const urls = [...document.querySelectorAll('link[rel="modulepreload"],script[src]')].map(node => node.href || node.src);
-  const initialUrl = urls.find(url => /\/app-initial-[^/]+\.js/.test(url));
+  const initialUrl = await findCodexModule('app-initial',{signal});
   if (!initialUrl) throw new Error('quick-chat-icon-module-unavailable');
   const initial = await (await fetch(initialUrl,{signal})).text();
-  const file = initial.match(/["']\.\/((?:quick-chat-floating-surface|floating-chat-surface)-[\w-]+\.js)["']/)?.[1];
-  if (!file) throw new Error('quick-chat-icon-module-unavailable');
-  const url = new URL(file,initialUrl).href;
+  const file = initial.match(/["'`]\.\/((?:quick-chat-floating-surface|floating-chat-surface)-[\w-]+\.js)["'`]/)?.[1];
+  const url = file ? new URL(file,initialUrl).href : await findCodexModule('floating-chat-surface',{signal,via:['quick-chat-window','page-codex-quick-chat-window','content-chat-surface']}) ?? await findCodexModule('quick-chat-floating-surface',{signal});
+  if (!url) throw new Error('quick-chat-icon-module-unavailable');
   const source = await (await fetch(url,{signal})).text();
   // 原生 Restore 在未传 minimizedIcon 时使用的默认聊天图标。
   const local = source.match(/children:[\w$]+\?\?\(0,[\w$]+\.jsx\)\(([\w$]+),\{\}\)/)?.[1];

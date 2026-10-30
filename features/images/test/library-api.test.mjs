@@ -23,5 +23,5 @@ test('one native Library discovery supports named viewer and import operations',
 test('changed Library export fails explicitly and discovery retries instead of caching failure',async context=>{
   globalThis.document={querySelectorAll:()=>[{src:'file:///assets/app-initial-a.js'}]};context.after(()=>delete globalThis.document);
   let reads=0;const adapter=createLibraryApi({read:async()=>{reads++;return 'unknown';},load:async()=>({})});
-  await assert.rejects(adapter.conversation('thread'),/capability/);await assert.rejects(adapter.list(null),/capability/);assert.equal(reads,2);
+  await assert.rejects(adapter.conversation('thread'),/capability/);const afterFirst=reads;await assert.rejects(adapter.list(null),/capability/);assert.ok(reads>afterFirst);
 });

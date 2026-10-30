@@ -39,3 +39,12 @@ node --test features/images/test/*.test.mjs
 Image Gen 支持原生圆形多选框、Shift 区间选择和底部动作条。Delete 会先二次确认，仅从 Image Gen 隐藏；本地原图和云端副本保留。隐藏状态由 MineCodex 当前 Runtime profile 持久维护，确认后立即生效，刷新／重启不再显示。缩略卡片沿用 Library 的 1:2 至 20:13 比例范围；极宽和极窄图片在卡片内完整缩放、居中留白，不裁切内容。
 
 原生接入失败以当前标签节点、账号与页面分支为边界停止自动重试；清理产生的 DOM 变化不能重新挂载同一失败实例。离开页面再进入或重新注入后可重新连接。原生标签没有变化时不重复渲染替代导航。Codex 26.1021.31345 的 Plus 隔离窗口已验证连接失败时 Library 仍响应、原生标签可切换、Home → Library 可往返；新版 Library 动作从 `selectable-library-item` 移到 `library-item-menu`，选择框仍由原模块提供；资源发现优先使用当前已加载的精确模块，再使用声明的 import 关系与旧入口分支。当前隔离 Renderer 已验证导航、图库与画布全部能力加载，以及失配时的原生降级；真实图片浏览、菜单与画布交互仍需独立窗口验收，不将能力加载记为完整浏览验收。
+
+原生模块定位复用共享 [Codex Adapter](../../packages/codex-adapter/DEVELOPMENT.md)，
+图库和画布按自身的 library-page、预览与 tab 包装引用继续发现。先查实际独立模块，再走
+已有的 masonry / item-layout 内联兼容分支，不能因 initial 不含引用就认定资源已合并。
+画布与布局按 attachmentSrc / onImageEditSubmit / downloadSrc，以及
+reserveImageComposerSpace / contentOwnsHeader 等原生角色属性识别，拒绝缺失或多义候选，
+不固定压缩后的 t / r 导出。Renderer 后端 Library 请求同样显式序列化共享发现函数。
+Codex `26.1027.30824` 的独立 Renderer 已验证导航、图库和画布完整接口加载；
+没有据此声明图片点击、上传、下载或编辑流程通过。

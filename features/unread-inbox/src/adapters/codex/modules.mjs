@@ -1,3 +1,4 @@
+import { findCodexModule } from '../../../../../packages/codex-adapter/src/renderer/modules.mjs';
 // 从原生调用关系解析角色；构建哈希和压缩变量名不作为契约。
 export function discoverThreadBindings(source) {
   const requireMatch = (pattern, text = source) => {
@@ -45,7 +46,7 @@ export function discoverThreadBindings(source) {
 }
 
 export async function loadThreadBindings() {
-  const url=[...document.querySelectorAll('link[rel="modulepreload"],script[src]')].map(e=>e.href||e.src).find(url=>/\/app-initial-[^/]+\.js/.test(url));
+  const url=await findCodexModule('app-initial');
   if (!url) throw new Error("Native task notification module unavailable");
   const source=await (await fetch(url)).text();
   const bindings=discoverThreadBindings(source);

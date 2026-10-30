@@ -1,9 +1,10 @@
+import { findCodexModule } from '../../../../../packages/codex-adapter/src/renderer/modules.mjs';
 import { saveQvDiagram } from '../../mermaid/export.mjs';
 
 // 图表下载协议只由实验性功能加载，阅读增强不依赖此能力。
 export async function loadNativeMermaidActions(native, {read = async url => { const response = await fetch(url); if (!response.ok) throw new Error('native-diagram-source-unavailable'); return response.text(); }, load = url => import(url)} = {}) {
-  const url = [...document.querySelectorAll('link[rel="modulepreload"],script[src]')]
-    .map(node => node.href || node.src).find(url => /\/app-initial-[^/]+\.js/.test(url));
+  const url = await findCodexModule('app-initial',{read});
+  if (!url) throw new Error('native-diagram-module-unavailable');
   const source = await read(url);
   const section = marker => {
     const at = source.indexOf(marker);

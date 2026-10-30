@@ -1,9 +1,9 @@
+import { findCodexModule } from '../renderer/modules.mjs';
 // 使用当前编辑器所属的原生 CodeMirror 实例，避免引入第二套编辑器依赖。
 export async function loadMarkdownListAPI(view) {
-  const links = [...document.querySelectorAll('link[rel="modulepreload"]')];
-  for (const link of links) {
-    if (!/\/dist-[\w-]+\.js$/.test(link.href)) continue;
-    const exports = Object.values(await import(link.href));
+  const urls=await findCodexModule('dist',{all:true});
+  for (const url of urls) {
+    const exports = Object.values(await import(url));
     if (!exports.includes(view.constructor)) continue;
     const Decoration = exports.find((value) => value?.line && value?.replace && value?.mark);
     const ViewPlugin = exports.find((value) => value?.fromClass && value?.define);

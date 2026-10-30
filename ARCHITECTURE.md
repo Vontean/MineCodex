@@ -33,7 +33,7 @@ flowchart TB
 | CLI | 管配置、数据迁移组合、安装与后台服务，避免页面开关承担进程管理；Windows 生命周期见 [CLI 开发约定](packages/cli/DEVELOPMENT.md)。 |
 | 官方 Plugin | 管入口、离线页面资源与 MCP 通信；复用既有业务服务。面板生命周期与增强运行时独立，关闭页面不应终止增强。 |
 | Runtime Host | 管发现、CDP、注入组装、可信消息、调度和运行生命周期；可导入功能后端接线，业务规则继续由功能拥有。 |
-| Codex Adapter | 管多个功能真实共用的 Composer、身份、路由和 React 读取机制。专有 Library、模型控制器、额度和 Sites 协议留在功能 Adapter。 |
+| Codex Adapter | 管多个功能真实共用的 Composer、身份、路由、React 读取与原生模块定位机制。专有 Library、模型控制器、额度和 Sites 协议留在功能 Adapter。 |
 | UI | 管组件、材质、挂载角色、主题映射与视觉原生适配。组件不查询功能存储，功能不复制通用表现。 |
 | Feature | 管本功能规则、存储、内容和交互；专有 Adapter 把外部对象转成内部事实与命名动作。 |
 

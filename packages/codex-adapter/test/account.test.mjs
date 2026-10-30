@@ -6,7 +6,7 @@ function fixture(context) {
   const previous=globalThis.document;context.after(()=>{globalThis.document=previous;});
   let cached,changed,unsubscribed=0;
   const auth={authMethod:'chatgpt',userId:'user',accountId:'a',planAtLogin:'plus',isLoading:false};
-  const client={getQueryData:key=>{assert.deepEqual(key,['accounts','check']);return cached;},getQueryCache:()=>({subscribe:callback=>{changed=callback;return()=>unsubscribed++;}})};
+  const client={getQueryData:key=>{assert.deepEqual(key,['accounts','check']);return cached;},getQueryCache:()=>({findAll:({queryKey})=>{assert.deepEqual(queryKey,["accounts","check"]);return [{state:{data:cached}}];},subscribe:callback=>{changed=callback;return()=>unsubscribed++;}})};
   const rail={getBoundingClientRect:()=>({width:64}),__reactFiberFixture:{memoizedProps:{auth,client}}};
   globalThis.document={querySelectorAll:()=>[rail]};
   return {auth,rail,set:data=>{cached=data;},change:key=>changed({query:{queryKey:[key]}}),unsubscribed:()=>unsubscribed};
@@ -30,6 +30,19 @@ test('account changes invalidate only account consumers and abort releases the s
   controller.abort();assert.equal(f.unsubscribed(),2);assert.equal(adapter.read().status,'unknown');
 });
 test('read-only account inspection does not create unused cache subscriptions',context=>{
-  const f=fixture(context);f.rail.__reactFiberFixture.memoizedProps.client.getQueryCache=()=>{throw Error('unexpected subscription');};
+  const f=fixture(context);f.rail.__reactFiberFixture.memoizedProps.client.getQueryCache=()=>({findAll:()=>[],subscribe:()=>{throw Error('unexpected subscription');}});
   assert.equal(createCodexEnvironment().account().read().planType,'plus');
+});
+
+test('account check accepts key suffixes and rejects malformed or mismatched latest lists',context=>{
+  const f=fixture(context),queries=[{state:{data:{accounts:[{id:'a',plan_type:'pro'}]},dataUpdatedAt:1}},{state:{data:undefined,dataUpdatedAt:0}}];
+  const client=f.rail.__reactFiberFixture.memoizedProps.client;
+  client.getQueryData=()=>undefined;
+  client.getQueryCache=()=>({findAll:({queryKey})=>{assert.deepEqual(queryKey,['accounts','check']);return queries;}});
+  const adapter=createCodexEnvironment().account();
+  assert.equal(adapter.read().planType,'pro');
+  queries.push({state:{data:{accounts:[{id:'other',plan_type:'plus'}]},dataUpdatedAt:2}});
+  assert.equal(adapter.read().status,'unknown');
+  queries.push({state:{data:{accounts:{}},dataUpdatedAt:3}});
+  assert.equal(adapter.read().status,'unknown');
 });

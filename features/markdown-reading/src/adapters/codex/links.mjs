@@ -1,8 +1,7 @@
+import { findCodexModule } from '../../../../../packages/codex-adapter/src/renderer/modules.mjs';
 // 修补原生 Preview 的链接装饰；源码、语法树与编辑器实例继续归 Codex。
 export async function loadNativeMarkdownLinks() {
-  const url = [...document.querySelectorAll('link[rel="modulepreload"]')]
-    .map((n) => n.href)
-    .find((u) => /\/text-file-editor-extensions-[^/]+\.js$/.test(u));
+  const url = await findCodexModule('text-file-editor-extensions',{via:['text-file-editor-tab-content.electron']});
   if (!url) throw new Error('native-markdown-link-module-unavailable');
   const source = await (await fetch(url)).text();
   const opener = source.match(/([\w$]+)\(\{event:[\w$]+,href:[\w$]+,initiator:`markdown_link_click`/)?.[1];

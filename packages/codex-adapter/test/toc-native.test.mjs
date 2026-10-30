@@ -6,8 +6,9 @@ import test from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { loadNativeMarkdownToc } from '../src/markdown/toc-native.mjs';
 
-for (const modern of [false, true]) {
-  test(`TOC discovers ${modern ? 'current rail module and viewer layout' : 'legacy rail-layout module'}`, async t => {
+for (const variant of ['legacy','modern','hashed']) {
+  const modern=variant!=='legacy',hashed=variant==='hashed';
+  test(`TOC discovers ${hashed ? 'hashed CSS from native lazy import dependencies' : modern ? 'current rail module and viewer layout' : 'legacy rail-layout module'}`, async t => {
     const directory = await mkdtemp(path.join(os.tmpdir(), 'minecodex-toc-'));
     t.after(() => rm(directory, { recursive: true, force: true }));
     const rail = modern ? 'floating-navigation-rail-fixture' : 'floating-navigation-rail-layout-fixture';
@@ -18,7 +19,7 @@ for (const modern of [false, true]) {
       'package.json': '{"type":"module"}',
       'runtime.js': 'export const r=()=>({createElement(){}}),d=()=>({createRoot(){}}),t=()=>null;',
       [`${rail}.js`]: 'export function Marker(){return "hierarchyLevel"} export function Panel(){return "shadow-xl-spread"}',
-      'app-initial-fixture.js': `import './content-fixture.js';import './${rail}.css';`,
+      'app-initial-fixture.js': hashed ? 'const table={};table.f=["./abcd1234.css"];const lazy=()=>load(()=>import("./content-fixture.js"),__vite__mapDeps([0]),import.meta.url);' : `import './content-fixture.js';import './${rail}.css';`,
       'app-main-fixture.js': 'import{d as makeDOM}from"./runtime.js";var dom=makeDOM();(0,dom.createRoot)();',
       'content-fixture.js': [
         'import{r as makeReact,t as Tip}from"./runtime.js";',
@@ -53,6 +54,6 @@ for (const modern of [false, true]) {
     assert.equal(typeof native.ReactDOM.createRoot, 'function');
     assert.deepEqual(native.classes, { rail: 'rail', railButton: 'rail-button', menu: 'menu', menuButton: 'wrap-anywhere', nav });
     assert.deepEqual(native.indentation, ['', 'ms-0', 'ms-3', 'ms-6']);
-    assert.equal(links[0].href, url(`${rail}.css`));
+    assert.equal(links[0].href, url(hashed ? "abcd1234.css" : `${rail}.css`));
   });
 }

@@ -100,6 +100,7 @@
     "test:cli": "node --test packages/cli/test/*.test.mjs",
     "test:runtime": "node --test packages/runtime-host/test/*.test.mjs",
     "check": "node scripts/check-syntax.mjs",
+    "check:native": "node scripts/check-native-capabilities.mjs",
     "build:service": "scripts/build-service-app.zsh",
     "pack:check": "npm pack --dry-run",
     "pack:audit": "node scripts/audit-package.mjs",

@@ -1,3 +1,4 @@
+import {findCodexModule} from '../../../packages/codex-adapter/src/renderer/modules.mjs';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { runInNewContext } from 'node:vm';
@@ -102,16 +103,16 @@ test('serialized installer executes without module scope and releases its resour
 
 test('native code discovery uses the content renderer above the source-only shell', async () => {
   const { loadNativeMarkdownRichText } = await import('../src/adapters/codex/rich-text.mjs');
-  const run = async (source, expected) => {
+  const run = async (source, expected, named=false) => {
     const Shell = () => {}, Renderer = () => {};
     let initialized = 0;
     const load = runInNewContext(
-      `(${loadNativeMarkdownRichText.toString().replaceAll('import(', 'importModule(')})`,
+      `const findCodexModule=${findCodexModule};(${loadNativeMarkdownRichText.toString().replaceAll('import(', 'importModule(')})`,
       {
-        document: { querySelectorAll: () => [{ href: 'https://fixture/katex-test.js' }] },
+        URL,document: { querySelectorAll: () => [{ href: 'https://fixture/katex-test.js' }] },
         fetch: async () => ({ text: async () => source }),
         importModule: async (url) => url.includes('katex-')
-          ? { default: { renderToString() {} } }
+          ? { [named ? "katex" : "default"]: { renderToString() {} } }
           : { Shell, Renderer, init: () => initialized++ },
       },
     );
@@ -124,6 +125,7 @@ test('native code discovery uses the content renderer above the source-only shel
   const init = 'function Init(){Cache={c(){}}}';
   const exports = 'export{Shell as Shell,Renderer as Renderer,Init as init}';
   await run(shell + renderer + init + exports, 'renderer');
+  await run(shell + renderer + init + exports, 'renderer',true);
   // 旧版由同一个组件接收并显示 content，仍保留原有发现路径。
   await run(shell.replace('e.source', 'e.content') + init + exports, 'shell');
 });

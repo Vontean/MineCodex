@@ -12,5 +12,9 @@ test('all registered adapter factories produce self-contained page-script functi
     assert.equal(typeof feature.pageScript.source,'string',feature.id);
     assert.doesNotThrow(()=>new Function('signal','config',feature.pageScript.source),feature.id);
     assert.doesNotMatch(feature.pageScript.source,/^import\s/m,feature.id);
+    if(/await findCodexModule\(/.test(feature.pageScript.source))
+      assert.match(feature.pageScript.source,/const findCodexModule\s*=\s*async function findCodexModule/,feature.id);
+    if(/codexModuleStyles\(initial/.test(feature.pageScript.source))
+      assert.match(feature.pageScript.source,/const codexModuleStyles\s*=\s*function codexModuleStyles/,feature.id);
   }
 });

@@ -1,3 +1,4 @@
+import { findCodexModule } from '../renderer/modules.mjs';
 import { loadNativeMarkdownRenderer } from './markdown-native.mjs';
 
 export function markdownExportAlias(source, name) {
@@ -13,9 +14,8 @@ export function markdownExportAlias(source, name) {
 
 // 从 Chat Markdown 的公开组件发现悬浮操作栏和控件，不绑定构建 hash。
 export async function loadNativeMarkdownTableActions(native) {
-  const url = [...document.querySelectorAll('link[rel="modulepreload"],script[src]')]
-    .map((n) => n.href || n.src)
-    .find((url) => /\/app-initial-[^/]+\.js/.test(url));
+  const url = await findCodexModule('app-initial');
+  if (!url) throw new Error('native-table-actions-module-unavailable');
   const response = await fetch(url);
   if (!response.ok) throw new Error('native-table-actions-source-unavailable');
   const source = await response.text();

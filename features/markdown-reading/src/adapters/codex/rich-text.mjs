@@ -1,9 +1,9 @@
+import { findCodexModule } from '../../../../../packages/codex-adapter/src/renderer/modules.mjs';
 import { collectMarkdownFootnotes } from '../../domain/footnotes.mjs';
 import { captureMarkdownProviders } from '../../../../../packages/codex-adapter/src/markdown/providers.mjs';
 
 // 复用消息流的代码组件与 Markdown lexer；文件内容及编辑器仍由 Codex 持有。
 export async function loadNativeMarkdownRichText(native) {
-  const links = [...document.querySelectorAll('link[rel="modulepreload"]')].map((n) => n.href);
   const { sharedUrl } = native;
   const sharedSource = await (await fetch(sharedUrl)).text(),
     shared = await import(sharedUrl);
@@ -37,16 +37,17 @@ export async function loadNativeMarkdownRichText(native) {
   if (!codeInit || !sharedBinding(codeInit) || !sharedBinding(codeName))
     throw new Error('native-code-snippet-unavailable');
   sharedBinding(codeInit)();
-  let mathUrl = links.find((u) => /\/katex-[^/]+\.js$/.test(u));
+  let mathUrl = await findCodexModule('katex');
   if (!mathUrl) {
-    const editorUrl = links.find((u) => /\/text-file-editor-extensions-[^/]+\.js$/.test(u));
+    const editorUrl = await findCodexModule('text-file-editor-extensions',{via:['text-file-editor-tab-content.electron']});
     if (editorUrl) {
       const editorSource = await (await fetch(editorUrl)).text(),
         specifier = editorSource.match(/import\(`(\.\/katex-[^`]+\.js)`\)/)?.[1];
       if (specifier) mathUrl = new URL(specifier, editorUrl).href;
     }
   }
-  const katex = mathUrl ? (await import(mathUrl)).default : null;
+  const mathModule=mathUrl ? await import(mathUrl) : null;
+  const katex=mathModule?.default ?? mathModule?.katex;
   if (!katex?.renderToString) throw new Error('native-katex-unavailable');
   return { ...native, CodeSnippet: sharedBinding(codeName), katex };
 }

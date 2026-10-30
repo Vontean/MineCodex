@@ -4,7 +4,10 @@
 
 模式选择器的 ChatGPT 入口使用 mode=work、workModeAccess=chatgpt；不能把界面名称当成 mode 值，也不能对所有 work 分支都启用独立聊天补偿。Codex 使用 mode=codex。其他 Work 分支只保留已有浮层的恢复与聚焦。
 
-宿主注入可能早于 app-initial 入口标签挂载。入口缺失时用 MutationObserver 等待原生 modulepreload / script 就绪后再加载，期间自检为 quick-chat-module-pending；不使用定时轮询。加载成功、卸载或 AbortSignal 必须断开观察器，不能一次查找失败后永久停用。
+原生模块通过共享 [Codex Adapter](../../packages/codex-adapter/DEVELOPMENT.md) 定位。
+宿主早于应用入口标签挂载时以 MutationObserver 等待入口，再沿真实引用定位 initial
+与浮层图标；不等待 app-initial 本身出现在预加载列表。期间保留 pending 诊断，成功、
+卸载或 AbortSignal 释放观察器，dispose 也取消未完成的发现。
 
 快捷键冷启动时，原生打开状态 atom 可能仍为未初始化的导出。Adapter 按状态赋值与 once 包装定位所属的原生初始化器，仅在状态缺失时调用，再读取模块的实时导出；不依赖其他功能或切换页面顺带初始化。初始化器缺失或协议不匹配时停止补偿，自检保留已知协议错误码，不输出原始异常内容。测试必须覆盖冷、热两种加载顺序，不能只构造已经初始化的状态对象。
 
@@ -42,3 +45,7 @@ Close 调用前，从当前浮层取得 AppScope，并核对原生当前 session
 侧栏隐藏后的打开从仍挂载的导航 rail、composer、main 或应用根内容的 committed Fiber 向上定位现有 AppScope 句柄，不缓存上次会话或窗口 scope。原生产品模式 selector 必须指向 Codex 才启用该补充路径；其他模式保留现有行为。侧栏展开、隐藏和新窗口首次进入均使用同一新建／恢复逻辑。
 
 针对性验证运行 Quick Chat 测试组，覆盖原生角色发现、仅清理匹配会话且不销毁后台 session、紧凑／展开／历史的控制入口、两个平台侧栏隐藏或卸载后的打开及模式隔离，并检查序列化执行、语法及运行包资源。真实 Renderer 验收依本级 DESIGN 的证据边界记录，不将契约样例视为 GUI 验收。
+
+Codex `26.1027.30824` 的原生打开逻辑改用条件表达式。角色发现兼容已有 if 分支与
+新的 page/current session 条件表达式，仍校验 quick-chat 能力、原生打开状态与新建动作。
+回归覆盖两种语法及错误能力；本机隔离注入已报告 available，未补做物理快捷键和鼠标验收。

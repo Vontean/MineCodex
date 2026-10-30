@@ -22,3 +22,11 @@ Codex 26.930.21537：依据安装包 breadcrumb、workspace-directory-entries-qu
 Codex 26.1021.31345 的目录 query 将读取委托给 `workspace-directory` 导出的 `workspaceFiles.listDirectory` 包装函数；Adapter 沿用其 host/workspace/directory 参数与 AbortSignal，兼容旧请求绑定，不向业务层暴露新宿主协议。当前 macOS 隔离 Renderer 已验证组件加载与仓库目录读取；完整鼠标级联仍需原生窗口验收。
 
 原生导航节点原位保留，禁用恢复显示。关闭或分支变化后丢弃过期异步结果；列 React 根在关闭与卸载时释放。原生模块失效时恢复原生入口，目录加载失败只在所属列提供重试。
+
+Codex `26.1027.30824` 将 breadcrumb、目录查询包装和文件树相关独立模块合入 initial。
+Adapter 保留旧独立模块分支；缺少旧模块时，从当前入口按 Tree 的原生 props 与导出识别
+文件树，沿该函数所属的 React 绑定和初始化器连接，只初始化该角色。目录读取按原生
+workspaceFiles.listDirectory 与取消包装的调用关系取得，原样传入参数和 AbortSignal。
+folder 图标也仅初始化对应角色，不执行入口中不相关的初始化器。共享模块定位规则见
+[Codex Adapter](../../packages/codex-adapter/DEVELOPMENT.md)。独立 Renderer 已验证这些
+接口加载；目录点击、键盘与可见浮层仍需单独验收。

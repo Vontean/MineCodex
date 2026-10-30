@@ -40,7 +40,7 @@ for (const scenario of [
     const previousDocument = Object.getOwnPropertyDescriptor(globalThis, "document");
     Object.defineProperty(globalThis, "document", { configurable: true, value: {
       querySelectorAll(selector) {
-        assert.equal(selector, "link[rel=modulepreload],script[src]");
+        assert.equal(selector, 'link[rel="modulepreload"],script[src]');
         return nodes;
       },
     } });
@@ -51,7 +51,7 @@ for (const scenario of [
     const fetched = [];
     t.mock.method(globalThis, "fetch", async url => {
       fetched.push(url);
-      return { text: () => readFile(fileURLToPath(url), "utf8") };
+      return { ok:true, text: () => readFile(fileURLToPath(url), "utf8") };
     });
     let usage = { modelContextWindow: 100, last: { totalTokens: 75 } }, listener, disposed = false;
     const node = { token: { __scopeBrand: "AppScope" }, store: {

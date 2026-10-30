@@ -1,26 +1,14 @@
+import { findCodexModule } from '../../../packages/codex-adapter/src/renderer/modules.mjs';
 export async function loadComposerExpandControls(signal) {
   signal.throwIfAborted();
-  function modules() {
-    const urls = [...document.querySelectorAll('link[rel="modulepreload"],script[src]')].map(node => node.href || node.src);
-    const initialUrl = urls.find(url => /\/app-initial-[^/]+\.js/.test(url));
-    const mainUrl = urls.find(url => /\/app-main-[^/]+\.js/.test(url));
-    return initialUrl && mainUrl ? {initialUrl,mainUrl} : null;
-  }
-  // 冷启动时入口标签可能晚于 DOMContentLoaded 挂载。
-  const {initialUrl,mainUrl} = modules() ?? await new Promise((resolve,reject) => {
-    const observer = new MutationObserver(check);
-    function cleanup() { observer.disconnect();signal.removeEventListener('abort',abort); }
-    function abort() { cleanup();reject(signal.reason); }
-    function check() { const found=modules();if(found){cleanup();resolve(found);} }
-    observer.observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['src','href','rel']});
-    signal.addEventListener('abort',abort,{once:true});
-    check();
-  });
+  const initialUrl=await findCodexModule('app-initial',{signal,waitForEntry:true});
+  const mainUrl=await findCodexModule('app-main',{signal,waitForEntry:true});
+  if (!initialUrl || !mainUrl) throw new Error('composer-expand-modules-unavailable');
   const read = async url => { const response=await fetch(url,{signal}); if(!response.ok) throw new Error('composer-expand-source-unavailable'); return response.text(); };
   const [initialSource,mainSource] = await Promise.all([read(initialUrl),read(mainUrl)]);
   const file = initialSource.match(/["'`]\.\/(app-primary-[\w-]+\.js)["'`]/)?.[1];
-  if (!file) throw new Error('composer-expand-primary-unavailable');
-  const primaryUrl = new URL(file,initialUrl).href;
+  const primaryUrl = file ? new URL(file,initialUrl).href : await findCodexModule('app-primary',{read,signal});
+  if (!primaryUrl) throw new Error('composer-expand-primary-unavailable');
   const source = await read(primaryUrl);
   async function binding(source,url,local) {
     if (!local) throw new Error('composer-expand-binding-unavailable');

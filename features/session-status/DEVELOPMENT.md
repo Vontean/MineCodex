@@ -56,9 +56,8 @@ Codex `26.1013.4894.0` 的既有本机验证发现上述接口已迁入 `app-ini
 
 Codex `26.1027.30824`（macOS build `22943`）不再将 `app-initial` 列入页面 modulepreload，
 实际加载链仍为 `index → app-main → app-initial`。modulepreload 是加载优化提示，不能作为
-完整模块清单。Context Adapter 优先使用直接列出的 app-initial / app-shared，再沿入口
-源码中 app-main / app-initial / app-shared 的真实相对引用发现接口；只读取这条原生入口链，
-用 visited 集合去重并终止循环，不固定资源哈希，不遍历无关功能模块。仍从 tokenUsageInfo
+完整模块清单。Context Adapter 使用共享 [Codex Adapter](../../packages/codex-adapter/DEVELOPMENT.md)
+定位 app-initial / app-shared，不再单独维护入口遍历机制。仍从 tokenUsageInfo
 声明识别导出，数据、AppScope 订阅及清理口径保持不变。
 当前对话只读复现确认：旧发现流程失败，新流程可读原生占用、窗口容量与百分比；
 回归覆盖未预加载的入口链、循环引用、新旧直接入口与缺失导出。未补做可见 GUI 验收。

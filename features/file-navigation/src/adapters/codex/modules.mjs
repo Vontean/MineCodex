@@ -1,9 +1,18 @@
+import { loadInlineFileNavigationModules } from './inline-modules.mjs';
+import { findCodexModule } from '../../../../../packages/codex-adapter/src/renderer/modules.mjs';
 // 依照原生 breadcrumb 的依赖角色查找公开模块，不绑定产物 hash 或短变量名。
 export async function loadFileNavigationModules({read = async url => { const response = await fetch(url); if (!response.ok) throw new Error('file-navigation-source-unavailable'); return response.text(); }, load = url => import(url)} = {}) {
-  const urls = [...document.querySelectorAll('link[rel="modulepreload"],script[src]')].map(n => n.href || n.src);
-  const breadcrumbUrl = urls.find(url => /\/review-file-source-breadcrumb-[^/]+\.js$/.test(url));
-  const mainUrl = urls.find(url => /\/app-main-[^/]+\.js$/.test(url));
-  if (!breadcrumbUrl || !mainUrl) throw new Error('file-navigation-modules-unavailable');
+  const [breadcrumbUrl,mainUrl]=await Promise.all([
+    findCodexModule('review-file-source-breadcrumb',{read}),findCodexModule('app-main',{read}),
+  ]);
+  if (!mainUrl) throw new Error('file-navigation-modules-unavailable');
+  let resolved;
+  if (!breadcrumbUrl) {
+    const initialUrl=await findCodexModule('app-initial',{read});
+    if (!initialUrl) throw new Error('file-navigation-modules-unavailable');
+    resolved=await loadInlineFileNavigationModules(initialUrl,mainUrl,read,load);
+  }
+  if (!resolved) {
   const imports = (source, url) => {
     const result = new Map();
     for (const match of source.matchAll(/import\{([^}]+)\}from["']([^"']+)["']/g))
@@ -51,6 +60,9 @@ export async function loadFileNavigationModules({read = async url => { const res
   if (!folder?.canvas?.viewBox || typeof folder.body !== 'string')
     throw new Error('file-navigation-folder-icon-unavailable');
   // 分列导航没有纵向展开状态；通过原生样式入口使用固定的原生文件夹图标。
+  resolved={Tree,React,ReactDOM,request,folder};
+  }
+  const {Tree,React,ReactDOM,request,folder}=resolved;
   const folderImage = `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="${folder.canvas.viewBox}">${folder.body}</svg>`)}")`;
   const columnStyles = `
     /* 原生树的逻辑焦点也响应鼠标；描边仅保留给键盘可见焦点。 */
