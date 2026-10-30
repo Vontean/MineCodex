@@ -9,6 +9,8 @@ import { createContextUsageAdapter } from "../src/adapters/codex/context-usage.m
 const nativeSource = 'const make=()=>null,derive=()=>({resolve:()=>({resolve:()=>"atom"})});const selector=make(`tokenUsageInfo`),family=derive();export{family as CONTEXT};';
 
 for (const scenario of [
+  { name: "follows entry to app-main when app-initial is not preloaded", entry: true, initial: nativeSource, chosen: "initial" },
+  { name: "terminates cyclic entry references without context exports", entry: true, cycle: true, initial: "export const unrelated=true;" },
   { name: "prefers app-initial over app-shared", initial: nativeSource, shared: nativeSource, chosen: "initial" },
   { name: "supports the legacy app-shared bundle", shared: nativeSource, chosen: "shared" },
   { name: "falls back when app-initial has no context export", initial: "export const unrelated=true;", shared: nativeSource, chosen: "shared" },
@@ -25,7 +27,15 @@ for (const scenario of [
       const file = path.join(directory, `app-${kind}-fixture.js`);
       await writeFile(file, scenario[kind]);
       urls[kind] = pathToFileURL(file).href;
-      nodes.push(kind === "initial" ? { src: urls[kind] } : { href: urls[kind] });
+      if (!scenario.entry) nodes.push(kind === "initial" ? { src: urls[kind] } : { href: urls[kind] });
+    }
+    if (scenario.entry) {
+      const main = path.join(directory, "app-main-fixture.js");
+      await writeFile(main, 'import "./app-initial-fixture.js";' + (scenario.cycle ? 'import "./app-main-fixture.js";' : ''));
+      const entry = path.join(directory, "index-fixture.js");
+      await writeFile(entry, 'const boot=()=>import(`./app-main-fixture.js`);');
+      nodes.push({src:pathToFileURL(entry).href});
+      urls.entry=pathToFileURL(entry).href;urls.main=pathToFileURL(main).href;
     }
     const previousDocument = Object.getOwnPropertyDescriptor(globalThis, "document");
     Object.defineProperty(globalThis, "document", { configurable: true, value: {
@@ -68,7 +78,7 @@ for (const scenario of [
     if (scenario.chosen) {
       assert.deepEqual(report, ["context-usage", true]);
       assert.equal(fetched.at(-1), urls[scenario.chosen]);
-      if (scenario.chosen === "initial") assert.deepEqual(fetched, [urls.initial]);
+      if (scenario.chosen === "initial") assert.deepEqual(fetched, scenario.entry ? [urls.entry,urls.main,urls.initial] : [urls.initial]);
       assert.equal(published.at(-1).contextPercent, 75);
       usage = { modelContextWindow: 100, last: { totalTokens: 50 } };
       listener(); assert.equal(published.at(-1).contextPercent, 50);

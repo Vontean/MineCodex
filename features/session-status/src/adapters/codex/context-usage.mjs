@@ -39,14 +39,23 @@ export function createContextUsageAdapter(signal, codex, onChange, loadFamily = 
   async function discover() {
     if (loadFamily) return loadFamily();
     const urls=[...document.querySelectorAll('link[rel=modulepreload],script[src]')].map(node=>node.href || node.src);
-    const initial=urls.find(url=>/\/app-initial-[^/]+\.js(?:$|\?)/.test(url));
-    const shared=urls.find(url=>/\/app-shared-[^/]+\.js(?:$|\?)/.test(url));
-    if (!initial && !shared) throw new Error("context-bundle-unavailable");
-    // 当前 Codex 将上下文接口放在 app-initial，按实际导出识别。
-    for (const url of [initial,shared].filter(Boolean)) {
+    const matching = pattern => urls.filter(url=>pattern.test(url));
+    const queue=[...matching(/\/app-initial-[^/]+\.js(?:$|\?)/),
+      ...matching(/\/app-shared-[^/]+\.js(?:$|\?)/),
+      ...matching(/\/(?:app-main|index)-[^/]+\.js(?:$|\?)/)];
+    if (!queue.length) throw new Error("context-bundle-unavailable");
+    const visited=new Set();
+    while (queue.length) {
+      const url=queue.shift();
+      if (visited.has(url)) continue;
+      visited.add(url);
       const source=await (await fetch(url,{signal})).text();
       const exported=contextUsageExport(source);
       if (exported) return (await import(url))[exported];
+      // modulepreload 只是优化提示；沿真实入口引用发现不再预加载的原生状态模块。
+      const references=[...source.matchAll(/["'`](\.\/app-(?:initial|main|shared)-[^/"'`]+\.js)["'`]/g)]
+        .map(match=>new URL(match[1],url).href);
+      queue.push(...references);
     }
     throw new Error("context-export-unavailable");
   }
