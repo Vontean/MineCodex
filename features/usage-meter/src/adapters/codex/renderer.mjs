@@ -31,11 +31,16 @@ function nativeContext(rail) {
 }
 function currentWindows(context) {
   const { auth, client } = context;
-  if (auth?.isLoading || !auth?.userId || !auth?.accountId || !["chatgpt", "chatgptAuthTokens"].includes(auth.authMethod)) return null;
-  const data = client?.getQueryData(["rate-limit-status"]);
-  // 账号与缓存必须同时一致；旧账号的最后一次响应不能留在导航栏。
-  if (!data || data.user_id !== auth.userId || data.account_id !== auth.accountId) return null;
-  return remainingWindows(data, client.getQueryState?.(["rate-limit-status"])?.dataUpdatedAt);
+  if (auth?.isLoading || !auth?.userId || !auth?.accountId || !["chatgpt", "chatgptAuthTokens"].includes(auth.authMethod)) return {windows:null,reason:"account-unavailable"};
+  // 只依赖查询族；Codex 可在键尾增加身份或宿主范围。响应身份才是归属依据。
+  const queries = client?.getQueryCache().findAll({queryKey:["rate-limit-status"]}) ?? [];
+  const current = queries.filter(query => query.state.data?.user_id === auth.userId
+    && query.state.data?.account_id === auth.accountId)
+    .sort((a,b) => (b.state.dataUpdatedAt ?? 0) - (a.state.dataUpdatedAt ?? 0))[0];
+  if (!current) return {windows:null,reason:queries.some(query => query.state.data)
+    ? "current-account-quota-unavailable" : "quota-cache-pending"};
+  const windows=remainingWindows(current.state.data,current.state.dataUpdatedAt);
+  return {windows,reason:windows ? null : "quota-window-contract-unavailable"};
 }
 function findAvatar(rail) {
   const buttons = [...(rail?.querySelectorAll("button") ?? [])];
@@ -65,10 +70,12 @@ function avatarAnchor(avatar, rail) {
       unsubscribe?.(); client=context.client;
       unsubscribe=client?.getQueryCache().subscribe(event=>{ if (event.query?.queryKey?.[0] === "rate-limit-status") invalidate(); });
     }
-    const windows=currentWindows(context), avatar=findAvatar(rail), usage=findUsage(rail);
+    const {windows,reason:quotaReason}=currentWindows(context), avatar=findAvatar(rail), usage=findUsage(rail);
     const available=Boolean((usage || avatar) && context.router && windows);
-    codex.report("usage-meter",available,available ? null : "account-quota-or-anchor-unavailable");
-    return { rail,avatar,usage,windows,available,anchorAvailable:Boolean((usage || avatar) && context.router),
+    const reason=available ? null : !rail ? "rail-unavailable" : !(usage || avatar)
+      ? "usage-anchor-unavailable" : !context.router ? "usage-navigation-unavailable" : quotaReason;
+    codex.report("usage-meter",available,reason);
+    return { rail,avatar,usage,windows,available,reason,anchorAvailable:Boolean((usage || avatar) && context.router),
       applicable:context.auth?.isLoading ? null : context.auth ? ["chatgpt","chatgptAuthTokens"].includes(context.auth.authMethod) : null };
   }
   function open(rail) { const {router}=nativeContext(rail); return router?.navigate("/settings/usage?tab=overview",{state:router.state?.location?.state}); }

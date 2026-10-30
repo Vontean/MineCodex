@@ -200,7 +200,7 @@ sync();
 config.registerSelfCheck?.(() => {
   const snapshot=nativeUsage.read();
   const available=Boolean(snapshot.available && record?.button.isConnected);
-  return {state:available ? "available" : snapshot.applicable === false ? "not-applicable" : !snapshot.anchorAvailable && snapshot.rail ? "unavailable" : "unknown",reason:available ? null : "quota-data-or-anchor-unavailable",
+  return {state:available ? "available" : snapshot.applicable === false ? "not-applicable" : ((!snapshot.anchorAvailable && snapshot.rail) || snapshot.reason === "quota-window-contract-unavailable") ? "unavailable" : "unknown",reason:available ? null : snapshot.reason ?? "usage-meter-mount-unavailable",
     checks:[{name:"usage-anchor",available:Boolean(snapshot.usage || snapshot.avatar)},{name:"account-quota",available:Boolean(snapshot.windows)},{name:"usage-meter-mount",available:Boolean(record?.button.isConnected)}],
     scopes:[{name:"account",element:snapshot.usage || snapshot.avatar}]};
 });

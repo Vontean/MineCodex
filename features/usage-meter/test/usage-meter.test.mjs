@@ -8,7 +8,7 @@ import { createCodexEnvironment } from "../../../packages/codex-adapter/src/rend
 const avatar={getAttribute:()=>"Open account menu"};
 const readContext=context=>createUsageAdapter(new AbortController().signal,{rail:()=>({querySelectorAll:()=>[avatar]}),props:(_node,predicate)=>predicate(context),report(){}},()=>{}).read();
 const auth={authMethod:"chatgpt",userId:"user-a",accountId:"account-a"};
-const quotaClient=getQueryData=>({getQueryData,getQueryCache:()=>({subscribe:()=>()=>{}})});
+const quotaClient=getQueryData=>({getQueryData,getQueryCache(){return {subscribe:()=>()=>{},findAll:()=>[{state:{data:this.getQueryData(["rate-limit-status"]),dataUpdatedAt:this.getQueryState?.(["rate-limit-status"])?.dataUpdatedAt}}]};}});
 const remainingWindows=data=>readContext({auth,client:quotaClient(()=>data),router:{navigate(){}}}).windows;
 const currentWindows=context=>readContext({...context,client:context.client && {...quotaClient(()=>null),...context.client}}).windows;
 const findAvatar=rail=>createUsageAdapter(new AbortController().signal,{rail:()=>rail,props:()=>null,report(){}},()=>{}).read().avatar;
@@ -230,4 +230,42 @@ test("native Usage discovery excludes our replacement and follows the track toke
     rail: () => ({querySelectorAll: () => [own, native, avatar]}), props: () => null, report() {},
   }, () => {}).read();
   assert.equal(result.usage, native);
+});
+
+// 与真实 QueryCache 一样，精确 getQueryData 不匹配带身份后缀的键。
+test("quota discovery follows scoped cache keys and excludes other identities", () => {
+  const queries = [
+    {queryKey:["rate-limit-status", "user-a", "account-a"], state:{data:data(bucket(25,604800)),dataUpdatedAt:1000}},
+    {queryKey:["rate-limit-status", "user-b", "account-b"], state:{data:{...data(bucket(90,604800)),user_id:"user-b",account_id:"account-b"},dataUpdatedAt:9000}},
+    {queryKey:["rate-limit-status", "user-a", "account-a", "future-scope"], state:{data:undefined,dataUpdatedAt:0}},
+  ];
+  const client={getQueryData:()=>undefined,getQueryCache:()=>({subscribe:()=>()=>{},findAll:({queryKey})=>queries.filter(q=>q.queryKey[0]===queryKey[0])})};
+  const read=()=>readContext({auth,client,router:{navigate(){}}});
+  assert.equal(read().available,true);
+  assert.equal(read().windows.primary,75);
+  queries.push({queryKey:["rate-limit-status","user-a","account-a","new-scope"],state:{data:data(bucket(40,604800)),dataUpdatedAt:2000}});
+  assert.equal(read().windows.primary,60);
+  queries.splice(0,queries.length,...queries.filter(q=>q.state.data?.user_id!==auth.userId));
+  assert.equal(read().windows,null);
+});
+
+test("scoped quota updates invalidate and abort releases the cache subscription", () => {
+  let listener,invalidations=0,released=0;
+  const controller=new AbortController();
+  const client={getQueryData(){},getQueryCache:()=>({findAll:()=>[],subscribe:callback=>{listener=callback;return ()=>released++;}})};
+  const adapter=createUsageAdapter(controller.signal,{rail:()=>({querySelectorAll:()=>[avatar]}),props:(_node,predicate)=>predicate({auth,client,router:{navigate(){}}}),report(){}},()=>invalidations++);
+  adapter.read();adapter.read();
+  listener({query:{queryKey:["other-query"]}});
+  listener({query:{queryKey:["rate-limit-status","user-a","account-a","scope"]}});
+  assert.equal(invalidations,1);
+  controller.abort();
+  assert.equal(released,1);
+});
+
+test("diagnostics distinguish pending quota from an incompatible window contract", () => {
+  const read=value=>readContext({auth,client:quotaClient(()=>value),router:{navigate(){}}});
+  assert.equal(read(undefined).reason,"quota-cache-pending");
+  assert.equal(read({...data(bucket(25,604800)),account_id:"other"}).reason,"current-account-quota-unavailable");
+  assert.equal(read(data(bucket(25,300))).reason,"quota-window-contract-unavailable");
+  assert.equal(read(data(bucket(25,604800))).reason,null);
 });

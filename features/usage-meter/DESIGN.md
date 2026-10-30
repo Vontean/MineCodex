@@ -10,10 +10,18 @@
 
 ## 数据契约
 
-已在 2026-09-29 的运行中 Codex 确认：原生 QueryClient 的成功额度数据缓存键为
-`["rate-limit-status"]`，由 Codex 自行更新。
-插件只订阅该缓存，校验响应的 user_id/account_id 与当前原生 auth 一致，不自行请求
-接口，不持久化账号或额度数据。切换账号、退出登录、额度数据缺失时隐藏旧值。
+原生 QueryClient 的额度查询族前缀为 `["rate-limit-status"]`，由 Codex 自行更新。
+Codex `26.1027.30824`（macOS build `22943`）的实际 Renderer 已确认查询键为
+`["rate-limit-status", userId, accountId]`；旧版使用无后缀键。精确读取旧键会漏掉新版缓存。
+Adapter 按查询族发现候选，校验响应的 user_id/account_id 与当前原生 auth 一致，
+在匹配身份的已有数据中选择 dataUpdatedAt 最新的一项；不依赖后缀数量、位置或内容，
+不把其他账号或尚无数据的候选作为当前额度。订阅同一查询族的变化，不自行请求接口，
+不持久化账号或额度数据。切换账号、退出登录、额度数据缺失时隐藏旧值。
+自检分别记录缓存待加载、当前身份无匹配额度、窗口数据契约不可用与锚点/导航不可用，
+避免把所有失效原因归为“额度或锚点缺失”。
+
+该构建已完成只读故障复现及独立 profile 的完整注入检查：MCX 控件挂载、原生入口隐藏、
+原生额度与主题 token 可用；电脑控制工具拒绝访问 Codex App，未完成可见 GUI 与鼠标验收。
 
 窗口按 `limit_window_seconds` 识别：604800 为周、18000 为五小时；不依赖
 primary/secondary 顺序或套餐字符串。剩余百分比为 clamp(100-used_percent,0,100)，
