@@ -10,9 +10,13 @@ style.textContent = `
   [data-mcx-quick-chat-history]>svg,[data-mcx-quick-chat-close]>svg{width:16px;height:16px}
   [data-mcx-quick-chat-close]{margin-inline-end:0}
   [data-mcx-quick-chat-minimize]{border-radius:calc(infinity * 1px)}
-  /* 单行输入沿用控件中线，消除原生编辑区换行布局留下的底部间距。 */
-  [data-mcx-quick-chat-compact] [data-composer-input]:has(>[data-composer-input-layout="single-line"]){margin-block:0;align-self:center}
-  [data-mcx-quick-chat-compact] [data-composer-input-layout="single-line"]{margin-block:0;align-self:center}
+  /* footer 底部对齐；编辑器与按钮共用高度，避免文字中线偏高。 */
+  [data-mcx-quick-chat] [data-composer-input][data-composer-layout="single-line"]:has(>[data-composer-input-layout="single-line"]){--composer-editor-single-line-height:var(--spacing-token-button-composer,calc(var(--spacing,4px)*9));margin-block:0}
+  /* 保留原生横条总高度，移除不对称留白，让整组内容在 wrapper 内居中。 */
+  [data-mcx-quick-chat] [data-composer-rows="inline"][data-composer-layout="single-line"]:not([data-dictation-view]):has([data-composer-input-layout="single-line"]){height:auto;min-block-size:calc(var(--composer-editor-single-line-height,calc(var(--spacing,4px)*9)) + var(--padding-composer-single-line-footer-block,0px) + var(--spacing-composer-footer-bottom,0px));padding-block:0;margin-block:0;align-items:center}
+  @media (width>=40rem){
+    [data-mcx-quick-chat] [data-composer-rows="responsive"][data-composer-layout="single-line"]:not([data-dictation-view]):has([data-composer-input-layout="single-line"]){height:auto;min-block-size:calc(var(--composer-editor-single-line-height,calc(var(--spacing,4px)*9)) + var(--padding-composer-single-line-footer-block,0px) + var(--spacing-composer-footer-bottom,0px));padding-block:0;margin-block:0;align-items:center}
+  }
   [data-mcx-quick-chat-project-rail]{display:none!important}
   /* 隐藏唯一的项目栏时，一并收起原生 rail 的圆角留白与负 margin。 */
   [data-composer-rail]:has(>[data-mcx-quick-chat-project-rail]):not(:has(>:not([data-mcx-quick-chat-project-rail]):not(:empty))){display:none!important}
@@ -25,7 +29,7 @@ function releaseBackground(instance) {
   instance.background = null;
 }
 function releaseProjectRail(instance) { instance.projectRail?.removeAttribute('data-mcx-quick-chat-project-rail'); instance.projectRail = null; }
-function remove(instance) { instance.surface?.removeAttribute('data-mcx-quick-chat-compact'); releaseBackground(instance); releaseProjectRail(instance); instance.minimize?.removeAttribute('data-mcx-quick-chat-minimize'); instance.unsubscribe(); instance.button?.remove(); instance.tracker.clear(); instance.historyTracker.clear(); }
+function remove(instance) { instance.surface?.removeAttribute('data-mcx-quick-chat'); releaseBackground(instance); releaseProjectRail(instance); instance.minimize?.removeAttribute('data-mcx-quick-chat-minimize'); instance.unsubscribe(); instance.button?.remove(); instance.tracker.clear(); instance.historyTracker.clear(); }
 function sync() {
   if (disposed) return;
   shortcut.sync();
@@ -43,7 +47,7 @@ function sync() {
     }
     if (selected || instance.tracker.accepted(snapshot)) snapshot.expand();
     instance.historyTracker.open(snapshot);
-    snapshot.surface.toggleAttribute('data-mcx-quick-chat-compact', !snapshot.expanded);
+    snapshot.surface.setAttribute('data-mcx-quick-chat', '');
     if (instance.projectRail !== snapshot.projectRail) {
       releaseProjectRail(instance);
       instance.projectRail = snapshot.projectRail;
