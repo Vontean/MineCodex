@@ -905,7 +905,7 @@ test("emits a fail-closed native Composer model selector Adapter", () => {
   assert.match(source, /const canUpgradeFallback = Boolean/);
   assert.match(source, /if \(efforts\.length < 2\) \{\s*panel\.append\(viewControls\);\s*return shell;/);
   assert.doesNotMatch(source, /if \(!model \|\| efforts\.length < 2\) return false/);
-  assert.match(source, /observer\.observe\(trigger, \{ childList: true, subtree: true, characterData: true \}\)/);
+  assert.match(source, /observer\.observe\(trigger, \{ childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: \["data-state"\] \}\)/);
   assert.match(
     source,
     /modelSelectorPendingReturn[\s\S]*?nativeModelPickerSubmenus\(\)\.length === 0[\s\S]*?clearTimeout\(modelSelectorReturnTimer\)[\s\S]*?returnToNativeModelSlider\(\)/,
@@ -1290,18 +1290,17 @@ test("distinguishes placeholder from real model label, hugging real names", () =
   assert.ok(source.includes("select\\s+(model|effort)"));
   assert.match(
     source,
-    /placeholder\.firstChild\.nodeValue = locale === "zh-CN" \? "选择模型" : "Select model"/,
+    /placeholderNode\.nodeValue = locale === "zh-CN" \? "选择模型" : "Select model"/,
   );
-  assert.match(source, /placeholder\.firstChild\.nodeValue = record\.placeholderText/);
+  assert.match(source, /placeholderNode\.nodeValue = record\.placeholderText/);
   // 原生 _ModelPickerTriggerPlaceholder_ 由 React 持有：必须原地更新同一个文本
-  // 节点（firstChild.nodeValue），绝不能 textContent 替换整个节点，否则 React
+  // 节点（nodeValue，允许嵌套 span），绝不能 textContent 替换整个节点，否则 React
   // 卸载菜单时 removeChild 找不到旧文本节点会触发错误边界。
   assert.doesNotMatch(source, /placeholder\.textContent\s*=/);
   assert.match(source, /data-codex-model-slider-trigger-placeholder/);
   assert.match(source, /function restoreTriggerLabelWithoutNative\(trigger, selector\)/);
-  // 原生开合钉定与弹层居中都依赖 Measurement 探针，MCX 标签必须同步探针文本。
-  assert.match(source, /_ModelPickerTriggerMeasurement_/);
-  assert.match(source, /firstVisibleTextNode\(measurement\)/);
+  // Measurement 属于原生占位文案，不能再被 MCX 模型名覆盖。
+  assert.doesNotMatch(source, /measurementText\.nodeValue\s*=/);
   assert.doesNotMatch(source, /measurement\.textContent\s*=/);
   // 0.152.1 的 _ModelPickerTriggerModelLabel_ 是名称行容器而非名称本身，
   // 绝不能对它做隐藏或标签匹配，否则整行名称连 MCX 标签一起消失。
