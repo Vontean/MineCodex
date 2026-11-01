@@ -18,6 +18,7 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
   const modelSelectorNativeToggleHandlers = new Map();
   const modelSelectorPositionObservers = new Map();
   const modelSelectorMenuSizeFrames = new Map();
+  const modelSelectorOpeningFrames = new Map();
   let modelSelectorReturnTimer = null;
   let modelSelectorPendingReturn = false;
   let modelSelectorEffortTransactionTimer = null;
@@ -91,6 +92,16 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
     [data-codex-model-slider-trigger][data-codex-model-slider-trigger-placeholder] [class*="_ModelPickerTriggerContent_"] {
       width: 160px; min-width: 160px !important; max-width: 160px;
     }
+    /* 打开时先完成占位态，避免原生 crossfade 的宽度动画带动弹层。 */
+    [data-codex-model-slider-trigger][data-state="open"][data-codex-model-slider-trigger-placeholder] [class*="_ModelPickerTriggerContent_"] > span:has(> span > [class*="_ModelPickerTriggerPlaceholder_"]) {
+      width: 160px !important;
+    }
+    [data-codex-model-slider-trigger][data-state="open"][data-codex-model-slider-trigger-placeholder] span:has(> [class*="_ModelPickerTriggerPlaceholder_"]) {
+      opacity: 1 !important;
+    }
+    [data-codex-model-slider-trigger][data-state="open"][data-codex-model-slider-trigger-placeholder] [class*="_ModelPickerTriggerLabel_"] {
+      visibility: hidden;
+    }
     [data-codex-model-slider-trigger] [class*="_ModelPickerTriggerEffortLabel_"] {
       display: inline-flex; align-items: center; align-self: center;
     }
@@ -126,6 +137,11 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
     [data-codex-model-slider-generic-menu] {
       overflow-x: hidden;
       transform: translateX(var(--codex-model-slider-menu-center-shift, 0px)) !important;
+      /* 居中修正不能继承原生 transform 过渡，否则定位本身会播放位移。 */
+      transition-property: opacity, filter !important;
+    }
+    html[data-codex-model-slider-catalog-ready] [role="menu"][data-state="open"]:has([data-reasoning-slider]):not([data-codex-model-slider-opening-ready]) {
+      visibility: hidden !important;
     }
     [data-codex-model-slider-generic] { box-sizing: border-box; width: 100%; }
     [data-codex-model-slider-fast] { border: 0; background: transparent; cursor: pointer; }
@@ -991,11 +1007,13 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
     const original = modelSelectorGenericContainers.get(container);
     if (!original) return;
     original.effectMirror?.disconnect();
+    original.positionObserver?.disconnect();
     if (container.isConnected) {
       const menu = container.parentElement;
       menu?.querySelector(":scope > [data-codex-model-slider-generic]")?.remove();
       menu?.removeAttribute("data-codex-model-slider-generic-menu");
       menu?.style.removeProperty("--codex-model-slider-menu-center-shift");
+      menu?.removeAttribute("data-codex-model-slider-opening-ready");
       container.style.position = original.position;
       container.style.inset = original.inset;
       container.style.opacity = original.opacity;
@@ -1095,11 +1113,10 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
     if (!record) return false;
     if (record.closing && !immediate) return true;
     record.reveal?.cancel();
-    const placeholder = document.querySelector(
-      '[data-codex-intelligence-trigger] [class*="_ModelPickerTriggerPlaceholder_"]',
-    );
-    if (placeholder?.firstChild && record.placeholderText != null) {
-      placeholder.firstChild.nodeValue = record.placeholderText;
+    const placeholder = record.trigger?.querySelector('[class*="_ModelPickerTriggerPlaceholder_"]');
+    const placeholderNode = placeholder && firstVisibleTextNode(placeholder);
+    if (placeholderNode && record.placeholderText != null) {
+      placeholderNode.nodeValue = record.placeholderText;
     }
     record.button.setAttribute("aria-expanded", "false");
     record.closing = true;
@@ -1279,15 +1296,15 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
     });
     renderEnhancedModelMenu(menu, selector);
 
-    const placeholder = document.querySelector(
-      '[data-codex-intelligence-trigger] [class*="_ModelPickerTriggerPlaceholder_"]',
-    );
-    const placeholderText = placeholder?.firstChild?.nodeValue ?? null;
+    const trigger = nativeComposerTrigger();
+    const placeholder = trigger?.querySelector('[class*="_ModelPickerTriggerPlaceholder_"]');
+    const placeholderNode = placeholder && firstVisibleTextNode(placeholder);
+    const placeholderText = placeholderNode?.nodeValue ?? null;
     // 保留产品行为：模型列表打开时 chip 显示 Select model。只能原地更新
     // 同一个文本节点（nodeValue），不能 textContent 替换整个节点，否则
     // React 卸载菜单时 removeChild 找不到旧文本节点会触发错误边界。
-    if (placeholder?.firstChild) {
-      placeholder.firstChild.nodeValue = locale === "zh-CN" ? "选择模型" : "Select model";
+    if (placeholderNode) {
+      placeholderNode.nodeValue = locale === "zh-CN" ? "选择模型" : "Select model";
     }
 
     modelSelectorControllerMenu = {
@@ -1295,6 +1312,7 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
       content,
       parentMenu,
       button: modelButton,
+      trigger,
       placeholderText,
       position: parentMenu.style.position,
       overflow: parentMenu.style.overflow,
@@ -2000,9 +2018,40 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
     const previousShift = Number.parseFloat(
       parentMenu.style.getPropertyValue("--codex-model-slider-menu-center-shift"),
     ) || 0;
-    const unshiftedCenter = menuRect.left + (menuRect.width / 2) - previousShift;
-    const nextShift = triggerRect.left + (triggerRect.width / 2) - unshiftedCenter;
+    const zoom = parentMenu.currentCSSZoom || 1;
+    const unshiftedCenter = menuRect.left + (menuRect.width / 2) - previousShift * zoom;
+    const nextShift = (triggerRect.left + (triggerRect.width / 2) - unshiftedCenter) / zoom;
     parentMenu.style.setProperty("--codex-model-slider-menu-center-shift", `${nextShift}px`);
+  }
+
+  function revealCenteredModelPicker(parentMenu) {
+    if (parentMenu.hasAttribute("data-codex-model-slider-opening-ready")) {
+      centerGenericModelPicker(parentMenu);
+      return;
+    }
+    parentMenu.style.visibility = "hidden";
+    if (modelSelectorOpeningFrames.has(parentMenu)) return;
+    let previous = null;
+    const position = () => {
+      modelSelectorOpeningFrames.delete(parentMenu);
+      const trigger = nativeComposerTrigger();
+      if (!parentMenu.isConnected || !trigger || signal.aborted) return;
+      centerGenericModelPicker(parentMenu);
+      const menuRect = parentMenu.getBoundingClientRect();
+      const triggerRect = trigger.getBoundingClientRect();
+      const geometry = [menuRect.left, menuRect.width, triggerRect.left, triggerRect.width];
+      // 等原生 Popper 跟上入口宽度；首次可见的位置必须已经稳定且居中。
+      if (menuRect.width > 0 && triggerRect.width > 0
+        && Math.abs(menuRect.left + menuRect.width / 2 - triggerRect.left - triggerRect.width / 2) < 1
+        && previous && geometry.every((value, index) => Math.abs(value - previous[index]) < 0.5)) {
+        parentMenu.setAttribute("data-codex-model-slider-opening-ready", "");
+        parentMenu.style.removeProperty("visibility");
+        return;
+      }
+      previous = geometry;
+      modelSelectorOpeningFrames.set(parentMenu, requestAnimationFrame(position));
+    };
+    modelSelectorOpeningFrames.set(parentMenu, requestAnimationFrame(position));
   }
 
   // ========================================================================
@@ -2053,13 +2102,12 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
       return true;
     }
     parentMenu.removeAttribute("data-codex-model-slider-template-wait");
-    parentMenu.style.removeProperty("visibility");
     const canUpgradeFallback = Boolean(
       existing?.querySelector("[data-codex-model-slider-fallback]") && nativeTemplateReady,
     );
     if (existing?.getAttribute("data-codex-model-slider-structure-key") === structureKey
       && existing.hasAttribute("data-codex-model-slider-fast-transitioning") && !canUpgradeFallback) {
-      centerGenericModelPicker(parentMenu);
+      revealCenteredModelPicker(parentMenu);
       return true;
     }
     const currentFast = existing?.querySelector("[data-codex-model-slider-rail]")?.getAttribute("data-fast-mode");
@@ -2068,11 +2116,11 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
     if (existing?.getAttribute("data-codex-model-slider-structure-key") === structureKey
       && currentFast != null && currentFast === nativeFast && !canUpgradeFallback) {
       existing.setAttribute("data-codex-model-slider-generic", key);
-      centerGenericModelPicker(parentMenu);
+      revealCenteredModelPicker(parentMenu);
       return true;
     }
     if (existing?.getAttribute("data-codex-model-slider-generic") === key && !canUpgradeFallback) {
-      centerGenericModelPicker(parentMenu);
+      revealCenteredModelPicker(parentMenu);
       return true;
     }
     const nativeContainer = parentMenu.firstElementChild;
@@ -2090,7 +2138,13 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
     }
     modelSelectorGenericContainers.get(nativeContainer)?.effectMirror?.disconnect();
     if (!modelSelectorGenericContainers.has(nativeContainer)) {
+      // Popper 会在后续帧改写 wrapper；同一轮微任务内重新居中，避免露出一帧旧位置。
+      const positionObserver = new MutationObserver(() => centerGenericModelPicker(parentMenu));
+      if (parentMenu.parentElement?.hasAttribute("data-radix-popper-content-wrapper")) {
+        positionObserver.observe(parentMenu.parentElement, { attributes: true, attributeFilter: ["style"] });
+      }
       modelSelectorGenericContainers.set(nativeContainer, {
+        positionObserver,
         position: nativeContainer.style.position,
         inset: nativeContainer.style.inset,
         opacity: nativeContainer.style.opacity,
@@ -2110,12 +2164,14 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
     shell.setAttribute("data-codex-model-slider-structure-key", structureKey);
     replaceModelSliderShell(parentMenu, existing, shell);
     modelSelectorGenericContainers.get(nativeContainer).effectMirror = syncClonedPowerEffects(nativeContainer, shell);
-    centerGenericModelPicker(parentMenu);
+    revealCenteredModelPicker(parentMenu);
     return true;
   }
 
   function enhanceNativeModelPicker(parentMenu, selector) {
     if (enhanceGenericModelPicker(parentMenu, selector)) return;
+    parentMenu.setAttribute("data-codex-model-slider-opening-ready", "");
+    parentMenu.style.removeProperty("visibility");
     const toggle = parentMenu.querySelector("[data-model-picker-view-toggle]");
     if (toggle && typeof nativeComposerModelController()?.onSelectModel === "function") {
       // 私有 DOM 无法满足 MCX shell 契约时，保留原生菜单作为降级路径。
@@ -2171,9 +2227,19 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
 
   function enhanceComposerModelTrigger(trigger, selector) {
     if (!modelSelectorTriggerObservers.has(trigger)) {
-      const observer = new MutationObserver(queueEnsure);
-      observer.observe(trigger, { childList: true, subtree: true, characterData: true });
+      const observer = new MutationObserver(() => {
+        enhanceComposerModelTrigger(trigger, selector);
+        queueEnsure();
+      });
+      observer.observe(trigger, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ["data-state"] });
       modelSelectorTriggerObservers.set(trigger, observer);
+    }
+    const openPlaceholder = trigger.getAttribute("data-state") === "open"
+      && trigger.querySelector('[class*="_ModelPickerTriggerPlaceholder_"]');
+    if (openPlaceholder && modelSelectorControllerMenu?.trigger === trigger && !modelSelectorControllerMenu.closing) {
+      const textNode = firstVisibleTextNode(openPlaceholder);
+      const label = locale === "zh-CN" ? "选择模型" : "Select model";
+      if (textNode && textNode.nodeValue !== label) textNode.nodeValue = label;
     }
     const nativeLabels = Array.from(trigger.querySelectorAll(
       '[class*="_ModelPickerTriggerModelText_"]:not([data-codex-model-slider-trigger-label])',
@@ -2182,7 +2248,7 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
       trigger.setAttribute("data-codex-model-slider-trigger", "");
       trigger.toggleAttribute(
         "data-codex-model-slider-trigger-placeholder",
-        isComposerModelPlaceholder(trigger.innerText),
+        isComposerModelPlaceholder(openPlaceholder?.textContent || trigger.innerText),
       );
       restoreTriggerLabelWithoutNative(trigger, selector);
       return;
@@ -2199,7 +2265,7 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
     trigger.setAttribute("data-codex-model-slider-trigger-raw", raw);
     // 区分占位态（Select model / Select effort）与真实模型态：占位态沿用
     // 原生宽度契约，真实模型态让芯片 HUG 完整名称，避免第三方长名被截断。
-    const placeholder = isComposerModelPlaceholder(label);
+    const placeholder = isComposerModelPlaceholder(openPlaceholder?.textContent || label);
     trigger.toggleAttribute("data-codex-model-slider-trigger-placeholder", placeholder);
     for (const nativeLabel of nativeLabels) {
       let displayLabel = nativeLabel.nextElementSibling;
@@ -2216,12 +2282,7 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
       }
       if (displayLabel.textContent !== label) displayLabel.textContent = label;
     }
-    // 原生开合的临时 min-width 钉定与弹层水平居中都基于对 Measurement
-    // 探针的测量；把探针文本同步为 MCX 显示标签，原生机制即可测得
-    // 真实显示宽度。保留 React 持有的子节点，避免切模型时卸载失败。
-    const measurement = trigger.querySelector('[class*="_ModelPickerTriggerMeasurement_"]');
-    const measurementText = measurement && firstVisibleTextNode(measurement);
-    if (measurementText && measurementText.nodeValue !== label) measurementText.nodeValue = label;
+    // Measurement 属于原生 openLabel，占位宽度不能用真实模型名覆盖。
   }
 
   function ensureModelSelector() {
@@ -2284,6 +2345,11 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
     modelSelectorPositionObservers.clear();
     for (const frame of modelSelectorMenuSizeFrames.values()) cancelAnimationFrame(frame);
     modelSelectorMenuSizeFrames.clear();
+    for (const [menu, frame] of modelSelectorOpeningFrames) {
+      cancelAnimationFrame(frame);
+      menu.style.removeProperty("visibility");
+    }
+    modelSelectorOpeningFrames.clear();
     modelSelectorReturnTimer = null;
     modelSelectorEffortTransactionTimer = null;
     modelSelectorPendingOutsideDismiss = false;
@@ -2318,6 +2384,8 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
     document.querySelectorAll("[data-codex-model-slider-generic]").forEach((element) => element.remove());
     document.querySelectorAll("[data-codex-model-slider-generic-menu]")
       .forEach((element) => element.removeAttribute("data-codex-model-slider-generic-menu"));
+    document.querySelectorAll("[data-codex-model-slider-opening-ready]")
+      .forEach((element) => element.removeAttribute("data-codex-model-slider-opening-ready"));
     document.querySelectorAll("[data-codex-model-slider-menu]")
       .forEach((element) => element.removeAttribute("data-codex-model-slider-menu"));
     document.querySelectorAll("[data-codex-model-slider-trigger]").forEach((element) => {
