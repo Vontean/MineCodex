@@ -52,4 +52,6 @@ Fast 图标 localStorage 仍只属于可再生成缓存，不进入迁移包。
 
 - Codex 26.1007.21159 原生模型弹层带 CSS `zoom` 与开场 `scale`。模型列表打开、返回、搜索的高度动画使用 computed CSS height；可用屏幕高度先除以 `currentCSSZoom` 转换为布局尺寸，避免动画起点和终点重复缩放。
 
+- Codex 26.1029.7803.0 改用 rspack 打包，模型按钮不再带 `data-codex-intelligence-trigger`，改由 `data-composer-navigation-target="reasoning"` 标记；原生 CSS 模块类名也从下划线包裹的哈希形式改为 `Name-hash`。适配器保留旧属性为首选，缺少时回退到 composer 导航锚点；类名匹配同时接受两种格式，隐藏模型名、Fast 图标与滑条克隆都依赖这套匹配。
+
 键盘调整思考强度后，面板按实际控制器状态重建，并将原滑条焦点延续到新滑条；只在更新前焦点确在滑条上且菜单仍挂载时恢复。模型按钮、搜索框、已关闭菜单与其他输入框不会被抢焦点。此修复不调用模型选择或服务档位动作，Fast 保持原生当前状态。

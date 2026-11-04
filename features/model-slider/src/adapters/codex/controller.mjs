@@ -2,7 +2,12 @@ import { findCodexModule } from '../../../../../packages/codex-adapter/src/rende
 export function createModelControllerAdapter(codex,comparableModelLabel) {
 function controllerView(props) {const view=Object.fromEntries(["models","model","reasoningEffort","powerSelections","selectedPowerSelection","fallbackPowerSelection","serviceTierOptions","selectedServiceTier","onSelectModel","onSelectReasoningEffort","onSelectPower","onCommitPower","onSelectServiceTier"].map(key=>[key,props[key]]));codex.report('model-controller',true);return view;}
 function nativeComposerTriggers() {
-    return Array.from(document.querySelectorAll("[data-codex-intelligence-trigger]"))
+    const native = Array.from(document.querySelectorAll("[data-codex-intelligence-trigger]"));
+    // 26.1029 起模型按钮改用 composer 导航锚点，旧属性不再渲染。
+    const triggers = native.length
+      ? native
+      : Array.from(document.querySelectorAll('[data-composer-navigation-target="reasoning"]'));
+    return triggers
       .filter((trigger) => trigger.checkVisibility({ checkVisibilityCSS: true, checkOpacity: true }));
   }
 function nativeComposerTrigger() {

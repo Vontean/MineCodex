@@ -206,6 +206,10 @@ async function executeModelSliderInjection({
     appendChild(child) { this.append(child); return child; }
     matches(selector) {
       if (selector === this.tagName.toLowerCase()) return true;
+      const alternatives = selector.match(/^:is\((.+)\)$/);
+      if (alternatives) {
+        return alternatives[1].split(/,\s*/).some((part) => this.matches(part));
+      }
       const classContains = selector.match(/^\[class\*="([^"]+)"\]$/);
       if (classContains) return String(this.className ?? this.getAttribute("class") ?? "").includes(classContains[1]);
       if (selector === '[style*="--thread-wide-block-inline-shift"]') {
@@ -816,6 +820,8 @@ test("emits a fail-closed native Composer model selector Adapter", () => {
   }]);
 
   assert.match(source, /data-codex-intelligence-trigger/);
+  // 26.1029 起原生模型按钮改用 composer 导航锚点，旧属性作为首选回退。
+  assert.match(source, /data-composer-navigation-target="reasoning"/);
   assert.match(source, /data-model-picker-view-toggle/);
   assert.match(source, /function modelIdentity\(rawValue\)/);
   assert.match(source, /function modelDisplayLabel\(identity, selector\)/);
@@ -859,7 +865,7 @@ test("emits a fail-closed native Composer model selector Adapter", () => {
   assert.match(source, /entry\.classList\.toggle\(\"bg-primary-ghost-hover", selected\);/);
   assert.match(source, /element\.classList\.remove\(\"bg-primary-ghost-hover"\);/);
   assert.match(source, /classList\.toggle\(\"bg-primary-ghost-hover", Boolean\(selection\.hadPrimaryGhost\)\);/);
-  assert.match(source, /const nativeContent = Array\.from\(document\.querySelectorAll\('\[class\*="_FastModeToggleContent_"\]'\)\)/);
+  assert.match(source, /const nativeContent = Array\.from\(document\.querySelectorAll\(':is\(\[class\*="_FastModeToggleContent_"\], \[class\*="FastModeToggleContent-"\]\)'\)\)/);
   assert.match(source, /const state = toggle\?\.getAttribute\("data-fast-mode-enabled"\) === "true" \? "active" : "inactive"/);
   assert.match(source, /function loadNativeFastIconFromBundle\(\)/);
   assert.match(source, /modelSelectorFastIconStorageKey = "codex-model-slider:fast-icons:v1"/);
@@ -1243,7 +1249,7 @@ test("normalizes Composer trigger effort-label alignment under Model Slider", ()
   // 隐藏原生模型文本后，effort 标签仍需与 flex 居中的 chevron 垂直对齐。
   assert.match(
     source,
-    /data-codex-model-slider-trigger\] \[class\*="_ModelPickerTriggerEffortLabel_"\]\s*\{[\s\S]*?display: inline-flex; align-items: center; align-self: center;/,
+    /data-codex-model-slider-trigger\] \[class\*="ModelPickerTriggerEffortLabel"\]\s*\{[\s\S]*?display: inline-flex; align-items: center; align-self: center;/,
   );
 });
 
@@ -1281,11 +1287,11 @@ test("distinguishes placeholder from real model label, hugging real names", () =
   );
   assert.match(
     source,
-    /:not\(\[data-codex-model-slider-trigger-placeholder\]\) \[class\*="_ModelPickerTriggerModelLabel_"\] \{\s*max-width: none; overflow: visible; flex-shrink: 0;/,
+    /:not\(\[data-codex-model-slider-trigger-placeholder\]\) \[class\*="ModelPickerTriggerModelLabel"\] \{\s*max-width: none; overflow: visible; flex-shrink: 0;/,
   );
   assert.match(
     source,
-    /data-codex-model-slider-trigger-placeholder\] \[class\*="_ModelPickerTriggerContent_"\] \{\s*width: 160px; min-width: 160px !important; max-width: 160px;/,
+    /data-codex-model-slider-trigger-placeholder\] \[class\*="ModelPickerTriggerContent"\] \{\s*width: 160px; min-width: 160px !important; max-width: 160px;/,
   );
   assert.ok(source.includes("select\\s+(model|effort)"));
   assert.match(
