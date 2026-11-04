@@ -73,6 +73,18 @@ test("log context survives when the native context is unavailable", async () => 
   assert.deepEqual(merge(logged, { contextUsedTokens: 12, contextWindow: 100, contextPercent: 12 }),
     { ...logged, contextUsedTokens: 12, contextWindow: 100, contextPercent: 12 });
   assert.equal(merge(null, { contextPercent: 12 }), null);
+  const renderSource = source.slice(source.indexOf("function render("), source.indexOf("for (const button of buttons)", source.indexOf("function render(")));
+  const display = new Function('withNativeContext', 'logSnapshot', `
+    let snapshot, nativeContext;
+    const root = { hidden: true }, syncVisibility = () => {}, findComposer = () => null;
+    ${renderSource}
+    return native => { nativeContext = native; render(); return snapshot; };
+  `)(merge, logged);
+  assert.equal(display({ contextPercent: 50 }).contextPercent, 50);
+  assert.equal(display({ contextPercent: null }).contextPercent, 38);
+  assert.equal(logged.contextPercent, 38);
+  assert.match(source, /snapshot = withNativeContext\(logSnapshot, nativeContext\)/);
+  assert.match(source, /logSnapshot = value;\s*render\(\)/);
 });
 
 test("cache hit retains precision above 99 percent from raw token counts", async () => {
