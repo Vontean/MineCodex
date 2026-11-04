@@ -31,3 +31,9 @@ The renderer owns `data-mcx-sites` elements. Saved local sites join the native S
 弹窗与浮层统一调用 UI 组件库提供的 `config.ui`（由 Runtime Host 注入），共享主题材质、标题、Close 和表单操作区；插件只维护内容及交互。
 
 Iteration selection uses explicit numeric version directory names/suffixes (v/ver/version/rev/revision), then entry-file modification time for equal or unnumbered copies (final/latest/copy/backup/old). Titles alone never merge independent sites. This applies to discovered entries, not arbitrary HTML files. Semver release directories such as name-1.2.0 are also recognized. Demo/example/preview folders owned by a SKILL.md are treated as agent skill documentation; ordinary project documentation sites, demos and prototypes remain eligible. Saved entries keep their existing target; discovery filtering does not rewrite the library. Invalid history is pruned only when no current file entry or live service supports it.
+
+Codex `26.1029.61003`（macOS Plus）将 Sites 原生 ownership 导航改为 `owned / pinned`，
+不再保证存在 `shared`。Adapter 同时接受 `owned + shared` 与 `owned + pinned`，保留当前
+原生按钮及动作，只追加 Added by you；不能因缺少 shared 再创建第二个 Owned by you。
+独立 profile 已验证 Added by you 隐藏原生内容、Pinned 交还原生选择、离开页面清理及重入
+只保留一个增强导航。Space 分支与缺少原生 ownership 导航时的既有分支保持不变。

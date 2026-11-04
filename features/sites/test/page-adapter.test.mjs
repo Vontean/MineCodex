@@ -73,3 +73,17 @@ test('Plus recognizes the current Simplified Chinese create action without match
   f.create.textContent='创建新站点示例';
   assert.equal(f.adapter.pageInfo().create,undefined);
 });
+
+test('rspack ownership keeps native Pinned tab and appends Added by you once', context => {
+  const f=fixture(context);
+  f.tabs.props.tabs=[{key:'owned'},{key:'pinned'}];
+  f.originals[1].textContent='Pinned';
+  const page=f.adapter.pageInfo();
+  assert.equal(page.ownershipTabs,f.tabs);
+  const nav=f.adapter.mountOwnership(page,()=>{});
+  assert.deepEqual(nav.node.children.map(node=>node.textContent),['Owned by you','Pinned','Added by you']);
+  f.tabs.props.selectedKey='pinned';
+  assert.equal(f.adapter.pageInfo().shared,false);
+  nav.selectAdded();assert.equal(nav.selection(),'added');
+  nav.dispose();assert.equal(f.tabs.hidden,false);
+});

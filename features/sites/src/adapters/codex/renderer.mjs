@@ -31,8 +31,8 @@ function pageInfo() {
   if (!visible(content)) return null;
   const native = nativeProps(list || content.querySelector("button") || content.querySelector("p") || content.lastElementChild?.lastElementChild, p => "viewMode" in p && "shared" in p);
   const grid = native ? native.viewMode === "grid" : !!page.querySelector('button[aria-label="Grid view"][aria-pressed="true"],button[aria-label="网格视图"][aria-pressed="true"]');
-  const ownershipTabs=[...page.querySelectorAll('[role="tablist"]')].find(node=>!node.closest(`[${owned}]`)&&nativeProps(node,p=>p.tabs?.some(tab=>tab.key==="owned")&&p.tabs?.some(tab=>tab.key==="shared")));
-  const ownership=ownershipTabs&&nativeProps(ownershipTabs,p=>p.tabs?.some(tab=>tab.key==="owned")&&p.tabs?.some(tab=>tab.key==="shared"));
+  const ownershipTabs=[...page.querySelectorAll('[role="tablist"]')].find(node=>!node.closest(`[${owned}]`)&&nativeProps(node,p=>p.tabs?.some(tab=>tab.key==="owned")&&p.tabs?.some(tab=>["shared","pinned"].includes(tab.key))));
+  const ownership=ownershipTabs&&nativeProps(ownershipTabs,p=>p.tabs?.some(tab=>tab.key==="owned")&&p.tabs?.some(tab=>["shared","pinned"].includes(tab.key)));
   const shared = ownership ? ownership.selectedKey === "shared" : native ? !!native.shared : [...page.querySelectorAll("button[aria-pressed=true]")].some(b => /Shared with you|与你共享|與你共用/.test(b.textContent));
   const create = [...(plus ? page : page.firstElementChild).querySelectorAll("button")].find(b => visible(b) && (plus ? /^(Create Site|创建站点|创建新站点|建立網站)$/ : /^(New|新建|新增)$/).test(b.textContent.trim()) && !b.hasAttribute(owned));
   codex.report("sites-page",true);
