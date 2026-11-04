@@ -44,7 +44,9 @@ Context 直接订阅 Codex 原生会话状态。其他统计由 Runtime Host 只
 
 会话 JSONL 和 Codex DOM 均属版本相关接口，升级 Codex 后需用隔离窗口重新验证。关闭本功能会移除注入节点和观察器。
 
-Context 直接订阅原生会话的 `latestTokenUsageInfo`，与原生指示器共用 `thread/tokenUsage/updated` 数据源；压缩完成后随原生状态刷新，不等待日志轮询。切换会话时取消旧订阅，原生接口或用量不可用时显示 `—`，日志快照不覆盖原生占用。日志仍提供累计统计、压缩次数和历史分段估算；日志读取器也接受压缩后的最新重新计数。
+Context 优先订阅原生会话的 `latestTokenUsageInfo`，与原生指示器共用 `thread/tokenUsage/updated` 数据源；压缩完成后随原生状态刷新，不等待日志轮询。切换会话时取消旧订阅。原生订阅可用时覆盖日志口径；原生接口或用量不可用时回退到日志的 `last_token_usage.total_tokens / model_context_window`，两者分母来源相同，只有日志尚未记录该会话时显示 `—`。日志仍提供累计统计、压缩次数和历史分段估算；日志读取器也接受压缩后的最新重新计数。
+
+2026-11-04，Codex `26.1029.7803.0` 改用 rspack 打包（数字 chunk 名，`assets/async/*.js`），原生上下文 atom 不再以 ESM 导出，`findCodexModule` 找不到可用模块。此时保留日志口径作为回退，环继续显示与原生同口径的百分比；若后续版本重新提供可导入的导出，原生订阅仍优先生效。
 
 2026-10-08，Codex 26.1002.52244 安装包与当前会话实测：`app-shared` 改为先创建 `tokenUsageInfo` selector，再派生按 thread ID 读取、内部携带 host ID 的 atom family。Adapter 从该声明定位导出，不固定 bundle 哈希或压缩后的导出名；旧版直接解构 `latestTokenUsageInfo` 的声明仍可识别。AppScope 与 store 的读取、订阅接口保持相同，发现失败时保留不可用诊断，不以日志用量覆盖原生状态。
 

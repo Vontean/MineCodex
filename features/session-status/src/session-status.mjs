@@ -532,8 +532,12 @@ function ensurePosition() {
   }
   syncVisibility(composer);
 }
+// 原生上下文不可用时保留日志口径，避免环退化为占位。
+function withNativeContext(current, native) {
+  return !current || native.contextPercent == null ? current : { ...current, ...native };
+}
 function render() {
-  if (snapshot) snapshot = { ...snapshot, ...nativeContext };
+  snapshot = withNativeContext(snapshot, nativeContext);
   syncVisibility(findComposer());
   if (root.hidden) return;
   trigger.querySelector("[data-context-progress]").setAttribute("stroke-dashoffset", String(100 - (snapshot.contextPercent ?? 0)));
