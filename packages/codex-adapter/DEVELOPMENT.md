@@ -57,3 +57,16 @@ Windows 流程通过。运行 `node scripts/check-native-capabilities.mjs` 重�
 先按 Runtime Host 约定启动独立 Codex，默认 CDP 9233，可用 MCX_PROBE_PORT 指定独立端口。
 脚本拒绝日常 9231 端口，不打开菜单、不发送消息或上传文件；它会导入原生组件并加载
 对应 CSS，因此仅用于独立窗口。退出码非零表示加载失败或超时，不能只看服务健康。
+
+### rspack 的已注册模块
+
+Codex `26.1029.61003`（macOS）改用数字 chunk，入口公开 `__webpack_require__`。
+`codexModuleRegistry` 从当前已加载 script 的实际导出声明识别入口，不固定文件编号或 hash。
+它按角色匹配已注册工厂的声明，读取已初始化模块的缓存导出，并沿该工厂的真实 require
+引用解析依赖；不重新执行工厂、不为寻找角色调用未知导出、不枚举或下载未声明的 chunk。
+原生声明的具名 lazy 组件可按原调用链加载，chunk ID 和模块 ID 都来自该声明；缺失、多义、
+未初始化或引用结构不符时明确失败。工厂清单只属于本次接入，不持久保存跨窗口句柄。
+
+这是与 ESM `findCodexModule` 并列的加载机制，不把专有图库角色放入共享层。消费方须在
+page-script 和独立 evaluate 中显式序列化它及自己的角色解析器。Images 已用此机制验证
+导航、图库与画布；其他功能继续按各自协议处理，不据此宣称所有 rspack 能力已恢复。

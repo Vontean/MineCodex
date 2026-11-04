@@ -64,3 +64,51 @@ export function codexModuleStyles(source, ownerUrl, moduleUrl) {
   }
   return [];
 }
+
+// rspack 的入口公开原生 require；只读取已注册模块，不重新执行模块工厂。
+export async function codexModuleRegistry({read = async url => (await fetch(url)).text(), load = url => import(url)} = {}) {
+  for (const script of document.querySelectorAll('script[src]')) {
+    const url = script.src;
+    if (!url) continue;
+    const source = await read(url);
+    if (!/export\s*\{[^}]*\bas\s+__webpack_require__\b/.test(source)) continue;
+    const runtime = (await load(url)).__webpack_require__;
+    if (typeof runtime !== 'function' || !runtime.m || !runtime.c) throw new Error('native-module-registry-unavailable');
+    const sourceOf = value => {
+      try { return Function.prototype.toString.call(value); } catch { return ''; }
+    };
+    const entries = Object.entries(runtime.m).map(([id, factory]) => ({id, source:sourceOf(factory)}));
+    const unique = (values, role) => {
+      if (values.length !== 1) throw new Error(`Native module contract changed: ${role}`);
+      return values[0];
+    };
+    const exportsOf = entry => {
+      const cached = runtime.c[entry.id];
+      if (!cached || cached.error) throw new Error('native-module-not-loaded');
+      return cached.exports;
+    };
+    const module = (predicate, role) => unique(entries.filter(entry => predicate(entry.source)), role);
+    const value = (entry, predicate, role) => unique(Object.values(exportsOf(entry)).filter(item => predicate(item, sourceOf(item))), role);
+    const binding = (entry, reference) => {
+      const [owner, ...properties] = reference.split('.');
+      const escaped = owner.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const id = entry.source.match(new RegExp(`(?:^|[^\\w$])${escaped}=[\\w$]+\\("([^"\\n]+)"\\)`))?.[1];
+      if (!id) throw new Error('native-module-binding-unavailable');
+      let result = exportsOf({id});
+      for (const property of properties) result = result?.[property];
+      if (result == null) throw new Error('native-module-export-unavailable');
+      return result;
+    };
+    const lazy = async (entry, name) => {
+      const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const match = entry.source.match(new RegExp(`[\\w$]+\\.e\\((\\d+)\\)\\.then\\([\\w$]+\\.bind\\([\\w$]+,"([^"\\n]+)"\\)\\)\\.then\\([\\w$]+=>\\(\\{default:[\\w$]+\\.${escaped}\\}\\)\\)`));
+      if (!match) throw new Error('native-module-lazy-contract-unavailable');
+      await runtime.e(Number(match[1]));
+      const exports = runtime(match[2]);
+      if (typeof exports[name] !== 'function') throw new Error('native-module-lazy-export-unavailable');
+      return {id:match[2], source:sourceOf(runtime.m[match[2]])};
+    };
+    return {entries, module, value, binding, lazy, exports:exportsOf, sourceOf};
+  }
+  return null;
+}
