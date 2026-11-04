@@ -3,7 +3,7 @@ import {createRspackImageModules,discoverRspackPreviewBindings} from '../feature
 import {findCodexModule,codexModuleStyles,codexModuleRegistry} from '../packages/codex-adapter/src/renderer/modules.mjs';
 import {loadComposerExpandControls,loadRspackComposerExpandControls,createComposerExpandControls} from '../features/composer-expand/src/native.mjs';
 import {loadQuickChatSidebarIcon} from '../features/quick-chat/src/adapters/codex/sidebar.mjs';
-import {loadFileNavigationModules} from '../features/file-navigation/src/adapters/codex/modules.mjs';
+import {loadFileNavigationModules,loadRspackFileNavigationModules} from '../features/file-navigation/src/adapters/codex/modules.mjs';
 import {loadInlineFileNavigationModules} from '../features/file-navigation/src/adapters/codex/inline-modules.mjs';
 import {loadNativeMarkdownToc} from '../packages/codex-adapter/src/markdown/toc-native.mjs';
 import {markdownExportAlias,loadNativeMarkdownTableActions} from '../packages/codex-adapter/src/markdown/block-actions.mjs';
@@ -31,7 +31,7 @@ const run=async()=>{
  ]);
  controller.abort();clearTimeout(timer);return results;
 };
-const functions=[findCodexModule,codexModuleStyles,codexModuleRegistry,createRspackImageModules,discoverRspackPreviewBindings,loadRspackComposerExpandControls,createComposerExpandControls,loadComposerExpandControls,loadQuickChatSidebarIcon,loadFileNavigationModules,loadInlineFileNavigationModules,loadNativeMarkdownToc,markdownExportAlias,loadNativeMarkdownTableActions,loadNativeMarkdownRenderer,loadNativeMarkdownLinks,loadNativeMarkdownRichText,loadNativeMermaidActions,saveQvDiagram,createNativeImageModules,discoverImageCanvasComponents,discoverImageActionBinding,discoverFilePreviewComposerBindings];
+const functions=[findCodexModule,codexModuleStyles,codexModuleRegistry,createRspackImageModules,discoverRspackPreviewBindings,loadRspackComposerExpandControls,createComposerExpandControls,loadRspackFileNavigationModules,loadComposerExpandControls,loadQuickChatSidebarIcon,loadFileNavigationModules,loadInlineFileNavigationModules,loadNativeMarkdownToc,markdownExportAlias,loadNativeMarkdownTableActions,loadNativeMarkdownRenderer,loadNativeMarkdownLinks,loadNativeMarkdownRichText,loadNativeMermaidActions,saveQvDiagram,createNativeImageModules,discoverImageCanvasComponents,discoverImageActionBinding,discoverFilePreviewComposerBindings];
 const expression=`(async()=>{${functions.map(fn=>`const ${fn.name}=${fn};`).join('\n')}return (${run})();})()`;
 const watchdog=setTimeout(()=>{console.error('Native capability probe timed out');ws.close();process.exitCode=1;},30000);
 ws.send(JSON.stringify({id:1,method:'Runtime.evaluate',params:{expression,returnByValue:true,awaitPromise:true}}));

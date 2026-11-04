@@ -30,3 +30,8 @@ workspaceFiles.listDirectory 与取消包装的调用关系取得，原样传入
 folder 图标也仅初始化对应角色，不执行入口中不相关的初始化器。共享模块定位规则见
 [Codex Adapter](../../packages/codex-adapter/DEVELOPMENT.md)。独立 Renderer 已验证这些
 接口加载；目录点击、键盘与可见浮层仍需单独验收。
+
+Codex `26.1029.61003`（macOS）通过共享 `codexModuleRegistry` 读取已注册的原生 Tree、
+React、目录读取包装及 folder 图标，按各自角色和真实依赖绑定，不固定 chunk 编号或短导出。
+旧独立 ESM 与内联入口分支保留。独立 profile 已验证真实分列浮层、进入 docs 目录、选择
+npm-publishing.md 并由原生打开，同时关闭浮层；不以接口加载代替级联选择验证。

@@ -1,12 +1,15 @@
 import { loadInlineFileNavigationModules } from './inline-modules.mjs';
-import { findCodexModule } from '../../../../../packages/codex-adapter/src/renderer/modules.mjs';
+import { findCodexModule, codexModuleRegistry } from '../../../../../packages/codex-adapter/src/renderer/modules.mjs';
 // 依照原生 breadcrumb 的依赖角色查找公开模块，不绑定产物 hash 或短变量名。
 export async function loadFileNavigationModules({read = async url => { const response = await fetch(url); if (!response.ok) throw new Error('file-navigation-source-unavailable'); return response.text(); }, load = url => import(url)} = {}) {
+  const registry=await codexModuleRegistry({read,load});
+  let resolved;
+  if (registry) resolved=loadRspackFileNavigationModules(registry);
+  else {
   const [breadcrumbUrl,mainUrl]=await Promise.all([
     findCodexModule('review-file-source-breadcrumb',{read}),findCodexModule('app-main',{read}),
   ]);
   if (!mainUrl) throw new Error('file-navigation-modules-unavailable');
-  let resolved;
   if (!breadcrumbUrl) {
     const initialUrl=await findCodexModule('app-initial',{read});
     if (!initialUrl) throw new Error('file-navigation-modules-unavailable');
@@ -62,6 +65,7 @@ export async function loadFileNavigationModules({read = async url => { const res
   // 分列导航没有纵向展开状态；通过原生样式入口使用固定的原生文件夹图标。
   resolved={Tree,React,ReactDOM,request,folder};
   }
+  }
   const {Tree,React,ReactDOM,request,folder}=resolved;
   const folderImage = `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="${folder.canvas.viewBox}">${folder.body}</svg>`)}")`;
   const columnStyles = `
@@ -75,4 +79,21 @@ export async function loadFileNavigationModules({read = async url => { const res
     }
   `;
   return { Tree, React, ReactDOM, request, columnStyles };
+}
+
+
+export function loadRspackFileNavigationModules(registry) {
+  const owner=registry.module(source=>/contextMenuEnabled:[\w$]+,decorationAlignment:/.test(source),'file tree');
+  const Tree=registry.value(owner,(value,source)=>typeof value==='function'&&source.includes('initialExpandedPaths:')&&source.includes('onSelectionChange:')&&source.includes('contextMenuEnabled:'),'file tree component');
+  const react=registry.sourceOf(Tree).match(/\(0,([\w$]+)\.useState\)/)?.[1];
+  if (!react) throw new Error('file-navigation-react-unavailable');
+  const React=registry.binding(owner,react);
+  const roots=[...new Set(registry.entries.filter(entry=>/\.createRoot=/.test(entry.source)).map(entry=>registry.exports(entry)).filter(value=>typeof value.createRoot==='function'))];
+  if (roots.length!==1 || typeof React.createElement!=='function') throw new Error('file-navigation-react-root-unavailable');
+  const directory=registry.module(source=>source.includes('workspace-directory-entries')&&source.includes('.workspaceFiles')&&source.includes('.listDirectory('),'workspace directory');
+  const list=registry.value(directory,(value,source)=>typeof value==='function'&&source.includes('.listDirectory(')&&source.includes('.throwIfAborted('),'workspace directory request');
+  const icon=registry.module(source=>source.includes('name:"folder-light-16"'),'folder icon');
+  const folder=registry.value(icon,value=>value?.name==='folder-light-16','folder icon');
+  if (!folder?.canvas?.viewBox || typeof folder.body!=='string') throw new Error('file-navigation-folder-icon-unavailable');
+  return {Tree,React,ReactDOM:roots[0],folder,request:(_method,{params,signal})=>list(params,signal)};
 }
