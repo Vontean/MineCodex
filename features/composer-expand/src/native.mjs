@@ -1,6 +1,8 @@
-import { findCodexModule } from '../../../packages/codex-adapter/src/renderer/modules.mjs';
+import { findCodexModule, codexModuleRegistry } from '../../../packages/codex-adapter/src/renderer/modules.mjs';
 export async function loadComposerExpandControls(signal) {
   signal.throwIfAborted();
+  const registry=await codexModuleRegistry({read:async url=>{const response=await fetch(url,{signal});if(!response.ok)throw new Error('composer-expand-source-unavailable');return response.text();}});
+  if (registry) return loadRspackComposerExpandControls(registry);
   const initialUrl=await findCodexModule('app-initial',{signal,waitForEntry:true});
   const mainUrl=await findCodexModule('app-main',{signal,waitForEntry:true});
   if (!initialUrl || !mainUrl) throw new Error('composer-expand-modules-unavailable');
@@ -62,6 +64,26 @@ export async function loadComposerExpandControls(signal) {
     binding(initialSource,initialUrl,transactionObserver),
   ]);
   const React=reactFactory(),ReactDOM=rootFactory();
+  return createComposerExpandControls({React,ReactDOM,Button,Collapse,Expand,subscribe});
+}
+
+export function loadRspackComposerExpandControls(registry) {
+  const owner=registry.module(source=>/["']data-composer-expand-toggle["']:/.test(source),'Composer expand control');
+  const marker=owner.source.search(/["']data-composer-expand-toggle["']:/);
+  const start=owner.source.lastIndexOf('function ',marker);
+  const control=owner.source.slice(start,owner.source.indexOf('}function ',marker)+1);
+  const button=control.match(/\.jsx\)\(([\w$]+\.[\w$]+),\{"aria-label"/)?.[1];
+  const icons=control.match(/children:[\w$]+\?\(0,[\w$]+\.jsx\)\(([\w$]+\.[\w$]+),\{\}\):\(0,[\w$]+\.jsx\)\(([\w$]+\.[\w$]+),\{\}\)/);
+  const react=control.match(/\(0,([\w$]+)\.useContext\)/)?.[1];
+  if (!button || !icons || !react) throw new Error('composer-expand-control-contract-changed');
+  const roots=[...new Set(registry.entries.filter(entry=>/\.createRoot=/.test(entry.source)).map(entry=>registry.exports(entry)).filter(value=>typeof value.createRoot==='function'))];
+  if (roots.length!==1) throw new Error('composer-expand-react-root-unavailable');
+  const observer=registry.module(source=>source.includes('prosemirrorDispatchTransaction')&&source.includes('eventTarget:'),'Composer transaction observer');
+  const subscribe=registry.value(observer,(value,source)=>typeof value==='function'&&source.includes('eventTarget:')&&source.includes('.addEventListener('),'Composer transaction subscription');
+  return createComposerExpandControls({React:registry.binding(owner,react),ReactDOM:roots[0],Button:registry.binding(owner,button),Collapse:registry.binding(owner,icons[1]),Expand:registry.binding(owner,icons[2]),subscribe});
+}
+
+export function createComposerExpandControls({React,ReactDOM,Button,Collapse,Expand,subscribe}) {
   return {subscribe:(view,listener)=>subscribe(view,changed=>{if(changed)listener();}),mount(container,onToggle) {
     const root=ReactDOM.createRoot(container);
     let previous;

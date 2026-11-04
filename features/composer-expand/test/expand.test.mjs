@@ -87,14 +87,14 @@ test('loader follows native expand Button, paired icons and transaction observer
 test('aborting module readiness releases the observer without loading controls',async t=>{
   const previousDocument=globalThis.document,previousObserver=globalThis.MutationObserver;
   t.after(()=>{globalThis.document=previousDocument;globalThis.MutationObserver=previousObserver;});
-  let disconnected=0;
+  let disconnected=0,created=0;
   globalThis.document={documentElement:{},querySelectorAll:()=>[]};
-  globalThis.MutationObserver=class{observe(){}disconnect(){disconnected++;}};
+  globalThis.MutationObserver=class{constructor(){created++;}observe(){}disconnect(){disconnected++;}};
   const abort=new AbortController();
   const pending=loadComposerExpandControls(abort.signal);
   abort.abort();
   await assert.rejects(pending,{name:'AbortError'});
-  assert.equal(disconnected,1);
+  assert.equal(disconnected,created);
 });
 
 test('Work and Codex home select different anchors despite sharing the same composer root',()=>{

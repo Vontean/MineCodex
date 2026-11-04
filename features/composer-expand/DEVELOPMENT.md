@@ -35,3 +35,9 @@ Codex `26.1027.30824` 的独立 Renderer 已验证加载与完整源码工厂注
 自动化验证原生绑定发现、入口阈值、场景排除、展开收起的 Enter 恢复与卸载清理，以及源码工厂序列化。隔离窗口验证 Work/Codex 首页与会话的原生增长方式、草稿/光标、Enter 换行、短文本收起和页面切换。Windows `26.1021.3705.0` 已在独立 profile 通过 Renderer 交互验证 Codex 首页多段草稿的按钮显示、展开/收起、编辑器/文档/selection 身份保留、Enter 行为切换与短文本入口清理；Work、会话页及视觉布局未在该构建逐项复核。测试指令不发送。
 
 控制台图标使用 Lucide `maximize-2`，MIT 许可随功能附带；编辑器中的图标来自安装中的原生组件。
+
+Codex `26.1029.61003`（macOS）的具名 ESM 资源已换成 rspack 注册模块。
+Loader 复用共享 `codexModuleRegistry`，从原生按钮的语义属性定位真实 Button 与成对图标，
+从原生 ProseMirror 事件插件取得交易订阅；旧 ESM 分支保留。源码工厂与独立能力检查显式
+序列化所需工厂。独立 profile 已验证长草稿入口、展开/收起、Enter 行为恢复，以及同一
+editor、document、selection 身份保持；测试草稿还原，未发送消息。
