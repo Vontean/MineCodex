@@ -25,11 +25,12 @@
 
 ```bash
 node --test features/files-auto-refresh/test/*.test.mjs
-npm test
-npm run check
-npm run pack:audit
 ```
 
 行为测试覆盖精确 host/root、active 与隐藏策略、忽略正文缓存、并发上限、串行、失败恢复、切换及卸载。真实窗口用独立 profile 和独立 CDP，只加载本功能；验收新增、重命名、删除、目录展开保持、停用后不继续刷新，以及重新启用后的追平。截图和临时文件留 `docs/verification/`，不进入运行包。Dashboard 另外验证中英文卡片、图标响应格式及独立配置保存；静态测试不替代原生窗口或官方 MCP sandbox 验收。
 
 关联需求：[GitHub issue #29](https://github.com/Vontean/MineCodex/issues/29)。
+
+Codex `26.1029.61003`（macOS）快速复核：目录查询 key、active 状态及读取函数仍匹配，
+无需修改实现。独立 Files 中新增、重命名、删除临时文件后，原生数据与真实文件行均自动
+同步。观察文件行应使用完整 `data-item-path`，不能用会截断文件名的显示文字判断同步失败。
