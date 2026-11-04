@@ -1,6 +1,15 @@
-import { findCodexModule } from '../../../../../packages/codex-adapter/src/renderer/modules.mjs';
+import { findCodexModule, codexModuleRegistry } from '../../../../../packages/codex-adapter/src/renderer/modules.mjs';
 // 修补原生 Preview 的链接装饰；源码、语法树与编辑器实例继续归 Codex。
 export async function loadNativeMarkdownLinks() {
+  const registry=await codexModuleRegistry();
+  if(registry){
+    const owner=registry.module(source=>source.includes('currentFilePath:')&&source.includes('markdown_link_click')&&source.includes('originHostId:'),'Markdown editor links');
+    const ref=owner.source.match(/\(0,([\w$]+\.[\w$]+)\)\(\{event:[\w$]+,href:[\w$]+,initiator:"markdown_link_click"/)?.[1];
+    if(!ref)throw new Error('native-markdown-link-opener-unavailable');
+    const open=registry.binding(owner,ref);
+    if(typeof open!=='function')throw new Error('native-markdown-link-opener-unavailable');
+    return open;
+  }
   const url = await findCodexModule('text-file-editor-extensions',{via:['text-file-editor-tab-content.electron']});
   if (!url) throw new Error('native-markdown-link-module-unavailable');
   const source = await (await fetch(url)).text();

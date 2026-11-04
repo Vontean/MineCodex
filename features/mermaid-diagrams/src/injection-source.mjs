@@ -1,9 +1,10 @@
-import { findCodexModule, codexModuleStyles } from '../../../packages/codex-adapter/src/renderer/modules.mjs';
+import {loadRspackMarkdownToc,loadRspackMarkdownTableActions,loadRspackMarkdownRenderer} from '../../../packages/codex-adapter/src/markdown/rspack.mjs';
+import { findCodexModule, codexModuleStyles, codexModuleRegistry } from '../../../packages/codex-adapter/src/renderer/modules.mjs';
 import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { createMarkdownPreviewAdapter } from '../../../packages/codex-adapter/src/markdown/preview.mjs';
-import { loadMarkdownListAPI } from '../../../packages/codex-adapter/src/markdown/editor-api.mjs';
+import { loadMarkdownListAPI,loadRspackMarkdownListAPI } from '../../../packages/codex-adapter/src/markdown/editor-api.mjs';
 import { captureMarkdownProviders } from '../../../packages/codex-adapter/src/markdown/providers.mjs';
 import { loadNativeMarkdownToc } from '../../../packages/codex-adapter/src/markdown/toc-native.mjs';
 import { loadNativeMarkdownRenderer } from '../../../packages/codex-adapter/src/markdown/markdown-native.mjs';
@@ -17,7 +18,7 @@ import { loadNativeMermaidActions } from './adapters/codex/native.mjs';
 import { createMermaidRuntime } from './adapters/codex/runtime.mjs';
 
 export async function createPageScriptSource() {
-  const bindings = [findCodexModule, codexModuleStyles, createMarkdownPreviewAdapter, loadMarkdownListAPI, captureMarkdownProviders,
+  const bindings = [findCodexModule, codexModuleStyles,codexModuleRegistry,loadRspackMarkdownListAPI,loadRspackMarkdownToc,loadRspackMarkdownTableActions,loadRspackMarkdownRenderer, createMarkdownPreviewAdapter, loadMarkdownListAPI, captureMarkdownProviders,
     loadNativeMarkdownToc, loadNativeMarkdownRenderer, markdownExportAlias, loadNativeMarkdownTableActions,
     createQvResources, createQvFrame, readQvTheme, exportQvDiagram, saveQvDiagram, createQvLoading,
     createMarkdownMermaidControls, installMarkdownMermaid, loadNativeMermaidActions, createMermaidRuntime];

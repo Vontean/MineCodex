@@ -1,4 +1,5 @@
-import { findCodexModule } from '../renderer/modules.mjs';
+import {loadRspackMarkdownTableActions} from './rspack.mjs';
+import { findCodexModule, codexModuleRegistry } from '../renderer/modules.mjs';
 import { loadNativeMarkdownRenderer } from './markdown-native.mjs';
 
 export function markdownExportAlias(source, name) {
@@ -14,6 +15,8 @@ export function markdownExportAlias(source, name) {
 
 // 从 Chat Markdown 的公开组件发现悬浮操作栏和控件，不绑定构建 hash。
 export async function loadNativeMarkdownTableActions(native) {
+  const registry=await codexModuleRegistry();
+  if(registry)return loadRspackMarkdownTableActions(registry,native);
   const url = await findCodexModule('app-initial');
   if (!url) throw new Error('native-table-actions-module-unavailable');
   const response = await fetch(url);

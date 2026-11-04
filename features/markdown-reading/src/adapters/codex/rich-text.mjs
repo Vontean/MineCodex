@@ -4,6 +4,7 @@ import { captureMarkdownProviders } from '../../../../../packages/codex-adapter/
 
 // 复用消息流的代码组件与 Markdown lexer；文件内容及编辑器仍由 Codex 持有。
 export async function loadNativeMarkdownRichText(native) {
+  if(native.rspack)return loadRspackMarkdownRichText(native);
   const { sharedUrl } = native;
   const sharedSource = await (await fetch(sharedUrl)).text(),
     shared = await import(sharedUrl);
@@ -50,6 +51,17 @@ export async function loadNativeMarkdownRichText(native) {
   const katex=mathModule?.default ?? mathModule?.katex;
   if (!katex?.renderToString) throw new Error('native-katex-unavailable');
   return { ...native, CodeSnippet: sharedBinding(codeName), katex };
+}
+
+export async function loadRspackMarkdownRichText(native) {
+  const registry=native.rspack;
+  const code=registry.module(source=>source.includes('CodeSnippet:()=>')&&source.includes('renderSvgAsImage:'),'code content renderer');
+  const CodeSnippet=registry.exports(code).CodeSnippet;
+  const editor=registry.module(source=>source.includes('currentFilePath:')&&source.includes('renderToString')&&source.includes('katex:'),'Markdown formula renderer');
+  const math=await registry.lazy(editor,'katex');
+  const katex=registry.exports(math).katex;
+  if(typeof CodeSnippet!=='function'||typeof katex?.renderToString!=='function')throw new Error('native-rich-text-modules-unavailable');
+  return {...native,CodeSnippet,katex};
 }
 
 export function installMarkdownRichText(view, api, native, codex, wrapState) {

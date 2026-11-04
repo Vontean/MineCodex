@@ -82,12 +82,14 @@ export async function codexModuleRegistry({read = async url => (await fetch(url)
       if (values.length !== 1) throw new Error(`Native module contract changed: ${role}`);
       return values[0];
     };
+    const resolvedExports = new Map();
     const exportsOf = entry => {
+      if (resolvedExports.has(entry.id)) return resolvedExports.get(entry.id);
       const cached = runtime.c[entry.id];
       if (!cached || cached.error) throw new Error('native-module-not-loaded');
       return cached.exports;
     };
-    const module = (predicate, role) => unique(entries.filter(entry => predicate(entry.source)), role);
+    const module = (predicate, role) => unique(entries.filter(entry => predicate(entry.source, entry)), role);
     const value = (entry, predicate, role) => unique(Object.values(exportsOf(entry)).filter(item => predicate(item, sourceOf(item))), role);
     const binding = (entry, reference) => {
       const [owner, ...properties] = reference.split('.');
@@ -102,11 +104,22 @@ export async function codexModuleRegistry({read = async url => (await fetch(url)
     const lazy = async (entry, name) => {
       const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const match = entry.source.match(new RegExp(`[\\w$]+\\.e\\((\\d+)\\)\\.then\\([\\w$]+\\.bind\\([\\w$]+,"([^"\\n]+)"\\)\\)\\.then\\([\\w$]+=>\\(\\{default:[\\w$]+\\.${escaped}\\}\\)\\)`));
-      if (!match) throw new Error('native-module-lazy-contract-unavailable');
-      await runtime.e(Number(match[1]));
-      const exports = runtime(match[2]);
-      if (typeof exports[name] !== 'function') throw new Error('native-module-lazy-export-unavailable');
-      return {id:match[2], source:sourceOf(runtime.m[match[2]])};
+      let id;
+      if (match) {
+        await runtime.e(Number(match[1]));
+        id=match[2];
+      } else {
+        // Pages 与 KaTeX 使用具名异步导入；依赖列表仍完全来自原生声明。
+        const group=entry.source.match(new RegExp(`Promise\\.all\\(\\[([^\\]]+)\\]\\)\\.then\\([\\w$]+\\.bind\\([\\w$]+,"([^"\\n]+)"\\)\\)(?:\\)\\.${escaped}\\b|\\.then\\(\\(\\{${escaped}(?=[:,}]))`));
+        if(!group || !/^(?:[\w$]+\.e\(\d+\),?)+$/.test(group[1])) throw new Error('native-module-lazy-contract-unavailable');
+        await Promise.all([...group[1].matchAll(/\.e\((\d+)\)/g)].map(item=>runtime.e(Number(item[1]))));
+        id=group[2];
+      }
+      const exports = await runtime(id);
+      if (exports[name] == null) throw new Error('native-module-lazy-export-unavailable');
+      resolvedExports.set(id,exports);
+      entries.splice(0,entries.length,...Object.entries(runtime.m).map(([id,factory])=>({id,source:sourceOf(factory)})));
+      return {id, source:sourceOf(runtime.m[id])};
     };
     return {entries, module, value, binding, lazy, exports:exportsOf, sourceOf};
   }

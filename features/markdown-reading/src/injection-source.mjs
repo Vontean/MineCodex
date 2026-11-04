@@ -1,5 +1,6 @@
-import { findCodexModule, codexModuleStyles } from '../../../packages/codex-adapter/src/renderer/modules.mjs';
-import { loadMarkdownListAPI } from '../../../packages/codex-adapter/src/markdown/editor-api.mjs';
+import {loadRspackMarkdownToc,loadRspackMarkdownTableActions,loadRspackMarkdownRenderer} from '../../../packages/codex-adapter/src/markdown/rspack.mjs';
+import { findCodexModule, codexModuleStyles, codexModuleRegistry } from '../../../packages/codex-adapter/src/renderer/modules.mjs';
+import { loadMarkdownListAPI,loadRspackMarkdownListAPI } from '../../../packages/codex-adapter/src/markdown/editor-api.mjs';
 import { markdownExportAlias, loadNativeMarkdownTableActions } from '../../../packages/codex-adapter/src/markdown/block-actions.mjs';
 import { loadNativeMarkdownRenderer } from '../../../packages/codex-adapter/src/markdown/markdown-native.mjs';
 import { collectMarkdownFootnotes } from './domain/footnotes.mjs';
@@ -9,7 +10,7 @@ import {
   createMarkdownWrapState,
   installMarkdownMetadataScroll,
 } from './adapters/codex/reading-runtime.mjs';
-import { loadNativeMarkdownRichText, installMarkdownRichText } from './adapters/codex/rich-text.mjs';
+import { loadNativeMarkdownRichText,loadRspackMarkdownRichText, installMarkdownRichText } from './adapters/codex/rich-text.mjs';
 import { installMarkdownTableActions } from './adapters/codex/table-actions.mjs';
 import { loadNativeMarkdownLinks, installMarkdownLinks } from './adapters/codex/links.mjs';
 import { loadNativeMarkdownToc } from '../../../packages/codex-adapter/src/markdown/toc-native.mjs';
@@ -19,7 +20,7 @@ import { installMarkdownTables, markdownTableActionGeometry } from './adapters/c
 import { installMarkdownLists } from './adapters/codex/lists.mjs';
 import { createMarkdownPreviewAdapter } from '../../../packages/codex-adapter/src/markdown/preview.mjs';
 export async function createPageScriptSource() {
-  const bindings = [findCodexModule, codexModuleStyles,
+  const bindings = [findCodexModule, codexModuleStyles,codexModuleRegistry,loadRspackMarkdownListAPI,loadRspackMarkdownToc,loadRspackMarkdownTableActions,loadRspackMarkdownRenderer,
     collectMarkdownFootnotes,
     captureMarkdownProviders,
     createMarkdownReadingRuntime,
@@ -38,6 +39,7 @@ export async function createPageScriptSource() {
     markdownExportAlias,
     loadNativeMarkdownTableActions,
     installMarkdownTableActions,
+    loadRspackMarkdownRichText,
     loadNativeMarkdownRichText,
     installMarkdownRichText,
   ];

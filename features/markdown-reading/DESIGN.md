@@ -170,3 +170,19 @@ Mermaid 增强已拆为独立、默认关闭的 [Mermaid Diagrams](../mermaid-di
 Codex 当前 macOS 构建的代码块分为接收 `content` 的高亮渲染组件与接收 `source` React 内容的展示外壳。Markdown Reader 必须发现上层内容组件，保留原生高亮、复制与换行；只发现外壳会出现有背景但无文字的空块。旧版单组件结构继续使用原入口。组件选择与初始化回归见 `test/preview.test.mjs`；不得用修改 Markdown 原文规避适配问题。
 
 表格操作栏锚定 scroller 的阅读区域，不随关闭换行后的表格扩宽或横向滚动移动；长表格滚动时限制在本表与 viewport 的相交范围内。换行按钮不因当前横向溢出消失；关闭换行时保持可见，键盘聚焦表格控件时也显示；这样恢复换行无需重新寻找 hover 热区。此行为独立于正文列宽与文件内容。
+
+
+## rspack 构建适配
+
+2026-11-04，Codex macOS `26.1029.61003`：旧 ESM 文件发现路径不能定位新版模块。
+Adapter 优先读取原生 rspack 注册表；CodeMirror 必须来自导出当前 EditorView / EditorState
+构造器的模块，避免装饰来自另一份编辑器实例。目录沿原生 Pages 的
+`PageEditorContent` lazy 依赖声明加载组件与样式；表格、链接、Markdown renderer / lexer、
+上层 CodeSnippet 与 KaTeX 按真实导入引用及导出角色绑定，不固定 chunk、module ID 或 hash。
+旧 ESM 构建继续走原路径；缺失或多义的角色明确报告能力不可用。
+
+独立 macOS profile + CDP 验证了列表／任务、链接补全、目录跳转、表格换行与原生展开／关闭、
+代码内容与文档换行同步、脚注操作、公式、HTML、注释隐藏、提示块和定义列表。
+Source 切换移除增强，切回 Preview 重新安装；预览文档与磁盘原文一致。
+本轮未覆盖外部链接实际导航、剪贴板内容、Windows 或独立 Mermaid 功能；
+隔离窗口的验证不替代日常宿主中的用户视觉验收。

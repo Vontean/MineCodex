@@ -1,6 +1,9 @@
-import { findCodexModule, codexModuleStyles } from '../renderer/modules.mjs';
+import {loadRspackMarkdownToc} from './rspack.mjs';
+import { findCodexModule, codexModuleStyles, codexModuleRegistry } from '../renderer/modules.mjs';
 // 直接导入原生 Marker、目录浮层和 Tooltip；仅按源码调用关系发现公开角色。
 export async function loadNativeMarkdownToc() {
+  const registry=await codexModuleRegistry();
+  if(registry)return loadRspackMarkdownToc(registry);
   const urls = [...document.querySelectorAll('link[rel="modulepreload"],script[src]')].map(
     (n) => n.href || n.src,
   );

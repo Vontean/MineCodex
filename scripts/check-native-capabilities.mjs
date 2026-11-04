@@ -1,3 +1,4 @@
+import {loadRspackMarkdownToc,loadRspackMarkdownTableActions,loadRspackMarkdownRenderer} from '../packages/codex-adapter/src/markdown/rspack.mjs';
 import {createRspackImageModules,discoverRspackPreviewBindings} from '../features/images/src/adapters/codex/rspack-modules.mjs';
 // 仅用于独立 Codex profile 的接口加载验收，不触发业务操作。
 import {findCodexModule,codexModuleStyles,codexModuleRegistry} from '../packages/codex-adapter/src/renderer/modules.mjs';
@@ -9,7 +10,7 @@ import {loadNativeMarkdownToc} from '../packages/codex-adapter/src/markdown/toc-
 import {markdownExportAlias,loadNativeMarkdownTableActions} from '../packages/codex-adapter/src/markdown/block-actions.mjs';
 import {loadNativeMarkdownRenderer} from '../packages/codex-adapter/src/markdown/markdown-native.mjs';
 import {loadNativeMarkdownLinks} from '../features/markdown-reading/src/adapters/codex/links.mjs';
-import {loadNativeMarkdownRichText} from '../features/markdown-reading/src/adapters/codex/rich-text.mjs';
+import {loadNativeMarkdownRichText,loadRspackMarkdownRichText} from '../features/markdown-reading/src/adapters/codex/rich-text.mjs';
 import {loadNativeMermaidActions} from '../features/mermaid-diagrams/src/adapters/codex/native.mjs';
 import {saveQvDiagram} from '../features/mermaid-diagrams/src/mermaid/export.mjs';
 import {createNativeImageModules,discoverImageCanvasComponents,discoverImageActionBinding,discoverFilePreviewComposerBindings} from '../features/images/src/adapters/codex/native-image-modules.mjs';
@@ -31,7 +32,7 @@ const run=async()=>{
  ]);
  controller.abort();clearTimeout(timer);return results;
 };
-const functions=[findCodexModule,codexModuleStyles,codexModuleRegistry,createRspackImageModules,discoverRspackPreviewBindings,loadRspackComposerExpandControls,createComposerExpandControls,loadRspackFileNavigationModules,loadComposerExpandControls,loadQuickChatSidebarIcon,loadFileNavigationModules,loadInlineFileNavigationModules,loadNativeMarkdownToc,markdownExportAlias,loadNativeMarkdownTableActions,loadNativeMarkdownRenderer,loadNativeMarkdownLinks,loadNativeMarkdownRichText,loadNativeMermaidActions,saveQvDiagram,createNativeImageModules,discoverImageCanvasComponents,discoverImageActionBinding,discoverFilePreviewComposerBindings];
+const functions=[loadRspackMarkdownToc,loadRspackMarkdownTableActions,loadRspackMarkdownRenderer,loadRspackMarkdownRichText,findCodexModule,codexModuleStyles,codexModuleRegistry,createRspackImageModules,discoverRspackPreviewBindings,loadRspackComposerExpandControls,createComposerExpandControls,loadRspackFileNavigationModules,loadComposerExpandControls,loadQuickChatSidebarIcon,loadFileNavigationModules,loadInlineFileNavigationModules,loadNativeMarkdownToc,markdownExportAlias,loadNativeMarkdownTableActions,loadNativeMarkdownRenderer,loadNativeMarkdownLinks,loadNativeMarkdownRichText,loadNativeMermaidActions,saveQvDiagram,createNativeImageModules,discoverImageCanvasComponents,discoverImageActionBinding,discoverFilePreviewComposerBindings];
 const expression=`(async()=>{${functions.map(fn=>`const ${fn.name}=${fn};`).join('\n')}return (${run})();})()`;
 const watchdog=setTimeout(()=>{console.error('Native capability probe timed out');ws.close();process.exitCode=1;},30000);
 ws.send(JSON.stringify({id:1,method:'Runtime.evaluate',params:{expression,returnByValue:true,awaitPromise:true}}));

@@ -64,9 +64,14 @@ Codex `26.1029.61003`（macOS）改用数字 chunk，入口公开 `__webpack_req
 `codexModuleRegistry` 从当前已加载 script 的实际导出声明识别入口，不固定文件编号或 hash。
 它按角色匹配已注册工厂的声明，读取已初始化模块的缓存导出，并沿该工厂的真实 require
 引用解析依赖；不重新执行工厂、不为寻找角色调用未知导出、不枚举或下载未声明的 chunk。
-原生声明的具名 lazy 组件可按原调用链加载，chunk ID 和模块 ID 都来自该声明；缺失、多义、
+原生声明的具名 lazy 组件或具名异步导出可按原调用链加载，支持单 chunk 与
+`Promise.all` 依赖组；chunk ID 和模块 ID 都来自该声明。异步模块等待初始化后读取导出，
+并更新本次注册表的模块清单，使后续角色发现包含刚加载的依赖；缺失、多义、
 未初始化或引用结构不符时明确失败。工厂清单只属于本次接入，不持久保存跨窗口句柄。
 
 这是与 ESM `findCodexModule` 并列的加载机制，不把专有图库角色放入共享层。消费方须在
 page-script 和独立 evaluate 中显式序列化它及自己的角色解析器。Images 已用此机制验证
-导航、图库与画布；其他功能继续按各自协议处理，不据此宣称所有 rspack 能力已恢复。
+导航、图库与画布。Markdown Reading 在同一 macOS 构建中验证了当前编辑器所属的
+CodeMirror API、Pages 目录、表格控件、Markdown renderer / lexer、CodeSnippet 与 KaTeX；
+角色解析位于 Markdown Adapter，旧 ESM 路径保留。其他功能继续按各自协议处理，
+不据此宣称所有 rspack 能力已恢复。
