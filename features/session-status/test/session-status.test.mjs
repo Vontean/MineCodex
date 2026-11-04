@@ -65,6 +65,28 @@ test("native context subscription updates immediately, clears missing data, and 
   assert.equal(disposedSubscriptions, 2);
 });
 
+test("log context survives when the native context is unavailable", async () => {
+  const source = await readFile(path.join(featureDir, "src/session-status.mjs"), "utf8");
+  const merge = new Function(`${source.slice(source.indexOf("function withNativeContext("), source.indexOf("function render("))}; return withNativeContext;`)();
+  const logged = { threadId: "t", contextUsedTokens: 181679, contextWindow: 475000, contextPercent: 38 };
+  assert.equal(merge(logged, { contextUsedTokens: null, contextWindow: null, contextPercent: null }).contextPercent, 38);
+  assert.deepEqual(merge(logged, { contextUsedTokens: 12, contextWindow: 100, contextPercent: 12 }),
+    { ...logged, contextUsedTokens: 12, contextWindow: 100, contextPercent: 12 });
+  assert.equal(merge(null, { contextPercent: 12 }), null);
+  const renderSource = source.slice(source.indexOf("function render("), source.indexOf("for (const button of buttons)", source.indexOf("function render(")));
+  const display = new Function('withNativeContext', 'logSnapshot', `
+    let snapshot, nativeContext;
+    const root = { hidden: true }, syncVisibility = () => {}, findComposer = () => null;
+    ${renderSource}
+    return native => { nativeContext = native; render(); return snapshot; };
+  `)(merge, logged);
+  assert.equal(display({ contextPercent: 50 }).contextPercent, 50);
+  assert.equal(display({ contextPercent: null }).contextPercent, 38);
+  assert.equal(logged.contextPercent, 38);
+  assert.match(source, /snapshot = withNativeContext\(logSnapshot, nativeContext\)/);
+  assert.match(source, /logSnapshot = value;\s*render\(\)/);
+});
+
 test("cache hit retains precision above 99 percent from raw token counts", async () => {
   const source = await readFile(path.join(featureDir, "src/session-status.mjs"), "utf8");
   const format = new Function(`${source.slice(source.indexOf("function cachePercent("), source.indexOf("function number("))}; return cachePercent;`)();

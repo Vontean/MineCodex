@@ -2,7 +2,12 @@ import { findCodexModule } from '../../../../../packages/codex-adapter/src/rende
 export function createModelControllerAdapter(codex,comparableModelLabel) {
 function controllerView(props) {const view=Object.fromEntries(["models","model","reasoningEffort","powerSelections","selectedPowerSelection","fallbackPowerSelection","serviceTierOptions","selectedServiceTier","onSelectModel","onSelectReasoningEffort","onSelectPower","onCommitPower","onSelectServiceTier"].map(key=>[key,props[key]]));codex.report('model-controller',true);return view;}
 function nativeComposerTriggers() {
-    return Array.from(document.querySelectorAll("[data-codex-intelligence-trigger]"))
+    const native = Array.from(document.querySelectorAll("[data-codex-intelligence-trigger]"));
+    // 26.1029 起模型按钮改用 composer 导航锚点，旧属性不再渲染。
+    const triggers = native.length
+      ? native
+      : Array.from(document.querySelectorAll('[data-composer-navigation-target="reasoning"]'));
+    return triggers
       .filter((trigger) => trigger.checkVisibility({ checkVisibilityCSS: true, checkOpacity: true }));
   }
 function nativeComposerTrigger() {
@@ -10,12 +15,62 @@ function nativeComposerTrigger() {
     return triggers.find((trigger) => trigger.getAttribute("data-state") === "open")
       ?? triggers[0] ?? null;
   }
+// 26.1029 起模型列表由 modelListConfig.options 提供，档位在 powerSelections。
+function controllerViewFromModelList(props) {
+    const config = props.modelListConfig;
+    const options = (Array.isArray(config?.options) ? config.options : [])
+      .filter((option) => option && typeof option.id === "string" && typeof option.onSelect === "function");
+    if (!options.length) return null;
+    const power = Array.isArray(props.powerSelections) ? props.powerSelections : [];
+    const selectedPower = props.selectedPowerSelection ?? null;
+    const model = String(selectedPower?.model ?? options.find((option) => option.selected)?.id ?? "");
+    if (!model) return null;
+    const models = options.map((option) => ({
+      model: String(option.id),
+      displayName: String(option.id),
+      supportedReasoningEfforts: power
+        .filter((entry) => entry?.model === option.id)
+        .map((entry) => ({ reasoningEffort: String(entry.reasoningEffort ?? "") }))
+        .filter((entry) => entry.reasoningEffort),
+      defaultReasoningEffort: "",
+      disabled: Boolean(option.disabled),
+    }));
+    function onSelectModel(id, reasoningEffort) {
+      const slug = String(id ?? "");
+      const target = power.find((entry) => entry?.model === slug
+        && String(entry.reasoningEffort ?? "") === String(reasoningEffort ?? ""));
+      if (target && typeof props.onSelectPower === "function") {
+        props.onSelectPower(target);
+        return;
+      }
+      options.find((option) => String(option.id) === slug)?.onSelect();
+    }
+    return controllerView({
+      models,
+      model,
+      reasoningEffort: selectedPower?.reasoningEffort ?? null,
+      powerSelections: power,
+      selectedPowerSelection: selectedPower,
+      fallbackPowerSelection: props.fallbackPowerSelection ?? null,
+      serviceTierOptions: props.serviceTierOptions,
+      selectedServiceTier: props.selectedServiceTier,
+      onSelectModel,
+      onSelectPower: props.onSelectPower,
+      onCommitPower: props.onCommitPower,
+      onSelectServiceTier: props.onSelectServiceTier,
+    });
+  }
 function nativeComposerModelController(trigger = nativeComposerTrigger()) {
     codex.report("model-controller",false,"task-controller-unavailable");
     let fiber = codex.currentFiber(trigger);
     let powerController = null;
-    for (let depth = 0; fiber && depth < 40; depth += 1, fiber = fiber.return) {
+    for (let depth = 0; fiber && depth < 60; depth += 1, fiber = fiber.return) {
       const props = fiber.memoizedProps;
+      if (!props || typeof props !== "object") continue;
+      if (props.modelListConfig && Array.isArray(props.modelListConfig.options)) {
+        const view = controllerViewFromModelList(props);
+        if (view) return view;
+      }
       if (
         Array.isArray(props?.powerSelections)
         && typeof props.onCommitPower === "function"

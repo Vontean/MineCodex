@@ -269,6 +269,7 @@ collapse.innerHTML = '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" st
 collapse.addEventListener("click", () => { setGlobalExpanded(false); trigger.focus(); hideTooltip(); }, { signal });
 root.append(collapse);
 let snapshot = null;
+let logSnapshot = null;
 // 统计刷新会重建浮窗，复用图标节点以保留 tooltip 的悬浮锚点。
 const tpsInfo = document.createElement("button");
 tpsInfo.type = "button";
@@ -499,7 +500,8 @@ function ensurePosition() {
     activeThreadId = threadId;
     nativeContext = emptyNativeContext();
     // 会话建立后先展示占位，不让日志落盘速度决定状态栏是否出现。
-    snapshot = threadId ? { threadId } : null;
+    logSnapshot = threadId ? { threadId } : null;
+    snapshot = logSnapshot;
     closePanel();
     render();
     requestRefresh();
@@ -532,8 +534,12 @@ function ensurePosition() {
   }
   syncVisibility(composer);
 }
+// 原生上下文不可用时保留日志口径，避免环退化为占位。
+function withNativeContext(current, native) {
+  return !current || native.contextPercent == null ? current : { ...current, ...native };
+}
 function render() {
-  if (snapshot) snapshot = { ...snapshot, ...nativeContext };
+  snapshot = withNativeContext(logSnapshot, nativeContext);
   syncVisibility(findComposer());
   if (root.hidden) return;
   trigger.querySelector("[data-context-progress]").setAttribute("stroke-dashoffset", String(100 - (snapshot.contextPercent ?? 0)));
@@ -587,7 +593,7 @@ const receiver = {
       if (revision <= lastRevision) return;
       lastRevision = revision;
     }
-    snapshot = value;
+    logSnapshot = value;
     render();
     scheduleRefresh();
   },

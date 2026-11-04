@@ -16,6 +16,11 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
   const modelSelectorOriginalToggleLabels = new Map();
   const modelSelectorGenericContainers = new Map();
   const modelSelectorNativeToggleHandlers = new Map();
+  // 原生 CSS 模块类名：26.1029 起改用不带下划线的 Name-hash 形式。
+  function hasNativeClass(element, name) {
+    const tokens = String(element?.className ?? "").split(/\s+/);
+    return tokens.some((token) => token.startsWith(`_${name}_`) || token.startsWith(`${name}-`));
+  }
   const modelSelectorPositionObservers = new Map();
   const modelSelectorMenuSizeFrames = new Map();
   const modelSelectorOpeningFrames = new Map();
@@ -63,15 +68,15 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
       max-height: var(--codex-model-slider-menu-max-height) !important;
       overflow-y: auto;
     }
-    [data-codex-model-slider-trigger] [class*="_ModelPickerTriggerModelLabel_"] {
+    [data-codex-model-slider-trigger] [class*="ModelPickerTriggerModelLabel"] {
       min-width: 0; max-width: 110px; flex-shrink: 1; overflow: hidden; text-overflow: ellipsis;
     }
-    [data-codex-model-slider-trigger] [class*="_ModelPickerTriggerModelText_"] {
+    [data-codex-model-slider-trigger] [class*="ModelPickerTriggerModelText"] {
       min-width: 0; max-width: 110px; overflow: hidden; text-overflow: ellipsis;
     }
     html[data-codex-model-slider-catalog-ready]
     [data-codex-model-slider-trigger]
-    [class*="_ModelPickerTriggerModelText_"]:not([data-codex-model-slider-trigger-label]):has(+ [data-codex-model-slider-trigger-label]) {
+    [class*="ModelPickerTriggerModelText"]:not([data-codex-model-slider-trigger-label]):has(+ [data-codex-model-slider-trigger-label]) {
       display: none !important;
     }
     [data-codex-model-slider-trigger-label] {
@@ -83,26 +88,26 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
     [data-codex-model-slider-trigger]:not([data-codex-model-slider-trigger-placeholder]) [data-codex-model-slider-trigger-label] {
       max-width: none; overflow: visible; text-overflow: clip; flex-shrink: 0;
     }
-    [data-codex-model-slider-trigger]:not([data-codex-model-slider-trigger-placeholder]) [class*="_ModelPickerTriggerModelLabel_"] {
+    [data-codex-model-slider-trigger]:not([data-codex-model-slider-trigger-placeholder]) [class*="ModelPickerTriggerModelLabel"] {
       max-width: none; overflow: visible; flex-shrink: 0;
     }
-    [data-codex-model-slider-trigger]:not([data-codex-model-slider-trigger-placeholder]) [class*="_ModelPickerTriggerContent_"] {
+    [data-codex-model-slider-trigger]:not([data-codex-model-slider-trigger-placeholder]) [class*="ModelPickerTriggerContent"] {
       max-width: none !important;
     }
-    [data-codex-model-slider-trigger][data-codex-model-slider-trigger-placeholder] [class*="_ModelPickerTriggerContent_"] {
+    [data-codex-model-slider-trigger][data-codex-model-slider-trigger-placeholder] [class*="ModelPickerTriggerContent"] {
       width: 160px; min-width: 160px !important; max-width: 160px;
     }
     /* 打开时先完成占位态，避免原生 crossfade 的宽度动画带动弹层。 */
-    [data-codex-model-slider-trigger][data-state="open"][data-codex-model-slider-trigger-placeholder] [class*="_ModelPickerTriggerContent_"] > span:has(> span > [class*="_ModelPickerTriggerPlaceholder_"]) {
+    [data-codex-model-slider-trigger][data-state="open"][data-codex-model-slider-trigger-placeholder] [class*="ModelPickerTriggerContent"] > span:has(> span > [class*="ModelPickerTriggerPlaceholder"]) {
       width: 160px !important;
     }
-    [data-codex-model-slider-trigger][data-state="open"][data-codex-model-slider-trigger-placeholder] span:has(> [class*="_ModelPickerTriggerPlaceholder_"]) {
+    [data-codex-model-slider-trigger][data-state="open"][data-codex-model-slider-trigger-placeholder] span:has(> [class*="ModelPickerTriggerPlaceholder"]) {
       opacity: 1 !important;
     }
-    [data-codex-model-slider-trigger][data-state="open"][data-codex-model-slider-trigger-placeholder] [class*="_ModelPickerTriggerLabel_"] {
+    [data-codex-model-slider-trigger][data-state="open"][data-codex-model-slider-trigger-placeholder] [class*="ModelPickerTriggerLabel"] {
       visibility: hidden;
     }
-    [data-codex-model-slider-trigger] [class*="_ModelPickerTriggerEffortLabel_"] {
+    [data-codex-model-slider-trigger] [class*="ModelPickerTriggerEffortLabel"] {
       display: inline-flex; align-items: center; align-self: center;
     }
     html[data-codex-model-slider-selecting-effort] [role="menu"][data-state="open"]:not(:has([data-reasoning-slider])) {
@@ -185,12 +190,13 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
   }
 
   function nativeCssModuleClass(tokenName, root = document) {
-    const pattern = new RegExp(`^_${tokenName}_[A-Za-z0-9_-]+$`);
-    const live = Array.from(root.querySelectorAll(`[class*="_${tokenName}_"]`))
+    // 26.1029 起原生类名改为 Name-hash，旧版带下划线包裹。
+    const pattern = new RegExp(`^(?:_${tokenName}_|${tokenName}-)[A-Za-z0-9_-]+$`);
+    const live = Array.from(root.querySelectorAll(`[class*="_${tokenName}_"], [class*="${tokenName}-"]`))
       .flatMap((element) => Array.from(element.classList))
       .find((name) => pattern.test(name));
     if (live) return live;
-    const selectorPattern = new RegExp(`\\.(_${tokenName}_[A-Za-z0-9_-]+)`);
+    const selectorPattern = new RegExp(`\\.((?:_${tokenName}_|${tokenName}-)[A-Za-z0-9_-]+)`);
     const find = (rules) => {
       for (const rule of rules ?? []) {
         const match = String(rule.selectorText ?? "").match(selectorPattern);
@@ -296,9 +302,9 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
 
   function captureNativeFastIcon() {
     // 原生控件每次只渲染当前状态；状态切换后按控件本身更新缓存。
-    const nativeContent = Array.from(document.querySelectorAll('[class*="_FastModeToggleContent_"]'))
+    const nativeContent = Array.from(document.querySelectorAll(':is([class*="_FastModeToggleContent_"], [class*="FastModeToggleContent-"])'))
       .find((content) => !content.closest("[data-codex-model-slider-generic]"));
-    const toggle = nativeContent?.closest('[class*="_FastModeToggle_"]');
+    const toggle = nativeContent?.closest(':is([class*="_FastModeToggle_"], [class*="FastModeToggle-"])');
     const state = toggle?.getAttribute("data-fast-mode-enabled") === "true" ? "active" : "inactive";
     const svg = nativeContent?.querySelector("svg");
     const current = modelSelectorNativeFastIcons?.[state];
@@ -341,11 +347,11 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
     // 直接读取已就绪的图标存储（启动时由 bundle/持久化填充，运行期由
     // captureNativeFastIcon 升级为 DOM 克隆），避免再次触发捕获造成递归。
     // 优先克隆当前面板的图标；切换瞬间使用缓存时，也沿用原生图标尺寸。
-    const nativeContents = Array.from(document.querySelectorAll('[class*="_FastModeToggleContent_"]'))
+    const nativeContents = Array.from(document.querySelectorAll(':is([class*="_FastModeToggleContent_"], [class*="FastModeToggleContent-"])'))
       .filter((content) => !content.closest("[data-codex-model-slider-generic]"));
     const nativeContent = nativeContents.find((content) => (
       (content.getAttribute("data-fast-mode-enabled")
-        ?? content.closest('[class*="_FastModeToggle_"]')?.getAttribute("data-fast-mode-enabled")) === String(active)
+        ?? content.closest(':is([class*="_FastModeToggle_"], [class*="FastModeToggle-"])')?.getAttribute("data-fast-mode-enabled")) === String(active)
     ));
     const nativeSvg = nativeContent?.querySelector("svg") ?? nativeContents[0]?.querySelector("svg");
     const template = nativeContent?.querySelector("svg")
@@ -458,7 +464,7 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
 
   function nativeModelValue(menu) {
     const toggle = menu?.querySelector("[data-model-picker-view-toggle]");
-    const toggleModelLabel = toggle?.querySelector('[class*="_ViewToggleModelLabel_"]');
+    const toggleModelLabel = toggle?.querySelector(':is([class*="_ViewToggleModelLabel_"], [class*="ViewToggleModelLabel-"])');
     const toggleValues = String(
       toggle?.hasAttribute("data-model-picker-view-toggle")
         ? (toggleModelLabel?.textContent ?? toggle.innerText)
@@ -1113,7 +1119,7 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
     if (!record) return false;
     if (record.closing && !immediate) return true;
     record.reveal?.cancel();
-    const placeholder = record.trigger?.querySelector('[class*="_ModelPickerTriggerPlaceholder_"]');
+    const placeholder = record.trigger?.querySelector('[class*="ModelPickerTriggerPlaceholder"]');
     const placeholderNode = placeholder && firstVisibleTextNode(placeholder);
     if (placeholderNode && record.placeholderText != null) {
       placeholderNode.nodeValue = record.placeholderText;
@@ -1297,7 +1303,7 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
     renderEnhancedModelMenu(menu, selector);
 
     const trigger = nativeComposerTrigger();
-    const placeholder = trigger?.querySelector('[class*="_ModelPickerTriggerPlaceholder_"]');
+    const placeholder = trigger?.querySelector('[class*="ModelPickerTriggerPlaceholder"]');
     const placeholderNode = placeholder && firstVisibleTextNode(placeholder);
     const placeholderText = placeholderNode?.nodeValue ?? null;
     // 保留产品行为：模型列表打开时 chip 显示 Select model。只能原地更新
@@ -1446,7 +1452,7 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
       const edgeCorrection = correction * Math.max(0, edgeScale);
       nativeRange.style.transform = `translateX(calc(${progress - 100}% + ${edgeCorrection}px))`;
       nativeThumb.style.left = `calc(${progress}% + ${correction}px)`;
-      const particleClip = rail.querySelector('[class*="_FastParticleClip_"]');
+      const particleClip = rail.querySelector(':is([class*="_FastParticleClip_"], [class*="FastParticleClip-"])');
       if (particleClip) particleClip.style.clipPath = `inset(0 calc(${100 - progress}% - ${edgeCorrection}px) 0 0)`;
     }
     rail.style.setProperty("--codex-model-slider-progress", `${progress}%`);
@@ -1462,7 +1468,7 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
     rail?.setAttribute("data-max", value);
     effortText?.setAttribute("data-maximum", value);
     fastButton?.setAttribute("data-max-power-selection", value);
-    const maxEffects = rail?.querySelector('[class*="_MaxEffects_"]');
+    const maxEffects = rail?.querySelector(':is([class*="_MaxEffects_"], [class*="MaxEffects-"])');
     if (maxEffects) {
       maxEffects.style.opacity = maximum ? "1" : "0";
       if (maximum) maxEffects.style.transform = "translateX(0)";
@@ -1493,9 +1499,9 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
   }
 
   function syncNativeFastParticles(rail, enabled, entering = false) {
-    const track = Array.from(rail.children).find((element) => String(element.className).includes("_Track_"));
+    const track = Array.from(rail.children).find((element) => hasNativeClass(element, "Track"));
     if (!track) return;
-    const staticParticles = rail.querySelector('[class*="_ParticleTransition_"]');
+    const staticParticles = rail.querySelector(':is([class*="_ParticleTransition_"], [class*="ParticleTransition-"])');
     if (staticParticles && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
       staticParticles.__codexStaticParticleFade?.cancel();
       staticParticles.style.opacity = enabled ? "0" : "1";
@@ -1507,7 +1513,7 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
         );
       }
     }
-    track.querySelectorAll('[class*="_FastParticleClip_"]').forEach((element) => element.remove());
+    track.querySelectorAll(':is([class*="_FastParticleClip_"], [class*="FastParticleClip-"])').forEach((element) => element.remove());
     if (!enabled || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const clipClass = nativeCssModuleClass("FastParticleClip");
     const particlesClass = nativeCssModuleClass("FastTrackParticles");
@@ -1540,7 +1546,7 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
       return path;
     }));
     clip.append(particles);
-    const tickRail = Array.from(track.children).find((element) => String(element.className).includes("_TickRail_"));
+    const tickRail = Array.from(track.children).find((element) => hasNativeClass(element, "TickRail"));
     track.insertBefore(clip, tickRail ?? null);
     // 重建粒子层后按当前档位恢复裁剪，避免重开面板时覆盖整条滑轨。
     setGenericSliderVisual(rail, valueNow, valueMax + 1);
@@ -1615,13 +1621,13 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
     root.setAttribute("data-max", "false");
     root.setAttribute("data-endpoint-labels-visible", "false");
     const range = Array.from(root.querySelectorAll("span")).find((element) => (
-      String(element.className).includes("_Range_")
+      hasNativeClass(element, "Range")
     ));
     const thumbScale = Array.from(root.querySelectorAll("span")).find((element) => (
-      String(element.className).includes("_ThumbScale_")
+      hasNativeClass(element, "ThumbScale")
     ));
     const tickRail = Array.from(root.querySelectorAll("div")).find((element) => (
-      String(element.className).includes("_TickRail_")
+      hasNativeClass(element, "TickRail")
     ));
     const tickTemplate = tickRail?.querySelector("span");
     if (!range || !thumbScale || !tickRail || !tickTemplate) return null;
@@ -1680,29 +1686,29 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
       copyCanvas();
       canvasTimer = setInterval(copyCanvas, 80);
     }
-    const sourceEffects = source.querySelector('[class*="_MaxEffects_"]');
-    const cloneEffects = clone.querySelector('[class*="_MaxEffects_"]');
+    const sourceEffects = source.querySelector(':is([class*="_MaxEffects_"], [class*="MaxEffects-"])');
+    const cloneEffects = clone.querySelector(':is([class*="_MaxEffects_"], [class*="MaxEffects-"])');
     if (!sourceEffects || !cloneEffects) return { disconnect };
     const sync = () => {
       if (!source.isConnected || !shell.isConnected) {
         disconnect();
         return;
       }
-      const sourceTransition = sourceEffects.querySelector('[class*="_ParticleTransition_"]');
-      let cloneTransition = cloneEffects.querySelector('[class*="_ParticleTransition_"]');
+      const sourceTransition = sourceEffects.querySelector(':is([class*="_ParticleTransition_"], [class*="ParticleTransition-"])');
+      let cloneTransition = cloneEffects.querySelector(':is([class*="_ParticleTransition_"], [class*="ParticleTransition-"])');
       if (!sourceTransition) {
         if (clone.querySelector("[data-fast-mode]")?.getAttribute("data-fast-mode") !== "true") {
           cloneTransition?.remove();
         }
         return;
       }
-      const sourceParticles = sourceTransition.querySelectorAll('[class*="_TrackParticle_"]');
-      let cloneParticles = cloneTransition?.querySelectorAll('[class*="_TrackParticle_"]');
+      const sourceParticles = sourceTransition.querySelectorAll(':is([class*="_TrackParticle_"], [class*="TrackParticle-"])');
+      let cloneParticles = cloneTransition?.querySelectorAll(':is([class*="_TrackParticle_"], [class*="TrackParticle-"])');
       if (!cloneTransition || sourceParticles.length !== cloneParticles.length) {
         cloneTransition?.remove();
         cloneTransition = sourceTransition.cloneNode(true);
         cloneEffects.append(cloneTransition);
-        cloneParticles = cloneTransition.querySelectorAll('[class*="_TrackParticle_"]');
+        cloneParticles = cloneTransition.querySelectorAll(':is([class*="_TrackParticle_"], [class*="TrackParticle-"])');
       }
       cloneTransition.setAttribute("style", sourceTransition.getAttribute("style") ?? "");
       sourceParticles.forEach((particle, index) => {
@@ -1862,7 +1868,7 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
       viewControls.append(modelButton);
     }
 
-    const nativeReset = parentMenu.firstElementChild?.querySelector('[class*="_ResetToDefault_"]');
+    const nativeReset = parentMenu.firstElementChild?.querySelector(':is([class*="_ResetToDefault_"], [class*="ResetToDefault-"])');
     if (nativeReset) {
       const reset = nativeReset.cloneNode(true);
       reset.setAttribute("role", "button");
@@ -1870,7 +1876,7 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
       reset.setAttribute("data-codex-model-slider-reset", "");
       reset.removeAttribute("data-radix-collection-item");
       reset.addEventListener("click", () => {
-        const currentReset = parentMenu.firstElementChild?.querySelector('[class*="_ResetToDefault_"]');
+        const currentReset = parentMenu.firstElementChild?.querySelector(':is([class*="_ResetToDefault_"], [class*="ResetToDefault-"])');
         invokeNativeMenuItemSelect(currentReset);
         queueEnsure();
       });
@@ -2092,7 +2098,7 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
     const existing = parentMenu.querySelector(":scope > [data-codex-model-slider-generic]");
     const nativeTemplateReady = Boolean(
       parentMenu.firstElementChild
-        ?.querySelector("[data-model-picker-power-slider] [class*='_TickRail_'] > span"),
+        ?.querySelector("[data-model-picker-power-slider] :is([class*='_TickRail_'], [class*='TickRail-']) > span"),
     );
     const templateWaitCount = Number(parentMenu.getAttribute("data-codex-model-slider-template-wait") ?? 0);
     if (nativeModel?.slug.toLowerCase().startsWith("gpt-") && !nativeTemplateReady && templateWaitCount < 3) {
@@ -2212,8 +2218,8 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
     if (trigger.querySelector("[data-codex-model-slider-trigger-label]")) return;
     const raw = trigger.getAttribute("data-codex-model-slider-trigger-raw");
     if (!raw) return;
-    const anchor = trigger.querySelector('[class*="_ModelPickerTriggerLabel_"]')
-      ?? trigger.querySelector('[class*="_ModelPickerTriggerContent_"]');
+    const anchor = trigger.querySelector('[class*="ModelPickerTriggerLabel"]')
+      ?? trigger.querySelector('[class*="ModelPickerTriggerContent"]');
     if (!anchor) return;
     const displayLabel = document.createElement("span");
     displayLabel.setAttribute("data-codex-model-slider-trigger-label", "");
@@ -2235,14 +2241,14 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
       modelSelectorTriggerObservers.set(trigger, observer);
     }
     const openPlaceholder = trigger.getAttribute("data-state") === "open"
-      && trigger.querySelector('[class*="_ModelPickerTriggerPlaceholder_"]');
+      && trigger.querySelector('[class*="ModelPickerTriggerPlaceholder"]');
     if (openPlaceholder && modelSelectorControllerMenu?.trigger === trigger && !modelSelectorControllerMenu.closing) {
       const textNode = firstVisibleTextNode(openPlaceholder);
       const label = locale === "zh-CN" ? "选择模型" : "Select model";
       if (textNode && textNode.nodeValue !== label) textNode.nodeValue = label;
     }
     const nativeLabels = Array.from(trigger.querySelectorAll(
-      '[class*="_ModelPickerTriggerModelText_"]:not([data-codex-model-slider-trigger-label])',
+      '[class*="ModelPickerTriggerModelText"]:not([data-codex-model-slider-trigger-label])',
     ));
     if (!nativeLabels.length) {
       trigger.setAttribute("data-codex-model-slider-trigger", "");
