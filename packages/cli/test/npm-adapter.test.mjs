@@ -11,6 +11,6 @@ test("Windows npm runs its cmd shim with literal arguments and propagates exit s
   } });
   assert.equal(await npm.viewLatestVersion(), "1.0.10");
   await npm.installGlobal("C:\\Users\\O'Brien & Co\\minecodex.tgz");
-  assert.match(scripts[0], /& npm\.cmd 'view' 'minecodex' 'version'; exit \$LASTEXITCODE$/);
+  assert.match(scripts[0], /& npm\.cmd 'view' 'minecodex' 'version' '--fetch-retries=0' '--fetch-timeout=8000'; exit \$LASTEXITCODE$/);
   assert.ok(scripts[1].includes("'C:\\Users\\O''Brien & Co\\minecodex.tgz'"));
 });

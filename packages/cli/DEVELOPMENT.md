@@ -25,3 +25,16 @@ Windows MSIX 更新可能删除缓存安装的整个版本目录。读取安装�
 macOS 适配器的注入测试显式选择 `darwin`，临时文件系统路径使用当前宿主的 `path` 语义，以便 Windows 也能验证状态迁移和拒绝越界行为。包内 plist、图标结构检查在各平台运行；真实 `codesign`、`lipo` 检查仅在 macOS 运行。
 
 令牌创建与稳定性在各平台运行；`0600` 权限位仅在非 Windows 平台断言。Windows 的 Node `stat().mode` 不表示 NTFS ACL，这项跳过不构成 Windows ACL 验收，也不改变生产文件写入规则。
+
+
+## 更新版本查询
+
+GUI `/api/update` 与 `mcx update` 共用 `createNpmAdapter().viewLatestVersion()`，
+通过 npm 查询稳定版本，沿用当前用户的 npm registry、代理与证书配置。
+不由 GUI 后台直接请求固定 registry URL，否则公司网络中可能出现终端更新成功、
+GUI 检查失败的差异。仅在终端会话中临时设置的环境变量不会自动传入已启动的后台服务；
+需要两者共用的设置应写入用户 npm 配置，再重新检查。
+
+查询禁用网络重试，单次 npm 网络超时 8 秒、子进程总超时 12 秒，
+短于官方 MCP 控制客户端的 20 秒截止时间。安装与回滚不套用此查询截止时间。
+GUI 继续只检查并提示，不自动安装；网络失败保留重试入口。

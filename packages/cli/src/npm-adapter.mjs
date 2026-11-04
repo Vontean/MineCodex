@@ -7,17 +7,17 @@ import { promisify } from "node:util";
 const defaultExecFile = promisify(execFileCallback);
 
 export function createNpmAdapter({ execFile = defaultExecFile, tempRoot = os.tmpdir(), platform = process.platform } = {}) {
-  function runNpm(args) {
-    if (platform !== "win32") return execFile("npm", args);
+  function runNpm(args, options = {}) {
+    if (platform !== "win32") return execFile("npm", args, options);
     // npm.cmd 需要命令解释器；字面量参数经编码传递，避免路径被当成脚本。
     const quote = (value) => "'" + String(value).replaceAll("'", "''") + "'";
     const script = "[Console]::OutputEncoding=[Text.Encoding]::UTF8; $ErrorActionPreference='Stop'; & npm.cmd "
       + args.map(quote).join(" ") + "; exit $LASTEXITCODE";
-    return execFile("powershell.exe", ["-NoProfile", "-NonInteractive", "-EncodedCommand", Buffer.from(script, "utf16le").toString("base64")]);
+    return execFile("powershell.exe", ["-NoProfile", "-NonInteractive", "-EncodedCommand", Buffer.from(script, "utf16le").toString("base64")], options);
   }
   return {
     async viewLatestVersion() {
-      const { stdout } = await runNpm(["view", "minecodex", "version"]);
+      const { stdout } = await runNpm(["view", "minecodex", "version", "--fetch-retries=0", "--fetch-timeout=8000"], { timeout: 12_000 });
       return stdout.trim();
     },
 

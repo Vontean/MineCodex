@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import { BrowserExchangeStore } from "./browser-exchange.mjs";
 import { FEATURE_IDS, readConfig, updateFeature } from "./config.mjs";
 import { normalizeRuntimeReady } from "./runtime-manager.mjs";
+import { createNpmAdapter } from "./npm-adapter.mjs";
 
 import { createDataTransfer, MAX_TRANSFER_BYTES } from "./data-transfer/service.mjs";
 
@@ -327,11 +328,9 @@ export async function createControlServer({
         return;
       }
       if (request.method === "GET" && url.pathname === "/api/update") {
-        const registryResponse = await fetch("https://registry.npmjs.org/minecodex/latest", {
-          signal: AbortSignal.timeout(4_000),
-        });
-        if (!registryResponse.ok) throw Object.assign(new Error("Update check failed"), { statusCode: 502 });
-        const latest = String((await registryResponse.json()).version ?? "");
+        // 与 mcx update 共用 npm 配置，保留用户的 registry、代理和证书设置。
+        const latest = await createNpmAdapter().viewLatestVersion();
+        if (!latest) throw Object.assign(new Error("Update check failed"), { statusCode: 502 });
         json(response, 200, {
           current: packageMetadata.version,
           latest,
