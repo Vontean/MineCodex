@@ -1,4 +1,5 @@
-import { findCodexModule } from '../../../../../packages/codex-adapter/src/renderer/modules.mjs';
+import {createRspackImageModules} from './rspack-modules.mjs';
+import { findCodexModule, codexModuleRegistry } from '../../../../../packages/codex-adapter/src/renderer/modules.mjs';
 // 以调用位置和参数结构识别角色，不绑定压缩后的局部变量名。
 export function discoverImageActionBinding(source, role) {
   const patterns = {
@@ -81,6 +82,8 @@ export function createNativeImageModules({read = async url => (await fetch(url))
 
   async function bootstrap() {
     if (!starting) starting = (async () => {
+      const registry = await codexModuleRegistry({read, load});
+      if (registry) return {rspack:await createRspackImageModules(registry)};
       const [initialUrl,mainUrl]=await Promise.all([
         findCodexModule('app-initial',{read}),findCodexModule('app-main',{read}),
       ]);
@@ -139,7 +142,9 @@ export function createNativeImageModules({read = async url => (await fetch(url))
 
   async function gallery() {
     if (!connecting) connecting = (async () => {
-      const {React,ReactDOM,module,component,binding,initialUrl,initialSource,initial}=await bootstrap();
+      const boot = await bootstrap();
+      if (boot.rspack) return boot.rspack.gallery();
+      const {React,ReactDOM,module,component,binding,initialUrl,initialSource,initial}=boot;
       const [masonry,layout,sourceImage,menu,toolbar]=await Promise.all([
         module("library-masonry"),module("library-item-layout"),module("generated-image-source"),
         module("generated-image-context-menu"),module("library-selection-toolbar"),
@@ -234,7 +239,9 @@ export function createNativeImageModules({read = async url => (await fetch(url))
 
   async function canvas() {
     if (!canvasConnecting) canvasConnecting = (async () => {
-      const {module,binding,component,initial}=await bootstrap();
+      const boot = await bootstrap();
+      if (boot.rspack) return boot.rspack.canvas();
+      const {module,binding,component,initial}=boot;
       const [canvas,canvasLayout,filePreview]=await Promise.all([
         module("image-side-panel"),module("preview-layout"),module("library-cloud-file-preview"),
       ]);
@@ -260,5 +267,5 @@ export function createNativeImageModules({read = async url => (await fetch(url))
     })().catch(error=>{canvasConnecting=null;throw error;});
     return canvasConnecting;
   }
-  return {navigation:async()=>{const {React,ReactDOM}=await bootstrap();return {React,ReactDOM};},gallery,canvas};
+  return {navigation:async()=>{const boot=await bootstrap();return boot.rspack ? boot.rspack.navigation() : {React:boot.React,ReactDOM:boot.ReactDOM};},gallery,canvas};
 }

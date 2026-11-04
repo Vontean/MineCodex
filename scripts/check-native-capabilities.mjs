@@ -1,5 +1,6 @@
+import {createRspackImageModules,discoverRspackPreviewBindings} from '../features/images/src/adapters/codex/rspack-modules.mjs';
 // 仅用于独立 Codex profile 的接口加载验收，不触发业务操作。
-import {findCodexModule,codexModuleStyles} from '../packages/codex-adapter/src/renderer/modules.mjs';
+import {findCodexModule,codexModuleStyles,codexModuleRegistry} from '../packages/codex-adapter/src/renderer/modules.mjs';
 import {loadComposerExpandControls} from '../features/composer-expand/src/native.mjs';
 import {loadQuickChatSidebarIcon} from '../features/quick-chat/src/adapters/codex/sidebar.mjs';
 import {loadFileNavigationModules} from '../features/file-navigation/src/adapters/codex/modules.mjs';
@@ -30,7 +31,7 @@ const run=async()=>{
  ]);
  controller.abort();clearTimeout(timer);return results;
 };
-const functions=[findCodexModule,codexModuleStyles,loadComposerExpandControls,loadQuickChatSidebarIcon,loadFileNavigationModules,loadInlineFileNavigationModules,loadNativeMarkdownToc,markdownExportAlias,loadNativeMarkdownTableActions,loadNativeMarkdownRenderer,loadNativeMarkdownLinks,loadNativeMarkdownRichText,loadNativeMermaidActions,saveQvDiagram,createNativeImageModules,discoverImageCanvasComponents,discoverImageActionBinding,discoverFilePreviewComposerBindings];
+const functions=[findCodexModule,codexModuleStyles,codexModuleRegistry,createRspackImageModules,discoverRspackPreviewBindings,loadComposerExpandControls,loadQuickChatSidebarIcon,loadFileNavigationModules,loadInlineFileNavigationModules,loadNativeMarkdownToc,markdownExportAlias,loadNativeMarkdownTableActions,loadNativeMarkdownRenderer,loadNativeMarkdownLinks,loadNativeMarkdownRichText,loadNativeMermaidActions,saveQvDiagram,createNativeImageModules,discoverImageCanvasComponents,discoverImageActionBinding,discoverFilePreviewComposerBindings];
 const expression=`(async()=>{${functions.map(fn=>`const ${fn.name}=${fn};`).join('\n')}return (${run})();})()`;
 const watchdog=setTimeout(()=>{console.error('Native capability probe timed out');ws.close();process.exitCode=1;},30000);
 ws.send(JSON.stringify({id:1,method:'Runtime.evaluate',params:{expression,returnByValue:true,awaitPromise:true}}));

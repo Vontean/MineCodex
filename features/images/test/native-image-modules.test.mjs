@@ -103,3 +103,19 @@ test('canvas roles survive renamed compressed exports and reject ambiguous compo
   assert.throws(()=>discoverImageCanvasComponents({a:Preview,b:function Duplicate(p){return {attachmentSrc:p.src,onImageEditSubmit:p.submit,downloadSrc:p.download};}},{changed:Layout}),/canvas role/);
   assert.throws(()=>discoverImageCanvasComponents({a:unrelated},{changed:Layout}),/canvas role/);
 });
+
+test('rspack navigation reuses the native React instance and root without ESM role filenames', async context => {
+  const previous=globalThis.document;context.after(()=>{globalThis.document=previous;});
+  globalThis.document={querySelectorAll:()=>[{src:'app://-/assets/73.hash.js'}]};
+  const React={createElement(){},useRef(){}},ReactDOM={createRoot(){}};
+  const runtime=()=>{throw Error('Do not rerun cached modules');};
+  runtime.m={
+    gallery:Function('return function gallery(e,t,r){var native=r("react");(0,native.useRef)();return {animate:true,label:"Loading library"};}')(),
+    roots:Function('return function roots(e,t){t.createRoot=function(){};}')(),
+    react(){},
+  };
+  runtime.c={gallery:{exports:{}},react:{exports:React},roots:{exports:ReactDOM}};
+  const modules=createNativeImageModules({read:async()=> 'export{runtime as __webpack_require__};',load:async()=>({__webpack_require__:runtime})});
+  const result=await modules.navigation();
+  assert.equal(result.React,React);assert.equal(result.ReactDOM,ReactDOM);
+});

@@ -48,3 +48,14 @@ reserveImageComposerSpace / contentOwnsHeader 等原生角色属性识别，拒�
 不固定压缩后的 t / r 导出。Renderer 后端 Library 请求同样显式序列化共享发现函数。
 Codex `26.1027.30824` 的独立 Renderer 已验证导航、图库和画布完整接口加载；
 没有据此声明图片点击、上传、下载或编辑流程通过。
+
+Codex `26.1029.61003`（macOS）不再提供具名 ESM 资源；Image Gen 原生导航锚点仍可识别，
+失败发生在原生 React / 图库模块加载。`src/adapters/codex/rspack-modules.mjs` 通过共享
+`codexModuleRegistry` 按角色取得原生导航、卡片、选择动作、图标及画布依赖，沿原生具名 lazy
+声明加载移动与确认对话框；不固定数字 chunk、模块编号或短导出名。旧 ESM 路径继续保留。
+File Preview 的 Composer、Scope 与附件引用按原生调用关系解析；角色缺失或 provider 多义
+时拒绝挂载，保留原生页面。
+
+独立 profile / CDP 9233 已验证：Plus Library 追加且只显示一个 Image Gen、36 张真实本地
+图片首屏与缩略图、选中动作栏、清除选择、打开原生详情及 Composer 挂载。上传、云端
+收藏／文件夹写入、图片编辑提交与 Windows 未在本轮执行；模块加载不代表这些动作已验收。
