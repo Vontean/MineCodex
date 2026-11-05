@@ -66,62 +66,80 @@ export function codexModuleStyles(source, ownerUrl, moduleUrl) {
 }
 
 // rspack 的入口公开原生 require；只读取已注册模块，不重新执行模块工厂。
-export async function codexModuleRegistry({read = async url => (await fetch(url)).text(), load = url => import(url)} = {}) {
-  for (const script of document.querySelectorAll('script[src]')) {
-    const url = script.src;
-    if (!url) continue;
-    const source = await read(url);
-    if (!/export\s*\{[^}]*\bas\s+__webpack_require__\b/.test(source)) continue;
-    const runtime = (await load(url)).__webpack_require__;
-    if (typeof runtime !== 'function' || !runtime.m || !runtime.c) throw new Error('native-module-registry-unavailable');
-    const sourceOf = value => {
-      try { return Function.prototype.toString.call(value); } catch { return ''; }
-    };
-    const entries = Object.entries(runtime.m).map(([id, factory]) => ({id, source:sourceOf(factory)}));
-    const unique = (values, role) => {
-      if (values.length !== 1) throw new Error(`Native module contract changed: ${role}`);
-      return values[0];
-    };
-    const resolvedExports = new Map();
-    const exportsOf = entry => {
-      if (resolvedExports.has(entry.id)) return resolvedExports.get(entry.id);
-      const cached = runtime.c[entry.id];
-      if (!cached || cached.error) throw new Error('native-module-not-loaded');
-      return cached.exports;
-    };
-    const module = (predicate, role) => unique(entries.filter(entry => predicate(entry.source, entry)), role);
-    const value = (entry, predicate, role) => unique(Object.values(exportsOf(entry)).filter(item => predicate(item, sourceOf(item))), role);
-    const binding = (entry, reference) => {
-      const [owner, ...properties] = reference.split('.');
-      const escaped = owner.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const id = entry.source.match(new RegExp(`(?:^|[^\\w$])${escaped}=[\\w$]+\\("([^"\\n]+)"\\)`))?.[1];
-      if (!id) throw new Error('native-module-binding-unavailable');
-      let result = exportsOf({id});
-      for (const property of properties) result = result?.[property];
-      if (result == null) throw new Error('native-module-export-unavailable');
-      return result;
-    };
-    const lazy = async (entry, name) => {
-      const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const match = entry.source.match(new RegExp(`[\\w$]+\\.e\\((\\d+)\\)\\.then\\([\\w$]+\\.bind\\([\\w$]+,"([^"\\n]+)"\\)\\)\\.then\\([\\w$]+=>\\(\\{default:[\\w$]+\\.${escaped}\\}\\)\\)`));
-      let id;
-      if (match) {
-        await runtime.e(Number(match[1]));
-        id=match[2];
-      } else {
-        // Pages 与 KaTeX 使用具名异步导入；依赖列表仍完全来自原生声明。
-        const group=entry.source.match(new RegExp(`Promise\\.all\\(\\[([^\\]]+)\\]\\)\\.then\\([\\w$]+\\.bind\\([\\w$]+,"([^"\\n]+)"\\)\\)(?:\\)\\.${escaped}\\b|\\.then\\(\\(\\{${escaped}(?=[:,}]))`));
-        if(!group || !/^(?:[\w$]+\.e\(\d+\),?)+$/.test(group[1])) throw new Error('native-module-lazy-contract-unavailable');
-        await Promise.all([...group[1].matchAll(/\.e\((\d+)\)/g)].map(item=>runtime.e(Number(item[1]))));
-        id=group[2];
-      }
-      const exports = await runtime(id);
-      if (exports[name] == null) throw new Error('native-module-lazy-export-unavailable');
-      resolvedExports.set(id,exports);
-      entries.splice(0,entries.length,...Object.entries(runtime.m).map(([id,factory])=>({id,source:sourceOf(factory)})));
-      return {id, source:sourceOf(runtime.m[id])};
-    };
-    return {entries, module, value, binding, lazy, exports:exportsOf, sourceOf};
+export async function codexModuleRegistry({read = async url => (await fetch(url)).text(), load = url => import(url), signal, waitForEntry = false} = {}) {
+  const scripts=()=>[...document.querySelectorAll('script[src]')];
+  const visited=new Set();
+  while (true) {
+    signal?.throwIfAborted();
+    for (const script of scripts()) {
+      signal?.throwIfAborted();
+      if (visited.has(script.src)) continue;
+      visited.add(script.src);
+      const url = script.src;
+      if (!url) continue;
+      const source = await read(url);
+      if (!/export\s*\{[^}]*\bas\s+__webpack_require__\b/.test(source)) continue;
+      const runtime = (await load(url)).__webpack_require__;
+      if (typeof runtime !== 'function' || !runtime.m || !runtime.c) throw new Error('native-module-registry-unavailable');
+      const sourceOf = value => {
+        try { return Function.prototype.toString.call(value); } catch { return ''; }
+      };
+      const entries = Object.entries(runtime.m).map(([id, factory]) => ({id, source:sourceOf(factory)}));
+      const unique = (values, role) => {
+        if (values.length !== 1) throw new Error(`Native module contract changed: ${role}`);
+        return values[0];
+      };
+      const resolvedExports = new Map();
+      const exportsOf = entry => {
+        if (resolvedExports.has(entry.id)) return resolvedExports.get(entry.id);
+        const cached = runtime.c[entry.id];
+        if (!cached || cached.error) throw new Error('native-module-not-loaded');
+        return cached.exports;
+      };
+      const module = (predicate, role) => unique(entries.filter(entry => predicate(entry.source, entry)), role);
+      const value = (entry, predicate, role) => unique(Object.values(exportsOf(entry)).filter(item => predicate(item, sourceOf(item))), role);
+      const binding = (entry, reference) => {
+        const [owner, ...properties] = reference.split('.');
+        const escaped = owner.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const id = entry.source.match(new RegExp(`(?:^|[^\\w$])${escaped}=[\\w$]+\\("([^"\\n]+)"\\)`))?.[1];
+        if (!id) throw new Error('native-module-binding-unavailable');
+        let result = exportsOf({id});
+        for (const property of properties) result = result?.[property];
+        if (result == null) throw new Error('native-module-export-unavailable');
+        return result;
+      };
+      const lazy = async (entry, name) => {
+        const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const match = entry.source.match(new RegExp(`[\\w$]+\\.e\\((\\d+)\\)\\.then\\([\\w$]+\\.bind\\([\\w$]+,"([^"\\n]+)"\\)\\)\\.then\\([\\w$]+=>\\(\\{default:[\\w$]+\\.${escaped}\\}\\)\\)`));
+        let id;
+        if (match) {
+          await runtime.e(Number(match[1]));
+          id=match[2];
+        } else {
+          // Pages 与 KaTeX 使用具名异步导入；依赖列表仍完全来自原生声明。
+          const group=entry.source.match(new RegExp(`Promise\\.all\\(\\[([^\\]]+)\\]\\)\\.then\\([\\w$]+\\.bind\\([\\w$]+,"([^"\\n]+)"\\)\\)(?:\\)\\.${escaped}\\b|\\.then\\(\\(\\{${escaped}(?=[:,}]))`));
+          if(!group || !/^(?:[\w$]+\.e\(\d+\),?)+$/.test(group[1])) throw new Error('native-module-lazy-contract-unavailable');
+          await Promise.all([...group[1].matchAll(/\.e\((\d+)\)/g)].map(item=>runtime.e(Number(item[1]))));
+          id=group[2];
+        }
+        const exports = await runtime(id);
+        if (exports[name] == null) throw new Error('native-module-lazy-export-unavailable');
+        resolvedExports.set(id,exports);
+        entries.splice(0,entries.length,...Object.entries(runtime.m).map(([id,factory])=>({id,source:sourceOf(factory)})));
+        return {id, source:sourceOf(runtime.m[id])};
+      };
+      return {entries, module, value, binding, lazy, exports:exportsOf, sourceOf};
+    }
+    if (!waitForEntry || scripts().some(script=>/\/(?:index|app-(?:main|initial))-[^/]+\.js(?:$|\?)/.test(script.src))) return null;
+    // HTML 仍在逐个挂载入口脚本时，首个 chunk 不一定拥有注册表。
+    await new Promise((resolve,reject)=>{
+      const cleanup=()=>{observer.disconnect();signal?.removeEventListener('abort',abort);};
+      const abort=()=>{cleanup();reject(signal.reason);};
+      const check=()=>{if(scripts().some(script=>!visited.has(script.src))){cleanup();resolve();}};
+      const observer=new MutationObserver(check);
+      observer.observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:['src']});
+      signal?.addEventListener('abort',abort,{once:true});
+      if(signal?.aborted)abort();else check();
+    });
   }
-  return null;
 }

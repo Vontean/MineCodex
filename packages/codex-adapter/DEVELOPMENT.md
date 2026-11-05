@@ -75,3 +75,8 @@ page-script 和独立 evaluate 中显式序列化它及自己的角色解析器�
 CodeMirror API、Pages 目录、表格控件、Markdown renderer / lexer、CodeSnippet 与 KaTeX；
 角色解析位于 Markdown Adapter，旧 ESM 路径保留。其他功能继续按各自协议处理，
 不据此宣称所有 rspack 能力已恢复。
+
+`codexModuleRegistry({signal, waitForEntry:true})` 供早于入口挂载的功能等待真实注册表。
+数字 chunk 可能逐个出现，发现器在已读取的 chunk 不含 runtime 时继续观察后续脚本，
+不把首个 script 当成完整清单；旧版语义入口存在时返回 null 交给 ESM 路径。
+AbortSignal 取消时释放观察器；默认只检查当前脚本，不改变其他调用方的等待策略。

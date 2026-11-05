@@ -45,3 +45,21 @@ test('lazy loading follows only the native declaration for the requested named c
   const result=await registry.lazy(owner,'NamedDialog');
   assert.equal(result.id,'dialog');assert.deepEqual(loaded,[37]);
 });
+
+test('startup waits through early chunks until the registry script mounts and abort releases observation',async t=>{
+  const previousDocument=globalThis.document,previousObserver=globalThis.MutationObserver;
+  t.after(()=>{globalThis.document=previousDocument;globalThis.MutationObserver=previousObserver;});
+  let observer;
+  globalThis.MutationObserver=class {constructor(fn){this.fn=fn}observe(){observer=this;this.connected=true}disconnect(){this.connected=false}};
+  for (const abort of [false,true]) {
+    const scripts=[{src:'app://-/assets/early.hash.js'}],controller=new AbortController();
+    globalThis.document={documentElement:{},querySelectorAll:()=>scripts};
+    const runtime=()=>{};runtime.m={};runtime.c={};
+    const result=codexModuleRegistry({signal:controller.signal,waitForEntry:true,read:async url=>url.includes('early')?'early chunk':'export{r as __webpack_require__}',load:async()=>({__webpack_require__:runtime})});
+    await Promise.resolve();
+    assert.equal(observer.connected,true);
+    if(abort){controller.abort();await assert.rejects(result,{name:'AbortError'});}
+    else {scripts.push({src:'app://-/assets/runtime.hash.js'});observer.fn();assert.ok(await result);}
+    assert.equal(observer.connected,false);
+  }
+});
