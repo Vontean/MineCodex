@@ -1,9 +1,8 @@
 // Markdown 共用原生角色；只沿已注册模块与原生 lazy 声明绑定依赖。
 export async function loadRspackMarkdownToc(registry) {
-  if (!registry.entries.some(entry=>entry.source.includes('data-heading-preview'))) {
-    const page=registry.module(source=>source.includes(').PageEditorContent'),'Pages content loader');
-    await registry.lazy(page,'PageEditorContent');
-  }
+  // 工厂已注册不等于依赖已初始化；并行加载的阅读与图表增强共用原生 import 完成点。
+  const page=registry.module(source=>source.includes(').PageEditorContent'),'Pages content loader');
+  await registry.lazy(page,'PageEditorContent');
   const owner=registry.module(source=>source.includes('data-heading-preview')&&source.includes('page-table-of-contents'),'Pages table of contents');
   const body=marker=>{
     const at=owner.source.indexOf(marker),start=owner.source.lastIndexOf('function ',at);

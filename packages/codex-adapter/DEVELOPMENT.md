@@ -80,3 +80,7 @@ CodeMirror API、Pages 目录、表格控件、Markdown renderer / lexer、CodeS
 数字 chunk 可能逐个出现，发现器在已读取的 chunk 不含 runtime 时继续观察后续脚本，
 不把首个 script 当成完整清单；旧版语义入口存在时返回 null 交给 ESM 路径。
 AbortSignal 取消时释放观察器；默认只检查当前脚本，不改变其他调用方的等待策略。
+
+Pages 的 Markdown 共享组件要等待其原生 `PageEditorContent` lazy import 完成后再读取
+依赖。Rspack 工厂出现在注册表时，其缓存导出和依赖可能仍未初始化；阅读增强与图表
+增强并行加载时也必须使用原生 import 的完成点，不能以源码标记存在作为就绪信号。

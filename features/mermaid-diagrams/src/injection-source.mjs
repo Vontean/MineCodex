@@ -14,14 +14,14 @@ import { exportQvDiagram, saveQvDiagram } from './mermaid/export.mjs';
 import { createQvLoading } from './mermaid/loading.mjs';
 import { createMarkdownMermaidControls } from './adapters/codex/mermaid-viewer.mjs';
 import { installMarkdownMermaid } from './adapters/codex/mermaid.mjs';
-import { loadNativeMermaidActions } from './adapters/codex/native.mjs';
+import { loadNativeMermaidActions, loadRspackMermaidActions } from './adapters/codex/native.mjs';
 import { createMermaidRuntime } from './adapters/codex/runtime.mjs';
 
 export async function createPageScriptSource() {
   const bindings = [findCodexModule, codexModuleStyles,codexModuleRegistry,loadRspackMarkdownListAPI,loadRspackMarkdownToc,loadRspackMarkdownTableActions,loadRspackMarkdownRenderer, createMarkdownPreviewAdapter, loadMarkdownListAPI, captureMarkdownProviders,
     loadNativeMarkdownToc, loadNativeMarkdownRenderer, markdownExportAlias, loadNativeMarkdownTableActions,
     createQvResources, createQvFrame, readQvTheme, exportQvDiagram, saveQvDiagram, createQvLoading,
-    createMarkdownMermaidControls, installMarkdownMermaid, loadNativeMermaidActions, createMermaidRuntime];
+    createMarkdownMermaidControls, installMarkdownMermaid, loadNativeMermaidActions, loadRspackMermaidActions, createMermaidRuntime];
   const declarations = bindings.map(binding => `const ${binding.name} = ${binding.toString()};`).join('\n');
   const entry = await readFile(new URL('./mermaid-diagrams.mjs',import.meta.url),'utf8');
   return `const markdownDownloadsDirectory=${JSON.stringify(join(homedir(),'Downloads'))};\n${declarations}\n${entry}`;
