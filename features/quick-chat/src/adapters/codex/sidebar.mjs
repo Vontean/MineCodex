@@ -1,5 +1,9 @@
-import { findCodexModule } from '../../../../../packages/codex-adapter/src/renderer/modules.mjs';
+import {loadRspackQuickChatIcon} from "./rspack.mjs";
+import { findCodexModule, codexModuleRegistry } from '../../../../../packages/codex-adapter/src/renderer/modules.mjs';
 export async function loadQuickChatSidebarIcon(signal) {
+  signal.throwIfAborted();
+  const registry=await codexModuleRegistry({signal,waitForEntry:true,read:async url=>(await fetch(url,{signal})).text()});
+  if (registry) return loadRspackQuickChatIcon(registry);
   const initialUrl = await findCodexModule('app-initial',{signal});
   if (!initialUrl) throw new Error('quick-chat-icon-module-unavailable');
   const initial = await (await fetch(initialUrl,{signal})).text();

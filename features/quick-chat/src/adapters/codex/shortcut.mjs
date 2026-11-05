@@ -1,4 +1,5 @@
-import { findCodexModule } from '../../../../../packages/codex-adapter/src/renderer/modules.mjs';
+import {loadRspackQuickChatBindings} from "./rspack.mjs";
+import { findCodexModule, codexModuleRegistry } from '../../../../../packages/codex-adapter/src/renderer/modules.mjs';
 import {quickChatLifecycleActions, quickChatScope} from "./lifecycle.mjs";
 // 通过原生能力检查与已有会话分支定位打开动作，不依赖构建哈希或压缩名称。
 export function quickChatOpenExport(source) {
@@ -99,6 +100,12 @@ export function installQuickChatShortcut(signal, codex, discover = null) {
   }
   async function load() {
     codex.report('quick-chat-shortcut', false, 'quick-chat-module-pending');
+    const registry=await codexModuleRegistry({signal:loading.signal,waitForEntry:true,read:async url=>(await fetch(url,{signal:loading.signal})).text()});
+    if (registry) {
+      const bindings=loadRspackQuickChatBindings(registry,quickChatNativeCommand);
+      if (!bindings.native && !bindings.close) codex.report('quick-chat-close',false,'quick-chat-close-contract-unavailable');
+      return bindings;
+    }
     const url=await findCodexModule('app-initial',{signal:loading.signal,waitForEntry:true});
     if (!url) throw new Error('quick-chat-module-unavailable');
     const source = await (await fetch(url, {signal:loading.signal})).text();

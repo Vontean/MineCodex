@@ -36,7 +36,7 @@ function fixture({platform='MacIntel',mode='codex',workModeAccess=null,native=fa
   const restoreProps={size:'composer',uniform:true,onClick:()=>{},onKeyDown:()=>{},onPointerDown:()=>{},onPointerEnter:()=>{}};
   const scope={get:()=>{},set:()=>{},scope:{__scopeBrand:'AppScope'}};
   const fiber={memoizedState:{memoizedState:{current:scopeAvailable?scope:null}}};
-  globalThis.document={documentElement:{},querySelectorAll:selector=>selector==='link[rel="modulepreload"],script[src]'?(assetReady?[{src:assetUrl}]:[]):selector==='button'?(minimized?[restoreButton]:[]):selector==='[data-floating-chat-surface]'?(active?[surface]:[]):selector==='button[aria-haspopup="menu"]'?(pickerMounted?[button]:[]):stableAnchor?[surface]:[],addEventListener:(name,fn)=>listeners.add(fn),removeEventListener:(name,fn)=>listeners.delete(fn)};
+  globalThis.document={documentElement:{},querySelectorAll:selector=>(selector==='link[rel="modulepreload"],script[src]'||selector==='script[src]')?(assetReady?[{src:assetUrl}]:[]):selector==='button'?(minimized?[restoreButton]:[]):selector==='[data-floating-chat-surface]'?(active?[surface]:[]):selector==='button[aria-haspopup="menu"]'?(pickerMounted?[button]:[]):stableAnchor?[surface]:[],addEventListener:(name,fn)=>listeners.add(fn),removeEventListener:(name,fn)=>listeners.delete(fn)};
   const controller=new AbortController();
   const codex={props:(node,predicate)=>node===surface?[{...floating,isMinimized:minimized},{session:{conversationId:surfaceSession}}].find(predicate):node===restoreButton?[restoreProps,floating].find(predicate):({mode,workModeAccess,onModeSelect:()=>{}}),currentFiber:()=>fiber,report:(...args)=>reports.push(args)};
   const shortcut=installQuickChatShortcut(controller.signal,codex,assetUrl?null:async()=>({native,open:value=>calls.push(value),create:value=>{created.push(value);opened=true},isOpen:()=>opened,mode:()=>mode}));
@@ -57,7 +57,7 @@ test('default loader initializes with lazy catalog and cold or warm native state
   try{
     const path=join(dir,'app-initial-fixture.js');await writeFile(path,source);
     globalThis.fetch=async()=>({text:async()=>source});
-    f=fixture({assetUrl:pathToFileURL(path).href,assetReady:!delayed});if(delayed){await Promise.resolve();f.mountAsset();observer?.callback();}await f.shortcut.ready;
+    f=fixture({assetUrl:pathToFileURL(path).href,assetReady:!delayed});if(delayed){f.mountAsset();observer?.callback();}await f.shortcut.ready;
     assert.equal(f.reports.at(-1)?.[1],true);if(delayed)assert.equal(observer.connected,false);
     assert.equal(typeof (await import(pathToFileURL(path).href)).opened,'object');
   }finally{f?.restore();globalThis.fetch=previousFetch;globalThis.MutationObserver=previousObserver;await rm(dir,{recursive:true,force:true});}

@@ -38,7 +38,7 @@ test('native close clears only the current chat draft and attachments without de
     const scope={scope:{__scopeBrand:'AppScope'},get:token=>token===native.current?session:token===native.product?'codex':true,set:(...args)=>writes.push(args)};
     const surface={};
     Object.defineProperty(globalThis,'navigator',{configurable:true,value:{platform:'MacIntel'}});
-    globalThis.document={querySelectorAll:selector=>selector==='link[rel="modulepreload"],script[src]'?[{src:url}]:[],addEventListener(){},removeEventListener(){}};
+    globalThis.document={querySelectorAll:selector=>(selector==='link[rel="modulepreload"],script[src]'||selector==='script[src]')?[{src:url}]:[],addEventListener(){},removeEventListener(){}};
     globalThis.fetch=async resource=>({text:()=>readFile(fileURLToPath(resource),'utf8')});
     shortcut=installQuickChatShortcut(new AbortController().signal,{report(){},currentFiber:()=>({memoizedState:{memoizedState:{current:scope}}})});
     await shortcut.ready;

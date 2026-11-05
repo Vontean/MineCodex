@@ -49,3 +49,21 @@ Close 调用前，从当前浮层取得 AppScope，并核对原生当前 session
 Codex `26.1027.30824` 的原生打开逻辑改用条件表达式。角色发现兼容已有 if 分支与
 新的 page/current session 条件表达式，仍校验 quick-chat 能力、原生打开状态与新建动作。
 回归覆盖两种语法及错误能力；本机隔离注入已报告 available，未补做物理快捷键和鼠标验收。
+
+## Rspack 注册表适配
+
+Codex / ChatGPT `26.1029.61003`（build 24614）使用数字 chunk 与 Rspack 模块注册表。
+快捷键和图标先使用共享 `codexModuleRegistry`，旧版继续走 ESM 资源引用；注入工厂必须
+同时序列化注册表与 `rspack.mjs` 中的角色发现函数。
+
+`rspack.mjs` 按命令定义判断官方快捷键是否恢复，再按 Quick Chat 能力检查、打开状态
+读取及新建分支解析原生动作。关闭只复用原生 discard 中的草稿、文字、附件清理和关闭，
+不调用 discard 或销毁会话。关闭协议和产品模式 selector 单独失效时不阻断可见模式
+选择器下的打开；缺少 selector 时停用隐藏侧栏补充路径。图标从浮层的 minimizedIcon
+默认分支解析实际依赖，不能通过图形相似度替换。
+
+注册表发现要覆盖入口脚本逐个挂载：前几个 chunk 可能不导出 runtime，等待后续声明，
+直到找到真实注册表、发现旧版语义入口或被 AbortSignal 取消。不能在首个 chunk 上
+判定为旧版并永久等待 app-initial。检查注册工厂源码、已加载导出及其引用，不执行
+任意原生模块工厂。`npm run check:native` 同时检查图标和快捷键加载链路；业务动作
+仍在独立 profile 验收。

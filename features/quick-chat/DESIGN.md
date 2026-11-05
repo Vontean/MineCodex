@@ -40,3 +40,9 @@ Codex 模式下，New chat 行右侧在 hover / focus-within 时显示 Quick Cha
 展开态 Close 放在 header 右侧 Drag 手柄左侧，Minimize 留在原位。经典 Quick Chat 的紧凑态与展开态共用单行输入对齐补偿：将输入局部的 `--composer-editor-single-line-height` 绑定到原生 `--spacing-token-button-composer`，保留原生行高、内部 padding 和 footer 底部对齐。原因是本机编辑器默认高 36px、按钮高 28px，底部对齐使文字中线高出 4px；两者使用同一高度后中线一致。同时将 inline footer 的上下 padding 与底部 margin 合并进由原生 token 计算的最小高度，并在该 wrapper 内居中整组内容，消除原生不对称留白造成的整体偏移；保留横条总高度。不设置固定平移，不重排编辑器 DOM。responsive footer 只在原生 40rem 横排断点以上采用此规则，stacked 和正在听写的布局不接入。规则仅在 Adapter 确认经典 Quick Chat 后生效，并要求外层输入与内部编辑器都为 single-line；多行、Work 和主页面 composer 不接入。关闭增强时移除作用域标记与样式，官方修复后可整段撤回。
 
 对齐依据：Codex 26.1027.51404（build 23880）的隔离 profile / CDP 实测。原生 footer 的 align-items 为 end，单行编辑器与按钮高度不一致；通过共享按钮高度 token 消除文字与按钮中线差，再使整组内容居中于可见输入 wrapper。实测原横条高 48px、按钮高 28px；修复后按钮上下各留 10px，文字行盒、按钮与 wrapper 中线一致。完整视觉、输入法与按钮点击验收以本轮验证记录为准，不以注入成功或单元测试代替。
+
+Rspack 适配依据：Codex / ChatGPT 26.1029.61003（build 24614）的实际注册模块及独立
+profile / CDP 窗口。已验证侧栏入口、⌘⌥N、新建与聚焦、首轮和续轮真实发送后展开、
+历史选择、最小化恢复、关闭清理未发送文字、隐藏侧栏后打开、重复入口不新建，以及
+卸载增强后原生会话保留。已复核 RuntimeHost 先启动、宿主后启动的冷启动。此证据为
+macOS Renderer / CDP，未覆盖 Windows、物理输入法、附件上传或后台生成中关闭。
