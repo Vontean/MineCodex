@@ -84,3 +84,9 @@ AbortSignal 取消时释放观察器；默认只检查当前脚本，不改变�
 Pages 的 Markdown 共享组件要等待其原生 `PageEditorContent` lazy import 完成后再读取
 依赖。Rspack 工厂出现在注册表时，其缓存导出和依赖可能仍未初始化；阅读增强与图表
 增强并行加载时也必须使用原生 import 的完成点，不能以源码标记存在作为就绪信号。
+
+原生能力检查 `npm run check:native` 按当前已打开的 surface 检查懒加载能力：Library
+检查图库与画布，Markdown File Preview 检查链接、目录、块操作、富文本及图表保存。
+缺少对应 surface 时输出 `available:null` / `state:not-applicable` 及应打开的页面，
+不将其计为通过或故障；适用页面中的发现或绑定失败仍使检查退出失败。接口加载通过
+仍不代替选择、导航、渲染、下载等实际操作验收。

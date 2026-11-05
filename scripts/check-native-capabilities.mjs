@@ -3,6 +3,9 @@ import {createRspackImageModules,discoverRspackPreviewBindings} from '../feature
 // 仅用于独立 Codex profile 的接口加载验收，不触发业务操作。
 import {findCodexModule,codexModuleStyles,codexModuleRegistry} from '../packages/codex-adapter/src/renderer/modules.mjs';
 import {loadComposerExpandControls,loadRspackComposerExpandControls,createComposerExpandControls} from '../features/composer-expand/src/native.mjs';
+import {loadRspackQuickChatBindings,loadRspackQuickChatIcon} from '../features/quick-chat/src/adapters/codex/rspack.mjs';
+import {quickChatNativeCommand,quickChatOpenExport,quickChatLifecycleExports,installQuickChatShortcut} from '../features/quick-chat/src/adapters/codex/shortcut.mjs';
+import {quickChatLifecycleActions,quickChatScope} from '../features/quick-chat/src/adapters/codex/lifecycle.mjs';
 import {loadQuickChatSidebarIcon} from '../features/quick-chat/src/adapters/codex/sidebar.mjs';
 import {loadFileNavigationModules,loadRspackFileNavigationModules} from '../features/file-navigation/src/adapters/codex/modules.mjs';
 import {loadInlineFileNavigationModules} from '../features/file-navigation/src/adapters/codex/inline-modules.mjs';
@@ -11,7 +14,9 @@ import {markdownExportAlias,loadNativeMarkdownTableActions} from '../packages/co
 import {loadNativeMarkdownRenderer} from '../packages/codex-adapter/src/markdown/markdown-native.mjs';
 import {loadNativeMarkdownLinks} from '../features/markdown-reading/src/adapters/codex/links.mjs';
 import {loadNativeMarkdownRichText,loadRspackMarkdownRichText} from '../features/markdown-reading/src/adapters/codex/rich-text.mjs';
-import {loadNativeMermaidActions} from '../features/mermaid-diagrams/src/adapters/codex/native.mjs';
+import {loadNativeMermaidActions,loadRspackMermaidActions} from '../features/mermaid-diagrams/src/adapters/codex/native.mjs';
+import {createCodexEnvironment} from '../packages/codex-adapter/src/renderer/environment.mjs';
+import {createMarkdownPreviewAdapter} from '../packages/codex-adapter/src/markdown/preview.mjs';
 import {saveQvDiagram} from '../features/mermaid-diagrams/src/mermaid/export.mjs';
 import {createNativeImageModules,discoverImageCanvasComponents,discoverImageActionBinding,discoverFilePreviewComposerBindings} from '../features/images/src/adapters/codex/native-image-modules.mjs';
 const port=Number(process.env.MCX_PROBE_PORT??9233);
@@ -21,18 +26,22 @@ if(!target)throw new Error('No native Codex index target found on the isolated p
 const ws=new WebSocket(target.webSocketDebuggerUrl);await new Promise(r=>ws.addEventListener('open',r,{once:true}));
 const run=async()=>{
  const controller=new AbortController(),results={};const timer=setTimeout(()=>controller.abort(),15000);
+ const codex=createCodexEnvironment();
+ const markdownActive=createMarkdownPreviewAdapter(codex).previews().length>0;
+ const imagesActive=[...document.querySelectorAll('[role=tab]')].some(tab=>tab.checkVisibility()&&codex.props(tab,p=>p.variant==='browse'&&Array.isArray(p.tabs)&&(['images','all','folders'].every(key=>p.tabs.some(t=>t.key===key))||['generated','uploaded'].every(key=>p.tabs.some(t=>t.key===key)))));
+ const defer=(names,reason)=>{for(const name of names)results[name]={available:null,state:'not-applicable',reason};};
  const probe=async(name,fn)=>{try{const value=await fn();results[name]={available:true,keys:Object.keys(value??{})};return value;}catch(e){results[name]={available:false,reason:String(e.message).slice(0,100)};}};
  await Promise.all([
   probe('composer-expand',()=>loadComposerExpandControls(controller.signal)),
+  probe('quick-chat-shortcut',async()=>{const reports=[];const shortcut=installQuickChatShortcut(controller.signal,{report:(...args)=>reports.push(args)});await shortcut.ready;const last=reports.findLast(row=>row[0]==='quick-chat-shortcut');if(!last?.[1])throw new Error(last?.[2]??'quick-chat-shortcut-unavailable');return {available:shortcut.available(),close:shortcut.canClose()};}),
   probe('quick-chat-icon',()=>loadQuickChatSidebarIcon(controller.signal)),
   probe('file-navigation',()=>loadFileNavigationModules()),
-  probe('markdown-links',()=>loadNativeMarkdownLinks()),
-  (async()=>{const toc=await probe('markdown-toc',()=>loadNativeMarkdownToc());if(!toc)return;const actions=await probe('markdown-actions',()=>loadNativeMarkdownTableActions(toc));if(!actions)return;await probe('markdown-rich-text',()=>loadNativeMarkdownRichText(actions));await probe('mermaid-actions',()=>loadNativeMermaidActions(actions));})(),
-  (async()=>{const modules=createNativeImageModules();await probe('image-navigation',()=>modules.navigation());await probe('image-gallery',()=>modules.gallery());await probe('image-canvas',()=>modules.canvas());})(),
+  (async()=>{if(!markdownActive){defer(['markdown-links','markdown-toc','markdown-actions','markdown-rich-text','mermaid-actions'],'open-markdown-file-preview');return;}await probe('markdown-links',()=>loadNativeMarkdownLinks());const toc=await probe('markdown-toc',()=>loadNativeMarkdownToc());if(!toc)return;const actions=await probe('markdown-actions',()=>loadNativeMarkdownTableActions(toc));if(!actions)return;await probe('markdown-rich-text',()=>loadNativeMarkdownRichText(actions));await probe('mermaid-actions',()=>loadNativeMermaidActions(actions));})(),
+  (async()=>{const modules=createNativeImageModules();await probe('image-navigation',()=>modules.navigation());if(!imagesActive){defer(['image-gallery','image-canvas'],'open-image-library');return;}await probe('image-gallery',()=>modules.gallery());await probe('image-canvas',()=>modules.canvas());})(),
  ]);
  controller.abort();clearTimeout(timer);return results;
 };
-const functions=[loadRspackMarkdownToc,loadRspackMarkdownTableActions,loadRspackMarkdownRenderer,loadRspackMarkdownRichText,findCodexModule,codexModuleStyles,codexModuleRegistry,createRspackImageModules,discoverRspackPreviewBindings,loadRspackComposerExpandControls,createComposerExpandControls,loadRspackFileNavigationModules,loadComposerExpandControls,loadQuickChatSidebarIcon,loadFileNavigationModules,loadInlineFileNavigationModules,loadNativeMarkdownToc,markdownExportAlias,loadNativeMarkdownTableActions,loadNativeMarkdownRenderer,loadNativeMarkdownLinks,loadNativeMarkdownRichText,loadNativeMermaidActions,saveQvDiagram,createNativeImageModules,discoverImageCanvasComponents,discoverImageActionBinding,discoverFilePreviewComposerBindings];
+const functions=[createCodexEnvironment,createMarkdownPreviewAdapter,loadRspackQuickChatBindings,loadRspackQuickChatIcon,quickChatNativeCommand,quickChatOpenExport,quickChatLifecycleExports,installQuickChatShortcut,quickChatLifecycleActions,quickChatScope,loadRspackMarkdownToc,loadRspackMarkdownTableActions,loadRspackMarkdownRenderer,loadRspackMarkdownRichText,findCodexModule,codexModuleStyles,codexModuleRegistry,createRspackImageModules,discoverRspackPreviewBindings,loadRspackComposerExpandControls,createComposerExpandControls,loadRspackFileNavigationModules,loadComposerExpandControls,loadQuickChatSidebarIcon,loadFileNavigationModules,loadInlineFileNavigationModules,loadNativeMarkdownToc,markdownExportAlias,loadNativeMarkdownTableActions,loadNativeMarkdownRenderer,loadNativeMarkdownLinks,loadNativeMarkdownRichText,loadNativeMermaidActions,loadRspackMermaidActions,saveQvDiagram,createNativeImageModules,discoverImageCanvasComponents,discoverImageActionBinding,discoverFilePreviewComposerBindings];
 const expression=`(async()=>{${functions.map(fn=>`const ${fn.name}=${fn};`).join('\n')}return (${run})();})()`;
 const watchdog=setTimeout(()=>{console.error('Native capability probe timed out');ws.close();process.exitCode=1;},30000);
 ws.send(JSON.stringify({id:1,method:'Runtime.evaluate',params:{expression,returnByValue:true,awaitPromise:true}}));
