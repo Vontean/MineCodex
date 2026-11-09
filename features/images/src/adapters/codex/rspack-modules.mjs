@@ -10,6 +10,7 @@ export async function createRspackImageModules(registry) {
   const bind = (entry, pattern, role) => binding(entry, required(entry.source, pattern, role));
   const ref = '[\\w$]+(?:\\.[\\w$]+)+';
   const renderRef = (props) => new RegExp(`\\.jsx\\)\\((${ref}),\\{${props}`);
+  const declares = name => source => declaresRspackExport(source, name);
   const masonry = module(source => source.includes('Loading library') && source.includes('animate:'), 'image masonry');
   const React = binding(masonry, required(masonry.source, /\(0,([\w$]+)\.useRef\)/, 'React'));
   const roots = registry.entries.filter(entry => /\.createRoot=/.test(entry.source));
@@ -23,7 +24,7 @@ export async function createRspackImageModules(registry) {
       const toolbar = module(source => source.includes('libraryNext.selection.more'), 'selection toolbar');
       const selection = module(source => source.includes('default:e.MoveLibraryItemsDialog'), 'Library actions');
       const checkbox = module(source => source.includes('onCheckedChange:') && source.includes('viewMode:') && source.includes('cursor-interaction') && source.includes('data-library-selection'), 'image checkbox');
-      const menu = module(source => source.includes('getGeneratedImageContextMenuItems:()=>'), 'image actions');
+      const menu = module(declares('getGeneratedImageContextMenuItems'), 'image actions');
       const favorite = module(source => source.includes('target_ref:') && source.includes('showToast:'), 'Library favorite');
       const favoriteItem = module(source => source.includes('library.favorites.add') && source.includes('assets:') && source.includes('surface:"grid"'), 'favorite icon');
       const dialogs = await registry.lazy(toolbar, 'ConfirmLibraryItemsDialog');
@@ -47,8 +48,8 @@ export async function createRspackImageModules(registry) {
       const sourceImage = module(source => source.includes('shouldLoadFileDataUrl:') && source.includes('loadTiming:') && source.includes('downloadSrc:'), 'image resolver');
       const layout = module(source => source.includes('actionIndicator:') && /documentHeader:[\w$]+,header:[\w$]+,overlayHeader:/.test(source), 'image card');
       const range = module(source => source.includes('orderedIds:') && source.includes('extendRange:') && source.length < 1000, 'range selection');
-      const uploadModule = module(source => source.includes('uploadChatGptConversationFile:()=>'), 'Library upload');
-      const openModule = module(source => source.includes('openImagePreview:()=>'), 'image preview');
+      const uploadModule = module(declares('uploadChatGptConversationFile'), 'Library upload');
+      const openModule = module(declares('openImagePreview'), 'image preview');
       const toolbarClass = required(toolbar.source, /className:"(Toolbar-[\w-]+)"/, 'toolbar class');
       const toolbarPositionClass = `${required(toolbar.source, /"(Container-[\w-]+)"/, 'toolbar container')} fixed`;
       return {
@@ -110,6 +111,11 @@ export async function createRspackImageModules(registry) {
   return {navigation:async()=>({React,ReactDOM}),gallery,canvas};
 }
 
+// 按导出声明识别模块，排除只调用该导出的消费方。rspack 具名导出有两种登记形式：
+// getter `d(t,{name:()=>x})`，以及 26.1103 起出现的直接函数值 `d(t,{},{name:function…})`。
+export function declaresRspackExport(source, name) {
+  return new RegExp(`[{,]${name}:(?:\\(\\)=>|(?:async )?function\\b)`).test(source);
+}
 
 export function discoverRspackPreviewBindings(source) {
   const ref = '[\\w$]+\\.[\\w$]+';
