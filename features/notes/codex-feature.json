@@ -12,6 +12,7 @@
   },
   "surfaceUrl": "http://127.0.0.1:47832/",
   "healthUrl": "http://127.0.0.1:47832/api/health",
+  "runtimePortEnvironment": "CODEX_NOTES_PORT",
   "entry": {
     "kind": "page-script",
     "script": "src/frontend/entry.mjs",
