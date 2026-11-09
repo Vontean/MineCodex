@@ -1,33 +1,33 @@
-// 前置状态：同 markdown-reading（full view 预览 feature-tour.md）。
+// 前置状态：Files 面板打开 examples/diagram-gallery.md（Preview）→ 隐藏文件树 → 进入 full view。
+// 镜头保留路径与 View source，说明这里是 Markdown Preview；逐个滚到各图型并停留，展示 QV 进场。
 import { shoot } from "./lib.mjs";
 setTimeout(() => { console.log("TIMEOUT"); process.exit(2); }, 120000);
-const scroller = `document.querySelector('[data-minecodex-markdown-reading] .cm-scroller') || document.querySelector('.cm-scroller')`;
-const frame = `[...document.querySelectorAll('iframe')].find(e => e.offsetWidth && e.getBoundingClientRect().width > 300)`;
-const actions = f => `JSON.stringify([...document.querySelectorAll('button[aria-label]')].filter(b => { if (!b.offsetWidth) return false; const r = b.getBoundingClientRect(); return /expand|download|copy|zoom/i.test(b.getAttribute('aria-label')) && r.y > ${f.y - 60} && r.y < ${f.y + f.height + 60}; }).map(b => { const r = b.getBoundingClientRect(); return { label: b.getAttribute('aria-label'), x: r.x + r.width / 2, y: r.y + r.height / 2 }; }))`;
+const scroller = `(document.querySelector('[data-minecodex-markdown-reading] .cm-scroller') || document.querySelector('.cm-scroller'))`;
+const HEADINGS = ["Sequence", "Skills", "Weekly Output", "Roadmap", "Priorities", "Topics"];
+// 缓动滚动到标题位于正文顶部；页面内 rAF 执行，避免逐帧往返 CDP。
+const scrollTo = (title, ms) => `new Promise(done => {
+  const s = ${scroller};
+  const h = [...s.querySelectorAll('h1,h2,.cm-line')].find(e => e.textContent.trim() === ${JSON.stringify(title)});
+  const from = s.scrollTop, to = Math.min(s.scrollHeight - s.clientHeight, from + h.getBoundingClientRect().top - s.getBoundingClientRect().top - 24);
+  const t0 = performance.now();
+  const step = now => { const t = Math.min(1, (now - t0) / ${ms}); const e = t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    s.scrollTop = from + (to - from) * e; t < 1 ? requestAnimationFrame(step) : done(); };
+  requestAnimationFrame(step);
+})`;
 
 await shoot("mermaid-diagrams", {
-  posterAt: 0.35,
-  async prepare({ cdp, rect, d, sleep }) {
-    await cdp.evaluate(`(() => { const s = ${scroller}; const h = [...document.querySelectorAll('.cm-line, h2, span')].find(e => e.textContent.trim() === 'Release Flow'); s.scrollBy({ top: h.getBoundingClientRect().top - 150 }); })()`);
-    await sleep(1500);
-    const f = await rect(frame); console.log("frame", f);
-    await d.moveTo(f.x + f.width + 80, f.y + 40, 200);
+  posterAt: 0.62,
+  async prepare({ cdp, d, vw, sleep }) {
+    await cdp.evaluate(`${scroller}.scrollTo({ top: 0 })`); await sleep(2500);
+    await d.moveTo(vw - 150, 520, 200);
   },
-  async act({ cdp, d, rect, center, sleep }) {
-    const f = await rect(frame);
-    await d.frame([f], 10); await sleep(500);
-    await d.moveTo(f.x + f.width * 0.55, f.y + f.height * 0.4, 500); await sleep(700);
-    const btns = JSON.parse(await cdp.evaluate(actions(f)));
-    console.log("actions", btns.map(b => b.label));
-    const dl = btns.find(b => /download/i.test(b.label)); const ex = btns.find(b => /expand|zoom/i.test(b.label)) ?? btns.at(-1);
-    if (dl) { await d.moveTo(dl.x, dl.y, 400); await sleep(700); }
-    await d.moveTo(ex.x, ex.y, 300); await d.click(); await sleep(1200);
-    const zoomIn = await rect(`[...document.querySelectorAll('button[aria-label]')].find(b => b.offsetWidth && /zoom in|increase|放大/i.test(b.getAttribute('aria-label')))`);
-    console.log("zoomIn", zoomIn);
-    await sleep(500);
-    if (zoomIn) { await d.moveTo(...center(zoomIn), 450); await d.click(); await sleep(450); await d.click(); await sleep(1100); }
-    const close = await rect(`[...document.querySelectorAll('[role=dialog] button[aria-label]')].find(b => b.offsetWidth && /close/i.test(b.getAttribute('aria-label')))`);
-    if (close) { await d.moveTo(...center(close), 350); await d.click(); await sleep(600); }
+  async act({ cdp, d, vw, vh, sleep }) {
+    await d.frame([{ x: 0, y: 0, width: vw, height: vh }], 0);
+    await sleep(1500);
+    for (const title of HEADINGS) {
+      await cdp.evaluate(scrollTo(title, 700));
+      await sleep(1400);
+    }
   },
 });
 process.exit(0);
