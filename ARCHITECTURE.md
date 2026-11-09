@@ -51,7 +51,7 @@ flowchart TB
 
 ## 注入环境
 
-page-script 是在 Renderer 执行的函数体源码，不具有 Node 模块的 imports 和闭包。功能工厂显式序列化所需 Adapter、纯规则与前端依赖；共享 UI 由安装器组装。移动文件时同时验证序列化后的实际执行，不能只验证 Node 导入。
+page-script 是在 Renderer 执行的函数体源码，不具有 Node 模块的 imports 和闭包。功能工厂显式序列化所需 Adapter、纯规则与前端依赖；共享 UI 由安装器组装。移动文件时同时验证序列化后的实际执行，不能只验证 Node 导入。执行环境与工厂写法见 [Runtime Host 的 page-script 与 sourceFactory](packages/runtime-host/DEVELOPMENT.md#page-script-与-sourcefactory)。
 
 功能内资源经 manifest 声明，由宿主读取并随配置传入；资源路径限制在所属功能目录。这样样式与图标可独立维护，Renderer 无需另建资源请求链。具体字段与加载方式见 [Runtime Host](packages/runtime-host/DEVELOPMENT.md)。
 
@@ -68,6 +68,7 @@ CLI 组合文件格式和功能适配器，功能 backend 拥有解析、去重�
 - 安装完成、后台健康、必要能力可用、用户操作成功和指定构建验收分别提供证据。没有适用场景不等于能力失效，全局安装标记不等于所有功能成功。
 - 自检读取当前实际作用域的证据；结果保留观测时刻、窗口与会话归属。旧窗口或会话的成功记录不沿用，检查频率和汇总细节见 Runtime Host 文档。
 - 文件迁移同步导入、manifest、序列化、验证与 npm 包名单，完成后移除无用途的旧实现。
+- 引入第三方图标、字体或代码时，先核对许可允许再分发。许可原文放在使用方的 `vendor/<来源>-LICENSE`（共享资源放所属包的 `assets/` 或 `references/`），并加入根 `package.json` 的 `files`；整段引入的源码另记来源版本与校验，例如 `provenance.json` 或 `THIRD_PARTY_NOTICES`。取自 Codex 安装包的原生资源注明来源构建。
 - 新增或移除功能时，目前仍需手工同步：CLI `FEATURE_IDS` 与默认开关、控制台卡片排序、根 `package.json` 的 `files` 与 `test`、Dashboard 预览说明、[数据迁移盘点](packages/cli/DATA-TRANSFER.md)与 README 功能表。能改为推导的名单应收敛，并从本条移除。
 
 完成改动前，应能说明规则所有者、涉及的外部协议、选择该接口的理由，以及证据覆盖的范围。测试清单与实现数量从当前源码查询。

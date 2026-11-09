@@ -64,6 +64,18 @@ npm run check
 
 资源、图标与源码工厂限制在所属功能目录。源码工厂显式组装序列化依赖，资源由宿主读取后传入；业务规则不在宿主复制。协议 ID 保持语言无关，可见标签使用 locale map 或现有字符串分支。
 
+### page-script 与 sourceFactory
+
+page-script 是在 Renderer 中以 `new Function("signal", "window", "document", "MutationObserver", "config", source)` 执行的函数体，没有模块作用域，不能使用 `import`，也不能捕获 Node 闭包。脚本可返回清理函数，宿主在卸载时调用；`signal` 在卸载时 abort。`config` 提供：
+
+- `config.ui`、`config.codex`：共享 UI 与公共 Codex 环境实例；
+- `config.resources`：manifest `entry.resources` 声明的文件内容（`.json` 已解析，其余为字符串）；
+- `config.requestHostAction(action, payload)`：调用本功能 `hostActions` 中声明的动作；
+- `config.registerSelfCheck(probe)`：注册同步只读自检；
+- `config.serviceOrigin`：声明了服务的功能可访问的 loopback 源。
+
+功能有自己的 Adapter 或领域规则时，在 manifest 声明 `entry.sourceFactory`。该模块在 Node 侧运行，导出 `createPageScriptSource()`，返回完整脚本字符串：用 `fn.toString()` 把 Adapter、领域函数内联为常量，再拼接 `entry.script` 的内容。新增依赖时同步更新这份组装名单；依赖的依赖也要显式内联。Node 中能导入不代表 Renderer 中能运行，测试须执行组装后的字符串，而不只导入模块。脚本、工厂与资源路径都限制在功能目录内。
+
 带本机服务的功能（当前为 Notes）在 manifest 声明 `surfaceUrl`、`healthUrl` 与 `command`：`surfaceUrl` 只作为服务基址，决定是否启动进程，并经 `pageScriptServiceOrigin` 得出页面脚本可经宿主访问的 loopback 源。HTTP 服务健康必须同时匹配功能身份、协议版本和本次宿主传入的 instanceId。仅可达或返回 2xx 不能证明是所属进程，避免复用其他实例或过期服务。检查失败按已声明 command 启动并验证所属服务；page-script 不虚构 HTTP 健康状态。
 
 ## Host action 通道
