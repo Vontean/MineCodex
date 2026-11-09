@@ -77,6 +77,11 @@ export function readingQvScript(script, name) {
     script = script.replace('data.nodes.length>=16&&Math.max(data.layout.width,data.layout.height)>=2400&&Math.max(data.layout.width/data.layout.height,data.layout.height/data.layout.width)>=3', `data.layout.width>${limit}&&['LR','RL'].includes(data.direction)`)
       .replace('ratio(data)>=ratio(initial)||data.layout.width*data.layout.height>initial.layout.width*initial.layout.height*1.3', 'data.layout.width>=initial.layout.width');
   }
+  if (name === 'mermaid-journey.js') {
+    // 先用容器宽度完成原排版，再把固定参考轴与步骤作为整体居中。
+    script = replaceQv(script, 'function layout(){', "function layout(){frame.style.width='';");
+    script = replaceQv(script, "scene.style.width=scene.style.minWidth=width+'px';", "scene.style.width=scene.style.minWidth=width+'px';frame.style.width=(width+(view.expanded?0:reference.offsetWidth))+'px';");
+  }
   if (name === 'mermaid-navigation.js') script = script.replace('data.layout.width<=width', `data.layout.width<=${limit}`);
   if (name === 'mermaid-layout.js') script = adaptFlowLayout(script);
   const tree = parse(script, { ecmaVersion: 'latest' }), edits = [];
