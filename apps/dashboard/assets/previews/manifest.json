@@ -1,1 +1,62 @@
-{}
+{
+  "composer-expand": {
+    "video": "composer-expand.mp4",
+    "poster": "composer-expand.jpg",
+    "version": "26.1103.60933"
+  },
+  "file-navigation": {
+    "video": "file-navigation.mp4",
+    "poster": "file-navigation.jpg",
+    "version": "26.1103.60933"
+  },
+  "files-auto-refresh": {
+    "video": "files-auto-refresh.mp4",
+    "poster": "files-auto-refresh.jpg",
+    "version": "26.1103.60933"
+  },
+  "markdown-reading": {
+    "video": "markdown-reading.mp4",
+    "poster": "markdown-reading.jpg",
+    "version": "26.1103.60933"
+  },
+  "mermaid-diagrams": {
+    "video": "mermaid-diagrams.mp4",
+    "poster": "mermaid-diagrams.jpg",
+    "version": "26.1103.60933"
+  },
+  "model-slider": {
+    "video": "model-slider.mp4",
+    "poster": "model-slider.jpg",
+    "version": "26.1103.60933"
+  },
+  "notes": {
+    "video": "notes.mp4",
+    "poster": "notes.jpg",
+    "version": "26.1103.60933"
+  },
+  "quick-chat": {
+    "video": "quick-chat.mp4",
+    "poster": "quick-chat.jpg",
+    "version": "26.1103.60933"
+  },
+  "session-status": {
+    "video": "session-status.mp4",
+    "poster": "session-status.jpg",
+    "version": "26.1103.60933"
+  },
+  "sidebar-focus": {
+    "video": "sidebar-focus.mp4",
+    "poster": "sidebar-focus.jpg",
+    "version": "26.1103.60933"
+  },
+  "sites": {
+    "video": "sites.mp4",
+    "poster": "sites.jpg",
+    "version": "26.1103.60933"
+  },
+  "usage-meter": {
+    "video": "usage-meter.mp4",
+    "poster": "usage-meter.jpg",
+    "version": "26.1103.60933"
+  }
+}
