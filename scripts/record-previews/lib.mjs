@@ -1,6 +1,7 @@
 // 功能预览录制工具：经 CDP 截屏帧（带时间戳），结束后用 ffmpeg 按真实时间合成、镜头跟随裁切并加速。
 // 规格见 apps/dashboard/DESIGN.md；用法见同目录 README.md。
 import { mkdir, writeFile, rm } from "node:fs/promises";
+import { writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 
@@ -120,7 +121,7 @@ export function encodeCamera({ frames, dpr }, { keys, vw, vh, out, ratio = 4 / 3
     return e;
   };
   const list = frames.map((f, i) => { const n = frames[i + 1]; return `file '${f.file}'\nduration ${(n ? Math.max(0.016, n.t - f.t) : tailHold).toFixed(3)}`; }).join("\n") + `\nfile '${frames.at(-1).file}'\n`;
-  require_write(out + ".txt", list);
+  writeFileSync(out + ".txt", list);
   // 镜头表达式基于原始时间轴，所以先裁切再整体加速。
   const vf = `fps=60,crop=${Math.round(W * dpr)}:${Math.round(H * dpr)}:'${expr("x")}':'${expr("y")}',scale=${width}:-2:flags=lanczos:out_range=tv,format=yuv420p,setpts=PTS/${speed},fps=30`;
   const run = args => { const r = spawnSync("ffmpeg", args, { encoding: "utf8" }); if (r.status) throw new Error(r.stderr.slice(-1200)); };
