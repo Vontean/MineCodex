@@ -65,7 +65,7 @@ test("control server exchanges a short-lived one-time value for a cookie and pro
 
     const status = await fetch(`${origin}/api/status`, { headers: { Cookie: cookie, "Accept-Language": "zh-CN" } });
     const initial = await status.json();
-    assert.deepEqual(initial.features.map(feature => feature.label), ["模型窗口", "提示词库", "额度环", "会话状态", "Markdown 阅读增强", "Mermaid 图表增强（实验性）", "文件级联浏览", "Files 自动刷新", "图片集合", "站点收藏", "快捷聊天增强", "长指令展开编辑", "侧栏聚焦"]);
+    assert.deepEqual(initial.features.map(feature => feature.label), ["模型窗口", "提示词库", "额度环", "会话状态", "Markdown 阅读增强", "Mermaid 图表增强", "文件级联浏览", "Files 自动刷新", "图片集合", "站点收藏", "快捷聊天增强", "长指令展开编辑", "侧栏聚焦"]);
     assert.equal(initial.features.some(feature=>feature.id==="unread-inbox"),false);
     const retiredIcon=await fetch(`${origin}/api/icons/unread-inbox.svg`,{headers:{Cookie:cookie}});
     assert.equal(retiredIcon.status,404);
@@ -79,7 +79,7 @@ test("control server exchanges a short-lived one-time value for a cookie and pro
     assert.equal(initial.features.find((feature) => feature.id === "session-status").label, "会话状态");
 
     assert.equal(initial.features.find(feature=>feature.id==="markdown-reading").enabled,true);
-    assert.equal(initial.features.find(feature=>feature.id==="mermaid-diagrams").enabled,false);
+    assert.equal(initial.features.find(feature=>feature.id==="mermaid-diagrams").enabled,true);
     assert.equal(initial.features.find(feature=>feature.id==="file-navigation").enabled,true);
     assert.equal(initial.features.find(feature=>feature.id==="markdown-reading").label,"Markdown 阅读增强");
 
@@ -87,6 +87,7 @@ test("control server exchanges a short-lived one-time value for a cookie and pro
       headers: { Cookie: cookie, "Accept-Language": "fr-FR" },
     })).json();
     assert.equal(english.features.find((feature) => feature.id === "session-status").label, "Session Status");
+    assert.equal(english.features.find(feature=>feature.id==="mermaid-diagrams").label,"Mermaid Diagrams");
 
     const sessionSaved = await fetch(`${origin}/api/features/session-status`, {
       method: "PATCH",

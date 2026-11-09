@@ -8,13 +8,16 @@ import { discoverFeatures, selectEnabledFeatures } from '../../../packages/runti
 import { normalizeConfig } from '../../../packages/cli/src/config.mjs';
 import { fileURLToPath } from 'node:url';
 
-test('default runtime selects reading without any diagram source or assets',async()=>{
+test('default runtime enables diagrams independently while explicit opt-out excludes diagram assets',async()=>{
   const features=await discoverFeatures(fileURLToPath(new URL('../../../features/',import.meta.url)));
   const config=normalizeConfig({features:{'markdown-reading':true}});
   const enabled=Object.entries(config.features).filter(([,on])=>on).map(([id])=>id).join(',');
   const selected=selectEnabledFeatures(features,enabled);
   assert.ok(selected.some(item=>item.id==='markdown-reading'));
-  assert.ok(!selected.some(item=>item.id==='mermaid-diagrams'));
+  assert.ok(selected.some(item=>item.id==='mermaid-diagrams'));
+  const disabled=normalizeConfig({features:{'mermaid-diagrams':false}});
+  const optedOut=selectEnabledFeatures(features,Object.entries(disabled.features).filter(([,on])=>on).map(([id])=>id).join(','));
+  assert.ok(!optedOut.some(item=>item.id==='mermaid-diagrams'));
   const manifest=JSON.parse(await readFile(new URL('../../markdown-reading/codex-feature.json',import.meta.url),'utf8'));
   assert.deepEqual(Object.keys(manifest.entry.resources),['styles']);
   assert.doesNotMatch(await readerSource(),/createQvResources|installMarkdownMermaid|saveQvDiagram/);

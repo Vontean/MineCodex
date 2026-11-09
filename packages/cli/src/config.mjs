@@ -14,7 +14,7 @@ export const DEFAULT_CONFIG = Object.freeze({
     "sidebar-focus": true,
     sites: true,
     "markdown-reading": true,
-    "mermaid-diagrams": false,
+    "mermaid-diagrams": true,
     "file-navigation": true,
     "files-auto-refresh": true,
     "quick-chat": true,

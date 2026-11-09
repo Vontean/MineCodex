@@ -1,6 +1,6 @@
 # Mermaid Diagrams
 
-独立功能 `mermaid-diagrams` 在控制台提供“Mermaid 图表增强（实验性）”卡片，默认关闭。新配置与缺少此字段的旧配置均关闭；后续明确的用户选择保留。不继承 `markdown-reading` 开关，两者可分别开启。开关保存与应用沿用控制台现有重启流程。
+独立功能 `mermaid-diagrams` 在控制台提供“Mermaid 图表增强”卡片，默认启用。新配置与缺少此字段的旧配置均启用；已有明确的关闭选择保留。不继承 `markdown-reading` 开关，两者可分别开启。开关保存与应用沿用控制台现有重启流程。
 
 关闭时保留 Codex 原生 Mermaid，无 QV 资源、iframe、下载能力或图表诊断加载。开启后只作用于 Markdown File Panel 的 Preview，不进入 Source、Pages 或聊天。运行时独立拥有 Preview 会话、主题映射、资源和自检；卸载移除自己的 CodeMirror 扩展并恢复原生图表，不释放阅读增强资源。
 
