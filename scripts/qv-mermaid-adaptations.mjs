@@ -260,6 +260,7 @@ const radarPatches = [
    + "const overflow=bottom-(height-4);if(overflow>0)for(const b of group)b.style.top=(b.offsetTop-overflow)+'px';}"],
 ];
 
+// 标题换行与图例共用 root 宽度观察；每次查询当前节点，兼容预设替换 innerHTML。
 // 图例（纵向排列时左对齐，不限于雷达图）：
 // 28. 雷达（通用 / 预设）、XY、饼图预设的图例都是 flex 换行 + 居中；名称较长时每项独占一行、各自居中，左缘参差，长名称越出图表。
 //     共享规则：放得下一行时保持居中；一旦换行，改为单列——列整体在图下居中，列内各项左缘对齐，
@@ -268,12 +269,12 @@ const legendHelper = "function alignMermaidLegends(root){"
   + "if(!document.getElementById('mcx-legend-style')){const st=document.createElement('style');st.id='mcx-legend-style';"
   + "st.textContent='[data-legend-stacked]{display:grid!important;grid-template-columns:minmax(0,max-content);justify-content:center;justify-items:start;max-width:100%}'"
   + "+'[data-legend-stacked]>*{max-width:100%;min-width:0}[data-legend-stacked] .mcx-legend-text{display:block!important;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}';document.head.append(st);}"
-  + "const legends=[...root.querySelectorAll('.radar-legend,.xy-key,.legend,.quick-radar-legend')];"
   + "const check=el=>{if(el.hidden||!el.children.length)return;el.removeAttribute('data-legend-stacked');const items=[...el.children].filter(n=>n.offsetParent);"
   + "if(new Set(items.map(n=>n.offsetTop)).size<2)return;"
   + "for(const item of items){item.title||=item.textContent.trim();for(const t of [...item.childNodes])if(t.nodeType===3&&t.textContent.trim()){const sp=document.createElement('span');sp.className='mcx-legend-text';t.replaceWith(sp);sp.append(t);}for(const span of item.querySelectorAll('span'))if(!span.children.length&&span.textContent.trim()&&!span.classList.contains('percent'))span.classList.add('mcx-legend-text');}"
   + "el.setAttribute('data-legend-stacked','');};"
-  + "legends.forEach(check);if(!root.__mcxLegendObserver){let last=root.clientWidth;root.__mcxLegendObserver=new ResizeObserver(()=>{if(root.clientWidth===last)return;last=root.clientWidth;requestAnimationFrame(()=>root.querySelectorAll('.radar-legend,.xy-key,.legend,.quick-radar-legend').forEach(check));});root.__mcxLegendObserver.observe(root);}}\n";
+  + "const refresh=()=>{if(root.dataset.state==='enhanced'){const title=root.querySelector('h3');if(title){const line=parseFloat(getComputedStyle(title).lineHeight);title.toggleAttribute('data-title-wrapped',!!title.offsetHeight&&title.scrollHeight>line*1.5);}}root.querySelectorAll('.radar-legend,.xy-key,.legend,.quick-radar-legend').forEach(check);};"
+  + "refresh();if(!root.__mcxLegendObserver){let last=root.clientWidth;root.__mcxLegendObserver=new ResizeObserver(()=>{if(root.clientWidth===last)return;last=root.clientWidth;requestAnimationFrame(refresh);});root.__mcxLegendObserver.observe(root);}}\n";
 const legendPatches = [
   ['function placeMermaidDetail(root,tip,anchor,event,preferredWidth=280){', legendHelper + 'function placeMermaidDetail(root,tip,anchor,event,preferredWidth=280){'],
   ['(async()=>{\nconst root=', '(async()=>{document.addEventListener("qv:ready",e=>{const r=e.target.closest?.(".qv-mermaid");if(r)requestAnimationFrame(()=>alignMermaidLegends(r));});\nconst root='],

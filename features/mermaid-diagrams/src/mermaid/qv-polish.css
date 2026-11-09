@@ -14,7 +14,11 @@
 #mcx-qv-root.qv-mermaid .er-type{color:var(--muted-foreground)}
 
 /* 内容画布在宽容器内居中，超宽时保留左侧可达的滚动起点。 */
-#mcx-qv-root.qv-mermaid:is([data-renderer="qv-quadrant"],[data-renderer="qv-er"],[data-renderer="qv-class"]) .scene{margin-inline:auto}
+#mcx-qv-root.qv-mermaid[data-state="enhanced"]:not([data-renderer="qv-journey"]) .scene{margin-inline:auto}
 /* Journey 的固定参考轴与步骤画布一起居中，溢出时只滚动步骤。 */
 #mcx-qv-root.qv-mermaid[data-renderer="qv-journey"] .journey-frame{max-width:100%;margin-inline:auto}
-#mcx-qv-root.qv-mermaid:is([data-renderer="qv-radar"],[data-renderer="qv-sankey"]) h3{margin-inline:0;text-align:center}
+#mcx-qv-root.qv-mermaid[data-state="enhanced"]>h3{margin-inline:0;text-align:center;overflow-wrap:anywhere}
+
+#mcx-qv-root.qv-mermaid[data-state="enhanced"]>h3[data-title-wrapped]{text-align:left}
+/* 预设替换 root 内容后不再含原视口样式，包装层仍需保留横向滚动。 */
+#mcx-qv-root.qv-mermaid[data-state="enhanced"]:is([data-preset],[data-renderer="qv-pie"])>.diagram-scroll{overflow-x:auto}
