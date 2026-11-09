@@ -297,6 +297,17 @@ const quadrantPatches = [
    "data.quadrants.forEach((t,i)=>{const right=i===0||i===3,upper=i<2,n=label(t,right?x+w-captionWidth-12:x+12,0,captionWidth,right?'right':'left');n.classList.add('quadrant-caption');n.style.setProperty('--q-tone','var(--viz-series-'+(i+1)+')');n.style.top=(upper?y+10:y+h-10-n.offsetHeight)+'px';});"],
 ];
 
+const polishPatches = [
+  // 34. 悬停时快进入场，而不是忽略悬停。
+  ["function showTip(n,event){clearTimeout(leaveTimer);if(activeNode===n.id&&!architectureReader)return;if(root.dataset.motion==='running')return;",
+   "function showTip(n,event){clearTimeout(leaveTimer);if(activeNode===n.id&&!architectureReader)return;if(root.dataset.motion==='running'){runningAnimations.forEach(a=>a.finish());root.dataset.motion='complete';}"],
+  ["if(activeNode!==n.id&&root.dataset.motion!=='running')queueNodeHover(n,e);", "if(activeNode!==n.id)queueNodeHover(n,e);"],
+  // 35. 已有气泡打开时，相邻对象立即接替。
+  ['enter=setTimeout(()=>{current=element;activate();},100);', 'enter=setTimeout(()=>{current=element;activate();},current?0:100);'],
+  ["tip.style.left=c.x+'px';tip.style.top=c.y+'px';tip.dataset.placement='near';",
+   "tip.style.left=c.x+'px';tip.style.top=c.y+'px';tip.dataset.placement='near';tip.style.transformOrigin=`${Math.max(0,Math.min(w,x+aw/2-c.x))}px ${Math.max(0,Math.min(h,y+ah/2-c.y))}px`;"],
+];
+
 export function adaptQvTemplate(script) {
   script = replaceQv(script, "e.fromSide=e.toSide=['LR','RL'].includes(data.direction)?'NORTH':'WEST';}}", "{const lr=['LR','RL'].includes(data.direction),flip=['RL','BT'].includes(data.direction);e.fromSide=lr?(flip?'EAST':'WEST'):(flip?'SOUTH':'NORTH');e.toSide=lr?(flip?'WEST':'EAST'):(flip?'NORTH':'SOUTH');}}}");
   for (const [from, to] of sequencePatches) script = replaceQv(script, from, to);
@@ -312,5 +323,26 @@ export function adaptQvTemplate(script) {
   const titles = script.split(titleFix[0]);
   if (titles.length !== 4) throw new Error('QV 标题锚点数量变化');
   script = titles.join(titleFix[1]);
+  for (const [from,to] of polishPatches) script=replaceQv(script,from,to);
+  return script;
+}
+
+// 只改当前模板中实际存在的 animate 调用；原型和外部库均不变。
+export function adaptQvMotion(script) {
+  const ast=parse(script,{ecmaVersion:'latest'}),edits=[];
+  function visit(node){
+    if(!node||typeof node!=='object')return;
+    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&node.callee.property.name==='animate'){
+      const object=script.slice(node.callee.object.start,node.callee.object.end);
+      edits.push([node.start,node.arguments[0].start,`animateMermaidEntry(${object},`]);
+    }
+    for(const value of Object.values(node)){if(Array.isArray(value))value.forEach(visit);else if(value?.type)visit(value);}
+  }
+  visit(ast);
+  for(const [start,end,text] of edits.sort((a,b)=>b[0]-a[0]))script=script.slice(0,start)+text+script.slice(end);
+  script=replaceQv(script,'k=1-(1-t)**4','k=mermaidEntryProgress(t)');
+  script=replaceQv(script,'const k=1-Math.pow(1-t,4)','const k=mermaidEntryProgress(t)');
+  script=replaceQv(script,'.ease(d3.easeCubicOut)','.ease(mermaidEntryProgress)');
+  script=replaceQv(script,"Math.max(...data.nodes.map(n=>n.layer))*220+810",'mermaidEntryBudget');
   return script;
 }
