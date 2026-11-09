@@ -129,10 +129,42 @@ const mindmapPatches = [
    "path.setAttribute('class','wire');Object.assign(path.dataset,{from:n.parent,to:n.id,depth:n.depth-1,branch:''});path.style.setProperty('--branch',buttons.get(n.id).style.getPropertyValue('--branch'));"],
 ];
 
+// 架构图（压测绘制失败的根因修复）：
+// 15. 根因：原生 Mermaid 只给出相对方位，图标中心距约 120px，放大 1.8 倍后 216px，而 QV 卡片固定 240px 宽；
+//     相邻卡片重叠，连线起点落进邻居卡片，A* 布线无解，整图失败。原生布局还会把分组行拉开数万像素。
+// 16. 首选：保留原生方位（谁在谁左右上下，含 B→T 这类二维方向），按原生中心聚类成列与行（容差 24px），
+//     列宽、行高按实际卡片尺寸 + 分组留白重排，消除重叠与超大空白。
+// 17. 回退：原生方位装不下分组时（分组框盖住其他分组的节点、两个节点落进同一格、或仍无布线路径），
+//     改用与流程图相同的 ELK 分层布局，分组作为复合块；主方向取连线端口多数（左右多 → LR，否则 TB）。
+//     单用 ELK 已否决：它只有一个主方向，会把「API 下方的数据库」排到右侧，常规样例变宽超出正文。
+const archLayout = "async function prepareArchitectureLayout(data){"
+  + "const measure=(name,width)=>{const t=document.createElement('span');t.style.cssText='position:absolute;left:-100000px;width:'+width+'px;font:500 14px/20px '+getComputedStyle(root).fontFamily+';white-space:normal;overflow-wrap:anywhere';t.textContent=name;root.append(t);const h=t.offsetHeight;t.remove();return h;};"
+  + "for(const n of data.nodes){if(n.junction){n.layoutWidth=n.layoutHeight=10;}else{n.layoutWidth=240;n.layoutHeight=Math.max(48,26+measure(n.name,184));}}"
+  + "const sideways=data.edges.filter(e=>['EAST','WEST'].includes(e.fromSide)).length;data.direction=sideways*2>=data.edges.length?'LR':'TB';"
+  + "root.dataset.mcxLayout='arch-elk';await prepareMermaidLayout(data);}\n";
+const archPatches = [
+  ['async function prepareNativeGeometry(data,mermaid,source,db,architecture) {',
+   archLayout + 'async function prepareNativeGeometry(data,mermaid,source,db,architecture) {let gridFailed=false;'],
+  ["const groups=data.groups.map(g=>({...g,...rect(architecture?'group-'+g.id:g.id)}));",
+   "if(architecture){const snap=(key,size)=>{const items=data.nodes.map(n=>({n,c:n[key]+n[size]/2})).sort((a,b)=>a.c-b.c),levels=[];for(const it of items){const last=levels.at(-1);if(last&&it.c-last.c<=24)last.items.push(it);else levels.push({c:it.c,items:[it]});}return levels;};"
+   + "const cols=snap('x','w'),rows=snap('y','h'),depth=Math.max(0,...data.groups.map(g=>{let d=1,p=g.parent;while(p){d++;p=data.groups.find(x=>x.id===p)?.parent;}return d;})),colGap=48+48*depth,rowGap=48+68*depth,colOf=new Map(),rowOf=new Map(),cells=new Set();"
+   + "cols.forEach((l,i)=>l.items.forEach(it=>colOf.set(it.n,i)));rows.forEach((l,i)=>l.items.forEach(it=>rowOf.set(it.n,i)));for(const n of data.nodes)cells.add(colOf.get(n)+':'+rowOf.get(n));"
+   + "if(cells.size!==data.nodes.length)gridFailed=true;else{const colW=cols.map(l=>Math.max(...l.items.map(it=>it.n.w))),rowH=rows.map(l=>Math.max(...l.items.map(it=>it.n.h))),colX=[],rowY=[];colW.reduce((x,w,i)=>(colX[i]=x,x+w+colGap),24);rowH.reduce((y,h,i)=>(rowY[i]=y,y+h+rowGap),68);"
+   + "for(const n of data.nodes){const c=colOf.get(n),r=rowOf.get(n);n.x=colX[c]+(colW[c]-n.w)/2;n.y=rowY[r]+(rowH[r]-n.h)/2;}}}"
+   + "const groups=data.groups.map(g=>({...g,...rect(architecture?'group-'+g.id:g.id)}));"],
+  ['for(const g of groups.filter(g=>!g.parent))bounds(g);',
+   "for(const g of groups.filter(g=>!g.parent))bounds(g);"
+   + "if(architecture){const inside=(n,g)=>{for(let p=n.parent;p;p=groups.find(x=>x.id===p)?.parent)if(p===g.id)return true;return false;};"
+   + "if(gridFailed||groups.some(g=>data.nodes.some(n=>!inside(n,g)&&n.x<g.x+g.w&&g.x<n.x+n.w&&n.y<g.y+g.h&&g.y<n.y+n.h)))return prepareArchitectureLayout(data);}"],
+  ['finishMermaidGeometry(data,groups,architecture);',
+   "if(architecture){try{finishMermaidGeometry(data,groups,architecture);root.dataset.mcxLayout='arch-grid';}catch(error){return prepareArchitectureLayout(data);}}else finishMermaidGeometry(data,groups,architecture);"],
+];
+
 export function adaptQvTemplate(script) {
   script = replaceQv(script, "e.fromSide=e.toSide=['LR','RL'].includes(data.direction)?'NORTH':'WEST';}}", "{const lr=['LR','RL'].includes(data.direction),flip=['RL','BT'].includes(data.direction);e.fromSide=lr?(flip?'EAST':'WEST'):(flip?'SOUTH':'NORTH');e.toSide=lr?(flip?'WEST':'EAST'):(flip?'NORTH':'SOUTH');}}}");
   for (const [from, to] of sequencePatches) script = replaceQv(script, from, to);
   for (const [from, to] of xyPatches) script = replaceQv(script, from, to);
   for (const [from, to] of mindmapPatches) script = replaceQv(script, from, to);
+  for (const [from, to] of archPatches) script = replaceQv(script, from, to);
   return script;
 }
