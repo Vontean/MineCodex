@@ -6,3 +6,9 @@
 #mcx-qv-root.qv-mermaid :is(.xy-tip-value,.radar-detail-value){color:var(--popover-foreground);font-weight:500;font-variant-numeric:tabular-nums}
 #mcx-qv-root.qv-mermaid :is(.state-tip-caption,.architecture-detail-label){font-size:12px;line-height:18px}
 @media (prefers-reduced-motion:reduce){#mcx-qv-root.qv-mermaid :is(.node-tip,.seq-tip,.er-tip,.class-tip,.state-tip,.state-peers,.xy-tip,.sankey-detail,.radar-detail,.quadrant-detail,.architecture-detail,.bubble,.quick-radar-tooltip){transition:none}}
+
+/* 规则 37：标题、正文与辅助信息保持稳定层级。 */
+#mcx-qv-root.qv-mermaid h3{font-size:16px;line-height:24px}
+#mcx-qv-root.qv-mermaid .state-node{font-size:14px;line-height:20px}
+#mcx-qv-root.qv-mermaid .timeline-period{font-size:14px}
+#mcx-qv-root.qv-mermaid .er-type{color:var(--muted-foreground)}

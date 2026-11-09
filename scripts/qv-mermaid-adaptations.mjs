@@ -308,6 +308,14 @@ const polishPatches = [
    "tip.style.left=c.x+'px';tip.style.top=c.y+'px';tip.dataset.placement='near';tip.style.transformOrigin=`${Math.max(0,Math.min(w,x+aw/2-c.x))}px ${Math.max(0,Math.min(h,y+ah/2-c.y))}px`;"],
 ];
 
+const typePatches = [
+  // 37. XY 刻度数字降为次要色。
+  ["text(v,{x:y(v),y:bottom+22,'text-anchor':'middle'});", "text(v,{x:y(v),y:bottom+22,'text-anchor':'middle',fill:'var(--muted-foreground)'});"],
+  ["text(v,{x:left-12,y:y(v)+4,'text-anchor':'end'});", "text(v,{x:left-12,y:y(v)+4,'text-anchor':'end',fill:'var(--muted-foreground)'});"],
+  // 横向滚动时固定在左侧的纵轴刻度（HTML 副本）同样降为次要色。
+  ["label.style.cssText='position:absolute;right:12px;top:'+(y(v)-8)+'px';", "label.style.cssText='position:absolute;right:12px;color:var(--muted-foreground);top:'+(y(v)-8)+'px';"],
+];
+
 export function adaptQvTemplate(script) {
   script = replaceQv(script, "e.fromSide=e.toSide=['LR','RL'].includes(data.direction)?'NORTH':'WEST';}}", "{const lr=['LR','RL'].includes(data.direction),flip=['RL','BT'].includes(data.direction);e.fromSide=lr?(flip?'EAST':'WEST'):(flip?'SOUTH':'NORTH');e.toSide=lr?(flip?'WEST':'EAST'):(flip?'NORTH':'SOUTH');}}}");
   for (const [from, to] of sequencePatches) script = replaceQv(script, from, to);
@@ -324,6 +332,7 @@ export function adaptQvTemplate(script) {
   if (titles.length !== 4) throw new Error('QV 标题锚点数量变化');
   script = titles.join(titleFix[1]);
   for (const [from,to] of polishPatches) script=replaceQv(script,from,to);
+  for (const [from,to] of typePatches) script=replaceQv(script,from,to);
   return script;
 }
 
