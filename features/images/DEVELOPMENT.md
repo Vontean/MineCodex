@@ -30,6 +30,8 @@ Images 按当前账号接入原生页面：Plus 使用 **Library**，Pro 使用 
 
 原生模块定位复用共享 [Codex Adapter](../../packages/codex-adapter/DEVELOPMENT.md)。先查实际独立模块，再走入口内联的兼容分支；不能因某个入口不含引用就认定资源已合并。画布与布局按 attachmentSrc / onImageEditSubmit / downloadSrc、reserveImageComposerSpace / contentOwnsHeader 等原生角色属性识别，拒绝缺失或多义候选，不固定压缩导出名、chunk 编号或 hash。File Preview 的 Composer、Scope 与附件引用按原生调用关系解析。Renderer 后端 Library 请求同样显式序列化共享发现函数。
 
+rspack 分支按模块的导出声明识别图片菜单（`getGeneratedImageContextMenuItems`）、详情入口（`openImagePreview`）与上传（`uploadChatGptConversationFile`），由 `declaresRspackExport` 判定。具名导出有两种登记形式：getter `d(t,{name:()=>x})`，以及 macOS Codex `26.1103.60933` 起部分模块改用的直接函数值 `d(t,{},{name:function…})`（依据该构建 Renderer 注册表中的图片菜单与详情模块）。两种形式都接受；只调用该导出的消费方（如 `(0,X.getGeneratedImageContextMenuItems)(…)`）不算声明。页面脚本按函数序列化，新增的顶层辅助函数需同步加入 `src/library-prompt-source.mjs` 的序列化名单，否则只在真实 Renderer 中报 `ReferenceError`。
+
 接入失败以当前标签节点、账号与页面分支为边界停止自动重试；清理产生的 DOM 变化不能重新挂载同一失败实例。离开页面再进入或重新注入后可重新连接。原生标签没有变化时不重复渲染替代导航。
 
 ## 验证
@@ -38,4 +40,4 @@ Images 按当前账号接入原生页面：Plus 使用 **Library**，Pro 使用 
 node --test features/images/test/*.test.mjs
 ```
 
-最近隔离验证：macOS Codex `26.1029.61003`，独立 profile / CDP。已覆盖 Plus Library 追加唯一 Image Gen、真实本地图片首屏与缩略图、选中动作栏、清除选择、打开原生详情及 Composer 挂载。未覆盖：上传、云端收藏／文件夹写入、图片编辑提交、随消息提交图片与 Windows；模块加载不代表这些动作已验收。
+最近隔离验证：macOS Codex `26.1103.60933`，独立 profile / CDP，宿主只加载 `images`。已覆盖：自检由 `native-image-mount-unavailable` 恢复为 `available`；Plus Library 在 Images 后追加唯一 Image Gen；真实本地图片首屏与缩略图；点击卡片打开原生详情；勾选后显示原生多选动作栏并可清除；卡片 More actions 菜单；经 View prompts 打开原生详情与提示词面板，有记录的图片显示生成提示词，无记录的显示空状态说明。未覆盖：上传、云端收藏／文件夹写入、多选批量动作执行、图片编辑提交、随消息提交图片与 Windows；模块加载不代表这些动作已验收。
