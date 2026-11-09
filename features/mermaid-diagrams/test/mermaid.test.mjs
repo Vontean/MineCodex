@@ -151,19 +151,44 @@ test('frame authenticates messages, encodes source as data, reports timeout and 
   assert.deepEqual(heights,[500]);
 });
 
-test('whole-diagram wrapping uses the maximum reading width, including short flows and narrow panels', async () => {
+test('flow chooses the narrower main axis using the reading maximum without snake folding', async () => {
   const source = await readFile(new URL('vendor/qv/source/mermaid-layout.js',feature),'utf8');
-  const context = vm.createContext({cfg:{readingWidth:736},root:{clientWidth:480}});
+  const context = vm.createContext({cfg:{readingWidth:736},root:{clientWidth:480,dataset:{}}});
   vm.runInContext(readingQvScript(source,'mermaid-layout.js'),context);
-  context.prepareMermaidLayout = async () => {};
-  context.finishMermaidGeometry = () => {};
-  const make = width => ({direction:'LR',nodes:Array.from({length:4},(_,i)=>({id:String(i),w:154,h:48})),groups:[],layout:{width,height:104}});
-  const below = make(736);await context.prepareFlowchartLayout(below);
-  assert.equal(below.balanced,false,'narrow panel does not lower the threshold');
-  const above = make(737);await context.prepareFlowchartLayout(above);
-  assert.equal(above.balanced,true,'four nodes can wrap without the old 16-node gate');
-  assert.ok(Math.max(...above.nodes.map(n=>n.x+n.w))+24<=736);
-  assert.ok(new Set(above.nodes.map(n=>n.y)).size>1);
+  let calls=[];
+  context.prepareMermaidLayout = async data => { calls.push(data.direction);data.layout={width:data.widths[data.direction],height:104}; };
+  const make = (lr,tb,direction='LR') => ({direction,nodes:[],groups:[],widths:{LR:lr,TB:tb}});
+  const below=make(736,400);await context.prepareFlowchartLayout(below);
+  assert.deepEqual(calls,['LR']);assert.equal(below.direction,'LR');assert.equal(below.balanced,false);
+  calls=[];const fits=make(737,500);await context.prepareFlowchartLayout(fits);
+  assert.deepEqual(calls,['LR','TB']);assert.equal(fits.direction,'TB');
+  calls=[];const narrower=make(2000,900);await context.prepareFlowchartLayout(narrower);
+  assert.equal(narrower.layout.width,900);assert.equal(narrower.direction,'TB');
+  calls=[];const original=make(900,2000);await context.prepareFlowchartLayout(original);
+  assert.deepEqual(calls,['LR','TB','LR']);assert.equal(original.direction,'LR');
+  calls=[];const vertical=make(600,900,'TB');await context.prepareFlowchartLayout(vertical);
+  assert.deepEqual(calls,['TB','LR']);assert.equal(vertical.direction,'LR');
+});
+test('entry batches preserve ordering within 1200ms and do not replace native animate', async () => {
+  const source=await readFile(new URL('src/mermaid/qv-motion.js',feature),'utf8');
+  const animations=[],microtasks=[];
+  const element={animate(frames,timing){const effect={getTiming:()=>timing,updateTiming:value=>Object.assign(timing,value)};const a={frames,effect};animations.push(a);return a;}};
+  const native=element.animate,context=vm.createContext({queueMicrotask:fn=>microtasks.push(fn)});
+  vm.runInContext(source,context);context.element=element;
+  vm.runInContext("animateMermaidEntry(element,[{transform:'scale(.08)'},{transform:'scale(1)'}],{duration:650,delay:110});animateMermaidEntry(element,[{opacity:0},{opacity:1}],{duration:50,delay:2080})",context);
+  assert.equal(element.animate,native);assert.equal(microtasks.length,1);microtasks[0]();
+  const times=animations.map(a=>a.effect.getTiming());
+  assert.ok(Math.abs(times[1].delay+times[1].duration-1200)<.001);
+  assert.ok(times[0].delay+times[0].duration<times[1].delay,'arrows follow their lines');
+  assert.equal(animations[0].frames[0].transform,'scale(0.92)');
+  assert.equal(animations[0].frames[0].opacity,0);
+});
+test('complete grouped diagrams do not ship a navigation switch or drilldown functions', async () => {
+  const {script,markup}=await buildQvTemplate();
+  assert.ok(!script.includes('cfg.navigation'));
+  assert.ok(!/function (navigateScope|setNavigationMode|mermaidScopeView)\(/.test(script));
+  assert.ok(!markup.includes('<nav class="scope-nav"'));
+  assert.ok(!script.includes('Element.prototype.animate'));
 });
 test('group direction comparison uses the reading maximum and preserves explicit connection faces', async () => {
   const source = await readFile(new URL('vendor/qv/source/mermaid-navigation.js',feature),'utf8');
