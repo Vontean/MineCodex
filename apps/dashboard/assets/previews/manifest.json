@@ -14,6 +14,11 @@
     "poster": "files-auto-refresh.jpg",
     "version": "26.1103.60933"
   },
+  "images": {
+    "video": "images.mp4",
+    "poster": "images.jpg",
+    "version": "26.1103.60933"
+  },
   "markdown-reading": {
     "video": "markdown-reading.mp4",
     "poster": "markdown-reading.jpg",

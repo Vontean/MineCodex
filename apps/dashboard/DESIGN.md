@@ -103,7 +103,7 @@ Escape与关闭按钮按触发方式返回入口，返回焦点不会重新打�
 ## 内容与媒体接口
 
 `assets/preview-content.js` 按稳定 feature ID 保存中英位置／问题／操作结果，
-与卡片名称、实时状态分开。`assets/previews/manifest.json` 管素材关联；图片集合暂无素材。
+与卡片名称、实时状态分开。`assets/previews/manifest.json` 管素材关联。
 示例格式：
 
 ```json
