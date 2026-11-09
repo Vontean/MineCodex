@@ -25,11 +25,11 @@
   </tr>
   <tr>
     <td><img src="./apps/dashboard/assets/previews/session-status.jpg" alt="会话状态：查看当前会话的 Token 用量、上下文与生成速度"></td>
-    <td><img src="./apps/dashboard/assets/previews/images.jpg" alt="图片集合：浏览本机生成的图片并查看提示词"></td>
+    <td><img src="./apps/dashboard/assets/previews/mermaid-diagrams.jpg" alt="Mermaid 图表增强：在 Markdown 预览中查看排版更清楚的图表"></td>
   </tr>
   <tr>
     <td><b>会话状态</b> · 当前会话的用量、上下文和生成速度集中在一处</td>
-    <td><b>图片集合</b> · 浏览生成过的图片，随时找回当时的提示词</td>
+    <td><b>Mermaid 图表增强</b> · 复杂图表排得更清楚，可缩放、可下载 PNG</td>
   </tr>
 </table>
 
