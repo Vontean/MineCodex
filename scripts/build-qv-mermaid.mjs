@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 import { parse } from 'acorn';
+import { adaptFlowLayout, adaptQvTemplate, replaceQv } from './qv-mermaid-adaptations.mjs';
 import { createMermaidViewport } from '../features/mermaid-diagrams/src/mermaid/viewport.mjs';
 const source = new URL('../features/mermaid-diagrams/vendor/qv/source/', import.meta.url);
 const output = new URL('../features/mermaid-diagrams/assets/', import.meta.url);
@@ -76,6 +77,7 @@ export function readingQvScript(script, name) {
       .replace('ratio(data)>=ratio(initial)||data.layout.width*data.layout.height>initial.layout.width*initial.layout.height*1.3', 'data.layout.width>=initial.layout.width');
   }
   if (name === 'mermaid-navigation.js') script = script.replace('data.layout.width<=width', `data.layout.width<=${limit}`);
+  if (name === 'mermaid-layout.js') script = adaptFlowLayout(script);
   const tree = parse(script, { ecmaVersion: 'latest' }), edits = [];
   function walk(node) {
     if (!node || typeof node !== 'object') return;
@@ -121,7 +123,8 @@ export async function buildQvTemplate({ motion = true } = {}) {
   template = template.replaceAll('{{ROOT_ID}}', 'mcx-qv-root').replaceAll('{{TITLE}}', '').replaceAll('{{TITLE_HIDDEN}}', 'hidden')
     .replaceAll('{{CONFIG_JSON}}', 'JSON.stringify(window.__mcxDiagramConfig)');
   const match = template.match(/<script>([\s\S]*?)<\/script>/);
-  let script = motion ? match[1] : staticQvScript(match[1]);
+  let script = adaptQvTemplate(match[1]);
+  script = motion ? script : staticQvScript(script);
   // 架构图始终展示全貌，不提供节点组开关或分组下钻；流程图保持原有能力。
   script = script.replace('navigationEnabled=!!data.groups?.length;', 'navigationEnabled=!!data.groups?.length&&!data.architecture;')
     .replace('root.dataset.hasGroups=String(navigationEnabled)', 'root.dataset.hasGroups=String(!!data.groups?.length)')
