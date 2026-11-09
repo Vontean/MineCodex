@@ -36,6 +36,8 @@ Windows Codex `26.1016.8120.0` 将浮层资源从 `quick-chat-floating-surface` 
 
 侧栏入口调用 activate() 保持恢复／聚焦；键盘调用 activate({minimize:true}) 让已显示浮层最小化。两者共享新建会话和启动就绪逻辑，侧栏重复点击不最小化。
 
+历史背景平面取自浮层所属 dialog 中带 `asChild`、`unstyled` 的原生包装层。Codex `26.1103.60933`（macOS）起该包装层为 `display:contents`，自身没有盒子，材质画不出来；包装层没有 client rect 时改用其第一个子元素作为平面。不按类名判断，回归见 `test/renderer.test.mjs`。
+
 ## 关闭动作与侧栏无关的上下文
 
 `src/adapters/codex/lifecycle.mjs` 从原生丢弃 Quick Chat 的调用关系发现当前 session、关闭动作、持久化草稿、文字和附件清理角色，另按原生 conversationDetailMode / STEPS_PROSE 分支识别产品模式 selector；不绑定压缩导出名或构建哈希。注入工厂显式序列化这两个发现函数。协议不可用时停止对应增强并记录诊断。

@@ -41,7 +41,9 @@ export function createQuickChatAdapter(codex) {
     // 发送确认回调写入新记录；拒绝发送不会写入。记录身份只映射为窗口内序号。
     if (receipt && !receipts.has(receipt)) receipts.set(receipt, nextReceipt++);
     const frame = surface.closest('[role="dialog"]');
-    const background = frame && [...frame.children].find(node => codex.props(node, props => props.asChild === true && typeof props.unstyled === "boolean", 8));
+    const wrapper = frame && [...frame.children].find(node => codex.props(node, props => props.asChild === true && typeof props.unstyled === "boolean", 8));
+    // 新构建的包装层为 display:contents，没有盒子可绘制背景；改用其内层的实际平面。
+    const background = wrapper && wrapper.getClientRects().length === 0 ? wrapper.firstElementChild : wrapper;
     const project = [...surface.querySelectorAll('[data-composer-rail-item] button')].find(button =>
       codex.props(button, props => props.variant === "composer" && typeof props.onProjectChange === "function"));
     const projectRail = project?.closest('[data-composer-rail-item]') ?? null;

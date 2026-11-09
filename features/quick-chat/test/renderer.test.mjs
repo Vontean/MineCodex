@@ -147,3 +147,17 @@ test('expanded body and history use native header Minimize for Close, compact ke
     assert.equal(current.minimize,header);assert.equal(current.showClose,true);assert.equal(current.showHistory,false);assert.equal(current.standalone,false);
   }
 });
+test('history background uses the painted plane when the native wrapper has no box',()=>{
+  const f=fixture();
+  const plane={},boxed={getClientRects:()=>[{}],firstElementChild:plane},contents={getClientRects:()=>[],firstElementChild:plane};
+  f.floating.forceExpanded=true;
+  for (const [wrapper,expected] of [[boxed,boxed],[contents,plane]]) {
+    const frame={children:[wrapper]};
+    f.surface.closest=selector=>selector==='[role="dialog"]'?frame:null;
+    f.props.set(wrapper,[{asChild:true,unstyled:false}]);
+    assert.equal(f.adapter.read(f.surface).background,expected);
+  }
+  // 已有会话或未展开历史时不补背景。
+  f.floating.forceExpanded=false;
+  assert.equal(f.adapter.read(f.surface).background,null);
+});
