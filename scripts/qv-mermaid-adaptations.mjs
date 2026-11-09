@@ -213,6 +213,51 @@ const sankeyPatches = [
    "const name=document.createElement('span');name.textContent=n.name;b.title=n.name;"],
 ];
 
+// 雷达图（多系列区分与浮层避让）：
+// 26. 原多边形填充仅 3.5%，叠加后各自面积与重叠区几乎看不出差别。改为默认 14%，选中 24%、其余降到 3%；
+//     线型（实线 / 虚线 / 点线）与标记形状保持不变。通用绘制与预设模板同步。
+// 27. 通用绘制原用共享的 placeMermaidDetail，只避让按钮与标题，不避让多边形；预设模板虽计算遮挡面积，
+//     但先比较与指针的距离。改为雷达专用定位：候选为指针四周多个距离 + 图表四角空白，
+//     先避开选中的多边形，再避开其他多边形与轴标签，最后才比距离；不盖住指针。预设模板同样把遮挡面积提到距离之前。
+const radarPlace = "function placeRadarDetail(index,anchor,event){"
+  + "const rr=root.getBoundingClientRect(),sr=svg.getBoundingClientRect(),sc=scene.getBoundingClientRect(),scale=sr.width/svg.viewBox.baseVal.width;"
+  + "tip.style.position='absolute';tip.style.marginTop='0';tip.style.boxSizing='border-box';tip.style.width=Math.min(188,root.clientWidth-16)+'px';"
+  + "const w=tip.offsetWidth,h=tip.offsetHeight,map=p=>({x:sr.left-rr.left+p[0]*scale,y:sr.top-rr.top+p[1]*scale}),polys=groups.map(g=>g.points.map(map));"
+  + "const ar=anchor?.getBoundingClientRect(),pointer=event?.type?.startsWith('pointer'),px=pointer?event.clientX-rr.left:ar?ar.left-rr.left+ar.width/2:rr.width/2,py=pointer?event.clientY-rr.top:ar?ar.top-rr.top+ar.height/2:rr.height/2;"
+  + "const raw=[];for(const g of [16,32,56])for(const f of [0,.5,1])raw.push([px+g,py-h*f],[px-g-w,py-h*f],[px-w*f,py-g-h],[px-w*f,py+g]);"
+  + "const l=sc.left-rr.left+8,t=sc.top-rr.top+8,r=sc.right-rr.left-w-8,b=sc.bottom-rr.top-h-8;raw.push([l,t],[r,t],[l,b],[r,b]);"
+  + "const clip=(poly,c)=>{let pts=poly;for(const [axis,edge,sign] of [['x',c.x,1],['x',c.x+w,-1],['y',c.y,1],['y',c.y+h,-1]]){const out=[];for(let i=0;i<pts.length;i++){const a=pts[i],q=pts[(i+1)%pts.length],ai=sign*(a[axis]-edge)>=0,bi=sign*(q[axis]-edge)>=0;if(ai)out.push(a);if(ai!==bi){const k=(edge-a[axis])/(q[axis]-a[axis]);out.push({x:a.x+k*(q.x-a.x),y:a.y+k*(q.y-a.y)});}}pts=out;if(!pts.length)return 0;}return Math.abs(pts.reduce((s,p,i)=>{const q=pts[(i+1)%pts.length];return s+p.x*q.y-q.x*p.y;},0))/2;};"
+  + "const boxes=[...labels,...keys].map(n=>{const o=n.getBoundingClientRect();return{x:o.left-rr.left,y:o.top-rr.top,w:o.width,h:o.height};}),cover=(c,o)=>Math.max(0,Math.min(c.x+w,o.x+o.w)-Math.max(c.x,o.x))*Math.max(0,Math.min(c.y+h,o.y+o.h)-Math.max(c.y,o.y));"
+  + "const cands=raw.map(([x,y],order)=>{const c={x:Math.max(4,Math.min(root.clientWidth-w-4,x)),y:Math.max(4,Math.min(root.clientHeight-h-4,y)),order};"
+  + "c.pointer=px>c.x-4&&px<c.x+w+4&&py>c.y-4&&py<c.y+h+4?1:0;c.selected=index===null?0:clip(polys[index],c);c.others=polys.reduce((s,p,i)=>s+(i===index?0:clip(p,c)),0)+boxes.reduce((s,o)=>s+cover(c,o),0);"
+  + "c.distance=Math.hypot(Math.max(c.x-px,0,px-c.x-w),Math.max(c.y-py,0,py-c.y-h));return c;});"
+  + "cands.sort((a,b)=>a.pointer-b.pointer||Math.round(a.selected/200)-Math.round(b.selected/200)||Math.round(a.others/400)-Math.round(b.others/400)||a.distance-b.distance||a.order-b.order);"
+  + "tip.style.left=cands[0].x+'px';tip.style.top=cands[0].y+'px';tip.dataset.placement='radar-clear';}\n";
+const radarPatches = [
+  ["shape=add('polygon',{points:points.map(p=>p.join(',')).join(' '),fill:color(i),'fill-opacity':'.035',",
+   "shape=add('polygon',{points:points.map(p=>p.join(',')).join(' '),fill:color(i),'fill-opacity':'.14',"],
+  ["g.shape.style.fillOpacity=j===index?'.035':'.003';", "g.shape.style.fillOpacity=j===index?'.24':'.03';"],
+  ['tip.hidden=false;placeMermaidDetail(root,tip,b,event,188);}', 'tip.hidden=false;placeRadarDetail(objectMode?index:null,b,event);}'],
+  ['function cancel(){cancelAnimationFrame(frame);frame=0;groups.forEach(g=>', radarPlace + 'function cancel(){cancelAnimationFrame(frame);frame=0;groups.forEach(g=>'],
+  ["entry.polygon.setAttribute('fill-opacity', isActive ? '0.09' : isDimmed ? '0.003' : '0.035');",
+   "entry.polygon.setAttribute('fill-opacity', isActive ? '0.24' : isDimmed ? '0.03' : '0.14');"],
+  ['candidates.sort((a,b)=>a.coversPointer-b.coversPointer||Math.max(0,a.distance-40)-Math.max(0,b.distance-40)||a.area-b.area||a.labels-b.labels||Math.abs(a.distance-gap)-Math.abs(b.distance-gap)||a.order-b.order);',
+   'candidates.sort((a,b)=>a.coversPointer-b.coversPointer||Math.round(a.area/200)-Math.round(b.area/200)||Math.round(a.labels/400)-Math.round(b.labels/400)||a.distance-b.distance||a.order-b.order);'],
+  // 29. 轴标签重叠：原每个标签是固定宽（密集时 168px）、以圆外一点为中心的盒子，名称不限行数；
+  //     12 轴时相邻锚点只隔约 107px，必然左右重叠，4–5 行长名称又上下重叠（压测 8 对重叠、1 个越出图表）。
+  //     改为按方位锚定：右侧标签从锚点向外展开、左侧向内收于锚点、正上 / 正下居中并置于锚点外侧，不向邻居方向延伸；
+  //     侧边标签可用至图表边缘的空余宽度（最多 168px）；名称最多两行省略、悬停显示全名；
+  //     最后按侧分组自上而下排开残余碰撞，越出底部时整组上移。
+  ["const lp=point(i,radius+(dense?56:34));const b=document.createElement('button');b.className='radar-axis-label';b.type='button';b.textContent=a.name;const labelWidth=dense?168:128;b.style.width=labelWidth+'px';scene.append(b);b.style.left=(lp[0]-labelWidth/2)+'px';b.style.top=(lp[1]-b.offsetHeight/2)+'px';b.onpointerenter=b.onclick=e=>show('axis',i,e);b.onfocus=e=>openAxis(i,e);b.onpointerleave=clear;b.onblur=()=>{pendingFocus=null;clear();};labels.push(b);});",
+   "const angle=-Math.PI/2+i*Math.PI*2/data.axes.length,cos=Math.cos(angle),sin=Math.sin(angle),lp=point(i,radius+14),side=cos>.25?'right':cos<-.25?'left':sin<0?'top':'bottom';"
+   + "const b=document.createElement('button');b.className='radar-axis-label';b.type='button';b.title=a.name;b.dataset.side=side;const text=document.createElement('span');text.textContent=a.name;text.style.cssText='display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden';b.append(text);"
+   + "const labelWidth=side==='right'?Math.max(72,Math.min(168,width-lp[0]-4)):side==='left'?Math.max(72,Math.min(168,lp[0]-4)):dense?140:128;b.style.width=labelWidth+'px';b.style.textAlign=side==='right'?'left':side==='left'?'right':'center';scene.append(b);"
+   + "const h=b.offsetHeight;b.style.left=(side==='right'?lp[0]-8:side==='left'?lp[0]-labelWidth+8:lp[0]-labelWidth/2)+'px';b.style.top=(side==='top'?lp[1]-h+8:side==='bottom'?lp[1]-8:lp[1]-h/2)+'px';"
+   + "b.onpointerenter=b.onclick=e=>show('axis',i,e);b.onfocus=e=>openAxis(i,e);b.onpointerleave=clear;b.onblur=()=>{pendingFocus=null;clear();};labels.push(b);});"
+   + "for(const side of ['left','right']){const group=labels.filter(b=>b.dataset.side===side).sort((a,b)=>a.offsetTop-b.offsetTop);let bottom=-Infinity;for(const b of group){const top=Math.max(b.offsetTop,bottom+4);b.style.top=top+'px';bottom=top+b.offsetHeight;}"
+   + "const overflow=bottom-(height-4);if(overflow>0)for(const b of group)b.style.top=(b.offsetTop-overflow)+'px';}"],
+];
+
 export function adaptQvTemplate(script) {
   script = replaceQv(script, "e.fromSide=e.toSide=['LR','RL'].includes(data.direction)?'NORTH':'WEST';}}", "{const lr=['LR','RL'].includes(data.direction),flip=['RL','BT'].includes(data.direction);e.fromSide=lr?(flip?'EAST':'WEST'):(flip?'SOUTH':'NORTH');e.toSide=lr?(flip?'WEST':'EAST'):(flip?'NORTH':'SOUTH');}}}");
   for (const [from, to] of sequencePatches) script = replaceQv(script, from, to);
@@ -222,5 +267,6 @@ export function adaptQvTemplate(script) {
   for (const [from, to] of gitPatches) script = replaceQv(script, from, to);
   for (const [from, to] of timelinePatches) script = replaceQv(script, from, to);
   for (const [from, to] of sankeyPatches) script = replaceQv(script, from, to);
+  for (const [from, to] of radarPatches) script = replaceQv(script, from, to);
   return script;
 }
