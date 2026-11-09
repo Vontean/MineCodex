@@ -8,7 +8,6 @@
   },
   "scripts": {
     "start": "node ../../packages/cli/bin/mcx.mjs serve",
-    "service": "node src/main.mjs",
     "test": "node --test"
   }
 }

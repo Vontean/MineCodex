@@ -28,7 +28,6 @@
     "features/notes/vendor/phosphor-LICENSE",
     "features/notes/codex-feature.json",
     "features/images/src",
-    "features/images/web",
     "features/images/codex-feature.json",
     "features/session-status/src",
     "features/session-status/codex-feature.json",

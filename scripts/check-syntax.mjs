@@ -4,10 +4,7 @@ import { fileURLToPath } from "node:url";
 import { parse } from "acorn";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const scripts = new Set([
-  // 保留的旧版图片源注入脚本未在当前 manifest 中启用。
-  path.join(root, "features/images/src/chatgpt-image-source-page.mjs"),
-]);
+const scripts = new Set();
 for (const feature of await readdir(path.join(root, "features"), { withFileTypes:true })) {
   if (!feature.isDirectory()) continue;
   const directory = path.join(root, "features", feature.name);
