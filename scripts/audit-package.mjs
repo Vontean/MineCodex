@@ -142,7 +142,6 @@ const requiredFiles = [
   "features/sites/src/frontend/icons.json",
   "features/session-status/src/adapters/codex/session-reader.mjs",
   "features/session-status/src/domain/session-stats.mjs",
-  "features/images/src/backend/cloud-library.mjs",
   "features/images/src/domain/library-prompt.mjs",
   "features/images/src/library-prompt-source.mjs",
   "features/sites/src/domain/site.mjs",
