@@ -66,7 +66,34 @@ async function __qvBaseLayout(data) {`);
   return after.slice(0, axisGate.end) + after.slice(fn[0].body.end - 1);
 }
 
+// 时序图（学习 Pele）：
+// 7. 序号从标签文字前移到连线起点，成为线上的圆形徽标，同时表达顺序与发出方。
+// 8. 箭头由 5×5 放大到 8×8，颜色比连线深一级，方向更易辨认。
+const sequencePatches = [
+  ['#${root.id} .seq-arrow{fill:light-dark(#727a82,#a3aab3);stroke:none}',
+   '#${root.id} .seq-arrow{fill:light-dark(#4b5259,#c4cad1);stroke:none}'
+   + ' #${root.id} .seq-badge circle{fill:light-dark(#4b5259,#c4cad1)}'
+   + ' #${root.id} .seq-badge text{fill:var(--background);font-size:10px;font-weight:600;font-variant-numeric:tabular-nums}'
+   + ' #${root.id} .seq-hit.is-related .seq-badge circle{fill:var(--viz-series-1)}'],
+  // 标签不再含序号：宽度只留左右内边距，换行测量宽度同步收窄。
+  ['measure(m.message)+(m.number===undefined?14:40))),labelHeight=textHeight(m.message,labelWidth-40)',
+   'measure(m.message)+14)),labelHeight=textHeight(m.message,labelWidth-14)'],
+  ['const end=b-(self?0:5*direction)', 'const end=b-(self?0:8*direction)'],
+  ['M${b-5*dx} ${ey-2.5}L${b} ${ey}L${b-5*dx} ${ey+2.5}', 'M${b-8*dx} ${ey-4}L${b} ${ey}L${b-8*dx} ${ey+4}'],
+  ['M${b} ${ey}l${-5*dx} -2.5v5Z', 'M${b} ${ey}l${-8*dx} -4v8Z'],
+  ['M${a} ${y}l${5*dx} -2.5v5Z', 'M${a} ${y}l${8*dx} -4v8Z'],
+  // 双向消息起点已有箭头，徽标向内让开。
+  ['if(m.number!==undefined)label.append(num);',
+   "if(m.number!==undefined){const bx=a+([33,34].includes(m.type)?18*dx:0),badge=el('g',{class:'seq-badge'},g);"
+   + "el('circle',{cx:bx,cy:y,r:String(m.number).length>2?10:8},badge);"
+   + "el('text',{x:bx,y:y+.5,'text-anchor':'middle','dominant-baseline':'central'},badge).textContent=String(m.number);}"],
+  ["animations.push(label.animate([{opacity:0},{opacity:1}],{duration:180,delay:delay+70,fill:'backwards'}));",
+   "animations.push(label.animate([{opacity:0},{opacity:1}],{duration:180,delay:delay+70,fill:'backwards'}));"
+   + "g.querySelectorAll('.seq-badge').forEach(n=>animations.push(n.animate([{opacity:0},{opacity:1}],{duration:180,delay,fill:'backwards'})));"],
+];
+
 export function adaptQvTemplate(script) {
   script = replaceQv(script, "e.fromSide=e.toSide=['LR','RL'].includes(data.direction)?'NORTH':'WEST';}}", "{const lr=['LR','RL'].includes(data.direction),flip=['RL','BT'].includes(data.direction);e.fromSide=lr?(flip?'EAST':'WEST'):(flip?'SOUTH':'NORTH');e.toSide=lr?(flip?'WEST':'EAST'):(flip?'NORTH':'SOUTH');}}}");
+  for (const [from, to] of sequencePatches) script = replaceQv(script, from, to);
   return script;
 }
