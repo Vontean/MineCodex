@@ -109,9 +109,30 @@ const xyPatches = [
    + "if(!horizontal){b.style.whiteSpace='nowrap';b.style.overflow='hidden';b.style.textOverflow='ellipsis';if(i%every)b.style.cssText+=';height:1px;padding:0;clip-path:inset(50%)';}"],
 ];
 
+// 思维导图（学习 Pele 的层级表达，低饱和）：
+// 12. 每个一级分支取 QV 系列色（--viz-series-1…6），整棵子树沿用：分支节点 10% 底色 + 45% 描边，连线 50%。
+// 13. 连线按层级变细：根→分支 2px，分支→下一层 1.5px，更深 1px。
+// 14. 中间层节点文字向分支色轻微偏移；叶子保持正文色。悬停高亮沿用原逻辑，改用分支色。
+const mindmapPatches = [
+  ['#${root.id} button.node{min-width:0;transform:none;text-align:center} #${root.id} .scene{min-width:0;margin:0} #${root.id} button.node-tip{max-width:260px}',
+   '#${root.id} button.node{min-width:0;transform:none;text-align:center} #${root.id} .scene{min-width:0;margin:0} #${root.id} button.node-tip{max-width:260px}'
+   + ' #${root.id} button.node.branch{border-color:color-mix(in srgb,var(--branch) 45%,var(--background));background:color-mix(in srgb,var(--branch) 10%,var(--background))}'
+   + ' #${root.id} button.node.branch:hover{border-color:color-mix(in srgb,var(--branch) 75%,var(--background))}'
+   + ' #${root.id} button.node.twig{color:color-mix(in srgb,var(--branch) 40%,var(--foreground))}'
+   + ' #${root.id} .wire[data-branch]{stroke:color-mix(in srgb,var(--branch) 50%,var(--background))}'
+   + ' #${root.id} .wire[data-depth="0"]{stroke-width:2} #${root.id} .wire[data-depth="1"]{stroke-width:1.5}'
+   + ' #${root.id} .wire.active[data-branch]{stroke:color-mix(in srgb,var(--branch) 85%,var(--foreground))}'],
+  ["b.setAttribute('aria-label',n.label+(n.description?' · '+n.description:''));",
+   "b.setAttribute('aria-label',n.label+(n.description?' · '+n.description:''));"
+   + "if(n.depth>0){let owner=n;while(owner.depth>1)owner=byId.get(owner.parent);const k=model.filter(t=>t.depth===1).indexOf(owner);b.style.setProperty('--branch',`var(--viz-series-${k%6+1})`);}"],
+  ["path.setAttribute('class','wire');Object.assign(path.dataset,{from:n.parent,to:n.id,depth:n.depth-1});",
+   "path.setAttribute('class','wire');Object.assign(path.dataset,{from:n.parent,to:n.id,depth:n.depth-1,branch:''});path.style.setProperty('--branch',buttons.get(n.id).style.getPropertyValue('--branch'));"],
+];
+
 export function adaptQvTemplate(script) {
   script = replaceQv(script, "e.fromSide=e.toSide=['LR','RL'].includes(data.direction)?'NORTH':'WEST';}}", "{const lr=['LR','RL'].includes(data.direction),flip=['RL','BT'].includes(data.direction);e.fromSide=lr?(flip?'EAST':'WEST'):(flip?'SOUTH':'NORTH');e.toSide=lr?(flip?'WEST':'EAST'):(flip?'NORTH':'SOUTH');}}}");
   for (const [from, to] of sequencePatches) script = replaceQv(script, from, to);
   for (const [from, to] of xyPatches) script = replaceQv(script, from, to);
+  for (const [from, to] of mindmapPatches) script = replaceQv(script, from, to);
   return script;
 }
