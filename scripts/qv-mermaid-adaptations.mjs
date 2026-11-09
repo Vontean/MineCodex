@@ -353,6 +353,8 @@ export function adaptQvMotion(script) {
   script=replaceQv(script,'k=1-(1-t)**4','k=mermaidEntryProgress(t)');
   script=replaceQv(script,'const k=1-Math.pow(1-t,4)','const k=mermaidEntryProgress(t)');
   script=replaceQv(script,'.ease(d3.easeCubicOut)','.ease(mermaidEntryProgress)');
+  script=replaceQv(script,'.ease(d3.easeCubicInOut)','.ease(mermaidEntryProgress)');
+  script=replaceQv(script,'scene.offsetWidth*(1-(1-t)**4)','scene.offsetWidth*mermaidEntryProgress(t)');
   script=replaceQv(script,"Math.max(...data.nodes.map(n=>n.layer))*220+810",'mermaidEntryBudget');
   return script;
 }
