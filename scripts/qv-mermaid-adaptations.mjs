@@ -190,6 +190,29 @@ const timelinePatches = [
    'const centers=o.events.map(e=>columnTop+e.offsetTop+8+11);'],
 ];
 
+// 桑基图（尺寸跟随内容与正文宽度）：
+// 23. 原宽度固定为 384 + 每列 340px（仅两列时用 736），四列即 1404px，后两列需横向滚动。
+//     改为两侧各留 160px 标签区、列间距至少 136px，四列 728px 可放进正文；五列及以上才滚动。
+// 24. 原高度固定为「最多节点的列 × 160px」（压测 16 个来源 → 2560px），节点间距至少 72px。
+//     改为按标签实际高度：节点间距 = 标签高 + 14px（中间列标签在节点上方，需要让开上一个节点；至少 24px）；流带另留至少 160px（每个节点至少 16px），避免流带过细。
+// 25. 标签宽 176 → 152px，名称最多两行省略，悬停显示全名，避免长名称撑高每个间距。
+const sankeyPatches = [
+  ['#${root.id} .sankey-label{position:absolute;display:flex;flex-direction:column;gap:4px;width:176px;',
+   '#${root.id} .sankey-label>span:first-child{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}'
+   + ' #${root.id} .sankey-label{position:absolute;display:flex;flex-direction:column;gap:4px;width:152px;'],
+  ['width=Math.max(viewport.clientWidth,view.expanded?(columns===2?560:736+Math.max(0,columns-3)*220):(columns===2?736:384+(columns-1)*340))',
+   'width=Math.max(viewport.clientWidth,view.expanded?(columns===2?560:736+Math.max(0,columns-3)*220):320+(columns-1)*136)'],
+  ['height=Math.max(420,count*160),padding=Math.max(72,labelHeight+20)',
+   'height=Math.max(320,Math.max(72,labelHeight+20)+labelHeight/2+20+count*Math.max(24,labelHeight+14)+Math.max(160,count*16)),padding=Math.max(24,labelHeight+14)'],
+  // 测量与实际标签结构一致：名称放在首个 span 内，两行限制才会作用于测量。
+  ['measure.textContent=n.name;', "measure.replaceChildren(Object.assign(document.createElement('span'),{textContent:n.name}));"],
+  ['.extent([[184,top],[width-200,height-bottom]])', '.extent([[160,top],[width-160,height-bottom]])'],
+  ["b.style.left=(n.x0-184)+'px'", "b.style.left=(n.x0-160)+'px'"],
+  ["b.style.left=(n.x0-83)+'px'", "b.style.left=(n.x0-71)+'px'"],
+  ["const name=document.createElement('span');name.textContent=n.name;",
+   "const name=document.createElement('span');name.textContent=n.name;b.title=n.name;"],
+];
+
 export function adaptQvTemplate(script) {
   script = replaceQv(script, "e.fromSide=e.toSide=['LR','RL'].includes(data.direction)?'NORTH':'WEST';}}", "{const lr=['LR','RL'].includes(data.direction),flip=['RL','BT'].includes(data.direction);e.fromSide=lr?(flip?'EAST':'WEST'):(flip?'SOUTH':'NORTH');e.toSide=lr?(flip?'WEST':'EAST'):(flip?'NORTH':'SOUTH');}}}");
   for (const [from, to] of sequencePatches) script = replaceQv(script, from, to);
@@ -198,5 +221,6 @@ export function adaptQvTemplate(script) {
   for (const [from, to] of archPatches) script = replaceQv(script, from, to);
   for (const [from, to] of gitPatches) script = replaceQv(script, from, to);
   for (const [from, to] of timelinePatches) script = replaceQv(script, from, to);
+  for (const [from, to] of sankeyPatches) script = replaceQv(script, from, to);
   return script;
 }
