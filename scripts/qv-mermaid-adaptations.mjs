@@ -277,6 +277,26 @@ const legendPatches = [
   ['(async()=>{\nconst root=', '(async()=>{document.addEventListener("qv:ready",e=>{const r=e.target.closest?.(".qv-mermaid");if(r)requestAnimationFrame(()=>alignMermaidLegends(r));});\nconst root='],
 ];
 
+// 象限图（标题与象限区域）：
+// 30. 象限、雷达、桑基三个绘制都把源码标题写进 h3，却没有取消隐藏（构建默认隐藏 h3，只有时间线会打开）。
+//     改为：源码写了标题就显示，与时间线一致。
+// 31. 原象限只有一条细十字线，四个象限名紧贴中心、灰色 12px，与常聚在中心附近的点标签争位。
+//     改为：每个象限铺 6% 的系列色底色，象限名移到各自的外角（上方象限贴上沿、下方贴下沿，左侧左对齐、右侧右对齐），
+//     12px 中等字重、颜色略向象限色加深；坐标轴保持原样；象限名仍是点标签的避让对象。
+const titleFix = ["const title=root.querySelector('h3');if(!title.textContent)title.textContent=data.title;",
+  "const title=root.querySelector('h3');if(!title.textContent)title.textContent=data.title;if(title.textContent.trim())title.hidden=false;"];
+const quadrantPatches = [
+  ['#${root.id} .quadrant-text{position:absolute;font-size:12px;line-height:18px;color:var(--muted-foreground);overflow-wrap:anywhere}',
+   '#${root.id} .quadrant-text{position:absolute;font-size:12px;line-height:18px;color:var(--muted-foreground);overflow-wrap:anywhere}'
+   + ' #${root.id} .quadrant-text.quadrant-caption{font-weight:500;color:color-mix(in srgb,var(--q-tone) 55%,var(--foreground))}'],
+  ["add('line',{x1:x+w/2,y1:y,x2:x+w/2,y2:y+h,stroke:'var(--border)'});",
+   "[[x+w/2,y],[x,y],[x,y+h/2],[x+w/2,y+h/2]].forEach(([qx,qy],k)=>{const r=add('rect',{x:qx,y:qy,width:w/2,height:h/2});r.style.fill='color-mix(in srgb,var(--viz-series-'+(k+1)+') 6%,var(--background))';});"
+   + "add('rect',{x,y,width:w,height:h,fill:'none',stroke:'var(--border)'});"
+   + "add('line',{x1:x+w/2,y1:y,x2:x+w/2,y2:y+h,stroke:'var(--border)'});"],
+  ["data.quadrants.forEach((t,i)=>{const right=i===0||i===3,upper=i<2,n=label(t,right?cx+12:cx-captionWidth-12,0,captionWidth,right?'left':'right');n.classList.add('quadrant-caption');n.style.top=(upper?cy-12-n.offsetHeight:cy+12)+'px';});",
+   "data.quadrants.forEach((t,i)=>{const right=i===0||i===3,upper=i<2,n=label(t,right?x+w-captionWidth-12:x+12,0,captionWidth,right?'right':'left');n.classList.add('quadrant-caption');n.style.setProperty('--q-tone','var(--viz-series-'+(i+1)+')');n.style.top=(upper?y+10:y+h-10-n.offsetHeight)+'px';});"],
+];
+
 export function adaptQvTemplate(script) {
   script = replaceQv(script, "e.fromSide=e.toSide=['LR','RL'].includes(data.direction)?'NORTH':'WEST';}}", "{const lr=['LR','RL'].includes(data.direction),flip=['RL','BT'].includes(data.direction);e.fromSide=lr?(flip?'EAST':'WEST'):(flip?'SOUTH':'NORTH');e.toSide=lr?(flip?'WEST':'EAST'):(flip?'NORTH':'SOUTH');}}}");
   for (const [from, to] of sequencePatches) script = replaceQv(script, from, to);
@@ -288,5 +308,9 @@ export function adaptQvTemplate(script) {
   for (const [from, to] of sankeyPatches) script = replaceQv(script, from, to);
   for (const [from, to] of radarPatches) script = replaceQv(script, from, to);
   for (const [from, to] of legendPatches) script = replaceQv(script, from, to);
+  for (const [from, to] of quadrantPatches) script = replaceQv(script, from, to);
+  const titles = script.split(titleFix[0]);
+  if (titles.length !== 4) throw new Error('QV 标题锚点数量变化');
+  script = titles.join(titleFix[1]);
   return script;
 }
