@@ -218,7 +218,7 @@ const sankeyPatches = [
 //     线型（实线 / 虚线 / 点线）与标记形状保持不变。通用绘制与预设模板同步。
 // 27. 通用绘制原用共享的 placeMermaidDetail，只避让按钮与标题，不避让多边形；预设模板虽计算遮挡面积，
 //     但先比较与指针的距离。改为雷达专用定位：候选为指针四周多个距离 + 图表四角空白，
-//     先避开选中的多边形，再避开其他多边形与轴标签，最后才比距离；不盖住指针。预设模板同样把遮挡面积提到距离之前。
+//     先限定触发点附近的候选，再避开选中多边形、其他多边形与轴标签；不盖住指针。预设同步此距离边界。
 const radarPlace = "function placeRadarDetail(index,anchor,event){"
   + "const rr=root.getBoundingClientRect(),sr=svg.getBoundingClientRect(),sc=scene.getBoundingClientRect(),scale=sr.width/svg.viewBox.baseVal.width;"
   + "tip.style.position='absolute';tip.style.marginTop='0';tip.style.boxSizing='border-box';tip.style.width=Math.min(188,root.clientWidth-16)+'px';"
@@ -231,8 +231,8 @@ const radarPlace = "function placeRadarDetail(index,anchor,event){"
   + "const cands=raw.map(([x,y],order)=>{const c={x:Math.max(4,Math.min(root.clientWidth-w-4,x)),y:Math.max(4,Math.min(root.clientHeight-h-4,y)),order};"
   + "c.pointer=px>c.x-4&&px<c.x+w+4&&py>c.y-4&&py<c.y+h+4?1:0;c.selected=index===null?0:clip(polys[index],c);c.others=polys.reduce((s,p,i)=>s+(i===index?0:clip(p,c)),0)+boxes.reduce((s,o)=>s+cover(c,o),0);"
   + "c.distance=Math.hypot(Math.max(c.x-px,0,px-c.x-w),Math.max(c.y-py,0,py-c.y-h));return c;});"
-  + "cands.sort((a,b)=>a.pointer-b.pointer||Math.round(a.selected/200)-Math.round(b.selected/200)||Math.round(a.others/400)-Math.round(b.others/400)||a.distance-b.distance||a.order-b.order);"
-  + "tip.style.left=cands[0].x+'px';tip.style.top=cands[0].y+'px';tip.dataset.placement='radar-clear';}\n";
+  + "const nearby=nearbyRadarDetails(cands);nearby.sort((a,b)=>a.pointer-b.pointer||Math.round(a.selected/200)-Math.round(b.selected/200)||Math.round(a.others/400)-Math.round(b.others/400)||a.distance-b.distance||a.order-b.order);"
+  + "tip.style.left=nearby[0].x+'px';tip.style.top=nearby[0].y+'px';tip.dataset.placement='radar-clear';}\n";
 const radarPatches = [
   ["shape=add('polygon',{points:points.map(p=>p.join(',')).join(' '),fill:color(i),'fill-opacity':'.035',",
    "shape=add('polygon',{points:points.map(p=>p.join(',')).join(' '),fill:color(i),'fill-opacity':'.14',"],
@@ -242,7 +242,9 @@ const radarPatches = [
   ["entry.polygon.setAttribute('fill-opacity', isActive ? '0.09' : isDimmed ? '0.003' : '0.035');",
    "entry.polygon.setAttribute('fill-opacity', isActive ? '0.24' : isDimmed ? '0.03' : '0.14');"],
   ['candidates.sort((a,b)=>a.coversPointer-b.coversPointer||Math.max(0,a.distance-40)-Math.max(0,b.distance-40)||a.area-b.area||a.labels-b.labels||Math.abs(a.distance-gap)-Math.abs(b.distance-gap)||a.order-b.order);',
-   'candidates.sort((a,b)=>a.coversPointer-b.coversPointer||Math.round(a.area/200)-Math.round(b.area/200)||Math.round(a.labels/400)-Math.round(b.labels/400)||a.distance-b.distance||a.order-b.order);'],
+   'candidates.splice(0,candidates.length,...nearbyRadarDetails(candidates));candidates.sort((a,b)=>a.coversPointer-b.coversPointer||Math.round(a.area/200)-Math.round(b.area/200)||Math.round(a.labels/400)-Math.round(b.labels/400)||a.distance-b.distance||a.order-b.order);'],
+  ["tooltip.style.left=candidates[0].x+'px';tooltip.style.top=candidates[0].y+'px';",
+   "const origin=tooltip.offsetParent.getBoundingClientRect();tooltip.style.left=(rootBounds.left+candidates[0].x-origin.left)+'px';tooltip.style.top=(rootBounds.top+candidates[0].y-origin.top)+'px';"],
   // 29. 轴标签重叠：原每个标签是固定宽（密集时 168px）、以圆外一点为中心的盒子，名称不限行数；
   //     12 轴时相邻锚点只隔约 107px，必然左右重叠，4–5 行长名称又上下重叠（压测 8 对重叠、1 个越出图表）。
   //     改为按方位锚定：右侧标签从锚点向外展开、左侧向内收于锚点、正上 / 正下居中并置于锚点外侧，不向邻居方向延伸；

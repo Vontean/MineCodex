@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 import { parse } from 'acorn';
 import { adaptFlowLayout, adaptQvTemplate, adaptQvMotion, removeQvNavigation, replaceQv } from './qv-mermaid-adaptations.mjs';
+import { nearbyRadarDetails } from '../features/mermaid-diagrams/src/mermaid/detail-position.mjs';
 import { createMermaidViewport } from '../features/mermaid-diagrams/src/mermaid/viewport.mjs';
 const source = new URL('../features/mermaid-diagrams/vendor/qv/source/', import.meta.url);
 const output = new URL('../features/mermaid-diagrams/assets/', import.meta.url);
@@ -138,7 +139,7 @@ export async function buildQvTemplate({ motion = true } = {}) {
   script = removeQvNavigation(script);
   script = adaptQvMotion(script);
   const motionHelpers = await readFile(new URL('../features/mermaid-diagrams/src/mermaid/qv-motion.js', import.meta.url), 'utf8');
-  script = motionHelpers + script;
+  script = motionHelpers + nearbyRadarDetails.toString() + '\n' + script;
   script = motion ? script : staticQvScript(script);
   script = script.replace("(await import('https://cdn.jsdelivr.net/npm/mermaid@11.12.0/dist/mermaid.esm.min.mjs')).default", 'window.__mcxQVRuntime.mermaid')
     .replaceAll("await import('https://cdn.jsdelivr.net/npm/d3@7.9.0/+esm')", 'window.__mcxQVRuntime.d3')
