@@ -317,6 +317,7 @@ const typePatches = [
 ];
 
 export function adaptQvTemplate(script) {
+  script=replaceQv(script,'const parsed=await mermaid.parse(source),diagram=await mermaid.mermaidAPI.getDiagramFromText(source),db=diagram.db;', 'const parsed=await mermaid.parse(source),diagram=await mermaid.mermaidAPI.getDiagramFromText(source,{title:window.__mcxQVRuntime.readTitle(source)}),db=diagram.db;');
   script = replaceQv(script, "e.fromSide=e.toSide=['LR','RL'].includes(data.direction)?'NORTH':'WEST';}}", "{const lr=['LR','RL'].includes(data.direction),flip=['RL','BT'].includes(data.direction);e.fromSide=lr?(flip?'EAST':'WEST'):(flip?'SOUTH':'NORTH');e.toSide=lr?(flip?'WEST':'EAST'):(flip?'NORTH':'SOUTH');}}}");
   for (const [from, to] of sequencePatches) script = replaceQv(script, from, to);
   for (const [from, to] of xyPatches) script = replaceQv(script, from, to);

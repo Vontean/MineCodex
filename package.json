@@ -142,6 +142,7 @@
     "elkjs": "0.10.0",
     "esbuild": "^0.28.2",
     "html-to-image": "1.11.13",
+    "js-yaml": "4.1.1",
     "lucide": "0.468.0",
     "mermaid": "11.12.0"
   }

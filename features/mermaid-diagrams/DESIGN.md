@@ -15,7 +15,7 @@
 
 阅读交互采用明确的构建适配，不修改 vendor 快照：架构图与流程图均不提供“节点组”开关和分组下钻，始终完整展示所有节点，保留源码分组边框、名称和关系高亮；构建移除入口、配置消费和下钻函数。时序图提示、类图关系提示、实体关系图提示、状态图详情提示、块图节点与连线提示均取消，保留 hover／focus 的关系高亮与键盘可达性。甘特图任务与日期等补充信息提示保留；C4 图提示及架构节点详情也取消，保留关联高亮；其他图型的有效数据提示保留。饼图继续使用原版直接标签／底部图例的响应式选择，图形与标签必须实际可见，不能仅以 enhanced 状态判定成功。
 
-依赖固定为 Mermaid 11.12.0、ELK 0.10.0、D3 7.9.0、d3-sankey 0.12.3、Lucide 0.468.0；它们是构建依赖，打包结果随 feature 发布，运行时不访问 CDN。`npm run build:mermaid` 重建 `assets/qv-template.json`、`assets/qv-dependencies.js` 和依赖许可通知。更新快照或依赖时同步 provenance／许可并重新验证。
+依赖固定为 Mermaid 11.12.0、ELK 0.10.0、D3 7.9.0、d3-sankey 0.12.3、Lucide 0.468.0、js-yaml 4.1.1；它们是构建依赖，打包结果随 feature 发布，运行时不访问 CDN。`npm run build:mermaid` 重建 `assets/qv-template.json`、`assets/qv-dependencies.js` 和依赖许可通知。更新快照或依赖时同步 provenance／许可并重新验证。
 
 `src/mermaid/frame.mjs` 拥有独立文档与主题／高度／显示模式消息桥；`src/adapters/codex/mermaid.mjs` 以最高优先级 CodeMirror StateField 替换闭合图表块，避免原生组件重复绘制。`mermaid-viewer.mjs` 复用原生 Actions、CopyButton、Tooltip、扩展图标和 TablePreview。独立 Runtime 按 Preview 安装，`mermaid-diagrams-renderer` 依据当前挂载图的 ready 状态报告；仅挂载容器不算渲染成功。
 
@@ -85,6 +85,9 @@ Codex / ChatGPT `26.1029.61003`（build 24614）的下载动作改由 Rspack 注
 - 桑基：正文宽度按 `320 + (列数 − 1) × 136`，高度按标签和节点数计算；152px 标签最多两行省略，测量结构与实际一致。
 - 雷达：填充默认 14%、选中 24%、其余 3%；气泡优先避让选中多边形，再避让其他图形和标签；轴标签按方位锚定、最多两行并按侧排开。预设绘制同步填充与气泡排序。
 - 图例：能放下一行时居中；换行后整列居中、项左对齐，名称省略并提供完整 title，尺寸变化时重算。
+- 标题通过 Mermaid 的 metadata 参数读取 YAML frontmatter，使用与 Mermaid 相同的 JSON schema；避免 `getDiagramFromText()` 丢失预处理标题。
 - 标题与象限：象限、雷达、桑基显示源码标题；象限铺 6% 系列色、加外框，象限名放外角，坐标轴保持原样。
 - 交互与表面：流程入场时 hover 先快进动画。有效气泡共用 1px 边框、12px 圆角、12×14px 内边距、12px／18px 正文、14px／500 标题；140ms 淡入与 .97 缩放，立即隐藏，相邻气泡立即接替。共享定位的缩放原点指向触发对象；独立定位保留自身规则。浅色阴影为前景色 9%，深色为黑色 50%；深色表面向前景色提亮 6%。
 - 文字：h3 为 16px／24px，状态节点为 14px／20px，ER 字段类型和 XY 刻度使用次要色；气泡名称为次要色，数值为正文色、500 字重和等宽数字。
+
+Codex / ChatGPT `26.1103.41825` 的原生下载图标使用组件与 asset 资源对；Adapter 从实际下载按钮依赖解析并组合两者，旧版直接图标函数仍保留。下载函数继续校验原生 `workspaceFiles.saveStream` 协议。
