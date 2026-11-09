@@ -19,7 +19,7 @@ Codex 26.930.21537：依据安装包 breadcrumb、workspace-directory-entries-qu
 
 领域仅拥有路径压缩与分支选择规则。Adapter 负责原生路径上下文、宿主目录请求、文件选择回调、模块依赖与 Provider 接入，输出内部条目及命名动作。前端不解析 React、原生事件路径或响应对象。sourceFactory 显式序列化所有函数，不依赖 Renderer imports。
 
-Codex 26.1021.31345 的目录 query 将读取委托给 `workspace-directory` 导出的 `workspaceFiles.listDirectory` 包装函数；Adapter 沿用其 host/workspace/directory 参数与 AbortSignal，兼容旧请求绑定，不向业务层暴露新宿主协议。当前 macOS 隔离 Renderer 已验证组件加载与仓库目录读取；完整鼠标级联仍需原生窗口验收。
+Codex 26.1021.31345 的目录 query 将读取委托给 `workspace-directory` 导出的 `workspaceFiles.listDirectory` 包装函数；Adapter 沿用其 host/workspace/directory 参数与 AbortSignal，兼容旧请求绑定，不向业务层暴露新宿主协议。
 
 原生导航节点原位保留，禁用恢复显示。关闭或分支变化后丢弃过期异步结果；列 React 根在关闭与卸载时释放。原生模块失效时恢复原生入口，目录加载失败只在所属列提供重试。
 
@@ -28,10 +28,10 @@ Adapter 保留旧独立模块分支；缺少旧模块时，从当前入口按 Tr
 文件树，沿该函数所属的 React 绑定和初始化器连接，只初始化该角色。目录读取按原生
 workspaceFiles.listDirectory 与取消包装的调用关系取得，原样传入参数和 AbortSignal。
 folder 图标也仅初始化对应角色，不执行入口中不相关的初始化器。共享模块定位规则见
-[Codex Adapter](../../packages/codex-adapter/DEVELOPMENT.md)。独立 Renderer 已验证这些
-接口加载；目录点击、键盘与可见浮层仍需单独验收。
+[Codex Adapter](../../packages/codex-adapter/DEVELOPMENT.md)。
 
 Codex `26.1029.61003`（macOS）通过共享 `codexModuleRegistry` 读取已注册的原生 Tree、
 React、目录读取包装及 folder 图标，按各自角色和真实依赖绑定，不固定 chunk 编号或短导出。
-旧独立 ESM 与内联入口分支保留。独立 profile 已验证真实分列浮层、进入 docs 目录、选择
-npm-publishing.md 并由原生打开，同时关闭浮层；不以接口加载代替级联选择验证。
+旧独立 ESM 与内联入口分支保留。
+
+最近隔离验证：macOS Codex `26.1029.61003`，独立 profile 中打开真实分列浮层、进入子目录、选择文件并由原生打开，同时关闭浮层。键盘导航未在该构建逐项复核；不以接口加载代替级联选择验证。

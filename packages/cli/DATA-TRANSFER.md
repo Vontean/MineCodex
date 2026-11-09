@@ -39,23 +39,26 @@ GET /api/data：全量功能清单；GET /api/data/export：附件下载；
 POST /api/data/preview 和 POST /api/data/import：预检与执行。
 沿用 control-server 的 token 鉴权，POST 额外校验 Host 和 Origin；请求体限制 16 MiB。
 
-## 全功能数据盘点（2026-10-05 源码）
+## 全功能数据盘点
+
+新增或移除功能时同步本表；`FEATURE_IDS` 中的每个功能都应出现在这里。
 
 | 功能 | 数据所有者 | 处理 |
 | --- | --- | --- |
 | Prompts | CodexNotes SQLite：prompts、prompt_categories | 迁移正文、分类、emoji、顺序、计数与时间；不带历史 Todo/Files；cards/list 偏好留本机 |
 | Model Slider | backend/favorites.mjs SQLite；旧 Renderer favorites key | 迁移模型收藏；首次启动由受限 host action 收录旧收藏，后端成为权威；Fast SVG 缓存不迁移 |
 | Sites | sites.json、project-history.json、previews | 只迁移公网 HTTP(S) 网址与标题；本地/内网地址、项目路径、启动命令、预览与发现历史不迁移 |
-| Images | image-library SQLite、图片文件、local-image-source 隐藏/上传关联；iframe 密度 | 本机文件与账号身份不可仅靠索引复原，本期不迁移；图库密度留本机 |
+| Images | local-image-source 索引、隐藏与云端身份关联；本机图片文件 | 本机文件与账号身份不可仅靠索引复原，不迁移 |
 | Session Status | Codex JSONL、展开偏好 | 日志为原生数据，用量派生；展开偏好留本机 |
 | Usage Meter | 当前账号额度读取 | 无独立持久化内容，不导出账号数据 |
-| Hide Upsell Banner | 注入生命周期 | 无独立内容 |
 | Enhance Quick Chat | 原生经典聊天与呈现状态 | 无独立内容，不复制或导出聊天历史 |
+| Expand Long Drafts | 原生输入框草稿 | 无独立内容，不导出草稿 |
 | Sidebar Focus | 原生侧栏状态 | 无独立内容，不改变原生偏好 |
 | Markdown Reading | 原文档及渲染状态 | 不保存文档副本，无独立内容 |
+| Mermaid Diagrams | 原文档及渲染状态 | 无独立内容；下载的 PNG 由用户自行保存 |
 | File Navigation | 本机目录与原生导航 | 无独立内容，不打包文件系统 |
+| Files Auto Refresh | 原生目录查询缓存 | 无独立内容 |
 
-公共 feature 开关、GUI 语言/外观留本机；已停用 unread-inbox 的内存状态不迁移。
+公共 feature 开关、GUI 语言/外观留本机。
 模型收藏首次收录前显示未收录原因，不把空后端当成原窗口没有收藏。
 导入后的模型收藏下次 Codex 启动载入；Prompts/Sites 重新打开功能读取最新值。
-本次开发与验收使用隔离目录，未接入日常窗口执行初始化。

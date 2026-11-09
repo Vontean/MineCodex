@@ -71,7 +71,7 @@ Category 下拉面板与触发栏等宽、左右对齐，宽度包含内边距�
 
 Categories 管理弹窗的 New category 是有实际功能的次级操作，使用共享 Button 的 `secondary`（outline）分支；分类编辑的 Save 保留主按钮。
 
-2026-10-04：修正 home 场景范围。Codex 26.930.21537 安装源码的 `data-dropdown-overlay-side` 来自原生 `surfacePlacement.overlayPlacement`，用于 Add 展开方向。Quick Prompts 仅在 home 且原生值为 bottom 时向下；Chat／Work 空白新会话跟随原生方向，Codex 模式新会话与已有会话保持向上。标记缺失时向上。两侧均与主体等宽、间隔4px，按展开方向计算可用高度并处理 zoom。用户截图和安装源码已核对，修复后的原生窗口视觉待验收。
+展开方向：依据 Codex 26.930.21537 安装源码， `data-dropdown-overlay-side` 来自原生 `surfacePlacement.overlayPlacement`，用于 Add 展开方向。Quick Prompts 仅在 home 且原生值为 bottom 时向下；Chat／Work 空白新会话跟随原生方向，Codex 模式新会话与已有会话保持向上。标记缺失时向上。两侧均与主体等宽、间隔4px，按展开方向计算可用高度并处理 zoom。
 
 ## 全页面卡片视图
 

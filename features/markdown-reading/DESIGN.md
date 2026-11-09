@@ -18,7 +18,7 @@
 
 ## 原生依据
 
-2026-10-04，Codex 26.930.21537 的安装包源码与隔离窗口 DOM：Markdown Preview 通过 CodeMirror 的 `.cm-content[data-language="markdown"]` 呈现；所属 React 文件视图 `fileKind=markdown`，Markdown 模式控制器拥有 `initialMode` / `onSourceDraftChange`。Source 也可能声明 Markdown 语言，不能只根据语言或扩展名判断。
+依据 Codex 26.930.21537 的安装包源码与隔离窗口 DOM，Markdown Preview 通过 CodeMirror 的 `.cm-content[data-language="markdown"]` 呈现；所属 React 文件视图 `fileKind=markdown`，Markdown 模式控制器拥有 `initialMode` / `onSourceDraftChange`。Source 也可能声明 Markdown 语言，不能只根据语言或扩展名判断。
 
 Pages 正文源码使用 `--font-content`、`--text-document` 和 `--leading-relaxed`，当前局部实测 token 分别为系统正文栈、14px、1.625。Pages 的文档标题 H1 / H2 / H3 字号为正文的 1.5 / 1.25 / 1.125 倍，行高为正文的 2 / 1.75 / 1.75 倍。本功能引用这些角色，不复制 Pages 外壳或页面主标题。
 
@@ -43,7 +43,7 @@ Preview 原生实测正文行高 19.6px，scroller 左右 padding 16px，顶部 
 
 ## 原生语法与布局范围
 
-2026-10-04，以 Codex 26.930.21537 的真实隔离窗口逐屏检查完整样例；面板宽度约 960 / 600 / 360 CSS px。下列事实属于这个版本的 File Panel Preview，不代表其他 Markdown 渲染器的通用支持。
+下表依据 Codex 26.930.21537 的 File Panel Preview，在约 960 / 600 / 360 CSS px 面板宽度下检查；不代表其他 Markdown 渲染器的通用支持。
 
 | 内容 | 当前布局与边界 |
 | --- | --- |
@@ -65,7 +65,7 @@ Preview 原生实测正文行高 19.6px，scroller 左右 padding 16px，顶部 
 
 ## 列表视觉与 Pages 的映射
 
-Pages 原生 `editor-e25afcab6aa6.css` 使用 `ul` 的 disc / circle / square 三层标记，`li+li` 和嵌套列表顶部间距 .25em；正文由 `li>p` 承担，因此续行自然与正文对齐。`writing-block-editor-styles-4dc32da811e5.css` 中，任务项是独立标记列与 `task-list-item-content` 正文列，完成项第一段使用 tertiary 色和删除线。勾选框 1rem、边框 .9px、圆角 .125rem，勾选符号由 .25rem × .5rem 的两条边组成。上述为 Codex 26.930.21537 安装包源码事实，尚未单独打开 Pages 进行本轮 live computed 核对。
+Pages 原生 `editor-e25afcab6aa6.css` 使用 `ul` 的 disc / circle / square 三层标记，`li+li` 和嵌套列表顶部间距 .25em；正文由 `li>p` 承担，因此续行自然与正文对齐。`writing-block-editor-styles-4dc32da811e5.css` 中，任务项是独立标记列与 `task-list-item-content` 正文列，完成项第一段使用 tertiary 色和删除线。勾选框 1rem、边框 .9px、圆角 .125rem，勾选符号由 .25rem × .5rem 的两条边组成。上述为 Codex 26.930.21537 安装包源码事实。
 
 Preview 使用其所属原生 CodeMirror 的 ViewPlugin / Decoration / Compartment；从当前已预加载、且导出同一 EditorView 构造器的原生模块解析 API，不绑定文件 hash 或压缩 export 名称。专有 Adapter 读取原生 `cmTile.view` 和语法树，功能读取原生 AST，并为未支持的扩展语法建立局部展示投影；不重建 React / CodeMirror 所有的正文节点。
 
@@ -75,11 +75,11 @@ Preview 使用其所属原生 CodeMirror 的 ViewPlugin / Decoration / Compartme
 - 光标进入列表标记或选区覆盖标记时展示原始源码；选区、复制及编辑位置仍由 CodeMirror 管理。禁用／切换 Source／重注入通过 Compartment 移除插件。
 - 自检分别报告正文样式与列表装饰能力；原生模块或 view 契约不满足时报告能力缺失，不能把只有普通正文样式的状态报告成列表可用。
 
-列表标记垂直对齐：行容器使用 relative；标记定位在首行 `.125em` 顶部 padding 之后，标记容器统一为 `1lh`，内部 flex 居中。圆点、数字、空框和完成框共享这一规则，多行内容不会将标记移到整项中央。2026-10-04 隔离窗口在 360 / 960px 面板实测，标记中心与首行正文 Range 中心的最大差值为 0.125 CSS px。
+列表标记垂直对齐：行容器使用 relative；标记定位在首行 `.125em` 顶部 padding 之后，标记容器统一为 `1lh`，内部 flex 居中。圆点、数字、空框和完成框共享这一规则，多行内容不会将标记移到整项中央；在 360 / 960px 面板实测，标记中心与首行正文中心的最大差值为 0.125 CSS px。
 
 ## 表格视觉与 Pages 的映射
 
-2026-10-04 在 Codex 26.930.21537 的真实 Pages “Your guide to pages” 核对源码、computed 样式与不同窗口宽度。原生 `table` 使用 auto / max-content 列宽、min-inline-size:100%、separate 边框、零 border-spacing、顶部／左侧 hairline（当前 .5px）、tabular-nums；`th/td` 底边 1px、右侧 hairline，颜色为 `--color-border`，padding 为 `--spacing * 2 / * 3`（当前 8px / 12px），文字顶对齐与 start 对齐。正文使用 400 字重与 `font-feature-settings:"liga" 0`，表头 600。普通单行 39.75px；行内代码为 .92em、1px / 6px padding、6px 圆角，含代码行约 39.93px。
+依据 Codex 26.930.21537 Pages 表格的源码与 computed 样式：原生 `table` 使用 auto / max-content 列宽、min-inline-size:100%、separate 边框、零 border-spacing、顶部／左侧 hairline（当前 .5px）、tabular-nums；`th/td` 底边 1px、右侧 hairline，颜色为 `--color-border`，padding 为 `--spacing * 2 / * 3`（当前 8px / 12px），文字顶对齐与 start 对齐。正文使用 400 字重与 `font-feature-settings:"liga" 0`，表头 600。普通单行 39.75px；行内代码为 .92em、1px / 6px padding、6px 圆角，含代码行约 39.93px。
 
 表格列宽由整张表的内容共同决定。Adapter 将原生 Markdown AST 的单元格内容放入不可访问、不可选择的隐藏 HTML table，由浏览器执行原生 auto 布局；列宽接入现有 CodeMirror 单元格，不移动、删除或替换正文节点。测量层不参与文档滚动、复制与辅助技术导航。取消每列 120px 下限及等宽分列，空单元格仍按源码列位补齐。
 
@@ -89,11 +89,11 @@ Preview 使用其所属原生 CodeMirror 的 ViewPlugin / Decoration / Compartme
 
 截断直接复用原生 `horizontal-scroll-fade-mask`、`horizontal-scroll-fade-mask-eased` 和 `edge-fade-horizontal` scroll timeline，animation range 为 `1px calc(100% - 1px)`。真实 Pages 表格当前默认分支是 1rem / 16px；按用户要求增强边界可辨识度，Preview 选择原生 eased 分支，其 `--edge-fade-distance:1.5rem` / 24px，透明度使用原生多停点缓动。起点仅右侧、中间两侧、终点仅左侧；无溢出移除 mask。滚动条位于 mask 之外。
 
-隔离窗口按真实 Pages 表格生成同内容 Markdown，在 1200 / 960 / 600 / 360px 面板检查列宽、行高、空列、全表同步、真实滚动条拖拽与渐消起中终状态；保留原生文字选择浮条、Source 切换与源码。禁用或卸载移除观察器、监听、测量层、滚动条、样式和 Compartment。源码实现和自动 GUI 检查已完成，用户视觉验收待确认。
+禁用或卸载移除观察器、监听、测量层、滚动条、样式和 Compartment。
 
 ## Preview 浮动章节目录
 
-2026-10-04 在隔离 Codex 26.930.21537 打开真实 “Your guide to pages”，核对默认和悬浮的 live computed、组件源码与实际 DOM。直接导入原生 Marker、Panel、交互式 Tooltip 和原生 CSS module；不维护手写 TOC 视觉 CSS。按当前 bundle 的语义调用关系发现公开组件，原生 class 与缩进规则从 Pages 调用契约取得，不固定资源 hash、短变量名或音频输入。原生私有 Pages TOC 的 ProseMirror 投影未导出；Markdown Adapter 持有标题、当前章与滚动数据，按照该原生调用契约组装公开组件。
+依据 Codex 26.930.21537 Pages 目录的组件源码、DOM 与 computed 样式，直接导入原生 Marker、Panel、交互式 Tooltip 和原生 CSS module；不维护手写 TOC 视觉 CSS。按当前 bundle 的语义调用关系发现公开组件，原生 class 与缩进规则从 Pages 调用契约取得，不固定资源 hash、短变量名或音频输入。原生私有 Pages TOC 的 ProseMirror 投影未导出；Markdown Adapter 持有标题、当前章与滚动数据，按照该原生调用契约组装公开组件。
 
 原生视觉角色见根 DESIGN.md。组件在同一 React runtime 下渲染，显式继承原生文件视图的 Provider；只挂载新目录根，不改写原生 React 或 CodeMirror 节点。通过原生 Tooltip 处理 portal、hover handoff、延迟、窗口边界与 Escape；通过原生 Marker 的选择器处理标题层级、邻近短线增长、精确 linear 过渡、拖动及减少动态效果。
 
@@ -103,18 +103,15 @@ Preview 使用其所属原生 CodeMirror 的 ViewPlugin / Decoration / Compartme
 
 悬浮／聚焦展开，点击或 Enter/Space 跳转；按住短线上下拖动即时导航。当前章随正文滚动更新，文末标记最后章。原生 scrollIntoView effect 定位虚拟标题，保留文档内容、选择和编辑状态；平滑滚动遵循减少动态效果偏好。Source、功能禁用或面板卸载时移除 React 根及其 portal、事件、计时器、ResizeObserver 和 Compartment。目录模块不可用单独报告，不阻断已可用的正文／列表／表格排版。
 
-真实 Pages 和同标题 MD 样例：默认／悬浮的每条线长、色值、opacity、160ms 过渡曲线一致，目录行 font、padding、radius、色值、高亮与行高一致；验证 Marker 的 React 组件身份确为原生导出。1199 / 1059px 面板距左缘 8px、垂直中心偏差 0，959 / 599 / 359px 隐藏；悬浮进入目录、点击、拖动、Source 切换、禁用清理及源文件不变检查通过。用户视觉验收仍待确认。
-
-
 ## 表格悬浮快捷操作
 
-复用 Codex 26.930.21537 Chat Markdown 的公开 `data-block-actions` React 组件、CopyButton、Button (`color=blockAction` / `radius=full` / `size=inputIcon`)、Tooltip 和消息流 CodeSnippet 原生换行／取消换行图标。Adapter 通过源码语义角色与公开 export 接入，不绑定构建 hash；继承当前 React context。操作栏在表格 hover / focus 内可达，窄面板不越过本面板边缘；操作栏放在表头上方，表头预留 16px 间距，避免遮住适配后的最后一列标题；透明指针桥仅覆盖操作栏及表头顶部留白，让鼠标可连续移入按钮，不拦截正文选区。操作栏和滚动条挂载在原生 cm-scroller 内、cm-content 外，按文档坐标定位，随正文由浏览器同步滚动；不逐帧追随视口坐标，不吸附到视口顶部。纯滚动复用已有列宽与滚动范围，节点、内容或布局变化时才重新测量。操作控件用于本功能表格与代码块，保留 Chat 的原生动作；支持的 flowchart 使用本功能的图表操作栏。
+复用 Chat Markdown 的公开 `data-block-actions` React 组件、CopyButton、Button (`color=blockAction` / `radius=full` / `size=inputIcon`)、Tooltip 和消息流 CodeSnippet 原生换行／取消换行图标。Adapter 通过源码语义角色与公开 export 接入，不绑定构建 hash；继承当前 React context。操作栏在表格 hover / focus 内可达，窄面板不越过本面板边缘；操作栏放在表头上方，表头预留 16px 间距，避免遮住适配后的最后一列标题；透明指针桥仅覆盖操作栏及表头顶部留白，让鼠标可连续移入按钮，不拦截正文选区。操作栏和滚动条挂载在原生 cm-scroller 内、cm-content 外，按文档坐标定位，随正文由浏览器同步滚动；不逐帧追随视口坐标，不吸附到视口顶部。纯滚动复用已有列宽与滚动范围，节点、内容或布局变化时才重新测量。操作控件用于本功能表格与代码块，保留 Chat 的原生动作；支持的 flowchart 使用本功能的图表操作栏。
 
 “复制表格”复制本表 Markdown 源码，由原生 CopyButton 显示反馈。“开启／关闭文档换行”是当前 Preview 文档中所有表格与普通代码块共用的状态：默认开启、表格跟随普通正文宽度；隐藏测量 table 使用 100% 宽度的原生 auto 布局，单元格 overflow-wrap:anywhere，按内容分配列宽并增长行高；关闭恢复自然宽度。能够适配时移除横向滚动条和渐消；列数过多导致最小单元格尺寸仍超宽时继续提供横向浏览。状态不写入 Markdown，不影响其他文档；Source 切换或关闭 Preview 后恢复默认状态。
 
 表格按钮顺序固定为“换行（适用时）→ 复制 → 扩展”。扩展始终提供，不依赖宽度溢出或换行状态。点击复用消息流表格的原生全屏预览 Dialog、Table 组件、Markdown lexer / renderer、滚动容器与扩展图标，不重建正文编辑器。全屏内容来自当前表格 Markdown 源码；保留原生预览的遮罩、关闭按钮、Escape 与主题样式，关闭后焦点返回触发按钮。功能卸载同时释放 Dialog portal 及其页面锁定。
 
-自检独立报告 `markdown-table-actions`；卸载移除自己的 React root 和 DOM，不修改原生 React / CodeMirror 正文节点。2026-10-04 隔离 GUI 验证 hover 隐藏／显示、操作栏 pointer 可达、原生 Tooltip、适配后的列位与行高、恢复、复制反馈、滚动条拖拽及文件不变。
+自检独立报告 `markdown-table-actions`；卸载移除自己的 React root 和 DOM，不修改原生 React / CodeMirror 正文节点。
 
 ### 文档 Metadata 滚动
 
@@ -132,12 +129,12 @@ TOC 的纵向中心以整个 File Panel（包含文件 Toolbar）的边界计算
 
 ### 链接渲染补全
 
-2026-10-04，Codex 26.930.21537 原生 text-file-editor-extensions 的 Preview 隐藏规则保留带 LinkTitle 和缺少 URL 子节点的引用式链接源码，并错误隐藏链接显示文字里的 URL。通过同一 CodeMirror 的高优先级装饰补全这些情况；正确的普通链接和本地链接继续使用原生节点。引用目标从原生 LinkReference 语法树解析、按 Markdown 标签空白／大小写规则归一化；引用定义不占正文高度。裸 URL 遇中文分隔符时分别生成目标，www 地址补 https，保留正文标点。链接颜色引用原生 text-accent token，长地址允许换行。外部链接使用原生 markdown_link_click 打开函数，标题保留 tooltip 文本；非空选区内保留原生源码与编辑器选区行为。源码和 Source 模式不改写，卸载恢复原生装饰。
+原生 text-file-editor-extensions 的 Preview 隐藏规则保留带 LinkTitle 和缺少 URL 子节点的引用式链接源码，并错误隐藏链接显示文字里的 URL。通过同一 CodeMirror 的高优先级装饰补全这些情况；正确的普通链接和本地链接继续使用原生节点。引用目标从原生 LinkReference 语法树解析、按 Markdown 标签空白／大小写规则归一化；引用定义不占正文高度。裸 URL 遇中文分隔符时分别生成目标，www 地址补 https，保留正文标点。链接颜色引用原生 text-accent token，长地址允许换行。外部链接使用原生 markdown_link_click 打开函数，标题保留 tooltip 文本；非空选区内保留原生源码与编辑器选区行为。源码和 Source 模式不改写，卸载恢复原生装饰。
 
 
 ## 富文本展示投影
 
-2026-10-04，以 Codex 26.930.21537 的完整样例和富文本边界样例验证。语法装饰留在功能 Adapter；共享 Runtime 只负责注入。局部 replace / block widget 由原生 CodeMirror StateField 持有，切换 Source、禁用和卸载时通过 Compartment 移除，不修改文件内容。
+语法装饰留在功能 Adapter；共享 Runtime 只负责注入。局部 replace / block widget 由原生 CodeMirror StateField 持有，切换 Source、禁用和卸载时通过 Compartment 移除，不修改文件内容。
 
 - 普通代码块直接使用原生消息流 CodeSnippet；保留原生高亮加载、字体、主题、边框与圆角。复制与换行使用同一原生 Actions / CopyButton / Button / Tooltip 和图标；整块悬浮或键盘聚焦时显示，无横向溢出的未换行块只显示复制。顺序为换行、复制；代码块的原生 Actions 通过 `className=bg-transparent` 使用透明底，避免灰色代码区上出现白色胶囊；按钮保留原生 tertiary 与 hover 颜色。链接色仅作用于链接和脚注按钮，不覆盖代码操作控件。切换换行更换图标，不使用锚定按钮态。代码内容独立水平滚动，操作区随块一起竖向滚动。math 围栏保留已有原生组件；QV 渲染与放大见下方 Mermaid 章节。
 - 引用内代码移除用于源码引用的前缀，保留代码本身的缩进。转义、公式、HTML 和脚注处理跳过代码范围，不把代码示例误解释成富文本。
@@ -147,7 +144,7 @@ TOC 的纵向中心以整个 File Panel（包含文件 Toolbar）的边界计算
 
 原生模块按语义调用关系与公开 exports 发现，缺失契约单独报告 rich-text unavailable。组件和控件沿用 Provider；根、监听和观察器随 widget / 功能生命周期释放。验收关注源码保持、代码区内容隔离、控件真实切换、脚注往返及宽／窄面板，而不是只检查 CSS 是否存在。
 
-2026-10-05，Codex 26.930.51102：表格预览的导出局部名称包含 `$`。组件别名按 export 列表完整名称匹配，不把名称当正则表达式；同一规则用于表格与换行图标。隔离窗口中已加载当前源码并检查真实代码高亮、复制与换行、表格复制／适配／扩展、脚注往返与 Source/Preview 切换；用户视觉与交互确认仍待完成。
+原生导出的局部名称可能包含 `$`（Codex 26.930.51102 起）。组件别名按 export 列表完整名称匹配，不把名称当正则表达式；同一规则用于表格与换行图标。
 
 脚注引用按钮显式使用 `line-height:1`，避免继承上标的零行高而失去点击区域。同名脚注沿用最后一条定义，所有定义区间都排除引用扫描，早期定义在 Preview 隐藏。返回位置保存原生 CodeMirror `scrollSnapshot()`，恢复文档锚点及视口偏移，不保存会受虚拟段落重新测量影响的裸 `scrollTop`。
 
@@ -160,7 +157,7 @@ TOC 的纵向中心以整个 File Panel（包含文件 Toolbar）的边界计算
 
 ## Mermaid 图表
 
-Mermaid 增强已拆为独立、默认关闭的 [Mermaid Diagrams](../mermaid-diagrams/DESIGN.md) 功能。阅读增强不加载 QV 资源、不替换原生图表，也不将图表状态计入阅读自检。
+Mermaid 增强由独立的 [Mermaid Diagrams](../mermaid-diagrams/DESIGN.md) 功能负责，两者分别配置。阅读增强不加载 QV 资源、不替换原生图表，也不将图表状态计入阅读自检。
 
 原生 Preview 识别、所属 CodeMirror API、Provider 和块操作组件由 `packages/codex-adapter/src/markdown/` 维护，供阅读与图表两个功能共用；阅读排版、表格和目录的安装仍归本功能。
 
@@ -174,15 +171,15 @@ Codex 当前 macOS 构建的代码块分为接收 `content` 的高亮渲染组�
 
 ## rspack 构建适配
 
-2026-11-04，Codex macOS `26.1029.61003`：旧 ESM 文件发现路径不能定位新版模块。
+Codex `26.1029.x` 起使用 rspack 构建，旧 ESM 文件发现路径不能定位新版模块。
 Adapter 优先读取原生 rspack 注册表；CodeMirror 必须来自导出当前 EditorView / EditorState
 构造器的模块，避免装饰来自另一份编辑器实例。目录沿原生 Pages 的
 `PageEditorContent` lazy 依赖声明加载组件与样式；表格、链接、Markdown renderer / lexer、
 上层 CodeSnippet 与 KaTeX 按真实导入引用及导出角色绑定，不固定 chunk、module ID 或 hash。
 旧 ESM 构建继续走原路径；缺失或多义的角色明确报告能力不可用。
 
-独立 macOS profile + CDP 验证了列表／任务、链接补全、目录跳转、表格换行与原生展开／关闭、
-代码内容与文档换行同步、脚注操作、公式、HTML、注释隐藏、提示块和定义列表。
-Source 切换移除增强，切回 Preview 重新安装；预览文档与磁盘原文一致。
-本轮未覆盖外部链接实际导航、剪贴板内容、Windows 或独立 Mermaid 功能；
-隔离窗口的验证不替代日常宿主中的用户视觉验收。
+## 验证
+
+自动测试覆盖的范围见“代码归属与接口”。隔离窗口按完整样例检查宽／窄面板、源码保持、控件真实切换与卸载清理，不以 CSS 存在代替运行结果。
+
+最近隔离验证：macOS Codex `26.1029.61003`，独立 profile + CDP。已覆盖列表／任务、链接补全、目录跳转、表格换行与原生展开／关闭、代码内容与文档换行同步、脚注、公式、HTML、注释隐藏、提示块、定义列表，以及 Source／Preview 切换后的卸载与重装；预览文档与磁盘原文一致。未覆盖：外部链接实际导航、剪贴板内容、Windows。

@@ -30,7 +30,7 @@ Context 直接订阅 Codex 原生会话状态。其他统计由 Runtime Host 只
 
 会话统计浮窗的 TPS 标签带有同色 Lucide info 图标（Lucide 0.577.0 官方资源）；悬浮或键盘聚焦可查看说明：仅在这个 info tooltip 区分 OCX 和会话日志来源，说明 OCX 包含推理输出和请求等待、会话日志为估算，使用最近一次已完成响应且仅供参考；无有效值时说明计时不足。状态行与其他位置不新增来源或口径标签。
 
-2026-10-08 本机 `opencode-go/deepseek-v4.1-flash` 日志实测：用量记录的 `response_id` 为空，但有 `session_id` 与 `ordinal`；输出条目的 `started_at_ms` 接近完成时间。该类计时可能只覆盖集中交付的输出；实测 51ms、65ms 的交付窗口不能表示真实生成过程。OCX TPS 采用完整请求耗时，因此仍可显示响应速度；日志估算依然拒绝不足 1 秒的观测窗口。
+外部模型（例如 `opencode-go/deepseek-v4.1-flash`）的用量记录可能没有 `response_id`，只有 `session_id` 与 `ordinal`；其输出条目的 `started_at_ms` 接近完成时间，只覆盖集中交付的输出（实测仅 51–65ms），不能表示真实生成过程。因此日志估算拒绝不足 1 秒的观测窗口，OCX TPS 采用完整请求耗时。
 
 ## 上下文分类的可行性
 
@@ -44,22 +44,15 @@ Context 直接订阅 Codex 原生会话状态。其他统计由 Runtime Host 只
 
 会话 JSONL 和 Codex DOM 均属版本相关接口，升级 Codex 后需用隔离窗口重新验证。关闭本功能会移除注入节点和观察器。
 
-Context 优先订阅原生会话的 `latestTokenUsageInfo`，与原生指示器共用 `thread/tokenUsage/updated` 数据源；压缩完成后随原生状态刷新，不等待日志轮询。切换会话时取消旧订阅。原生订阅可用时覆盖日志口径；原生接口或用量不可用时回退到日志的 `last_token_usage.total_tokens / model_context_window`，两者分母来源相同，只有日志缺少有效用量或窗口容量时显示 `—`。日志快照与渲染快照分别保存，原生用量写入显示结果，不覆盖回退来源；原生用量失效时立即恢复当前日志值。日志仍提供累计统计、压缩次数和历史分段估算；日志读取器也接受压缩后的最新重新计数。
-
-2026-11-04，Codex `26.1029.7803.0` 改用 rspack 打包（数字 chunk 名，`assets/async/*.js`），原生上下文 atom 不再以 ESM 导出，`findCodexModule` 找不到可用模块。此时保留日志口径作为回退，环继续显示与原生同口径的百分比；若后续版本重新提供可导入的导出，原生订阅仍优先生效。
-
-2026-10-08，Codex 26.1002.52244 安装包与当前会话实测：`app-shared` 改为先创建 `tokenUsageInfo` selector，再派生按 thread ID 读取、内部携带 host ID 的 atom family。Adapter 从该声明定位导出，不固定 bundle 哈希或压缩后的导出名；旧版直接解构 `latestTokenUsageInfo` 的声明仍可识别。AppScope 与 store 的读取、订阅接口保持相同，发现失败时保留不可用诊断，并按上述规则回退日志用量。
-
-Codex `26.1013.4894.0` 的既有本机验证发现上述接口已迁入 `app-initial`。Adapter 从 modulepreload 与 script 入口发现资源，优先检查 `app-initial`，找不到接口导出时再检查 `app-shared`；仍按原生声明识别导出，不固定哈希或导出名。该变更适配 Codex bundle 布局，不局限于操作系统。回归验证运行 `node --test features/session-status/test/*.test.mjs`，覆盖新旧入口、缺失导出、订阅更新与清理；真实桌面百分比另行验收。
-
-2026-10-17，macOS Codex `26.1013.40934` 隔离 Renderer 验证同样发生接口迁移：旧发现路径不可用，新路径在真实会话 AppScope 中建立订阅并读到原生占用、窗口容量和百分比，AbortSignal 结束后释放订阅。该证据覆盖原生数据读取，不代表状态栏所有浮窗的完整交互验收。
-
 首次安装默认展开输入框下方的会话统计，之后记住用户的展开或收起选择。详情最右侧箭头可收起，收起后点击模型选择左侧的 context 环重新展开；展开时隐藏输入框内的环，展开状态跨会话及 side chat 共享并记住；收起后不保留布局占位。悬浮显示原生同口径的上下文用量。Cache 超过99%时显示一位小数。
 
-Codex `26.1027.30824`（macOS build `22943`）不再将 `app-initial` 列入页面 modulepreload，
-实际加载链仍为 `index → app-main → app-initial`。modulepreload 是加载优化提示，不能作为
-完整模块清单。Context Adapter 使用共享 [Codex Adapter](../../packages/codex-adapter/DEVELOPMENT.md)
-定位 app-initial / app-shared，不再单独维护入口遍历机制。仍从 tokenUsageInfo
-声明识别导出，数据、AppScope 订阅及清理口径保持不变。
-当前对话只读复现确认：旧发现流程失败，新流程可读原生占用、窗口容量与百分比；
-回归覆盖未预加载的入口链、循环引用、新旧直接入口与缺失导出。未补做可见 GUI 验收。
+## 原生上下文数据契约
+
+Context 优先订阅原生会话的 `latestTokenUsageInfo`，与原生指示器共用 `thread/tokenUsage/updated` 数据源；压缩完成后随原生状态刷新，不等待日志轮询。切换会话时取消旧订阅。原生订阅可用时覆盖日志口径；原生接口或用量不可用时回退到日志的 `last_token_usage.total_tokens / model_context_window`，两者分母来源相同，只有日志缺少有效用量或窗口容量时显示 `—`。日志快照与渲染快照分别保存，原生用量写入显示结果，不覆盖回退来源；原生用量失效时立即恢复当前日志值。日志仍提供累计统计、压缩次数和历史分段估算；日志读取器也接受压缩后的最新重新计数。
+
+- 导出发现：从 `tokenUsageInfo` selector 及其派生的按 thread ID 读取、内部携带 host ID 的 atom family 声明定位导出；旧版直接解构 `latestTokenUsageInfo` 的声明仍可识别。不固定 bundle 哈希或压缩导出名。
+- 模块位置：接口可能位于 `app-initial` 或 `app-shared`。modulepreload 只是加载优化提示，不能作为完整模块清单；通过共享 [Codex Adapter](../../packages/codex-adapter/DEVELOPMENT.md) 沿 `index → app-main → app-initial` 实际加载链定位，不单独维护入口遍历机制。
+- rspack 构建（Codex `26.1029.x` 起使用数字 chunk）：原生上下文 atom 不再以 ESM 导出，当前未接入 `codexModuleRegistry`，因此保留日志口径作为回退，环继续显示与原生同口径的百分比。
+- AppScope 与 store 的读取、订阅接口保持不变；发现失败时保留不可用诊断，AbortSignal 结束后释放订阅。
+
+回归运行 `node --test features/session-status/test/*.test.mjs`，覆盖新旧入口、未预加载的入口链、循环引用、缺失导出、订阅更新与清理。真实桌面百分比与浮窗交互需在隔离窗口另行验收。
