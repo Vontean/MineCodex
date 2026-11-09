@@ -81,6 +81,7 @@ const requiredFiles = [
   "assets/brand/minecodex-icon-dark.svg",
   "assets/brand/references/lucide-LICENSE.txt",
   "assets/readme/hero.svg",
+  "assets/readme/hero-dark.svg",
   "features/images/codex-feature.json",
   "features/markdown-reading/codex-feature.json",
   "features/markdown-reading/src/injection-source.mjs",

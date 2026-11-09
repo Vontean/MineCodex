@@ -20,17 +20,16 @@ for (const [theme, color] of Object.entries(palette)) {
 const favicon = source.replace("  <title", `  <style>\n    :root { color: ${palette.light}; }\n    @media (prefers-color-scheme: dark) { :root { color: ${palette.dark}; } }\n  </style>\n  <title`);
 await writeFile(new URL("apps/dashboard/favicon.svg", root), notice + favicon);
 
-// README 展示图固定浅色；品牌几何仍由同一源文件生成。
-const heroUrl = new URL("assets/readme/hero.svg", root);
-let hero = await readFile(heroUrl, "utf8");
+// README 头图分浅色、深色两份，由 <picture> 按 GitHub 主题选择；标签胶囊内的品牌标识由同一源文件生成。
 const geometry = source.slice(source.indexOf('  <path id="codex-outline"'), source.lastIndexOf("</svg>"));
-const mark = `<!-- MineCodex brand start -->\n    <g transform="translate(0 23) scale(2.333333)" color="${palette.light}" fill="none">\n${geometry}    </g>\n    <!-- MineCodex brand end -->`;
-if (hero.includes("<!-- MineCodex brand start -->")) {
-  hero = hero.replace(/<!-- MineCodex brand start -->[\s\S]*?<!-- MineCodex brand end -->/, mark);
-} else {
-  hero = hero.replace('    <text class="sans" x="0" y="68"', `${mark}\n    <text class="sans" x="72" y="68"`);
+for (const [file, color] of [["hero.svg", palette.light], ["hero-dark.svg", palette.dark]]) {
+  const heroUrl = new URL(`assets/readme/${file}`, root);
+  const hero = await readFile(heroUrl, "utf8");
+  const pattern = /<!-- MineCodex brand start -->[\s\S]*?<!-- MineCodex brand end -->/;
+  if (!pattern.test(hero)) throw new Error(`assets/readme/${file} is missing the MineCodex brand markers`);
+  const mark = `<!-- MineCodex brand start -->\n    <g transform="translate(16 8)" color="${color}" fill="none">\n${geometry}    </g>\n    <!-- MineCodex brand end -->`;
+  await writeFile(heroUrl, hero.replace(pattern, mark));
 }
-await writeFile(heroUrl, hero);
 console.log(`Generated MineCodex theme icons, dashboard favicon and README mark from ${fileURLToPath(new URL("assets/brand/minecodex-icon.svg", root))}`);
 
 const serviceIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">

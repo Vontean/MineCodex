@@ -1,93 +1,50 @@
-<svg xmlns="http://www.w3.org/2000/svg"
-     width="1200" height="400" viewBox="0 0 1200 400"
-     role="img" aria-labelledby="hero-title hero-desc">
-  <title id="hero-title">MineCodex</title>
-  <desc id="hero-desc">MineCodex 给 Codex Desktop 增加轻量、本地优先的插件：模型滑条、笔记与图片库。</desc>
-
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="1200" height="440" viewBox="0 0 1200 440" role="img" aria-labelledby="t d">
+  <title id="t">MineCodex：让 Codex 更顺手</title>
+  <desc id="d">像素字标 MineCodex，副标题“让 Codex 更顺手”。13 项按需开启的 Codex Desktop 交互增强，支持 macOS 与 Windows。</desc>
   <defs>
-    <style>
-      .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
-      .sans { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", "PingFang SC", "Hiragino Sans GB", sans-serif; }
-    </style>
-    <filter id="card-shadow" x="-8%" y="-8%" width="116%" height="120%">
-      <feDropShadow dx="0" dy="6" stdDeviation="12" flood-color="#000000" flood-opacity="0.04"/>
-      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="#000000" flood-opacity="0.03"/>
-    </filter>
-    <filter id="terminal-shadow" x="-4%" y="-8%" width="108%" height="124%">
-      <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#000000" flood-opacity="0.03"/>
-    </filter>
+    <clipPath id="frame"><rect width="1200" height="440" rx="24"/></clipPath>
+    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse" x="8" y="12">
+      <path d="M32 0H0V32" fill="none" stroke="#0d0d0d13" stroke-width="2"/>
+    </pattern>
+    <radialGradient id="fade" cx="50%" cy="46%" r="50%" gradientTransform="translate(.5 .46) scale(1 .78) translate(-.5 -.46)">
+      <stop offset=".3" stop-color="#fff"/><stop offset=".92" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <mask id="grid-mask"><rect width="1200" height="440" fill="url(#fade)"/></mask>
+    <path id="word" d="M144.9 252V169.5H177.9V186H210.9V169.5H243.9V252H210.9V219H177.9V252ZM267.7 252V169.5H300.7V252ZM324.4 252V169.5H357.4V186H373.9V202.5H390.4V169.5H423.4V252H390.4V235.5H373.9V219H357.4V252ZM447.2 252V169.5H513.2V186H480.2V202.5H513.2V219H480.2V235.5H513.2V252ZM553.5 252V235.5H537V186H553.5V169.5H603V186H619.5V202.5H586.5V186H570V235.5H586.5V219H619.5V235.5H603V252ZM659.7 252V235.5H643.2V186H659.7V169.5H709.2V186H725.7V235.5H709.2V252ZM676.2 234.8H692.7V186.7H676.2ZM749.5 252V169.5H815.5V186H832V235.5H815.5V252ZM782.5 235.5H798.3V186H782.5ZM855.8 252V169.5H921.8V186H888.8V202.5H921.8V219H888.8V235.5H921.8V252ZM945.5 252V235.5H962V219H978.5V202.5H962V186H945.5V169.5H978.5V186H1011.5V169.5H1044.5V186H1028V202.5H1011.5V219H1028V235.5H1044.5V252H1011.5V235.5H978.5V252Z"/>
   </defs>
 
-  <!-- Page background: Codex light theme surface -->
-  <rect width="1200" height="400" rx="24" fill="#f7f7f7"/>
+  <g clip-path="url(#frame)">
+    <rect width="1200" height="440" fill="#ffffff"/>
+    <!-- 像素网格：只作背景纹理，向四周淡出 -->
+    <rect width="1200" height="440" fill="url(#grid)" mask="url(#grid-mask)"/>
+  </g>
+  <rect x=".5" y=".5" width="1199" height="439" rx="23.5" fill="none" stroke="#0d0d0d13"/>
 
-  <!-- Left: Title block -->
-  <g transform="translate(64 84)">
-    <text class="mono" x="0" y="14" font-size="13" font-weight="600" letter-spacing="2.5" fill="#0169cc">CODEX DESKTOP PLUGINS · macOS</text>
-<!-- MineCodex brand start -->
-    <g transform="translate(0 23) scale(2.333333)" color="#0d0d0d" fill="none">
+  <!-- 标签胶囊 -->
+  <g transform="translate(442.0 44)">
+    <rect width="316" height="40" rx="20" fill="#ffffff" stroke="#0d0d0d1c"/>
+    <!-- MineCodex brand start -->
+    <g transform="translate(16 8)" color="#0d0d0d" fill="none">
   <path id="codex-outline" fill="currentColor" fill-rule="evenodd" clip-rule="evenodd" d="M9.3316 2.03768C11.1644 1.54688 13.0268 2.04668 14.356 3.20174C16.0859 2.86512 17.9511 3.36418 19.2935 4.70663C20.6356 6.04882 21.1326 7.91288 20.7964 9.64217C21.9527 10.9716 22.4534 12.8349 21.9625 14.6685C21.4711 16.5025 20.1051 17.8657 18.439 18.439C17.8658 20.1047 16.503 21.47 14.6695 21.9615C12.8356 22.4528 10.9727 21.9519 9.64312 20.7955C7.91371 21.1319 6.04993 20.635 4.70757 19.2926C3.36558 17.9505 2.86659 16.0866 3.20269 14.357C2.04693 13.0273 1.54757 11.1638 2.03863 9.33065C2.52997 7.49759 3.89436 6.13282 5.56011 5.55917C6.13382 3.8935 7.49837 2.52891 9.3316 2.03768ZM13.2623 4.63534C12.3606 3.80149 11.067 3.4361 9.79742 3.77596C8.52745 4.11626 7.58924 5.0796 7.22515 6.25253C7.08145 6.71575 6.71753 7.07928 6.25445 7.22323C5.08133 7.58702 4.11844 8.52622 3.77789 9.79647C3.43759 11.0667 3.80148 12.3606 4.63531 13.2623C4.96467 13.6184 5.09776 14.1154 4.99078 14.5885C4.71939 15.7864 5.05109 17.0891 5.98101 18.0191C6.91085 18.949 8.21345 19.2801 9.41168 19.0084L9.58941 18.9791C9.94695 18.9432 10.3065 19.0397 10.5982 19.2496L10.7378 19.3639L10.9117 19.5142C11.8015 20.2407 13.0127 20.5413 14.2037 20.2223C15.4733 19.8818 16.4111 18.9191 16.775 17.7457C16.9189 17.2824 17.2832 16.9186 17.7466 16.775L17.9634 16.6998C19.0376 16.2923 19.9051 15.3936 20.2242 14.2027C20.5641 12.9328 20.1989 11.6385 19.3648 10.7369C19.0353 10.3806 18.9021 9.88399 19.0093 9.41073L19.0533 9.18514C19.2372 8.0514 18.8917 6.85176 18.0201 5.98006C17.0901 5.05003 15.7865 4.71826 14.5884 4.98983C14.1153 5.09712 13.6186 4.96467 13.2623 4.63534Z"/>
   <g id="pickaxe" transform="translate(6.24 6.24) scale(.48)" fill="currentColor">
     <path d="M15.686 4.314 16.3 3.7a1 1 0 0 1 1.4 0l2.6 2.6a1 1 0 0 1 0 1.4l-.614.614a12.501 12.501 0 0 1 1.356 10.225 1 1 0 0 1-1.751-.119 22 22 0 0 0-3.393-6.319l-.198.199a1 1 0 0 1-1.4 0l-.219.169L6.619 20.38a1 1 0 1 1-3-3l7.912-7.912.169.232a1 1 0 0 1 0-1.4l.198-.197A22 22 0 0 0 5.58 4.71a1 1 0 0 1-.119-1.752 12.5 12.5 0 0 1 10.225 1.356Z"/>
   </g>
     </g>
     <!-- MineCodex brand end -->
-    <text class="sans" x="72" y="68" font-size="56" font-weight="700" letter-spacing="-0.5" fill="#0d0d0d">MineCodex</text>
-    <text class="sans" x="0" y="112" font-size="21" font-weight="400" fill="rgba(13,13,13,0.68)">给 Codex Desktop 增加轻量、本地优先的插件</text>
-
-    <!-- Install command pill -->
-    <g transform="translate(0 148)" filter="url(#terminal-shadow)">
-      <rect x="0" y="0" width="432" height="52" rx="14" fill="#ffffff" stroke="rgba(13,13,13,0.1)"/>
-      <circle cx="24" cy="26" r="4.5" fill="rgba(13,13,13,0.28)"/>
-      <text class="mono" x="42" y="32" font-size="17" font-weight="500" fill="#0d0d0d">npm install -g minecodex</text>
-    </g>
-
-    <text class="mono" x="0" y="234" font-size="14" fill="rgba(13,13,13,0.45)">Node 22.5+ · npm 包 · MIT License</text>
+    <text x="50" y="26.5" font-family="-apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, &quot;PingFang SC&quot;, &quot;Hiragino Sans GB&quot;, &quot;Microsoft YaHei&quot;, sans-serif" font-size="18" fill="#0d0d0da6">Codex 增强工具箱 · 13 项</text>
   </g>
 
-  <!-- Right: Three capability cards -->
-  <g transform="translate(572 74)" filter="url(#card-shadow)">
-    <!-- Card 1: Model Slider -->
-    <g transform="translate(0 0)">
-      <rect x="0" y="0" width="172" height="252" rx="20" fill="#ffffff" stroke="rgba(13,13,13,0.09)"/>
-      <!-- Icon well -->
-      <rect x="50" y="28" width="72" height="72" rx="20" fill="#0d0d0d"/>
-      <g transform="translate(69.2 47.2) scale(1.4)" fill="none" stroke="#ffffff" stroke-width="1.43" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z"/>
-        <path d="M20 2v4"/>
-        <path d="M22 4h-4"/>
-        <circle cx="4" cy="20" r="2"/>
-      </g>
-      <text class="sans" x="86" y="146" font-size="19" font-weight="600" text-anchor="middle" fill="#0d0d0d">Model Slider</text>
-      <text class="sans" x="86" y="176" font-size="14" text-anchor="middle" fill="rgba(13,13,13,0.68)">更清晰顺滑的模型选择</text>
-      <text class="mono" x="86" y="212" font-size="12" letter-spacing="1.5" text-anchor="middle" fill="rgba(13,13,13,0.45)">MODEL PICKER</text>
-    </g>
-
-    <!-- Card 2: Notes -->
-    <g transform="translate(196 0)">
-      <rect x="0" y="0" width="172" height="252" rx="20" fill="#ffffff" stroke="rgba(13,13,13,0.09)"/>
-      <rect x="50" y="28" width="72" height="72" rx="20" fill="#0d0d0d"/>
-      <g transform="translate(68 46) scale(1.5)" fill="none" stroke="#ffffff" stroke-width="1.333" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M21 9a2.4 2.4 0 0 0-.706-1.706l-3.588-3.588A2.4 2.4 0 0 0 15 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2z"/>
-        <path d="M15 3v5a1 1 0 0 0 1 1h5"/>
-      </g>
-      <text class="sans" x="86" y="146" font-size="19" font-weight="600" text-anchor="middle" fill="#0d0d0d">Notes</text>
-      <text class="sans" x="86" y="176" font-size="14" text-anchor="middle" fill="rgba(13,13,13,0.68)">跨会话管理待办与提示词</text>
-      <text class="mono" x="86" y="212" font-size="12" letter-spacing="1.5" text-anchor="middle" fill="rgba(13,13,13,0.45)">TOOLBAR</text>
-    </g>
-
-    <!-- Card 3: Images -->
-    <g transform="translate(392 0)">
-      <rect x="0" y="0" width="172" height="252" rx="20" fill="#ffffff" stroke="rgba(13,13,13,0.09)"/>
-      <rect x="50" y="28" width="72" height="72" rx="20" fill="#0d0d0d"/>
-      <g transform="translate(68 46) scale(1.5)" fill="none" stroke="#ffffff" stroke-width="1.333" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="3" y="3" width="18" height="18" rx="2"/>
-        <circle cx="9" cy="9" r="2"/>
-        <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>
-      </g>
-      <text class="sans" x="86" y="146" font-size="19" font-weight="600" text-anchor="middle" fill="#0d0d0d">Images</text>
-      <text class="sans" x="86" y="176" font-size="14" text-anchor="middle" fill="rgba(13,13,13,0.68)">集中浏览生成图片与来源</text>
-      <text class="mono" x="86" y="212" font-size="12" letter-spacing="1.5" text-anchor="middle" fill="rgba(13,13,13,0.45)">LIBRARY</text>
-    </g>
+  <!-- 像素字标：阶梯描边与深度阴影 -->
+  <g>
+    <use href="#word" x="10.56" y="10.56" fill="#a3a3a3"/>
+    <use href="#word" x="8.45" y="8.45" fill="#0d0d0d"/>
+    <use href="#word" x="6.34" y="6.34" fill="#0d0d0d"/>
+    <use href="#word" x="4.22" y="4.22" fill="#0d0d0d"/>
+    <use href="#word" x="2.11" y="2.11" fill="#0d0d0d"/>
+    <use href="#word" fill="#f7f7f7" stroke="#0d0d0d" stroke-width="3" stroke-linejoin="miter" paint-order="stroke"/>
   </g>
+
+  <text x="600.0" y="338" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, &quot;PingFang SC&quot;, &quot;Hiragino Sans GB&quot;, &quot;Microsoft YaHei&quot;, sans-serif" font-size="40" font-weight="600" letter-spacing="-0.6" fill="#0d0d0d">让 Codex 更顺手</text>
+  <text x="600.0" y="384" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, &quot;PingFang SC&quot;, &quot;Hiragino Sans GB&quot;, &quot;Microsoft YaHei&quot;, sans-serif" font-size="20" fill="#0d0d0da6">按需开启的交互增强 · 本地运行 · macOS / Windows</text>
 </svg>
