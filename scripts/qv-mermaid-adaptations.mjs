@@ -175,6 +175,21 @@ const gitPatches = [
   ['function renderMermaidTimeline(root,data) {', gitRenderer + '\nfunction renderMermaidTimeline(root,data) {'],
 ];
 
+// 时间线（事件区分度）：
+// 21. 原事件为 14px/22px 行高、间距仅 12px，多行事件之间的间距小于行高，相邻事件读成一段。
+//     每个事件改为低饱和软卡片：所在区段色 7% 底色、8px 圆角、8×10px 内边距，卡片间距 8px；悬停/聚焦加深到 14%。
+// 22. 事件圆点对齐卡片首行（原为多行文本的垂直中点），标出每个事件的起点。
+const timelinePatches = [
+  ['#${root.id} .timeline-events{margin-top:38px;padding-left:22px;display:flex;flex-direction:column;gap:12px}',
+   '#${root.id} .timeline-events{margin-top:38px;padding-left:22px;display:flex;flex-direction:column;gap:8px}'],
+  ['min-height:30px;padding:4px 0;white-space:normal;overflow-wrap:anywhere;cursor:var(--cursor-interaction,pointer)}',
+   'min-height:30px;padding:8px 10px;border-radius:8px;background:color-mix(in srgb,var(--timeline-tone) 7%,var(--background));transition:background-color 140ms;white-space:normal;overflow-wrap:anywhere;cursor:var(--cursor-interaction,pointer)}'],
+  ['#${root.id} .timeline-event[data-active=true],#${root.id} .timeline-event:focus-visible{color:var(--viz-series-1);outline:none}',
+   '#${root.id} .timeline-event[data-active=true],#${root.id} .timeline-event:focus-visible{color:var(--viz-series-1);outline:none;background:color-mix(in srgb,var(--timeline-tone) 14%,var(--background))}'],
+  ['const centers=o.events.map(e=>columnTop+e.offsetTop+e.offsetHeight/2);',
+   'const centers=o.events.map(e=>columnTop+e.offsetTop+8+11);'],
+];
+
 export function adaptQvTemplate(script) {
   script = replaceQv(script, "e.fromSide=e.toSide=['LR','RL'].includes(data.direction)?'NORTH':'WEST';}}", "{const lr=['LR','RL'].includes(data.direction),flip=['RL','BT'].includes(data.direction);e.fromSide=lr?(flip?'EAST':'WEST'):(flip?'SOUTH':'NORTH');e.toSide=lr?(flip?'WEST':'EAST'):(flip?'NORTH':'SOUTH');}}}");
   for (const [from, to] of sequencePatches) script = replaceQv(script, from, to);
@@ -182,5 +197,6 @@ export function adaptQvTemplate(script) {
   for (const [from, to] of mindmapPatches) script = replaceQv(script, from, to);
   for (const [from, to] of archPatches) script = replaceQv(script, from, to);
   for (const [from, to] of gitPatches) script = replaceQv(script, from, to);
+  for (const [from, to] of timelinePatches) script = replaceQv(script, from, to);
   return script;
 }
