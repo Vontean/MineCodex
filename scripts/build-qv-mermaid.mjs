@@ -3,7 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 import { parse } from 'acorn';
-import { adaptFlowLayout, adaptQvTemplate, adaptQvMotion, replaceQv } from './qv-mermaid-adaptations.mjs';
+import { adaptFlowLayout, adaptQvTemplate, adaptQvMotion, removeQvNavigation, replaceQv } from './qv-mermaid-adaptations.mjs';
 import { createMermaidViewport } from '../features/mermaid-diagrams/src/mermaid/viewport.mjs';
 const source = new URL('../features/mermaid-diagrams/vendor/qv/source/', import.meta.url);
 const output = new URL('../features/mermaid-diagrams/assets/', import.meta.url);
@@ -117,24 +117,21 @@ export async function buildQvTemplate({ motion = true } = {}) {
   for (const match of [...template.matchAll(/\{\{([A-Z0-9_]+)_JS\}\}/g)]) {
     const name = match[1] === 'CHART_PRESETS' ? 'chart-presets.js' : `mermaid-${match[1].toLowerCase().replaceAll('_', '-')}.js`;
     const original = await readFile(new URL(name, source), 'utf8');
-    const code = name === 'mermaid-viewport.js' ? createMermaidViewport.toString() : readingQvScript(original, name);
+    const code = name === 'mermaid-viewport.js' ? createMermaidViewport.toString() : name === 'mermaid-navigation.js' ? '' : readingQvScript(original, name);
     template = template.replace(match[0], () => code);
   }
   template = template.replaceAll('{{ROOT_ID}}', 'mcx-qv-root').replaceAll('{{TITLE}}', '').replaceAll('{{TITLE_HIDDEN}}', 'hidden')
     .replaceAll('{{CONFIG_JSON}}', 'JSON.stringify(window.__mcxDiagramConfig)');
+  template = replaceQv(template, '<nav class="scope-nav" aria-label="架构层级" hidden></nav><span class="scope-status sr-only" aria-live="polite"></span>', '');
   const polish = await readFile(new URL('../features/mermaid-diagrams/src/mermaid/qv-polish.css', import.meta.url), 'utf8');
   template = template.replace('</style>', () => polish + '</style>');
   const match = template.match(/<script>([\s\S]*?)<\/script>/);
   let script = adaptQvTemplate(match[1]);
+  script = removeQvNavigation(script);
   script = adaptQvMotion(script);
   const motionHelpers = await readFile(new URL('../features/mermaid-diagrams/src/mermaid/qv-motion.js', import.meta.url), 'utf8');
-  script = replaceQv(script, '(async()=>{\n', '(async()=>{\n' + motionHelpers);
+  script = motionHelpers + script;
   script = motion ? script : staticQvScript(script);
-  // 架构图始终展示全貌，不提供节点组开关或分组下钻；流程图保持原有能力。
-  script = script.replace('navigationEnabled=!!data.groups?.length;', 'navigationEnabled=!!data.groups?.length&&!data.architecture;')
-    .replace('root.dataset.hasGroups=String(navigationEnabled)', 'root.dataset.hasGroups=String(!!data.groups?.length)')
-    .replace('async function setNavigationMode(enabled){', 'async function setNavigationMode(enabled){if(sourceModel.architecture)return;');
-  script = script.replace("const crumbs=[{id:null,name:drilldownActive?'总览':'完整架构'},...path]", "const crumbs=drilldownActive?[{id:null,name:'总览'},...path]:[]");
   script = script.replace("(await import('https://cdn.jsdelivr.net/npm/mermaid@11.12.0/dist/mermaid.esm.min.mjs')).default", 'window.__mcxQVRuntime.mermaid')
     .replaceAll("await import('https://cdn.jsdelivr.net/npm/d3@7.9.0/+esm')", 'window.__mcxQVRuntime.d3')
     .replaceAll("await import('https://cdn.jsdelivr.net/npm/d3-sankey@0.12.3/+esm')", 'window.__mcxQVRuntime.sankey');

@@ -355,3 +355,32 @@ export function adaptQvMotion(script) {
   script=replaceQv(script,"Math.max(...data.nodes.map(n=>n.layer))*220+810",'mermaidEntryBudget');
   return script;
 }
+
+// 规则 38：完整图拥有唯一模型；不再生成节点组开关和下钻投影。
+export function removeQvNavigation(script){
+ script=replaceQv(script,"let mermaidRuntime,data,sourceModel,drilldownActive=true,navigationEnabled=false,currentScope=null,navigationBusy=false;const scopeScroll=new Map();",'let data,sourceModel;');
+ script=replaceQv(script,'mermaidRuntime=mermaid;','');
+ script=replaceQv(script,"navigationEnabled=!!data.groups?.length;drilldownActive=navigationEnabled&&cfg.navigation!=='expanded';root.dataset.hasGroups=String(navigationEnabled);", "root.dataset.hasGroups=String(!!data.groups?.length);");
+ script=replaceQv(script,"if(drilldownActive){data=mermaidScopeView(sourceModel);root.dataset.navigation='true';root.dataset.scope='overview';}",'');
+ script=replaceQv(script,'else if(data.navigation)await prepareNavigationView(data);','');
+ const ast=parse(script,{ecmaVersion:'latest'}),edits=[],removed=new Set();
+ const obsolete=new Set(['closeCrumbPanel','openCrumbPanel','drawNavigation','capturePositions','transitionView','setNavigationMode','navigateScope','drawGroupPreview']);
+ function visit(node){
+  if(!node||typeof node!=='object')return;
+  if(node.type==='FunctionDeclaration'&&obsolete.has(node.id.name)){removed.add(node.id.name);edits.push([node.start,node.end]);return;}
+  if(node.type==='IfStatement'&&node.test.type==='MemberExpression'&&node.test.object.name==='n'&&node.test.property.name==='groupCard'){edits.push([node.start,node.end]);return;}
+  if(node.type==='VariableDeclaration'&&node.declarations[0]?.id.name==='crumbPanel'){edits.push([node.start,node.end]);return;}
+  if(node.type==='ExpressionStatement'){
+   const value=node.expression;
+   if(value.type==='CallExpression'&&['closeCrumbPanel','drawNavigation'].includes(value.callee.name)
+    ||value.type==='AssignmentExpression'&&value.right.type==='ArrowFunctionExpression'&&value.right.body.callee?.name==='navigateScope'){
+     edits.push([node.start,node.end]);return;
+   }
+  }
+  for(const value of Object.values(node)){if(Array.isArray(value))value.forEach(visit);else if(value?.type)visit(value);}
+ }
+ visit(ast);
+ for(const name of obsolete)if(!removed.has(name))throw new Error('QV 下钻函数缺失：'+name);
+ for(const [start,end] of edits.sort((a,b)=>b[0]-a[0]))script=script.slice(0,start)+script.slice(end);
+ return script;
+}

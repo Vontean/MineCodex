@@ -51,7 +51,7 @@ export function createQvFrame(source, assets, theme, onHeight, onReady, onEscape
   frame.style.height = '240px';
   let disposed = false, height = 240, input = null;
   const timeout = setTimeout(() => { if (!disposed) onReady('error'); }, 30000);
-  const config = { source, title: '', descriptions: {}, icons: 'auto', navigation: 'expanded', readingWidth: theme.readingWidth };
+  const config = { source, title: '', descriptions: {}, icons: 'auto', readingWidth: theme.readingWidth };
   const encode = (value) => JSON.stringify(value).replace(/</g, '\\u003c');
   const bootstrap = `const token=${encode(token)};window.__mcxDiagramConfig=${encode(config)};window.openai={displayMode:'inline',maxHeight:innerHeight};
 const send=()=>{const root=document.querySelector('.qv-mermaid');parent.postMessage({type:'mcx-qv',token,state:root.dataset.state,height:Math.ceil(root.offsetHeight)},'*');};
