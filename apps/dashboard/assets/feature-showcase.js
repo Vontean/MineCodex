@@ -57,12 +57,6 @@ export function installFeatureShowcase(root, locale) {
       const dd = document.createElement('dd'); dd.textContent = value;
       details.append(dt, dd);
     });
-    for (const [id, card] of cards) {
-      const active = id === feature.id;
-      card.classList.toggle('is-showcased', active);
-      const entry = card.querySelector('.showcase-entry');
-      if (active) entry?.setAttribute('aria-current', 'true'); else entry?.removeAttribute('aria-current');
-    }
   }
   function renderProgress() {
     if (progress.children.length !== features.length) {
@@ -97,8 +91,14 @@ export function installFeatureShowcase(root, locale) {
       if (shouldPlay() && features.length > 1 && media.dataset.state !== 'loading') advanceTimer = setTimeout(() => step(1), 6000);
       return;
     }
-    if (shouldPlay()) video.play().catch(() => { userPaused = true; renderControls(); });
-    else video.pause();
+    if (shouldPlay()) {
+      const ticket = generation;
+      video.play().catch(error => {
+        // 切换素材或暂停造成的中断，不代表用户选择暂停或宿主拒绝播放。
+        if (ticket !== generation || error.name !== 'NotAllowedError' || !shouldPlay()) return;
+        userPaused = true; renderControls();
+      });
+    } else video.pause();
   }
   async function select(nextIndex) {
     if (!features.length) return;
@@ -146,7 +146,7 @@ export function installFeatureShowcase(root, locale) {
     // 播完停在最后一帧时，继续播放从下一个功能开始。
     if (!userPaused && video.ended) step(1); else sync();
   });
-  new IntersectionObserver(([entry]) => { inView = entry.isIntersecting; sync(); }, {threshold: 0.35}).observe(media);
+  new IntersectionObserver(([entry]) => { inView = entry.isIntersecting && entry.intersectionRatio >= 0.35; sync(); }, {threshold: 0.35}).observe(media);
   document.addEventListener('visibilitychange', () => { pageVisible = !document.hidden; sync(); });
   window.addEventListener('pagehide', () => { mediaAbort?.abort(); releaseVideo(); });
 
@@ -158,8 +158,7 @@ export function installFeatureShowcase(root, locale) {
       const target = features.findIndex(feature => feature.id === card.dataset.featureId);
       if (target < 0) return;
       if (target !== index) void select(target);
-      const box = root.getBoundingClientRect();
-      if (box.top < 0 || box.bottom > innerHeight) root.scrollIntoView({block: 'center', behavior: reduced.matches ? 'auto' : 'smooth'});
+      root.scrollIntoView({block: 'start', behavior: reduced.matches ? 'auto' : 'smooth'});
     });
     card.append(entry);
     cards.set(card.dataset.featureId, card);
