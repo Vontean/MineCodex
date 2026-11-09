@@ -11,19 +11,47 @@ MineCodex 增强功能在 Codex 桌面端的注入与生命周期宿主，负责
 各功能继续拥有自己的数据与服务。宿主不读取业务数据库；单个功能服务失效不会阻止
 Codex 或其他功能运行。
 
-## 隔离启动与验证
+## 隔离验收
 
-以下命令从仓库根执行。先按 [Model Slider 隔离说明](../../features/model-slider/DEVELOPMENT.md) 显式启动独立 Codex 窗口，再让宿主接入同一 profile / CDP；示例仅加载 Model Slider，避免启动其他功能服务。
+注入依赖 high-risk CDP 与私有 DOM，单元测试不能证明真实 Renderer 中的行为。凡是改动注入、原生协议、布局或交互，都在隔离的 Codex 窗口中经 CDP 验收；不在日常窗口验收，也不复用日常 MineCodex 后台的 CDP 连接，避免影响用户正在进行的会话、草稿和数据。
 
-```bash
-CODEX_FEATURES_ROOT="$PWD/features" \
-MINECODEX_ENABLED_FEATURES=model-slider \
-CODEX_RUNTIME_PROFILE_DIR="$HOME/.codex-model-slider/codex-profile" \
-CODEX_RUNTIME_CDP_PORT=9233 \
-node packages/runtime-host/src/main.mjs
-```
+隔离包含三部分，缺一不算隔离：
 
-改变验证范围时，服务端口和业务数据目录也应隔离；仅设置 Electron profile 不代表所有功能数据已隔离。运行参数查询启动入口与所属功能，不使用默认启动命令替代隔离接入。
+- **独立 profile**：用单独的 `--user-data-dir` 启动 Codex，与日常窗口不共享登录态、会话与缓存。
+- **独立 CDP 端口**：任选一个空闲端口，只要不与日常 MineCodex 后台（`CODEX_RUNTIME_CDP_PORT`）及其他正在运行的 Codex 实例冲突。
+- **独立业务数据**：验收带数据的功能时，把数据指向临时目录，例如 Notes 的 `CODEX_NOTES_DATA_DIR`、Sites 的 `MINECODEX_SITES_DATA_DIR`、Model Slider 的 `MINECODEX_MODEL_DATA_FILE`。仅隔离 profile 不代表功能数据已隔离。
+
+以下命令从仓库根执行，`PORT` 与 `PROFILE` 替换为本次选择的端口和目录。
+
+1. 启动独立 Codex（macOS）：
+
+   ```bash
+   open -na /Applications/ChatGPT.app --args \
+     --user-data-dir="$PROFILE" \
+     --remote-debugging-address=127.0.0.1 \
+     --remote-debugging-port=$PORT \
+     --remote-allow-origins=http://127.0.0.1:$PORT \
+     --no-first-run
+   ```
+
+   Windows 版 Codex 为 MSIX 应用，需经包注册入口传入同样的参数（见 [CLI 开发约定](../cli/DEVELOPMENT.md) 的应用身份一节）；手动隔离启动尚未整理为固定命令。
+
+2. 启动只加载待验收功能的宿主，接入同一 profile 与端口：
+
+   ```bash
+   CODEX_FEATURES_ROOT="$PWD/features" \
+   MINECODEX_ENABLED_FEATURES=<feature-id,...> \
+   CODEX_RUNTIME_PROFILE_DIR="$PROFILE" \
+   CODEX_RUNTIME_CDP_PORT=$PORT \
+   node packages/runtime-host/src/main.mjs
+   ```
+
+3. 经 CDP 验证：读取注入自检结果，调用待验收的 host action，并在隔离窗口完成真实操作（点击、键盘、切换页面与卸载）。需要检查懒加载的原生模块时运行 `MCX_PROBE_PORT=$PORT npm run check:native`，并先打开对应页面。
+4. 结束后关闭隔离窗口与宿主进程，还原测试草稿，删除临时数据。截图与一次性记录放 `docs/verification/`。
+
+结果写进所属功能文档的“最近隔离验证”：注明 Codex 构建、已覆盖与未覆盖的范围。接口加载通过不等于用户操作通过，两者分别记录。
+
+本地回归：
 
 ```bash
 npm run test:runtime

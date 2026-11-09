@@ -50,8 +50,8 @@ page-script 与独立 Renderer evaluate 都必须显式序列化共享函数，�
 
 Codex `26.1027.30824` 起 app-initial / app-main 不在预加载列表，部分组件重新拆分或
 合入入口，TOC 样式变为纯 hash，KaTeX 存在命名导出。运行 `node scripts/check-native-capabilities.mjs` 重做隔离接口检查；
-先按 Runtime Host 约定启动独立 Codex，默认 CDP 9233，可用 MCX_PROBE_PORT 指定独立端口。
-脚本拒绝日常 9231 端口，不打开菜单、不发送消息或上传文件；它会导入原生组件并加载
+先按 [Runtime Host 隔离验收](../runtime-host/DEVELOPMENT.md#隔离验收) 启动独立 Codex，用 `MCX_PROBE_PORT` 指定其 CDP 端口。
+脚本拒绝日常后台的默认端口，不打开菜单、不发送消息或上传文件；它会导入原生组件并加载
 对应 CSS，因此仅用于独立窗口。退出码非零表示加载失败或超时，不能只看服务健康。
 
 ### rspack 的已注册模块

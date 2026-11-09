@@ -6,6 +6,7 @@
 - **视觉、组件选型或原生交互：** 读根 [DESIGN.md](DESIGN.md)；共享组件接入再读 [UI 局部约定](packages/ui/DESIGN.md)，组件组织再读 [UI 架构](packages/ui/ARCHITECTURE.md)。功能特殊选择读对应 `features/<id>/DESIGN.md`，以实际存在的文件为准。
 - **功能行为、存储或专有协议：** 读对应功能已有的 DEVELOPMENT / DESIGN；涉及产品目标时读该处已有的 PRODUCT。共享 Codex 环境契约读 [Codex Adapter](packages/codex-adapter/DEVELOPMENT.md)，官方 MCP 页面与通信读 [Plugin](packages/plugin/DEVELOPMENT.md)。
 - **加载、注入、通信或生命周期：** 读 [Runtime Host](packages/runtime-host/DEVELOPMENT.md)。数据导入导出读 [迁移契约](packages/cli/DATA-TRANSFER.md)；macOS 后台 App 资源或签名变更读 [原生服务约定](packages/cli/native/DEVELOPMENT.md)。
+- **真实 Codex 窗口验收：** 读 [Runtime Host 隔离验收](packages/runtime-host/DEVELOPMENT.md#隔离验收)；只在独立 profile、独立 CDP 端口与临时数据中验收，不碰日常窗口。
 - **控制台布局或主题：** 读 [Dashboard DESIGN](apps/dashboard/DESIGN.md)；产品状态与操作目标读 [Dashboard PRODUCT](apps/dashboard/PRODUCT.md)。
 - **发布：** 读 [npm 发布流程](docs/npm-publishing.md)，以本次检查为依据。
 

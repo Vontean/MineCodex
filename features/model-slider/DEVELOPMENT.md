@@ -21,26 +21,7 @@ Codex Composer 原生模型选择器的轻量增强功能。它通过同级
 npm test
 ```
 
-真实 UI 仅在隔离 profile 中验证。先显式启动独立 Codex 实例：
-
-```bash
-open -na /Applications/ChatGPT.app --args \
-  --user-data-dir="$HOME/.codex-model-slider/codex-profile" \
-  --remote-debugging-address=127.0.0.1 \
-  --remote-debugging-port=9233 \
-  --remote-allow-origins=http://127.0.0.1:9233 \
-  --no-first-run
-```
-
-再启动只加载 Model Slider 的 RuntimeHost：
-
-```bash
-CODEX_FEATURES_ROOT="$PWD/features" \
-MINECODEX_ENABLED_FEATURES=model-slider \
-CODEX_RUNTIME_PROFILE_DIR="$HOME/.codex-model-slider/codex-profile" \
-CODEX_RUNTIME_CDP_PORT=9233 \
-node packages/runtime-host/src/main.mjs
-```
+真实 UI 按 [Runtime Host 隔离验收](../../packages/runtime-host/DEVELOPMENT.md#隔离验收) 验证：宿主只加载 `model-slider`，收藏数据用 `MINECODEX_MODEL_DATA_FILE` 指向临时文件。
 
 这是非官方 CDP / DOM Adapter 的功能声明。Codex 私有 DOM 的适配实现统一留在
 对应功能的 `src/adapters/codex/`。

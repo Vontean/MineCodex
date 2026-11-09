@@ -38,4 +38,4 @@ Images 按当前账号接入原生页面：Plus 使用 **Library**，Pro 使用 
 node --test features/images/test/*.test.mjs
 ```
 
-最近隔离验证：macOS Codex `26.1029.61003`，独立 profile / CDP 9233。已覆盖 Plus Library 追加唯一 Image Gen、真实本地图片首屏与缩略图、选中动作栏、清除选择、打开原生详情及 Composer 挂载。未覆盖：上传、云端收藏／文件夹写入、图片编辑提交、随消息提交图片与 Windows；模块加载不代表这些动作已验收。
+最近隔离验证：macOS Codex `26.1029.61003`，独立 profile / CDP。已覆盖 Plus Library 追加唯一 Image Gen、真实本地图片首屏与缩略图、选中动作栏、清除选择、打开原生详情及 Composer 挂载。未覆盖：上传、云端收藏／文件夹写入、图片编辑提交、随消息提交图片与 Windows；模块加载不代表这些动作已验收。
