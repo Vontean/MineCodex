@@ -124,7 +124,8 @@ export async function buildQvTemplate({ motion = true } = {}) {
     .replaceAll('{{CONFIG_JSON}}', 'JSON.stringify(window.__mcxDiagramConfig)');
   template = replaceQv(template, '<nav class="scope-nav" aria-label="架构层级" hidden></nav><span class="scope-status sr-only" aria-live="polite"></span>', '');
   const polish = await readFile(new URL('../features/mermaid-diagrams/src/mermaid/qv-polish.css', import.meta.url), 'utf8');
-  template = template.replace('</style>', () => polish + '</style>');
+  // 预设渲染器会替换 root.innerHTML，共享表面样式必须放在其外。
+  template += '<style>' + polish + '</style>';
   const match = template.match(/<script>([\s\S]*?)<\/script>/);
   let script = adaptQvTemplate(match[1]);
   script = removeQvNavigation(script);

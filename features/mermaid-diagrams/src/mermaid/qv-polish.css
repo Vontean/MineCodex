@@ -1,9 +1,9 @@
 #mcx-qv-root.qv-mermaid{--mcx-ease-out:cubic-bezier(.23,1,.32,1);--mcx-tip-shadow:0 4px 16px light-dark(color-mix(in srgb,var(--foreground) 9%,transparent),rgb(0 0 0/.5));--mcx-tip-surface:light-dark(var(--popover),color-mix(in srgb,var(--popover-foreground) 6%,var(--popover)))}
 #mcx-qv-root.qv-mermaid :is(.node-tip,.seq-tip,.er-tip,.class-tip,.state-tip,.state-peers,.xy-tip,.sankey-detail,.radar-detail,.quadrant-detail,.architecture-detail,.bubble,.quick-radar-tooltip){background:var(--mcx-tip-surface);color:var(--popover-foreground);border:1px solid var(--border);border-radius:12px;padding:12px 14px;font-size:12px;line-height:18px;box-shadow:var(--mcx-tip-shadow);transition:opacity 140ms var(--mcx-ease-out),scale 140ms var(--mcx-ease-out)}
 @starting-style{#mcx-qv-root.qv-mermaid :is(.node-tip,.seq-tip,.er-tip,.class-tip,.state-tip,.state-peers,.xy-tip,.sankey-detail,.radar-detail,.quadrant-detail,.architecture-detail,.bubble,.quick-radar-tooltip){opacity:0;scale:.97}}
-#mcx-qv-root.qv-mermaid :is(.xy-tip-title,.sankey-detail-title,.radar-detail-title,.c4-tip-title,.state-tip-name,.bubble-title,.quick-radar-tooltip-dimension){font-weight:500}
-#mcx-qv-root.qv-mermaid :is(.xy-tip-name,.radar-detail-name){color:var(--muted-foreground);font-weight:400}
-#mcx-qv-root.qv-mermaid :is(.xy-tip-value,.radar-detail-value){color:var(--popover-foreground);font-weight:500;font-variant-numeric:tabular-nums}
+#mcx-qv-root.qv-mermaid :is(.xy-tip-title,.sankey-detail-title,.radar-detail-title,.c4-tip-title,.state-tip-name,.bubble-title,.quick-radar-tooltip-dimension){font-size:14px;line-height:20px;font-weight:500}
+#mcx-qv-root.qv-mermaid :is(.xy-tip-name,.radar-detail-name,.quick-radar-tooltip-name){color:var(--muted-foreground);font-weight:400}
+#mcx-qv-root.qv-mermaid :is(.xy-tip-value,.radar-detail-value,.quick-radar-tooltip-value,.bubble-value){color:var(--popover-foreground);font-weight:500;font-variant-numeric:tabular-nums}
 #mcx-qv-root.qv-mermaid :is(.state-tip-caption,.architecture-detail-label){font-size:12px;line-height:18px}
 @media (prefers-reduced-motion:reduce){#mcx-qv-root.qv-mermaid :is(.node-tip,.seq-tip,.er-tip,.class-tip,.state-tip,.state-peers,.xy-tip,.sankey-detail,.radar-detail,.quadrant-detail,.architecture-detail,.bubble,.quick-radar-tooltip){transition:none}}
 
