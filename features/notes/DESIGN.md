@@ -1,6 +1,6 @@
 # Prompts 设计约定
 
-通用视觉、材质、按钮、Tooltip 与原生 sidebar 层级遵循根 [DESIGN.md](../../DESIGN.md)。本文件只记录功能特有组件、布局、数据语义与通用组件选型。
+通用视觉、材质、按钮、Tooltip 与原生 sidebar 层级遵循根 [DESIGN.md](../../DESIGN.md)。
 
 ## 范围与数据
 Prompts 页面负责新增、编辑、分类、Emoji、排序和统计；Quick Prompts Popover 只浏览和插入。移除旧顶部 Notes 入口、固定摘要、Todo 和 Files 界面。沿用 `notes` 功能 ID 与 SQLite，保留已有提示词、历史 Todo / Files 数据和用户文件。

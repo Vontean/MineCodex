@@ -1,6 +1,6 @@
 # Design System: Codex Model Slider
 
-通用视觉、材质、按钮、Tooltip 与原生 sidebar 层级遵循根 [DESIGN.md](../../DESIGN.md)。本文件只记录功能特有组件、布局、数据语义与通用组件选型。
+通用视觉、材质、按钮、Tooltip 与原生 sidebar 层级遵循根 [DESIGN.md](../../DESIGN.md)。
 
 ## 1. Visual Theme & Atmosphere
 
