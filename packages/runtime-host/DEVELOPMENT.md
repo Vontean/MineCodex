@@ -131,10 +131,6 @@ Model Slider 的原生控制器、菜单与节点恢复归功能，宿主只维�
 
 CLI 继续通过一次性 browser exchange 打开控制台。macOS 默认 Safari 与 Chrome/Chromium、Edge、Brave、Vivaldi 支持查找现有控制台标签页并激活；没有匹配页才调用系统默认浏览器打开登录地址。自动化权限被拒绝时返回错误，不用重复开页掩盖失败。其他浏览器和 Windows 保留系统 URL 打开行为，目前不保证标签页复用。
 
-### 暂停功能的接入
-
-`codex-feature.json` 的 `disabled:true` 表示保留源码但暂停运行时接入。发现阶段在加载 Adapter、资源和注入源码之前跳过该功能，显式启用 ID 也不能恢复它。Task Toast（`unread-inbox`）暂停；隐藏额度推广（`hide-upsell-banner`）已移除并保留注释源码，不再打包。CLI／控制台已移除其注册入口，配置归一化清除旧启用项。恢复时须同时重新评估注入场景并恢复 manifest 与用户入口。
-
 ## 更新后的注入自检
 
 Renderer 的 `selfCheck()` 按功能返回安装结果、必要原生锚点与设计 token 证据。插件通过 `config.registerSelfCheck(probe)` 注册同步只读检查；Model Slider 由所属控制器 Adapter 提供检查。没有检查或未取得当前证据时保持 unknown，不按全局接入标记所有功能成功。

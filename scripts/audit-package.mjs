@@ -152,8 +152,6 @@ const forbiddenPaths = [
   [/(^|\/)(?:DESIGN|DEVELOPMENT|ARCHITECTURE|AGENTS|OCX-CODEX-HANDOFF|MIGRATION)\.md$/i, "internal documentation"],
   [/^(?:docs|scripts)\//, "maintenance or research content"],
   [/^(?:features|packages)\/.*\/README\.md$/i, "developer README"],
-  [/^features\/unread-inbox\//, "suspended feature"],
-  [/^features\/hide-upsell-banner\//, "removed feature"],
   [/(^|\/)(?:test|tests|__tests__|fixtures|coverage)(\/|$)/i, "test or coverage content"],
   [/(^|\/)(?:node_modules|\.git|\.github|\.codex|\.agents|\.claude|\.cursor|\.idea|\.vscode)(\/|$)/i, "development or personal configuration"],
   [/(^|\/)(?:\.impeccable|\.playwright-cli|output|dist)(\/|$)/i, "build or tool output"],

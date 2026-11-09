@@ -166,24 +166,24 @@ test("derives loopback feature URLs from the declared runtime port environment",
 test("normalizes a service-free page-script feature with an inlined script source", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "codex-runtime-page-script-"));
   try {
-    const project = path.join(root, "HideUpsellBanner");
+    const project = path.join(root, "ExampleScript");
     await mkdir(path.join(project, "src"), { recursive: true });
     await writeFile(path.join(project, "codex-feature.json"), JSON.stringify({
       schemaVersion: 1,
-      id: "hide-upsell-banner",
-      label: { en: "Hide Upsell Banner", "zh-CN": "隐藏用量横幅" },
-      entry: { kind: "page-script", script: "src/hide-upsell-banner.mjs" },
+      id: "example-script",
+      label: { en: "Example Script", "zh-CN": "示例脚本" },
+      entry: { kind: "page-script", script: "src/example-script.mjs" },
       placement: { order: 40 },
     }));
-    await writeFile(path.join(project, "src", "hide-upsell-banner.mjs"),
+    await writeFile(path.join(project, "src", "example-script.mjs"),
       "(signal, window, document, MutationObserver) => { return () => {}; };\n");
 
     const [feature] = await discoverFeatures(root);
-    assert.equal(feature.id, "hide-upsell-banner");
+    assert.equal(feature.id, "example-script");
     assert.equal(feature.entry.kind, "page-script");
     assert.equal(feature.surfaceUrl, null);
     assert.equal(feature.command, null);
-    assert.equal(feature.pageScript.resource, "src/hide-upsell-banner.mjs");
+    assert.equal(feature.pageScript.resource, "src/example-script.mjs");
     assert.match(feature.pageScript.source, /return \(\) => \{\};/);
   } finally {
     await rm(root, { recursive: true, force: true });

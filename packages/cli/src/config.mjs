@@ -42,9 +42,8 @@ export function normalizeConfig(value = {}) {
     ...(value.features && typeof value.features === "object" ? value.features : {}),
     ...normalizeFeatures(value.features),
   };
-  // 暂停的 Task 通知不继承旧配置，也不再提供开启入口。
+  // 已移除的功能不继承旧配置中的开关。
   delete features["unread-inbox"];
-  // 已移除的额度推广隐藏功能不继承旧启用项。
   delete features["hide-upsell-banner"];
   // 清理已退役的独立 Quick Chat 修复开关。
   delete features["quick-chat-repair"];
