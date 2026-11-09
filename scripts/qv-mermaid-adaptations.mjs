@@ -92,8 +92,26 @@ const sequencePatches = [
    + "g.querySelectorAll('.seq-badge').forEach(n=>animations.push(n.animate([{opacity:0},{opacity:1}],{duration:180,delay,fill:'backwards'})));"],
 ];
 
+// XY 数据图（看趋势优先）：
+// 9. 竖向图的分类宽度按绘图区平分，不再按标签长度撑宽；每个分类至少 16px，放不下才横向滚动。
+// 10. 横轴标签单行省略（最宽 160px），按间隔抽稀，保证不重叠；隐藏的标签仍可键盘聚焦，悬停提示给出全名。
+// 11. 纵轴标题改为图上方单行，过长省略，悬停显示全名，不再挤在 60px 列里压住刻度。
+const xyPatches = [
+  ["const minSlot=Math.min(120,Math.max(56,...categories.map(v=>String(v).length*12+8)))",
+   "const minSlot=data.horizontal?Math.min(120,Math.max(56,...categories.map(v=>String(v).length*12+8))):16"],
+  ["unit.style.cssText='position:absolute;top:0;left:4px;max-width:60px;overflow-wrap:anywhere';",
+   "unit.title=data.yAxis.title;unit.style.cssText='position:absolute;top:0;left:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:'+Math.max(60,viewport.clientWidth-8)+'px';"],
+  ["categories.forEach((value,i)=>{const b=document.createElement('button');b.type='button';b.className='xy-label';b.textContent=value;b.style.left=(horizontal?0:Math.max(left,Math.min(right-Math.max(24,band-4),position(value,i)-band/2)))+'px';b.style.top=(horizontal?position(value,i)-18:bottom+12)+'px';b.style.width=(horizontal?left-14:Math.max(24,band-4))+'px';",
+   "const metrics=document.createElement('canvas').getContext('2d');metrics.font='12px '+getComputedStyle(root).fontFamily;"
+   + "const labelWidth=Math.min(160,Math.max(24,...categories.map(v=>Math.ceil(metrics.measureText(String(v)).width))))+8,every=horizontal?1:Math.max(1,Math.ceil((labelWidth+8)/band));"
+   + "categories.forEach((value,i)=>{const b=document.createElement('button');b.type='button';b.className='xy-label';b.textContent=value;b.title=String(value);"
+   + "const w=horizontal?left-14:Math.min(labelWidth,every*band-4);b.style.left=(horizontal?0:Math.max(4,Math.min(width-w-4,position(value,i)-w/2)))+'px';b.style.top=(horizontal?position(value,i)-18:bottom+12)+'px';b.style.width=w+'px';"
+   + "if(!horizontal){b.style.whiteSpace='nowrap';b.style.overflow='hidden';b.style.textOverflow='ellipsis';if(i%every)b.style.cssText+=';height:1px;padding:0;clip-path:inset(50%)';}"],
+];
+
 export function adaptQvTemplate(script) {
   script = replaceQv(script, "e.fromSide=e.toSide=['LR','RL'].includes(data.direction)?'NORTH':'WEST';}}", "{const lr=['LR','RL'].includes(data.direction),flip=['RL','BT'].includes(data.direction);e.fromSide=lr?(flip?'EAST':'WEST'):(flip?'SOUTH':'NORTH');e.toSide=lr?(flip?'WEST':'EAST'):(flip?'NORTH':'SOUTH');}}}");
   for (const [from, to] of sequencePatches) script = replaceQv(script, from, to);
+  for (const [from, to] of xyPatches) script = replaceQv(script, from, to);
   return script;
 }
