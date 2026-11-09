@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import { parse } from 'acorn';
 
 // 构建适配必须精确命中；快照升级时立即暴露协议变化，避免静默漏改。
@@ -160,11 +161,26 @@ const archPatches = [
    "if(architecture){try{finishMermaidGeometry(data,groups,architecture);root.dataset.mcxLayout='arch-grid';}catch(error){return prepareArchitectureLayout(data);}}else finishMermaidGeometry(data,groups,architecture);"],
 ];
 
+// Git 分支图（新增适配，原先回退 Mermaid 原生图）：
+// 18. 读取 Mermaid gitGraph 的分支顺序与提交（序号、分支、父提交、类型、标签），绘制在 git-renderer.js。
+// 19. 横排放得下正文宽度时沿用 Mermaid 默认方向（分支泳道 + 提交点，标签在点下、标签牌在点上）；
+//     放不下改为 git log 式纵排：左侧窄列表示分支，每个提交一行、文字在右，分支首个提交带分支名。
+// 20. 提交形状：普通实心点、合并空心环、高亮方块、回滚叉、拣选虚线环；自动 id 只显示 7 位哈希。
+const gitRenderer = await readFile(new URL('../features/mermaid-diagrams/src/mermaid/qv-git.js', import.meta.url), 'utf8');
+const gitPatches = [
+  ["if(parsed.diagramType==='timeline')return readMermaidTimelineModel(db,descriptions);",
+   "if(parsed.diagramType==='timeline')return readMermaidTimelineModel(db,descriptions);if(parsed.diagramType==='gitGraph')return readMermaidGitModel(db,descriptions);"],
+  ["if(model.data?.kind==='timeline'){renderMermaidTimeline(root,model.data);finishLoading();return;}",
+   "if(model.data?.kind==='timeline'){renderMermaidTimeline(root,model.data);finishLoading();return;}if(model.data?.kind==='git'){renderMermaidGit(root,model.data);finishLoading();return;}"],
+  ['function renderMermaidTimeline(root,data) {', gitRenderer + '\nfunction renderMermaidTimeline(root,data) {'],
+];
+
 export function adaptQvTemplate(script) {
   script = replaceQv(script, "e.fromSide=e.toSide=['LR','RL'].includes(data.direction)?'NORTH':'WEST';}}", "{const lr=['LR','RL'].includes(data.direction),flip=['RL','BT'].includes(data.direction);e.fromSide=lr?(flip?'EAST':'WEST'):(flip?'SOUTH':'NORTH');e.toSide=lr?(flip?'WEST':'EAST'):(flip?'NORTH':'SOUTH');}}}");
   for (const [from, to] of sequencePatches) script = replaceQv(script, from, to);
   for (const [from, to] of xyPatches) script = replaceQv(script, from, to);
   for (const [from, to] of mindmapPatches) script = replaceQv(script, from, to);
   for (const [from, to] of archPatches) script = replaceQv(script, from, to);
+  for (const [from, to] of gitPatches) script = replaceQv(script, from, to);
   return script;
 }
