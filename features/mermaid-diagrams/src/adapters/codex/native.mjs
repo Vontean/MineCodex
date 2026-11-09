@@ -49,8 +49,17 @@ export function loadRspackMermaidActions(native) {
   const preview=registry.module(source=>source.includes('imagePreviewDialog.label')&&source.includes('suggestedFilename:')&&source.includes('downloadSrc:'),'diagram preview download');
   const call=preview.source.match(/\(0,([\w$]+\.[\w$]+)\)\(\{downloadSrc:[^}]*suggestedFilename:/);
   const icon=call&&preview.source.slice(call.index).match(/children:\(0,[\w$]+\.jsx\)\(([\w$]+\.[\w$]+),\{className:"icon-xs"\}/)?.[1];
-  if (!call || !icon) throw new Error('native-diagram-download-unavailable');
-  const downloadImage=registry.binding(preview,call[1]),DownloadIcon=registry.binding(preview,icon);
+  // 新版原生图标通过组件 + asset 绘制，沿真实下载按钮读取两者。
+  const assetIcon=call&&preview.source.slice(call.index).match(/children:\(0,[\w$]+\.jsx\)\(([\w$]+\.[\w$]+),\{"aria-hidden":!1,asset:([\w$]+\.[\w$]+)\}/);
+  if (!call || (!icon && !assetIcon)) throw new Error('native-diagram-download-unavailable');
+  const downloadImage=registry.binding(preview,call[1]);
+  let DownloadIcon;
+  if(icon) DownloadIcon=registry.binding(preview,icon);
+  else {
+    const Icon=registry.binding(preview,assetIcon[1]),asset=registry.binding(preview,assetIcon[2]);
+    if(typeof Icon!=='function'||!asset||!native.React?.createElement) throw new Error('native-diagram-download-unavailable');
+    DownloadIcon=props=>native.React.createElement(Icon,{...props,asset});
+  }
   if (typeof DownloadIcon!=='function' || typeof downloadImage!=='function'
     || !String(downloadImage).includes('workspaceFiles.saveStream')
     || !String(downloadImage).includes('Failed to download image')) throw new Error('native-diagram-download-unavailable');

@@ -34,3 +34,16 @@ for (const renamed of [false,true]) test(`Rspack diagram actions follow preview 
   await assert.rejects(loadNativeMermaidActions({rspack:{...rspack,binding:()=>()=>{}}}),/unavailable/);
   await assert.rejects(loadNativeMermaidActions({rspack:{...rspack,module:()=>({source:source.replace('suggestedFilename:','changed:')})}}),/unavailable/);
 });
+
+test('Rspack download icon follows the native component and asset pair',async()=>{
+  const source='id:"imagePreviewDialog.label";onClick:()=>{(0,files.save)({downloadSrc:blob,onDownloaded:done,suggestedFilename:name})};children:(0,R.jsx)(glyph.Image,{"aria-hidden":!1,asset:assets.Download})';
+  const Icon=()=>{},asset={name:'download'},downloadImage=()=>{const protocol='workspaceFiles.saveStream',failure='Failed to download image';return protocol&&failure;};
+  const bindings={'files.save':downloadImage,'glyph.Image':Icon,'assets.Download':asset};
+  const rspack={module:predicate=>{assert.ok(predicate(source));return{source};},binding:(_entry,ref)=>bindings[ref]};
+  const React={createElement:(type,props)=>({type,props})};
+  const native=await loadNativeMermaidActions({rspack,React});
+  const icon=native.DownloadIcon({className:'icon-xs'});
+  assert.equal(icon.type,Icon);assert.equal(icon.props.asset,asset);assert.equal(icon.props.className,'icon-xs');
+  assert.equal(native.downloadImage,downloadImage);
+  await assert.rejects(loadNativeMermaidActions({rspack:{...rspack,binding:(_entry,ref)=>ref==='assets.Download'?null:bindings[ref]},React}),/unavailable/);
+});
