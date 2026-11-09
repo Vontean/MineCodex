@@ -1,4 +1,4 @@
-import {installFeaturePreviews} from "./assets/feature-previews.js";
+import {installFeatureShowcase} from "./assets/feature-showcase.js";
 import {diagnosticReport} from "./assets/diagnostics.js";
 import {dashboardFetch} from "./transport.js";
 let savedLocale;
@@ -9,7 +9,8 @@ document.documentElement.lang = locale;
 
 const messages = {
   en: {
-    plugins: "Your extensions",
+    plugins: "All enhancements",
+    pluginsHint: "Click a card to watch its demo above. Use the switch to turn it on or off.",
     restartTitle: "Restart Codex to apply changes",
     restartCopy: "Your plugin choices are saved. Restart when you are ready.",
     restart: "Restart Codex",
@@ -50,7 +51,8 @@ const messages = {
     failureDetail: "This extension could not be confirmed. Copy diagnostics to help investigate.",
   },
   "zh-CN": {
-    plugins: "功能扩展",
+    plugins: "全部增强",
+    pluginsHint: "点击卡片在上方查看演示，开关控制是否启用。",
     restartTitle: "重启 Codex 以应用更改",
     restartCopy: "插件选择已经保存，可以在准备好后统一重启。",
     restart: "重启 Codex",
@@ -120,7 +122,7 @@ const elements = {
 let state = null;
 let toastTimer = null;
 const pendingFeatureIds = new Set();
-const previews = installFeaturePreviews(elements.pluginList, locale);
+const showcase = installFeatureShowcase(document.querySelector("#feature-showcase"), locale);
 
 function applyStaticCopy() {
   document.querySelector("#brand-slogan").textContent = locale === "zh-CN" ? "让 Codex 更顺手。" : "Make Codex work better for you.";
@@ -136,6 +138,8 @@ function applyStaticCopy() {
   elements.restartCopy.textContent = copy.restartCopy;
   elements.restartButton.querySelector(".button-label").textContent = copy.restart;
   elements.pluginsHeading.textContent = copy.plugins;
+  document.querySelector("#plugins-hint").textContent = copy.pluginsHint;
+  renderEyebrow();
   elements.errorTitle.textContent = copy.loadError;
   elements.errorCopy.textContent = copy.loadErrorCopy;
   elements.retryButton.textContent = copy.retry;
@@ -208,7 +212,7 @@ function createPluginCard(feature) {
   pluginState.append(dot, stateLabel);
   heading.append(icon, label);
   card.append(heading, pluginCopy, pluginState);
-  previews.attach(card);
+  showcase.attach(card);
   return card;
 }
 
@@ -230,8 +234,6 @@ function updatePluginCard(card, feature) {
   input.setAttribute("aria-label", feature.label);
   dot.className = `status-dot ${status.className}`;
   stateLabel.textContent = status.label;
-  const previewEntry = card.querySelector(".preview-entry");
-  previewEntry?.setAttribute("aria-label", `${locale === "zh-CN" ? "查看效果" : "See how it works"} · ${feature.label}`);
 }
 
 function findPluginCard(featureId) {
@@ -254,11 +256,19 @@ function renderPluginCards(features) {
   }
   for (const card of [...elements.pluginList.querySelectorAll("[data-feature-id]")]) {
     if (card.dataset.featureId && !featureIds.has(card.dataset.featureId)) {
-      if (card.classList.contains("is-previewing")) previews.close();
+      showcase.detach(card);
       card.remove();
     }
   }
   elements.pluginList.setAttribute("aria-busy", "false");
+  showcase.setFeatures(features);
+  renderEyebrow();
+}
+
+function renderEyebrow() {
+  const total = state?.features?.length;
+  const base = locale === "zh-CN" ? "Codex 增强工具箱" : "Enhancements for Codex";
+  document.querySelector("#hero-eyebrow-text").textContent = total ? `${base} · ${total}${locale === "zh-CN" ? " 项" : ""}` : base;
 }
 
 function renderRuntime() {
@@ -307,7 +317,7 @@ async function load() {
     elements.pluginList.hidden = false;
     render();
   } catch {
-    previews.close();
+    showcase.setFeatures([]);
     elements.pluginList.hidden = true;
     elements.loadError.hidden = false;
   }
@@ -427,7 +437,6 @@ function applyTheme() {
 let themeTransition = null;
 async function toggleTheme(button) {
   if (themeTransition) return;
-  previews.close();
   selectedTheme = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
   if (!window.minecodexMcpApp) {
     try { localStorage.setItem("minecodex-appearance", selectedTheme); } catch { /* 保留内存中的选择。 */ }
@@ -460,12 +469,11 @@ elements.languageToggle.addEventListener("click", (event) => {
   if (choice === locale) return;
   try { localStorage.setItem("minecodex-language", choice); } catch { return; }
   // 浏览器沿用重载；官方 sandbox 在当前上下文内切换，保留主题与通信。
-  previews.close();
   if (!window.minecodexMcpApp) { location.reload(); return; }
   locale = choice;
   copy = messages[locale];
   document.documentElement.lang = locale;
-  previews.setLocale(locale);
+  showcase.setLocale(locale);
   document.querySelector("#language-menu").hidePopover();
   applyStaticCopy();
   applyTheme();

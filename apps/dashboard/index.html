@@ -26,7 +26,9 @@
           </div>
       </div>
       <header class="page-header">
-        <h1><span class="brand-icon" aria-hidden="true"></span><span class="brand-name">MineCodex</span></h1>
+        <div class="hero-grid" aria-hidden="true"></div>
+        <p class="hero-eyebrow"><span class="brand-icon" aria-hidden="true"></span><span id="hero-eyebrow-text"></span></p>
+        <h1 class="brand-name">MineCodex</h1>
         <p id="brand-slogan" class="brand-slogan"></p>
         <p id="brand-description" class="brand-description"></p>
       </header>
@@ -41,8 +43,30 @@
         </button>
       </section>
 
+      <section id="feature-showcase" class="showcase" aria-roledescription="carousel" hidden>
+        <div class="showcase-media" data-state="loading">
+          <img class="showcase-poster" alt="" hidden>
+          <video class="showcase-video" muted playsinline preload="metadata" hidden></video>
+          <p class="showcase-state"></p>
+        </div>
+        <div class="showcase-info">
+          <p class="showcase-count"></p>
+          <h2 class="showcase-name"></h2>
+          <dl class="showcase-details"></dl>
+          <div class="showcase-controls">
+            <button class="icon-button" data-showcase="prev" type="button"><span class="ui-icon chevron-left-icon" aria-hidden="true"></span></button>
+            <button class="icon-button" data-showcase="toggle" type="button"><span class="ui-icon pause-icon" aria-hidden="true"></span></button>
+            <button class="icon-button" data-showcase="next" type="button"><span class="ui-icon chevron-right-icon" aria-hidden="true"></span></button>
+          </div>
+        </div>
+        <div class="showcase-progress" aria-hidden="true"></div>
+      </section>
+
       <section aria-labelledby="plugins-heading">
-        <h2 id="plugins-heading" class="sr-only">Your extensions</h2>
+        <div class="section-heading">
+          <h2 id="plugins-heading">Your extensions</h2>
+          <p id="plugins-hint"></p>
+        </div>
         <span id="save-state" class="sr-only" aria-live="polite"></span>
 
         <div id="plugin-list" class="plugin-list" aria-busy="true">

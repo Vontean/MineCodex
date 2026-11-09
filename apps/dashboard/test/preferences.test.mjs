@@ -10,7 +10,7 @@ function dashboard(savedLanguage) {
   const languages=["zh-CN","en"].map(choice=>Object.assign(node(),{dataset:{languageChoice:choice}}));
   const themes=["light","dark"].map(choice=>Object.assign(node(),{dataset:{themeChoice:choice}}));
   let reloads=0;
-  const context=vm.createContext({installFeaturePreviews:()=>({attach(){},close(){}}),document:{documentElement:{dataset:{}},querySelector(selector){if(!nodes.has(selector))nodes.set(selector,node());return nodes.get(selector);},querySelectorAll:selector=>selector.includes("language") ? languages : themes,addEventListener(){}},navigator:{language:"en-US"},localStorage:{getItem:key=>storage.get(key),setItem:(key,value)=>storage.set(key,value)},location:{reload(){reloads++;}},matchMedia:()=>({matches:false,addEventListener(){}}),dashboardFetch:()=>new Promise(()=>{}),window:{addEventListener(){}},setInterval(){},setTimeout(){},clearTimeout(){}});
+  const context=vm.createContext({installFeatureShowcase:()=>({attach(){},detach(){},setFeatures(){},setLocale(){}}),document:{documentElement:{dataset:{}},querySelector(selector){if(!nodes.has(selector))nodes.set(selector,node());return nodes.get(selector);},querySelectorAll:selector=>selector.includes("language") ? languages : themes,addEventListener(){}},navigator:{language:"en-US"},localStorage:{getItem:key=>storage.get(key),setItem:(key,value)=>storage.set(key,value)},location:{reload(){reloads++;}},matchMedia:()=>({matches:false,addEventListener(){}}),dashboardFetch:()=>new Promise(()=>{}),window:{addEventListener(){}},setInterval(){},setTimeout(){},clearTimeout(){}});
   vm.runInContext(source,context);
   return {context,nodes,storage,languages,reloads:()=>reloads};
 }

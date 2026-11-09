@@ -68,6 +68,7 @@ body {
 /* 官方页面强制设置 body 背景；内容面拥有控制台自身的明暗色板。 */
 .dashboard-surface {
   min-height: 100vh;
+  overflow-x: clip;
   background-color: var(--canvas);
 }
 
@@ -93,22 +94,26 @@ button:focus-visible, input:focus-visible + .switch-track {
   align-items: center;
 }
 
-.page-header { flex-direction: column; gap: 10px; margin: 40px 0 64px; text-align: center; }
+/* 品牌区：巨型像素字标为主视觉，像素网格只作背景纹理。 */
+.page-header { position: relative; isolation: isolate; flex-direction: column; margin: 16px 0 56px; padding: 32px 0 8px; text-align: center; }
 h1, h2, h3, p { margin: 0; }
-h1 { display: flex; flex-direction: column; align-items: center; gap: 20px; font-size: clamp(28px, 5.3vw, 64px); line-height: 1.3; font-weight: 700; }
-.brand-name {
-  font-family:"Silkscreen", monospace; font-weight:700; letter-spacing:-.07em;
-  color:var(--word-face); -webkit-text-stroke:1px var(--word-edge);
-  text-shadow:1px 1px 0 var(--word-edge), 2px 2px 0 var(--word-edge), 3px 3px 0 var(--word-edge), 4px 4px 0 var(--word-edge), 5px 5px 0 var(--word-depth);
+.hero-grid {
+  position: absolute; z-index: -1; top: -56px; bottom: -24px; left: 50%; width: 100vw; transform: translateX(-50%);
+  background-image: linear-gradient(var(--border) 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px);
+  background-size: 32px 32px; background-position: center top;
+  mask-image: radial-gradient(ellipse 46% 62% at 50% 42%, #000 30%, transparent 78%);
+  -webkit-mask-image: radial-gradient(ellipse 46% 62% at 50% 42%, #000 30%, transparent 78%);
 }
-.brand-slogan { margin-top: 12px; font-size: 22px; line-height: 1.5; }
-.brand-description { max-width:600px; color: var(--ink-secondary); font-size: 16px; line-height: 1.6; }
+.hero-eyebrow { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px 6px 10px; border: 1px solid var(--border-heavy); border-radius: 999px; background: var(--surface); color: var(--ink-secondary); font-size: 13px; line-height: 20px; }
+.brand-name {
+  margin-top: 24px; font-family: "Silkscreen", monospace; font-size: clamp(40px, 12.8vw, 152px); line-height: 1; font-weight: 700; letter-spacing: -.07em; white-space: nowrap;
+  color: var(--word-face); -webkit-text-stroke: max(1px, .012em) var(--word-edge);
+  text-shadow: .016em .016em 0 var(--word-edge), .032em .032em 0 var(--word-edge), .048em .048em 0 var(--word-edge), .064em .064em 0 var(--word-edge), .08em .08em 0 var(--word-depth);
+}
+.brand-slogan { margin-top: 32px; font-size: 30px; line-height: 1.3; font-weight: 600; letter-spacing: -.02em; }
+.brand-description { max-width: 600px; margin-top: 12px; color: var(--ink-secondary); font-size: 16px; line-height: 1.6; }
 .brand-icon {
-  display: inline-block;
-  width: 64px;
-  height: 64px;
-  flex: 0 0 64px;
-  background: var(--ink);
+  display: inline-block; width: 20px; height: 20px; flex: 0 0 20px; background: var(--ink);
   mask: url("/favicon.svg?v=minecodex-1") center / contain no-repeat;
   -webkit-mask: url("/favicon.svg?v=minecodex-1") center / contain no-repeat;
 }
@@ -119,6 +124,10 @@ h1 { display: flex; flex-direction: column; align-items: center; gap: 20px; font
 .refresh-icon { --icon: url("/assets/refresh-cw.svg"); }
 .info-icon { --icon: url("/assets/info.svg"); }
 .alert-icon { --icon: url("/assets/triangle-alert.svg"); }
+.play-icon { --icon: url("/assets/play.svg"); }
+.pause-icon { --icon: url("/assets/pause.svg"); }
+.chevron-left-icon { --icon: url("/assets/chevron-left.svg"); }
+.chevron-right-icon { --icon: url("/assets/chevron-right.svg"); }
 .theme-toggle { display:flex; }
 .theme-toggle button, .language-button { display:grid; place-items:center; width:40px; height:40px; padding:0; border:0; border-radius:50%; background:transparent; color:var(--ink-secondary); cursor:pointer; }
 .theme-toggle button:hover, .language-button:hover { color:var(--ink); background:color-mix(in srgb,var(--ink) 5%,transparent); }
@@ -242,11 +251,9 @@ h2 { font-size: 14px; font-weight: 620; }
 @media (max-width: 960px) { .plugin-list { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 600px) {
   .shell { width: calc(100% - 32px); padding-top: 28px; }
-  h1 { gap: 16px; }
-  .brand-slogan { font-size:20px; }
-  .brand-description { font-size:15px; }
-  .brand-icon { width: 48px; height: 48px; flex-basis: 48px; }
-  .page-header { margin: 32px 0 48px; }
+  .brand-slogan { margin-top: 24px; font-size: 22px; }
+  .brand-description { font-size: 15px; }
+  .page-header { margin: 8px 0 40px; padding-top: 24px; }
   .header-actions .button { padding: 6px 9px; font-size: 12px; }
   .plugin-list { grid-template-columns: 1fr; }
   .plugin-card { min-height: 204px; }
@@ -306,24 +313,37 @@ h2 { font-size: 14px; font-weight: 620; }
   :root { --mcx-codex-corner-shape: superellipse(1.5); --mcx-radius-2xl: 24px; }
 }
 
-/* 弱化只作用于其他卡片，不拦截指针，也不改变网格几何。 */
-.plugin-card { position:relative; transition:opacity 160ms ease; }
-.plugin-list.has-preview .plugin-card:not(.is-previewing) { opacity:.5; }
-.plugin-card.is-previewing { z-index:3; }
-.preview-entry { position:absolute; inset:0; padding:0; border:0; border-radius:inherit; background:transparent; cursor:pointer; }
-.feature-preview { position:fixed; visibility:hidden; z-index:4; padding:20px; overflow:auto; overscroll-behavior:contain; border:1px solid var(--border-heavy); border-radius:var(--card-radius); color:var(--ink); background:var(--surface-elevated); box-shadow:0 8px 28px #00000024; animation:preview-enter 160ms ease-out; }
-.preview-heading { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:16px; }
-.preview-title { font-size:16px; font-weight:600; line-height:1.5; }
-.preview-close { flex:none; }
-.preview-details { margin:0; }
-.preview-details dt { margin-top:14px; color:var(--ink-tertiary); font-size:11px; line-height:1.6; }
-.preview-details dd { margin:3px 0 0; color:var(--ink-secondary); font-size:13px; line-height:1.65; overflow-wrap:anywhere; }
-.preview-resource-state { margin-top:16px; color:var(--ink-tertiary); font-size:11px; line-height:1.6; }
-.preview-poster, .preview-video { display:block; width:100%; max-height:260px; object-fit:contain; border-radius:10px; }
-.preview-media:empty { display:none; }
-.feature-preview.is-media-only { padding:0; overflow:hidden; }
-.is-media-only .preview-heading, .is-media-only .preview-details, .is-media-only .preview-resource-state { display:none; }
-.is-media-only .preview-video { border-radius:0; }
-.toast { z-index:6; }
-@keyframes preview-enter { from { opacity:0; } to { opacity:1; } }
-@media (prefers-reduced-motion:reduce) { .feature-preview { animation:none; } }
+/* 功能演示轮播：左侧真实录屏，右侧说明；卡片点击只切换演示，不改变开关。 */
+.showcase { display: grid; grid-template-columns: minmax(0, 3fr) minmax(260px, 2fr); gap: 20px 32px; margin-bottom: 56px; padding: 24px; border: 1px solid var(--border); border-radius: 24px; background: var(--surface); box-shadow: var(--shadow); }
+.showcase-media { position: relative; display: grid; place-items: center; aspect-ratio: 4 / 3; overflow: hidden; border: 1px solid var(--border); border-radius: 14px; background: var(--surface-muted); }
+.showcase-video, .showcase-poster { grid-area: 1 / 1; width: 100%; height: 100%; object-fit: contain; }
+.showcase-state { grid-area: 1 / 1; color: var(--ink-tertiary); font-size: 13px; }
+.showcase-state:empty { display: none; }
+.showcase-info { display: flex; flex-direction: column; min-width: 0; padding: 8px 0; }
+.showcase-count { color: var(--ink-tertiary); font-size: 12px; line-height: 1.5; letter-spacing: .04em; font-variant-numeric: tabular-nums; }
+.showcase-name { margin-top: 8px; font-size: 24px; line-height: 1.3; font-weight: 600; letter-spacing: -.01em; }
+.showcase-details { margin: 20px 0 0; }
+.showcase-details dt { margin-top: 16px; color: var(--ink-tertiary); font-size: 12px; line-height: 1.5; }
+.showcase-details dt:first-child { margin-top: 0; }
+.showcase-details dd { margin: 4px 0 0; color: var(--ink-secondary); font-size: 14px; line-height: 1.65; overflow-wrap: anywhere; }
+.showcase-controls { display: flex; gap: 8px; margin-top: auto; padding-top: 24px; }
+.icon-button { display: grid; place-items: center; width: 36px; height: 36px; padding: 0; border: 1px solid var(--border-heavy); border-radius: 50%; background: var(--surface); color: var(--ink-secondary); cursor: pointer; transition: transform 140ms var(--ease-out); }
+.icon-button:active:not(:disabled) { transform: scale(0.94); }
+.icon-button:disabled { cursor: default; opacity: .4; }
+.showcase-progress { grid-column: 1 / -1; display: flex; gap: 4px; }
+.showcase-segment { flex: 1; height: 3px; overflow: hidden; border-radius: 999px; background: var(--border-heavy); }
+.showcase-fill { display: block; height: 100%; background: var(--ink); transform: scaleX(0); transform-origin: left; }
+.showcase-segment.is-done .showcase-fill { opacity: .35; }
+@media (hover: hover) and (pointer: fine) { .icon-button:hover:not(:disabled) { color: var(--ink); background: var(--surface-muted); } }
+
+.section-heading { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 8px 16px; margin-bottom: 20px; }
+.section-heading h2 { font-size: 20px; line-height: 1.4; font-weight: 600; }
+.section-heading p { color: var(--ink-tertiary); font-size: 13px; line-height: 1.5; }
+
+.plugin-card { position: relative; transition: border-color 160ms var(--ease-out); }
+.plugin-card.is-showcased { border-color: var(--accent); }
+.showcase-entry { position: absolute; inset: 0; padding: 0; border: 0; border-radius: inherit; background: transparent; cursor: pointer; }
+.showcase-entry:focus-visible { box-shadow: var(--focus); }
+.toast { z-index: 6; }
+@media (max-width: 860px) { .showcase { grid-template-columns: 1fr; } .showcase-info { padding: 0; } }
+@media (max-width: 600px) { .showcase { padding: 16px; margin-bottom: 40px; } .showcase-name { font-size: 20px; } }
