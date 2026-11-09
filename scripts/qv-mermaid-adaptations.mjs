@@ -265,11 +265,11 @@ const radarPatches = [
 const legendHelper = "function alignMermaidLegends(root){"
   + "if(!document.getElementById('mcx-legend-style')){const st=document.createElement('style');st.id='mcx-legend-style';"
   + "st.textContent='[data-legend-stacked]{display:grid!important;grid-template-columns:minmax(0,max-content);justify-content:center;justify-items:start;max-width:100%}'"
-  + "+'[data-legend-stacked]>*{max-width:100%;min-width:0}[data-legend-stacked] .mcx-legend-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}';document.head.append(st);}"
+  + "+'[data-legend-stacked]>*{max-width:100%;min-width:0}[data-legend-stacked] .mcx-legend-text{display:block!important;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}';document.head.append(st);}"
   + "const legends=[...root.querySelectorAll('.radar-legend,.xy-key,.legend,.quick-radar-legend')];"
   + "const check=el=>{if(el.hidden||!el.children.length)return;el.removeAttribute('data-legend-stacked');const items=[...el.children].filter(n=>n.offsetParent);"
   + "if(new Set(items.map(n=>n.offsetTop)).size<2)return;"
-  + "for(const item of items){item.title||=item.textContent.trim();for(const t of [...item.childNodes])if(t.nodeType===3&&t.textContent.trim()){const sp=document.createElement('span');sp.className='mcx-legend-text';t.replaceWith(sp);sp.append(t);}}"
+  + "for(const item of items){item.title||=item.textContent.trim();for(const t of [...item.childNodes])if(t.nodeType===3&&t.textContent.trim()){const sp=document.createElement('span');sp.className='mcx-legend-text';t.replaceWith(sp);sp.append(t);}for(const span of item.querySelectorAll('span'))if(!span.children.length&&span.textContent.trim()&&!span.classList.contains('percent'))span.classList.add('mcx-legend-text');}"
   + "el.setAttribute('data-legend-stacked','');};"
   + "legends.forEach(check);if(!root.__mcxLegendObserver){let last=root.clientWidth;root.__mcxLegendObserver=new ResizeObserver(()=>{if(root.clientWidth===last)return;last=root.clientWidth;requestAnimationFrame(()=>root.querySelectorAll('.radar-legend,.xy-key,.legend,.quick-radar-legend').forEach(check));});root.__mcxLegendObserver.observe(root);}}\n";
 const legendPatches = [
