@@ -98,13 +98,15 @@ export async function startRecording(cdp, dir) {
   });
   await cdp.send("Page.startScreencast", { format: "jpeg", quality: 92, everyNthFrame: 1 });
   return {
-    async stop() { await cdp.send("Page.stopScreencast"); await sleep(300); return { frames, dpr }; },
+    // 截屏只在画面变化时出帧：记录停止时刻，让末尾静止画面保留真实停留时长。
+    async stop() { const end = Date.now() / 1000; await cdp.send("Page.stopScreencast"); await sleep(300); return { frames, dpr, end }; },
   };
 }
 
 // 镜头跟随：固定 4:3 裁切框，中心在每个聚光关键帧之间以 smoothstep 平移（D 秒）。
-export function encodeCamera({ frames, dpr }, { keys, vw, vh, out, ratio = 4 / 3, pad = 28, width = 720, tailHold = 1.2, poster, D = 0.4, speed = 2 }) {
+export function encodeCamera({ frames, dpr, end }, { keys, vw, vh, out, ratio = 4 / 3, pad = 28, width = 720, tailHold, poster, D = 0.4, speed = 2 }) {
   const t0 = frames[0].t;
+  tailHold ??= Math.max(0.3, end ? end - frames.at(-1).t : 1.2);
   const fitted = keys.map(k => ({ t: Math.max(0, k.t - t0), r: { x: k.rect.x - pad, y: k.rect.y - pad, width: k.rect.width + 2 * pad, height: k.rect.height + 2 * pad } }));
   let W = Math.max(...fitted.map(k => Math.max(k.r.width, k.r.height * ratio))); W = Math.min(W, vw, vh * ratio); const H = W / ratio;
   const centers = fitted.map(k => {
@@ -151,7 +153,7 @@ export async function shoot(name, { prepare, act, posterAt = 0.5, pad = 28 }) {
   await act(ctx);
   const result = await rec.stop();
   await d.hideCursor();
-  const dur = (result.frames.at(-1).t - result.frames[0].t + 1.2) / 2;
+  const dur = (result.end - result.frames[0].t) / 2;
   const cam = encodeCamera(result, { keys: d.keys, vw, vh, pad, out: path.join(OUT_DIR, `${name}.mp4`), poster: { at: Math.min(posterAt * dur, dur - 0.1), out: path.join(OUT_DIR, `${name}.jpg`) } });
   console.log(name, "frames", result.frames.length, "camera", Math.round(cam.W) + "x" + Math.round(cam.H), "≈", dur.toFixed(1) + "s");
   return ctx;
