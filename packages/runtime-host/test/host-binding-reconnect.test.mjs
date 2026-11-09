@@ -23,34 +23,13 @@ test("same-session reinjection updates the binding before ensuring the UI", () =
   assert.deepEqual(calls, [["bridge", "new-token"], "ensure"]);
 });
 
-test("rotated binding retries blank frames and preserves ready editors", () => {
+test("rotated binding updates page-script credentials", () => {
   const config = { bindingName: "bridge", bindingToken: "old-token" };
   const pageScriptFeatures = [{ pageScript: { config: { bindingName: "bridge", bindingToken: "old-token" } } }];
-  const blank = { ready: false, loading: true };
-  const editor = { ready: true, draft: "unsaved prompt" };
-  const pendingHostActions = new Map([
-    ["old-load", { kind: "surface-load" }],
-    ["attachment", { kind: "attach-file" }],
-  ]);
-  const loads = [];
   const start = source.indexOf("function updateHostBinding(");
-  const end = source.indexOf("function postSurfaceActive", start);
-  const update = vm.runInNewContext(`(${source.slice(start, end).trim()})`, {
-    config, pendingHostActions, pageScriptFeatures,
-    surfaceRecords: new Map([["blank", blank], ["editor", editor]]),
-    requestSurfaceLoad(record) {
-      assert.equal(record.loading, false);
-      loads.push({ record, token: config.bindingToken });
-    },
-  });
-  update("bridge", "new-token");
-  assert.equal(pageScriptFeatures[0].pageScript.config.bindingToken, "new-token");
-  assert.equal(loads.length, 1);
-  assert.equal(loads[0].record, blank);
-  assert.equal(loads[0].token, "new-token");
-  assert.equal(editor.draft, "unsaved prompt");
-  assert.equal(pendingHostActions.has("old-load"), false);
-  assert.equal(pendingHostActions.has("attachment"), true);
-  update("bridge", "new-token");
-  assert.equal(loads.length, 1);
+  const end = source.indexOf("// ====", start);
+  const update = vm.runInNewContext(`(${source.slice(start, end).trim()})`, { config, pageScriptFeatures });
+  update("next-bridge", "new-token");
+  assert.deepEqual(config, { bindingName: "next-bridge", bindingToken: "new-token" });
+  assert.deepEqual(pageScriptFeatures[0].pageScript.config, { bindingName: "next-bridge", bindingToken: "new-token" });
 });

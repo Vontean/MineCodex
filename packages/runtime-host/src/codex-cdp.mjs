@@ -124,13 +124,6 @@ export async function waitForExpression(client, expression, timeoutMs = 20_000) 
   throw new Error(`Timed out waiting for renderer state: ${expression}`);
 }
 
-export function evaluationValue(result) {
-  if (result.exceptionDetails) {
-    throw new Error(result.exceptionDetails.exception?.description ?? result.exceptionDetails.text);
-  }
-  return result.result?.value;
-}
-
 export function requireCdpWebSocketUrl(version, expectedCdpPort) {
   const value = typeof version?.webSocketDebuggerUrl === "string"
     ? version.webSocketDebuggerUrl.trim()

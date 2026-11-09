@@ -1,54 +1,36 @@
 import { assertPromptsRequest } from "../../../features/notes/src/adapters/codex/requests.mjs";
 import { LocalImageSource } from "../../../features/images/src/backend/local-image-source.mjs";
-import { cloudImagesAction } from "../../../features/images/src/backend/cloud-library.mjs";
 // CodexRuntime：Codex Renderer 生命周期与 host action 执行。
 // 注入源（createInjectionSource）与 CDP 客户端分别在 codex-injection.mjs / codex-cdp.mjs。
 
 import { randomBytes } from "node:crypto";
-import { mkdir, stat } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import {
   CODEX_APP_ORIGIN,
   HOST_BINDING_NAME,
-  LOOPBACK_SURFACE_HOSTS,
   RUNTIME_VERSION,
-  SURFACE_FRAME_PREFIX,
-  SURFACE_LOAD_ACTION,
   createDocumentBootstrapSource,
   createInjectionSource,
-  documentWithBase,
-  findFrameByName,
   pageScriptServiceOrigin,
-  requireDeclaredLoopbackSurface,
 } from "./codex-injection.mjs";
 import {
   connect,
-  evaluationValue,
   processChildHasExited,
   requireCdpWebSocketUrl,
   waitForExpression,
   waitForProcessChildExit,
 } from "./codex-cdp.mjs";
-import {
-  attachFileToComposer,
-  attachFilesToComposer,
-  createImageEditThread,
-} from "./host-actions.mjs";
 import { ModelFavorites } from "../../../features/model-slider/src/backend/favorites.mjs";
 import { SitesService } from "../../../features/sites/src/backend/sites-service.mjs";
 import { SessionStatusReader, threadIdFromLocation } from "../../../features/session-status/src/adapters/codex/session-reader.mjs";
 import { createCodexEnvironment } from "../../codex-adapter/src/renderer/environment.mjs";
 
 
-// 保持公共入口兼容：历史 import 从本文件继续可用。
 export {
-  RESPONSIVE_SUMMARY_LAYOUT,
   createInjectionSource,
   createRuntimeReadyContract,
   pageScriptServiceOrigin,
-  responsiveSummaryContentShift,
-  responsiveSummaryDisplayMode,
-  responsiveSummaryVisibleSurface,
 } from "./codex-injection.mjs";
 
 export const SESSION_STATUS_THREAD_ID_EXPRESSION = `(() => {
@@ -71,9 +53,6 @@ export class CodexRuntime {
     availabilityTimeoutMs = 20_000,
     availabilityPollMs = 500,
     monitorIntervalMs = 2_000,
-    surfaceLoadTimeoutMs = 5_000,
-    surfaceFramePollMs = 25,
-    featureInstanceId = null,
     codexBuild = null,
     runtimeSessionId = randomBytes(16).toString("hex"),
     onStatusChange = null,
@@ -94,9 +73,6 @@ export class CodexRuntime {
     this.availabilityTimeoutMs = availabilityTimeoutMs;
     this.availabilityPollMs = availabilityPollMs;
     this.monitorIntervalMs = monitorIntervalMs;
-    this.surfaceLoadTimeoutMs = surfaceLoadTimeoutMs;
-    this.surfaceFramePollMs = surfaceFramePollMs;
-    this.featureInstanceId = featureInstanceId;
     this.codexBuild = codexBuild;
     this.runtimeSessionId = runtimeSessionId;
     this.onStatusChange = onStatusChange;
@@ -408,124 +384,6 @@ export class CodexRuntime {
     await client.send("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true });
   }
 
-  async fetchSurfaceResource(url, label) {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), this.surfaceLoadTimeoutMs);
-    try {
-      return await this.fetchImpl(url, {
-        cache: "no-store",
-        headers: { origin: CODEX_APP_ORIGIN },
-        signal: controller.signal,
-      });
-    } catch (error) {
-      if (controller.signal.aborted) {
-        throw Object.assign(new Error(`${label} timed out`), { code: "SURFACE_LOAD_TIMEOUT" });
-      }
-      throw error;
-    } finally {
-      clearTimeout(timeout);
-    }
-  }
-
-  async verifiedSurfaceDocument(feature, surfaceUrl) {
-    requireDeclaredLoopbackSurface(feature, surfaceUrl);
-    if (!this.featureInstanceId || !feature.healthUrl) {
-      throw Object.assign(new Error("Surface service identity is unavailable"), {
-        code: "SURFACE_IDENTITY_UNAVAILABLE",
-      });
-    }
-    const healthResponse = await this.fetchSurfaceResource(feature.healthUrl, "Surface health check");
-    if (!healthResponse?.ok) {
-      throw Object.assign(new Error(`Surface health returned HTTP ${healthResponse?.status ?? "error"}`), {
-        code: "SURFACE_HEALTH_FAILED",
-      });
-    }
-    let health;
-    try {
-      health = await healthResponse.json();
-    } catch {
-      throw Object.assign(new Error("Surface health returned invalid JSON"), {
-        code: "SURFACE_HEALTH_FAILED",
-      });
-    }
-    if (
-      health?.ok !== true
-      || health.service !== feature.id
-      || health.protocolVersion !== 1
-      || health.instanceId !== this.featureInstanceId
-    ) {
-      throw Object.assign(new Error("Surface service identity does not match this RuntimeHost"), {
-        code: "SURFACE_IDENTITY_MISMATCH",
-      });
-    }
-
-    const response = await this.fetchSurfaceResource(surfaceUrl, "Surface document request");
-    if (!response?.ok) {
-      throw Object.assign(new Error(`Surface document returned HTTP ${response?.status ?? "error"}`), {
-        code: "SURFACE_DOCUMENT_FAILED",
-      });
-    }
-    const contentType = String(response.headers?.get?.("content-type") ?? "").toLowerCase();
-    if (!contentType.startsWith("text/html")) {
-      throw Object.assign(new Error("Surface document must be HTML"), {
-        code: "SURFACE_DOCUMENT_INVALID",
-      });
-    }
-    return documentWithBase(await response.text(), surfaceUrl);
-  }
-
-  async loadSurfaceIntoFrame(client, feature, payload = {}) {
-    const frameName = payload.frameName;
-    if (
-      typeof frameName !== "string"
-      || !frameName.startsWith(SURFACE_FRAME_PREFIX)
-      || frameName.length > 256
-    ) {
-      throw Object.assign(new Error("Surface frame identity is invalid"), {
-        code: "SURFACE_FRAME_INVALID",
-      });
-    }
-    const surfaceUrl = payload.surfaceUrl;
-    const html = await this.verifiedSurfaceDocument(feature, surfaceUrl);
-    const deadline = Date.now() + this.surfaceLoadTimeoutMs;
-    let frame = null;
-    while (!frame && Date.now() < deadline) {
-      const { frameTree } = await client.send("Page.getFrameTree");
-      frame = findFrameByName(frameTree, frameName);
-      if (!frame) await this.sleep(this.surfaceFramePollMs);
-    }
-    if (!frame) {
-      throw Object.assign(new Error("Surface frame was not discovered"), {
-        code: "SURFACE_FRAME_NOT_FOUND",
-      });
-    }
-    if (frame.url !== "about:blank") {
-      throw Object.assign(new Error("Surface frame must remain at about:blank before loading"), {
-        code: "SURFACE_FRAME_INVALID",
-      });
-    }
-    await client.send("Page.setDocumentContent", { frameId: frame.id, html });
-    return { loaded: true };
-  }
-
-  // 薄转发：host action 实现已迁至 host-actions.mjs，
-  // 保留方法入口以稳定测试与 handleBindingCalled 路由。
-  attachFileToComposer(client, filePath, requestId) {
-    return attachFileToComposer(client, filePath, requestId);
-  }
-
-  attachFilesToComposer(client, filePaths, requestId) {
-    return attachFilesToComposer(client, filePaths, requestId);
-  }
-
-  createImageEditThread(client, feature, payload, requestId) {
-    return createImageEditThread(client, feature, payload, requestId, {
-      fetchImpl: this.fetchImpl,
-      attachFiles: (_client, filePaths, _requestId) => this.attachFilesToComposer(client, filePaths, requestId),
-    });
-  }
-
-
   async handleBindingCalled(targetId, client, params) {
     if (params.name !== HOST_BINDING_NAME) return;
     let request;
@@ -539,18 +397,6 @@ export class CodexRuntime {
     if (feature?.id === "session-status" && request.action === "refresh-session-status") {
       if (this.sessionStatusReader && this.clients.get(targetId) === client && !this.stopping) {
         await this.publishSessionStatus(targetId);
-      }
-      return;
-    }
-    if (feature && request.action === SURFACE_LOAD_ACTION) {
-      try {
-        const result = await this.loadSurfaceIntoFrame(client, feature, request.payload);
-        await this.resolveHostAction(client, request.requestId, { ok: true, result });
-      } catch (error) {
-        await this.resolveHostAction(client, request.requestId, {
-          ok: false,
-          error: { code: error.code ?? "SURFACE_LOAD_FAILED", message: error.message },
-        });
       }
       return;
     }
@@ -608,55 +454,10 @@ export class CodexRuntime {
       }
       return;
     }
-    if (request.action === "import-generated-image") {
-      await this.importGeneratedImage(feature, request.payload);
-      return;
-    }
-    if (["list-cloud-images", "import-cloud-image"].includes(request.action)) {
-      try {
-        let result = await cloudImagesAction(
-          async (expression, options) => evaluationValue(await client.send("Runtime.evaluate", {
-            expression, awaitPromise:true, returnByValue:true,
-          }, options)),
-          request.action === "list-cloud-images" ? "list" : "import", request.payload,
-        );
-        if (request.action === "import-cloud-image" && !result.skipped) {
-          result = await this.importGeneratedImage(feature, result);
-        }
-        await this.resolveHostAction(client, request.requestId, { ok: true, result });
-      } catch (error) {
-        await this.resolveHostAction(client, request.requestId, { ok: false, error: { code: "CLOUD_IMAGES_FAILED", message: error.message } });
-      }
-      return;
-    }
-    try {
-      const result = request.action === "create-image-edit-thread"
-        ? await this.createImageEditThread(client, feature, request.payload, request.requestId)
-        : await this.attachFileToComposer(client, request.payload?.path, request.requestId);
-      await this.resolveHostAction(client, request.requestId, { ok: true, result });
-    } catch (error) {
-      await this.resolveHostAction(client, request.requestId, {
-        ok: false,
-        error: { code: error.code ?? "ATTACH_FAILED", message: error.message },
-      });
-    }
-  }
-
-  async importGeneratedImage(feature, payload) {
-    const origin = pageScriptServiceOrigin(feature);
-    if (!origin) throw new Error("Generated image import service is unavailable");
-    const response = await this.fetchImpl(new URL("/api/import-generated-image", origin), {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Origin: CODEX_APP_ORIGIN,
-      },
-      body: JSON.stringify(payload),
+    await this.resolveHostAction(client, request.requestId, {
+      ok: false,
+      error: { code: "ACTION_NOT_IMPLEMENTED", message: "Host action has no RuntimeHost handler" },
     });
-    if (!response?.ok) {
-      throw new Error(`Generated image import returned HTTP ${response?.status ?? "error"}`);
-    }
-    return response.json();
   }
 
   async refreshTargets() {

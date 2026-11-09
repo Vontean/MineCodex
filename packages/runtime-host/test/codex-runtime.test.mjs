@@ -8,13 +8,9 @@ import test from "node:test";
 import vm from "node:vm";
 import {
   CodexRuntime,
-  RESPONSIVE_SUMMARY_LAYOUT,
   SESSION_STATUS_THREAD_ID_EXPRESSION,
   createInjectionSource,
   pageScriptServiceOrigin,
-  responsiveSummaryContentShift,
-  responsiveSummaryDisplayMode,
-  responsiveSummaryVisibleSurface,
 } from "../src/codex-runtime.mjs";
 import { createManagedPidFileWriter } from "../src/pid-file.mjs";
 import { HOST_BINDING_NAME } from "../src/codex-injection.mjs";
@@ -128,31 +124,9 @@ function modelSliderFeatureFixture() {
   };
 }
 
-function notesFeatureFixture() {
-  return {
-    id: "notes",
-    label: "Notes",
-    labels: { en: "Notes", "zh-CN": "笔记" },
-    surfaceUrl: "http://127.0.0.1:47832/?surface=summary",
-    icon: { viewBox: "0 0 24 24", markup: "<path></path>" },
-    entry: {
-      kind: "conversation-toolbar",
-      ariaLabel: "Toggle pinned notes",
-      ariaLabels: { en: "Toggle pinned notes", "zh-CN": "切换固定笔记" },
-    },
-    pinnedSummary: {
-      surfaceUrl: "http://127.0.0.1:47832/?surface=summary",
-      label: "Notes",
-      labels: { en: "Notes", "zh-CN": "笔记" },
-    },
-    hostActions: [],
-  };
-}
-
 async function executeModelSliderInjection({
   controllerProps,
   features = [modelSliderFeatureFixture()],
-  mainContentShift,
   storageValue,
   exposeLocalStorage = true,
   triggerEffort,
@@ -298,7 +272,6 @@ async function executeModelSliderInjection({
   const scrollContainer = new FixtureElement("div");
   scrollContainer.setAttribute("class", "thread-scroll-container");
   const scrollContent = new FixtureElement("div");
-  scrollContent.style.setProperty("--thread-wide-block-inline-shift", mainContentShift?.value ?? "0px", mainContentShift?.priority ?? "");
   const conversation = new FixtureElement("section");
   conversation.setAttribute("data-conversation-column", "true");
   const composer = new FixtureElement("div");
@@ -307,7 +280,6 @@ async function executeModelSliderInjection({
   composer.setAttribute("role", "textbox");
   const footerOwner = new FixtureElement("div");
   footerOwner.setAttribute("data-thread-scroll-footer", "true");
-  footerOwner.style.setProperty("--thread-wide-block-inline-shift", mainContentShift?.value ?? "0px", mainContentShift?.priority ?? "");
   scrollContainer.append(scrollContent);
   scrollContainer.firstElementChild = scrollContent;
   conversation.append(composer);
@@ -316,23 +288,6 @@ async function executeModelSliderInjection({
   mainContent.querySelector = (selector) => (
     selector === ".thread-scroll-container" ? scrollContainer : mainContent.querySelectorAll(selector)[0] ?? null
   );
-  let activeMainSurface = mainContent;
-  let activeComposer = composer;
-  const ownerSnapshot = (element) => ({
-    value: element.style.getPropertyValue("--thread-wide-block-inline-shift"),
-    priority: element.style.getPropertyPriority("--thread-wide-block-inline-shift"),
-    marker: element.getAttribute("data-codex-personal-summary-shift"),
-    translate: element.style.getPropertyValue("translate"),
-  });
-  const header = new FixtureElement("header");
-  header.setRect({ left: 0, right: 1000, width: 1000, height: 48, bottom: 48 });
-  const toolbarHost = new FixtureElement("div");
-  toolbarHost._computedStyle = { display: "flex", visibility: "visible", flexGrow: "1" };
-  toolbarHost.setRect({ left: 0, right: 1000, width: 1000, height: 48, bottom: 48 });
-  header.append(toolbarHost);
-  const toolbarAnchor = new FixtureElement("button");
-  toolbarAnchor.setAttribute("aria-label", "Toggle bottom panel");
-  toolbarAnchor._header = header;
   const documentElement = new FixtureElement("html");
   documentElement.lang = "en";
   const document = {
@@ -346,18 +301,15 @@ async function executeModelSliderInjection({
     createElementNS(_namespace, tagName) { return new FixtureElement(tagName); },
     querySelector(selector) {
       if (selector === "[data-codex-intelligence-trigger]") return trigger;
-      if (selector === '[data-codex-composer="true"][contenteditable="true"]') return activeComposer;
+      if (selector === '[data-codex-composer="true"][contenteditable="true"]') return composer;
       if (selector === "[data-app-shell-main-content-layout]") return mainContentLayout;
-      if (selector === "main[data-app-shell-main-surface]") return activeMainSurface;
+      if (selector === "main[data-app-shell-main-surface]") return mainContent;
       return selector === 'link[href*="/assets/app-initial-"][href$=".js"]' ? sourceLink : null;
     },
     querySelectorAll(selector) {
       if (selector === 'link[rel="modulepreload"],script[src]') return [sourceLink];
       if (selector === "[data-codex-intelligence-trigger]") return [trigger];
-      if (selector === "button") {
-        return [toolbarAnchor, ...header.querySelectorAll("button")];
-      }
-      return [documentElement, mainContentLayout, header, toolbarAnchor]
+      return [documentElement, mainContentLayout]
         .flatMap((root) => [
           ...(root.matches(selector) ? [root] : []),
           ...root.querySelectorAll(selector),
@@ -492,23 +444,7 @@ async function executeModelSliderInjection({
       model: selected,
     }).map((model) => model.model);
     void loadNativeFastIconFromBundle();`,
-  ).replace(
-    "const runtimeApi = {",
-    `    window.__summaryShiftProbe = {
-      apply: applyThreadContentShift,
-      restore: restoreThreadContentShift,
-    };
-window.__toolbarProbe = {
-      active: () => Boolean(toolbarReadiness),
-      ensure: ensureToolbarEntries,
-      hostActionFailure: (error) => typeof hostActionFailure === "function"
-        ? hostActionFailure(error)
-        : null,
-      flush: flushEnsure,
-    };
-    const runtimeApi = {`,
   );
-  const resizeCallbacks = [];
   const context = {
     AbortController,
     URL,
@@ -520,7 +456,7 @@ window.__toolbarProbe = {
       disconnect() {}
     },
     ResizeObserver: class FixtureResizeObserver {
-      constructor(callback) { this.callback = callback; resizeCallbacks.push(callback); }
+      constructor(callback) { this.callback = callback; }
       observe() {}
       disconnect() {}
     },
@@ -577,47 +513,6 @@ window.__toolbarProbe = {
       return value ? JSON.parse(JSON.stringify(value)) : null;
     },
     fetchCalls,
-    summaryShift: {
-      apply: (value) => window.__summaryShiftProbe.apply(value),
-      restore: () => window.__summaryShiftProbe.restore(),
-      snapshot: () => ({
-        streamOwner: ownerSnapshot(scrollContent),
-        footerOwner: ownerSnapshot(footerOwner),
-        layout: {
-          value: mainContentLayout.style.getPropertyValue("--thread-wide-block-inline-shift"),
-          marker: mainContentLayout.getAttribute("data-codex-personal-summary-shift"),
-        },
-      }),
-      replaceOwner: () => {
-        activeMainSurface = new FixtureElement("main");
-        activeMainSurface.setAttribute("data-app-shell-main-surface", "true");
-        activeComposer = new FixtureElement("div");
-        activeComposer.setAttribute("data-codex-composer", "true");
-        activeComposer.setAttribute("contenteditable", "true");
-        activeComposer.setAttribute("role", "textbox");
-        const replacementStream = new FixtureElement("div");
-        replacementStream.style.setProperty("--thread-wide-block-inline-shift", "0px");
-        const replacementFooter = new FixtureElement("div");
-        replacementFooter.setAttribute("data-thread-scroll-footer", "true");
-        replacementFooter.style.setProperty("--thread-wide-block-inline-shift", "0px");
-        replacementFooter.append(activeComposer);
-        activeMainSurface.append(replacementStream, replacementFooter);
-      },
-    },
-    toolbarReadiness: {
-      active: () => window.__toolbarProbe.active(),
-      dispose: () => window.__codexPersonalRuntime.dispose(),
-      flush: () => window.__toolbarProbe.flush(),
-      resizeAnchor: (rect) => {
-        toolbarAnchor.setRect(rect);
-        for (const callback of resizeCallbacks) callback();
-      },
-      entryCount: () => document.querySelectorAll('[data-codex-personal-feature="notes"]').length,
-    },
-    hostActionFailure: (error) => {
-      const value = window.__toolbarProbe.hostActionFailure(error);
-      return value ? JSON.parse(JSON.stringify(value)) : null;
-    },
     probe: probe ? JSON.parse(JSON.stringify(probe)) : null,
     runtimeInstalled: Boolean(window.__codexPersonalRuntime),
   };
@@ -634,28 +529,6 @@ test("rotates existing page-script binding credentials on renderer reconnect", a
   fixture.updateHostBinding("new-binding", "new-token");
   assert.equal(fixture.pageScriptBinding().name, "new-binding");
   assert.equal(fixture.pageScriptBinding().token, "new-token");
-});
-
-test("matches Codex Summary responsive thresholds and content-shift behavior", () => {
-  assert.equal(responsiveSummaryDisplayMode(1095), "overlay");
-  assert.equal(responsiveSummaryDisplayMode(1096), "shift");
-  assert.equal(responsiveSummaryDisplayMode(1535), "shift");
-  assert.equal(responsiveSummaryDisplayMode(1536), "gutter");
-
-  assert.equal(responsiveSummaryVisibleSurface({ displayMode: "overlay", isPinned: false, isPopoverOpen: true }), "popover");
-  assert.equal(responsiveSummaryVisibleSurface({ displayMode: "overlay", isPinned: true, isPopoverOpen: false }), null);
-  assert.equal(responsiveSummaryVisibleSurface({ displayMode: "shift", isPinned: true, isPopoverOpen: false }), "inline");
-  assert.equal(responsiveSummaryVisibleSurface({ displayMode: "gutter", isPinned: false, isPopoverOpen: true }), null);
-
-  assert.equal(
-    responsiveSummaryContentShift({ displayMode: "shift", isPinned: true }),
-    -(RESPONSIVE_SUMMARY_LAYOUT.panelWidth + RESPONSIVE_SUMMARY_LAYOUT.panelInset) / 2,
-  );
-  assert.equal(responsiveSummaryContentShift({ displayMode: "overlay", isPinned: true }), 0);
-  assert.equal(
-    responsiveSummaryContentShift({ displayMode: "gutter", isPinned: true }),
-    -(RESPONSIVE_SUMMARY_LAYOUT.panelWidth + RESPONSIVE_SUMMARY_LAYOUT.panelInset) / 2,
-  );
 });
 
 test("only grants page scripts their declared loopback service origin", () => {
@@ -704,89 +577,6 @@ test("keeps Model Slider available when persisted Fast icons cannot be read", as
   }
 });
 
-test("releases thread content to native Summary when a personal panel needs no shift", () => {
-  const source = createInjectionSource([]);
-
-  assert.match(
-    source,
-    /function applyThreadContentShift\(value\) \{[\s\S]*?if \(value === 0\) \{[\s\S]*?restoreThreadContentShift\(\)[\s\S]*?return;?[\s\S]*?\}/s,
-  );
-});
-
-test("shifts and restores both stable native conversation owners", async () => {
-  const result = await executeModelSliderInjection({
-    mainContentShift: { value: "23px", priority: "important" },
-  });
-
-  result.summaryShift.apply(-158);
-  assert.deepEqual(result.summaryShift.snapshot(), {
-    streamOwner: { value: "-158px", priority: "important", marker: "-158", translate: "-158px 0" },
-    footerOwner: { value: "-158px", priority: "important", marker: "-158", translate: "-158px 0" },
-    layout: { value: "", marker: null },
-  });
-
-  result.summaryShift.apply(-120);
-  assert.deepEqual(result.summaryShift.snapshot().footerOwner, {
-    value: "-120px",
-    priority: "important",
-    marker: "-120",
-    translate: "-120px 0",
-  });
-
-  result.summaryShift.restore();
-  assert.deepEqual(result.summaryShift.snapshot(), {
-    streamOwner: { value: "23px", priority: "important", marker: null, translate: "" },
-    footerOwner: { value: "23px", priority: "important", marker: null, translate: "" },
-    layout: { value: "", marker: null },
-  });
-});
-
-test("uses stable native owner attributes without generated Codex class names", () => {
-  const source = createInjectionSource([]);
-
-  assert.match(source, /\[style\*="--thread-wide-block-inline-shift"\]/);
-  assert.match(source, /owner\.style\.setProperty\(\s*"--thread-wide-block-inline-shift"/);
-  assert.match(source, /owner\.style\.setProperty\("translate"/);
-  assert.match(source, /getPropertyPriority\("--thread-wide-block-inline-shift"\)/);
-  assert.match(source, /element\.style\.removeProperty\("--thread-wide-block-inline-shift"\)/);
-  assert.doesNotMatch(source, /_ComposerLayout|_[a-zA-Z]+_[a-z0-9]+_/);
-});
-
-test("renders 24px outline feature icons at Codex's 1px visual weight", () => {
-  const source = createInjectionSource([{
-    id: "images",
-    label: "Images",
-    surfaceUrl: "http://127.0.0.1:47831/",
-    icon: { viewBox: "0 0 24 24", markup: "<path></path>" },
-    placement: { after: "sites", order: 10 },
-  }]);
-
-  assert.match(source, /icon\.setAttribute\("stroke-width", "1\.5"\)/);
-  assert.doesNotMatch(source, /icon\.setAttribute\("stroke-width", "2"\)/);
-});
-
-test("posts page-surface activity on show, hide, and iframe load", () => {
-  const source = createInjectionSource([{
-    id: "images",
-    label: "Images",
-    surfaceUrl: "http://127.0.0.1:47831/",
-    entry: { kind: "sidebar" },
-    placement: { after: "sites", order: 10 },
-    hostActions: [],
-  }]);
-
-  assert.match(
-    source,
-    /function postSurfaceActive\(record, active\)[\s\S]*?type: "codex-personal:surface-active",[\s\S]*?active: Boolean\(active\)/,
-  );
-  assert.match(
-    source,
-    /frame\.addEventListener\("load", \(\) => \{[\s\S]*?postSurfaceActive\(record, activePageFeatureId === record\.featureId && !record\.element\.hidden\)/,
-  );
-  assert.match(source, /function showPageSurface[\s\S]*?postSurfaceActive\(record, true\)/);
-  assert.match(source, /function hidePageSurfaces[\s\S]*?postSurfaceActive\(record, false\)/);
-});
-
 test("main defers feature startup publication and leaves foreground ChatGPT launching to the CLI adapter", async () => {
   const source = await readFile(new URL("../src/main.mjs", import.meta.url), "utf8");
 
@@ -795,7 +585,6 @@ test("main defers feature startup publication and leaves foreground ChatGPT laun
   assert.match(source, /let runtimeReady = false/);
   assert.match(source, /await runtime\.start\(\);\s*runtimeReady = true;\s*await writeReadyFile\(\)/);
   assert.doesNotMatch(source, /MINECODEX_CODEX_EXECUTABLE|MINECODEX_LAUNCH_CODEX|launchCodex/);
-  assert.match(source, /featureInstanceId,/);
 });
 
 test("emits a fail-closed native Composer model selector Adapter", () => {
@@ -860,11 +649,6 @@ test("emits a fail-closed native Composer model selector Adapter", () => {
   assert.match(source, /if \(!modelSelectorNativeFastIcons \|\| !modelSelectorNativeFastIconsDirty\) return;/);
   assert.match(source, /modelSelectorNativeFastIconsDirty = true;/);
   // P2c guard: Fast 图标直接从原生控件获取，并在状态切换后更新缓存。
-  // Sidebar selection must use the native selected class bg-primary-ghost-hover:
-  // highlight the active MineCodex entry with it and strip it from native items.
-  assert.match(source, /entry\.classList\.toggle\(\"bg-primary-ghost-hover", selected\);/);
-  assert.match(source, /element\.classList\.remove\(\"bg-primary-ghost-hover"\);/);
-  assert.match(source, /classList\.toggle\(\"bg-primary-ghost-hover", Boolean\(selection\.hadPrimaryGhost\)\);/);
   assert.match(source, /const nativeContent = Array\.from\(document\.querySelectorAll\(':is\(\[class\*="_FastModeToggleContent_"\], \[class\*="FastModeToggleContent-"\]\)'\)\)/);
   assert.match(source, /const state = toggle\?\.getAttribute\("data-fast-mode-enabled"\) === "true" \? "active" : "inactive"/);
   assert.match(source, /function loadNativeFastIconFromBundle\(\)/);
@@ -1330,646 +1114,6 @@ test("distinguishes placeholder from real model label, hugging real names", () =
   assert.match(source, /effortText\.setAttribute\("data-accent", "true"\)/);
   assert.match(source, /effortText\.setAttribute\("data-maximum", String\(selectedEffort === "ultra"\)\)/);
   assert.doesNotMatch(source, /_ViewToggleEffortLabel_[a-z0-9]+_/i);
-});
-
-test("attaches Notes after a zero-size toolbar anchor becomes layout-ready", async () => {
-  const result = await executeModelSliderInjection({ features: [notesFeatureFixture()] });
-
-  result.toolbarReadiness.flush();
-  assert.equal(result.toolbarReadiness.entryCount(), 0);
-  assert.equal(result.toolbarReadiness.active(), true);
-  result.toolbarReadiness.resizeAnchor({
-    left: 900,
-    right: 932,
-    top: 8,
-    bottom: 40,
-    width: 32,
-    height: 32,
-  });
-  result.toolbarReadiness.flush();
-
-  assert.equal(result.toolbarReadiness.entryCount(), 1);
-  assert.equal(result.toolbarReadiness.active(), false);
-
-  const disposed = await executeModelSliderInjection({ features: [notesFeatureFixture()] });
-  disposed.toolbarReadiness.flush();
-  assert.equal(disposed.toolbarReadiness.active(), true);
-  disposed.toolbarReadiness.dispose();
-  assert.equal(disposed.toolbarReadiness.active(), false);
-});
-
-test("emits an isolated conversation-toolbar Adapter with strict Surface and Host-action boundaries", () => {
-  const source = createInjectionSource([{
-    id: "notes",
-    label: "Notes",
-    labels: { en: "Notes", "zh-CN": "笔记" },
-    surfaceUrl: "http://127.0.0.1:47832/?surface=summary",
-    icon: { viewBox: "0 0 24 24", markup: "<path></path>" },
-    placement: { order: 20 },
-    entry: {
-      kind: "conversation-toolbar",
-      ariaLabel: "Toggle pinned notes",
-      ariaLabels: { en: "Toggle pinned notes", "zh-CN": "切换固定笔记" },
-    },
-    pinnedSummary: {
-      label: "Pinned Notes",
-      labels: { en: "Pinned Notes", "zh-CN": "固定笔记" },
-      surfaceUrl: "http://127.0.0.1:47832/?surface=summary",
-      presentation: "responsive-summary",
-      overlayLabel: "Toggle notes",
-      overlayLabels: { en: "Toggle notes", "zh-CN": "切换笔记" },
-      pinnedLabel: "Toggle pinned notes",
-      pinnedLabels: { en: "Toggle pinned notes", "zh-CN": "切换固定笔记" },
-    },
-    detailTabs: [
-      {
-        id: "todo",
-        label: "Todo",
-        labels: { en: "Todo", "zh-CN": "待办" },
-        surfaceUrl: "http://127.0.0.1:47832/?surface=todo",
-      },
-    ],
-    hostActions: ["insert-text", "attach-file", "open-detail-tab", "open-editor-modal", "resolve-file-paths"],
-  }], {
-    bindingName: "__testHostAction",
-    bindingToken: "unique-test-token",
-  });
-
-  assert.match(source, /if \(window\.top !== window\) return/);
-  assert.match(source, /event\.source === record\.frame\.contentWindow/);
-  assert.match(source, /feature\?\.hostActions\.has\(action\)/);
-  assert.match(source, /"bindingName":"__testHostAction"/);
-  assert.match(source, /"bindingToken":"unique-test-token"/);
-  assert.match(source, /"ariaLabel":"Toggle pinned notes"/);
-  assert.match(source, /"zh-CN":"切换固定笔记"/);
-  assert.match(source, /"zh-CN":"待办"/);
-  assert.match(source, /"hostActions":\["insert-text","attach-file","open-detail-tab","open-editor-modal","resolve-file-paths"\]/);
-  assert.match(source, /function surfaceFrameName\(featureId\)/);
-  assert.match(source, /frame\.name = surfaceFrameName\(featureId\)/);
-  assert.match(source, /frame\.src = "about:blank"/);
-  assert.match(source, /action: "load-surface"/);
-  assert.doesNotMatch(source, /frame\.src = surfaceUrl/);
-  assert.match(source, /function normalizedLocale\(value\)/);
-  assert.match(source, /function localizedText\(fallback, locales = \{\}\)/);
-  assert.match(source, /label: localizedText\(feature\.label, feature\.labels\)/);
-  assert.match(source, /label: localizedText\(detail\.label, detail\.labels\)/);
-  assert.match(source, /\{ type: "codex-personal:theme", theme: mode, mode, locale, tokens: surfaceTokens \}/);
-  assert.match(source, /"--color-token-input-foreground": tokens\["--color-token-input-foreground"\] \?\? tokens\["--color-text-foreground"\]/);
-  assert.match(source, /"--color-surface-tertiary"/);
-  assert.match(source, /"--color-surface-elevated-secondary"/);
-  assert.match(source, /"--color-background-primary-ghost-hover"/);
-  assert.match(source, /"--color-border-subtle"/);
-  assert.match(source, /"--color-chart-blue"/);
-  assert.match(source, /"--color-text-inverse"/);
-  assert.match(source, /document\.querySelectorAll\(`\[\$\{entryMarker\}\]`\)\) entry\.remove\(\)/);
-  assert.match(source, /const reusable = existing\?\.isConnected \? existing : null/);
-  assert.match(source, /data-codex-personal-pinned-summary/);
-  assert.match(source, /data-codex-personal-summary-presentation/);
-  assert.doesNotMatch(source, /data-codex-personal-tab-host/);
-  assert.match(source, /Toggle summary/);
-  assert.match(source, /Toggle pinned summary/);
-  assert.match(source, /切换摘要/);
-  assert.match(source, /切换固定摘要/);
-  assert.match(source, /function nativeBottomPanelButton\(\)/);
-  assert.match(source, /bottomPanel: \["Toggle bottom panel", "切换底部面板"\]/);
-  assert.match(source, /function nativeSidePanelButton\(\)/);
-  assert.match(source, /sidePanel: \["Toggle side panel", "切换侧边面板"\]/);
-  assert.match(source, /function nativeTemporaryChatButton\(\)/);
-  assert.match(source, /temporaryChat: \["temporary chat", "临时聊天", "临时对话"\]/);
-  assert.match(source, /function hasNativeToolbarLabel\(button, key\)/);
-  assert.match(source, /function nativeSummaryToolbarGroup\(nativeButton\)/);
-  assert.match(source, /function conversationToolbarHost\(nativeButton\)/);
-  assert.match(source, /function ensureFallbackSummaryToolbarGroup\(nativeButton\)/);
-  assert.match(source, /data-codex-personal-summary-toolbar-group/);
-  assert.match(source, /group\.className = "ms-auto flex shrink-0 items-center gap-1\.5 pointer-events-auto"/);
-  assert.match(source, /toolbarHost\.append\(group\)/);
-  assert.match(source, /function ensureToolbarEntries\(\)[\s\S]*?const summaryButton = nativeSummaryButton\(\)/s);
-  assert.match(source, /const anchorButton = temporaryChatButton \?\? summaryButton \?\? bottomPanelButton \?\? sidePanelButton/);
-  assert.match(source, /function structuralToolbarAnchor\(\)/);
-  assert.match(source, /function ensureToolbarReadiness\(candidate\)/);
-  assert.match(source, /record\.attempts >= 8/);
-  assert.match(source, /}, 1_500\)/);
-  assert.match(source, /record\.observer = new ResizeObserver\(wake\)/);
-  assert.match(source, /if \(candidate\) ensureToolbarReadiness\(candidate\)/);
-  assert.match(source, /stopToolbarReadiness\(\)/);
-  assert.match(source, /const useFallbackAnchor = anchorButton === sidePanelButton \|\| anchorButton === bottomPanelButton/);
-  assert.match(source, /const summaryGroup = useFallbackAnchor \? null : nativeSummaryToolbarGroup\(anchorButton\)/);
-  assert.match(source, /let targetGroup = summaryGroup \?\? ensureFallbackSummaryToolbarGroup\(anchorButton\)/);
-  assert.match(source, /if \(cursor\.nextElementSibling !== entryRoot\) cursor\.after\(entryRoot\)/);
-  assert.match(source, /const header = entry\.closest\("header"\)/);
-  assert.match(source, /const contentTop = Math\.max\(scrollRect\?\.top \?\? 0, headerBottom\)/);
-  assert.match(source, /function toolbarEntryFitsHeader\(entryRoot\)/);
-  assert.match(source, /entryRect\.right <= headerRect\.right \+ 1/);
-  assert.match(source, /if \(summaryGroup && !toolbarEntryFitsHeader\(entryRoot\)\)/);
-  assert.match(source, /fallback\.append\(entryRoot\)/);
-  assert.doesNotMatch(source, /bottomPanelToolbarOverride/);
-  assert.doesNotMatch(source, /syncBottomPanelToolbarWidth/);
-  assert.doesNotMatch(source, /toolbarShell\.style\.(?:width|minWidth)/);
-  assert.match(source, /codex-personal:surface-metrics/);
-  assert.match(source, /--codex-summary-section-title-font-size/);
-  assert.match(source, /--codex-summary-section-title-font-weight/);
-  assert.match(source, /--codex-summary-row-font-size/);
-  assert.match(source, /--text-base--line-height/);
-  assert.match(source, /--text-sm--line-height/);
-  assert.match(source, /--color-token-text-link-foreground/);
-  assert.match(source, /--codex-summary-label-font-size/);
-  assert.match(source, /--codex-summary-label-line-height/);
-  assert.match(source, /--codex-summary-icon-size/);
-  assert.match(source, /--codex-summary-icon-stroke-width/);
-  assert.match(source, /--codex-summary-panel-radius/);
-  assert.match(source, /--codex-summary-panel-corner-shape/);
-  assert.match(source, /--codex-dialog-radius/);
-  assert.match(source, /--codex-dialog-corner-shape/);
-  assert.match(source, /--codex-dialog-shadow/);
-  assert.match(source, /data-codex-personal-modal/);
-  assert.match(source, /function openEditorModal/);
-  assert.match(source, /new Set\(\["prompt", "note"\]\)\.has\(payload\.kind\)/);
-  assert.match(source, /Editor kind must be prompt or todo/);
-  assert.match(source, /"border-radius:25px"/);
-  assert.match(source, /"corner-shape:var\(--codex-corner-shape,superellipse\(1\.5\)\)"/);
-  assert.match(source, /featureUI.surface\(dialog, "dialog"\)/);
-  assert.match(source, /corner-shape:round/);
-  assert.match(source, /var\(--mcx-shadow-lg\)/);
-  assert.match(source, /"left:50%"/);
-  assert.match(source, /"top:50%"/);
-  assert.match(source, /"width:min\(420px,92vw\)"/);
-  assert.match(source, /featureUI.overlay\(overlay\)/);
-  assert.match(source, /data-codex-personal-prompt-preview/);
-  assert.match(source, /function showPromptPreview\(record, payload = \{\}\)/);
-  assert.match(source, /preview\.setAttribute\("role", "tooltip"\)/);
-  assert.match(source, /preview\.setAttribute\("aria-label", locale === "zh-CN" \? "提示词预览" : "Prompt preview"\)/);
-  assert.match(source, /const title = String\(payload\.prompt\?\.title \?\? ""\)\.trim\(\)/);
-  assert.match(source, /if \(title\) \{[\s\S]*?preview\.append\(heading\)/s);
-  assert.doesNotMatch(source, /\.trim\(\) \|\| "Prompt"/);
-  assert.match(source, /content\.textContent = body/);
-  assert.doesNotMatch(source, /body\.slice\(/);
-  assert.match(source, /"max-height:min\(420px,calc\(100vh - 24px\)\)"/);
-  assert.match(source, /"border-radius:16px"/);
-  assert.match(source, /"corner-shape:var\(--codex-corner-shape,superellipse\(1\.5\)\)"/);
-  assert.match(source, /"background:var\(--color-token-dropdown-background/);
-  assert.match(source, /"box-shadow:var\(--elevation-prominent/);
-  assert.match(source, /const surfaceLeft = record\.element\.offsetLeft/);
-  assert.match(source, /const surfaceTop = record\.element\.offsetTop/);
-  assert.match(source, /surfaceLeft - gap - width/);
-  assert.match(source, /surfaceTop \+ anchorTop - 8/);
-  assert.match(source, /function requestPromptPreviewClose\(record\)[\s\S]*?\}, 120\)/s);
-  assert.match(source, /preview\.addEventListener\("pointerenter"/);
-  assert.match(source, /preview\.addEventListener\("pointerleave"/);
-  assert.doesNotMatch(source, /"transition:opacity 120ms ease"/);
-  assert.match(source, /"transition:opacity 80ms ease"/);
-  assert.match(source, /current\.element\.style\.pointerEvents = "none"/);
-  assert.match(source, /event\.data\.type === "codex-personal:prompt-preview"/);
-  assert.match(source, /--color-token-input-background/);
-  assert.match(source, /--color-token-input-border/);
-  assert.doesNotMatch(source, /--color-token-button-background/);
-  assert.match(source, /--color-text-button-tertiary/);
-  assert.match(source, /--spacing-token-button-composer/);
-  assert.match(source, /"overlayLabel":"Toggle notes"/);
-  assert.match(source, /"pinnedLabel":"Toggle pinned notes"/);
-  assert.match(source, /button\.classList\.remove\([\s\S]*?"bg-token-foreground\/5"[\s\S]*?"bg-token-foreground\/10"[\s\S]*?\)/);
-  assert.match(source, /button\.classList\.add\([\s\S]*?"text-token-text-tertiary"[\s\S]*?"enabled:hover:bg-token-list-hover-background"[\s\S]*?"data-\[state=open\]:bg-token-list-hover-background"[\s\S]*?\)/);
-  assert.match(source, /reloadSurfaceIfUnready/);
-  assert.match(source, /record\.ready = true/);
-});
-
-test("renders conversation-toolbar icons at the native 16px size", () => {
-  const source = createInjectionSource([notesFeatureFixture()]);
-
-  // 原生右上角工具栏图标为 16x16（按钮 28px）；Notes 入口必须克隆原生按钮后
-  // 用同一尺寸替换图标，避免比 Bottom/Side Panel 旁的原生图标大一圈。
-  assert.ok(
-    source.includes('createFeatureIcon(feature, originalIcon?.getAttribute("class"), 16)'),
-  );
-  assert.ok(!source.includes('createFeatureIcon(feature, originalIcon?.getAttribute("class"), 20)'));
-});
-
-test("opens detail views only in Codex native right-panel tabs", () => {
-  const source = createInjectionSource([{
-    id: "notes",
-    label: "Notes",
-    surfaceUrl: "http://127.0.0.1:47832/?surface=summary",
-    icon: { viewBox: "0 0 24 24", markup: "<path></path>" },
-    entry: { kind: "conversation-toolbar", ariaLabel: "Toggle pinned notes" },
-    pinnedSummary: {
-      surfaceUrl: "http://127.0.0.1:47832/?surface=summary",
-      presentation: "responsive-summary",
-    },
-    detailTabs: [
-      {
-        id: "prompts",
-        label: "Prompts",
-        surfaceUrl: "http://127.0.0.1:47832/?surface=prompts",
-        icon: { viewBox: "0 0 24 24", markup: '<path data-icon="prompts"></path>' },
-      },
-    ],
-    hostActions: ["open-detail-tab"],
-  }]);
-
-  assert.match(source, /findCodexModule\('app-initial'/);
-  assert.match(source, /async function loadNativeTabCapability\(\)/);
-  assert.match(source, /const rightPanelRouteKinds = new Set\(config\.rightPanelRouteKinds\)/);
-  assert.match(source, /async function waitForCurrentRightPanelScope\(\)/);
-  assert.match(source, /Object\.values\(appModule\)\.find/);
-  assert.match(source, /typeof value\.openTab === "function"/);
-  assert.match(source, /value\.panelId === "right"/);
-  assert.doesNotMatch(source, /nativeJsxRuntime/);
-  assert.doesNotMatch(source, /appModule\.Gtt/);
-  assert.doesNotMatch(source, /appModule\.hkt/);
-  assert.doesNotMatch(source, /appModule\.Skt/);
-  assert.doesNotMatch(source, /React\.useLayoutEffect/);
-  assert.doesNotMatch(source, /React\.useRef/);
-  assert.match(source, /!controller\?\.tabById\$/);
-  assert.match(source, /rightPanelRouteKinds\.has\(value\.value\?\.routeKind\)/);
-  assert.match(source, /"rightPanelRouteKinds":\["home","local-thread"\]/);
-  assert.doesNotMatch(source, /value\.value\?\.routeKind === "local-thread"/);
-  assert.match(source, /function nativeDetailComponent\(feature, detail\)/);
-  assert.match(source, /function nativeDetailIcon\(feature, detail\)/);
-  assert.match(source, /const icon = detail\.icon \?\? feature\.icon/);
-  assert.match(source, /icon: nativeDetailIcon\(feature, detail\)/);
-  assert.match(source, /function nativeReactElement\(type, props\)/);
-  assert.match(source, /Symbol\.for\("react\.transitional\.element"\)/);
-  assert.match(source, /data-codex-personal-native-detail="\$\{detailKey\}"/);
-  assert.match(source, /registerSurface\(recordKey, feature, "detail", detail\.surfaceUrl, mounted\.element, mounted\.frame, detail\.id\)/);
-  assert.match(source, /Component: nativeDetailComponent\(feature, detail\)/);
-  assert.match(source, /async function waitForNativeDetailTabElement\(detailKey\)/);
-  assert.match(source, /scope\.get\(controller\.tabById\$, tabId\) != null/);
-  assert.match(source, /nativeDetailSurfaceKeys\.has\(detailKey\)/);
-  assert.match(source, /id: tabId,[\s\S]*?isClosable: true,[\s\S]*?onClose:/s);
-  assert.match(source, /presentation: "native"/);
-  assert.doesNotMatch(source, /function openFallbackDetailTab\(feature, detail\)/);
-  assert.doesNotMatch(source, /presentation: "fallback"/);
-  assert.doesNotMatch(source, /data-codex-personal-tab-host/);
-  assert.match(source, /const result = await openNativeDetailTab\(feature, detail\)/);
-  assert.match(source, /error\.code = "NATIVE_TAB_UNAVAILABLE"/);
-  assert.match(source, /error: hostActionFailure\(error\)/);
-  assert.match(source, /result: await openDetailTab\(feature\.id, payload\.surface\)/);
-  assert.match(source, /detailTabCapability/);
-  assert.match(source, /closeNativeDetailTabs\(\)/);
-});
-
-test("preserves the native Tab capability reason across the Host-action surface", async () => {
-  const result = await executeModelSliderInjection({ features: [notesFeatureFixture()] });
-
-  assert.deepEqual(result.hostActionFailure(Object.assign(
-    new Error("Codex right-panel controller is unavailable"),
-    { code: "NATIVE_TAB_UNAVAILABLE" },
-  )), {
-    code: "NATIVE_TAB_UNAVAILABLE",
-    message: "Codex right-panel controller is unavailable",
-  });
-});
-
-test("ignores native Host bindings with the wrong target token", async () => {
-  const runtime = new CodexRuntime({
-    features: [{ id: "notes", hostActions: ["attach-file"] }],
-    profileDir: "/tmp/codex-runtime-test-profile",
-  });
-  runtime.bindingTokens.set("renderer", "expected-token");
-  let nativeCalls = 0;
-  runtime.attachFileToComposer = async () => {
-    nativeCalls += 1;
-    return { mode: "attach" };
-  };
-  const client = { send: async () => ({ result: { value: true } }) };
-
-  await runtime.handleBindingCalled("renderer", client, {
-    name: "__codexPersonalHostAction",
-    payload: JSON.stringify({
-      token: "foreign-token",
-      featureId: "notes",
-      requestId: "request-1",
-      action: "attach-file",
-      payload: { path: "/tmp/file.txt" },
-    }),
-  });
-
-  assert.equal(nativeCalls, 0);
-});
-
-test("image edit binding is allowlisted and creates a fresh native Chat through the runtime", async () => {
-  const runtime = new CodexRuntime({
-    features: [{ id: "images", surfaceUrl: "http://127.0.0.1:47831/", hostActions: ["create-image-edit-thread"] }],
-    profileDir: "/tmp/codex-runtime-image-edit-profile",
-  });
-  runtime.bindingTokens.set("renderer", "images-token");
-  const received = [];
-  runtime.createImageEditThread = async (_client, feature, payload, requestId) => {
-    received.push({ featureId: feature.id, payload, requestId });
-    return { attached: [{ mode: "attach" }] };
-  };
-  const evaluations = [];
-  await runtime.handleBindingCalled("renderer", { send: async (_method, params) => {
-    evaluations.push(params.expression);
-    return { result: { value: true } };
-  } }, {
-    name: "__codexPersonalHostAction",
-    payload: JSON.stringify({
-      token: "images-token", featureId: "images", requestId: "image-edit-request",
-      action: "create-image-edit-thread",
-      payload: { draftId: "b99d9a2a-3a01-4f89-8ed1-fbfdcf23a0b8", prompt: "Remove the marked area." },
-    }),
-  });
-  assert.deepEqual(received, [{
-    requestId: "image-edit-request",
-    featureId: "images",
-    payload: { draftId: "b99d9a2a-3a01-4f89-8ed1-fbfdcf23a0b8", prompt: "Remove the marked area." },
-  }]);
-  assert.equal(evaluations.some((expression) => expression.includes("image-edit-request")), true);
-});
-
-test("image edit runtime consumes a one-shot Images draft before it opens a new Chat", async (context) => {
-  const root = await mkdtemp(path.join(os.tmpdir(), "minecodex-runtime-image-edit-"));
-  const sourcePath = path.join(root, "source.png");
-  const maskPath = path.join(root, "mask.png");
-  await Promise.all([writeFile(sourcePath, "source"), writeFile(maskPath, "mask")]);
-  context.after(() => rm(root, { recursive: true, force: true }));
-  const fetches = [];
-  const runtime = new CodexRuntime({
-    features: [], profileDir: "/tmp/codex-runtime-image-edit-flow-profile",
-    fetchImpl: async (url, options) => {
-      fetches.push({ url: String(url), options });
-      return new Response(JSON.stringify({ sourcePath, auxiliaryPath: maskPath }), { status: 200 });
-    },
-  });
-  const attachmentBatches = [];
-  runtime.attachFilesToComposer = async (_client, filePaths) => {
-    attachmentBatches.push(filePaths);
-    return filePaths.map((filePath) => ({ mode: "attach", name: path.basename(filePath) }));
-  };
-  const expressions = [];
-  const client = { send: async (_method, params) => {
-    expressions.push(params.expression);
-    return { result: { value: true } };
-  } };
-  const result = await runtime.createImageEditThread(client, {
-    id: "images", surfaceUrl: "http://127.0.0.1:47831/",
-  }, {
-    draftId: "b99d9a2a-3a01-4f89-8ed1-fbfdcf23a0b8",
-    prompt: "Remove the marked area.",
-  }, "image-edit-flow");
-  assert.equal(fetches[0].url, "http://127.0.0.1:47831/api/image-edit-draft/b99d9a2a-3a01-4f89-8ed1-fbfdcf23a0b8");
-  assert.equal(fetches[0].options.headers.Origin, "app://-");
-  assert.deepEqual(attachmentBatches, [[sourcePath, maskPath]]);
-  assert.equal(result.attached.length, 2);
-  assert.equal(result.threadStarted, true);
-  assert.equal(expressions.some((expression) => expression.includes('[data-testid="home-icon"]')), true);
-  assert.equal(expressions.some((expression) => expression.includes("!document.querySelector")), true);
-  assert.equal(expressions.some((expression) => expression.includes("Send message")), true);
-  assert.equal(expressions.some((expression) => expression.includes('aria-label="Send"')), true);
-});
-
-test("image edit runtime drops the source and auxiliary image as one native attachment batch", async (context) => {
-  const root = await mkdtemp(path.join(os.tmpdir(), "minecodex-runtime-image-edit-batch-"));
-  const sourcePath = path.join(root, "source.png");
-  const annotationPath = path.join(root, "annotation.png");
-  await Promise.all([writeFile(sourcePath, "source"), writeFile(annotationPath, "annotation")]);
-  context.after(() => rm(root, { recursive: true, force: true }));
-  const runtime = new CodexRuntime({ features: [], profileDir: "/tmp/codex-runtime-image-edit-batch-profile" });
-  const calls = [];
-  const client = { send: async (method, params) => {
-    calls.push({ method, params });
-    if (method === "DOM.getDocument") return { root: { nodeId: 1 } };
-    if (method === "DOM.querySelector") return { nodeId: 2 };
-    return { result: { value: true } };
-  } };
-
-  const result = await runtime.attachFilesToComposer(client, [sourcePath, annotationPath], "batch-request");
-
-  assert.deepEqual(result, [
-    { mode: "attach", name: "source.png" },
-    { mode: "attach", name: "annotation.png" },
-  ]);
-  assert.deepEqual(calls.find(({ method }) => method === "DOM.setFileInputFiles")?.params.files, [sourcePath, annotationPath]);
-  assert.equal(calls.some(({ params }) => params?.expression?.includes("new DataTransfer()")), true);
-  assert.equal(calls.some(({ params }) => params?.expression?.includes("Remove annotation.png")), true);
-});
-
-test("forwards exact generated-image payloads through the token-scoped Host binding", async () => {
-  const requests = [];
-  const runtime = new CodexRuntime({
-    features: [{
-      id: "images",
-      surfaceUrl: "http://127.0.0.1:47831/",
-      healthUrl: "http://127.0.0.1:47831/api/health",
-      pageScript: { source: "return () => {};" },
-      hostActions: ["import-generated-image"],
-    }],
-    profileDir: "/tmp/codex-runtime-generated-image-profile",
-    fetchImpl: async (url, options) => {
-      requests.push({ url: String(url), options });
-      return new Response(JSON.stringify({ imported: true }), { status: 201 });
-    },
-  });
-  runtime.bindingTokens.set("renderer", "images-token");
-  const payload = {
-    itemId: "file_fixture",
-    conversationId: "conversation-fixture",
-    sourceKind: "chat",
-    mimeType: "image/png",
-    bytesBase64: "aW1hZ2U=",
-  };
-
-  await runtime.handleBindingCalled("renderer", { send: async () => ({}) }, {
-    name: "__codexPersonalHostAction",
-    payload: JSON.stringify({
-      token: "images-token",
-      featureId: "images",
-      requestId: "generated-image-request",
-      action: "import-generated-image",
-      payload,
-    }),
-  });
-
-  assert.equal(requests.length, 1);
-  assert.equal(requests[0].url, "http://127.0.0.1:47831/api/import-generated-image");
-  assert.equal(requests[0].options.method, "POST");
-  assert.equal(requests[0].options.headers.Origin, "app://-");
-  assert.equal("Authorization" in requests[0].options.headers, false);
-  assert.deepEqual(JSON.parse(requests[0].options.body), payload);
-});
-
-test("loads only declared loopback Surface documents and same-document query variants into named blank frames", async () => {
-  const calls = [];
-  let documentHtml = "";
-  const runtime = new CodexRuntime({
-    features: [{
-      id: "images",
-      surfaceUrl: "http://127.0.0.1:47831/",
-      healthUrl: "http://127.0.0.1:47831/api/health",
-      hostActions: [],
-      detailTabs: [],
-      pinnedSummary: null,
-    }],
-    featureInstanceId: "surface-instance",
-    profileDir: "/tmp/codex-runtime-surface-profile",
-    fetchImpl: async (url) => {
-      if (url === "http://127.0.0.1:47831/api/health") {
-        return new Response(JSON.stringify({
-          ok: true,
-          service: "images",
-          protocolVersion: 1,
-          instanceId: "surface-instance",
-        }), { status: 200, headers: { "content-type": "application/json" } });
-      }
-      if (url === "http://127.0.0.1:47831/") {
-        return new Response("<!doctype html><html><head></head><body>Images</body></html>", {
-          status: 200,
-          headers: { "content-type": "text/html; charset=utf-8" },
-        });
-      }
-      if (url === "http://127.0.0.1:47831/?surface=editor&kind=todo") {
-        return new Response("<!doctype html><html><head></head><body>Todo editor</body></html>", {
-          status: 200,
-          headers: { "content-type": "text/html; charset=utf-8" },
-        });
-      }
-      throw new Error(`Unexpected URL ${url}`);
-    },
-  });
-  runtime.bindingTokens.set("renderer", "surface-token");
-  const client = {
-    async send(method, params = {}) {
-      calls.push(method);
-      if (method === "Page.getFrameTree") {
-        return {
-          frameTree: {
-            frame: { id: "root", url: "app://-/index.html" },
-            childFrames: [{
-              frame: {
-                id: "surface-frame",
-                parentId: "root",
-                name: "minecodex-surface-images",
-                url: "about:blank",
-              },
-            }],
-          },
-        };
-      }
-      if (method === "Page.setDocumentContent") {
-        assert.equal(params.frameId, "surface-frame");
-        documentHtml = params.html;
-      }
-      return { result: { value: true } };
-    },
-  };
-
-  await runtime.handleBindingCalled("renderer", client, {
-    name: "__codexPersonalHostAction",
-    payload: JSON.stringify({
-      token: "surface-token",
-      featureId: "images",
-      requestId: "surface-request",
-      action: "load-surface",
-      payload: {
-        frameName: "minecodex-surface-images",
-        surfaceUrl: "http://127.0.0.1:47831/",
-      },
-    }),
-  });
-
-  assert.equal(calls.includes("Page.setDocumentContent"), true);
-  assert.match(documentHtml, /<base href="http:\/\/127\.0\.0\.1:47831\/">/);
-  assert.match(documentHtml, />Images</);
-
-  documentHtml = "";
-  await runtime.handleBindingCalled("renderer", client, {
-    name: "__codexPersonalHostAction",
-    payload: JSON.stringify({
-      token: "surface-token",
-      featureId: "images",
-      requestId: "editor-surface-request",
-      action: "load-surface",
-      payload: {
-        frameName: "minecodex-surface-images",
-        surfaceUrl: "http://127.0.0.1:47831/?surface=editor&kind=todo",
-      },
-    }),
-  });
-  assert.match(documentHtml, /<base href="http:\/\/127\.0\.0\.1:47831\/\?surface=editor&kind=todo">/);
-  assert.match(documentHtml, />Todo editor</);
-
-  documentHtml = "";
-  await runtime.handleBindingCalled("renderer", client, {
-    name: "__codexPersonalHostAction",
-    payload: JSON.stringify({
-      token: "surface-token",
-      featureId: "images",
-      requestId: "foreign-surface-request",
-      action: "load-surface",
-      payload: {
-        frameName: "minecodex-surface-images",
-        surfaceUrl: "http://127.0.0.1:49999/",
-      },
-    }),
-  });
-  assert.equal(documentHtml, "");
-
-  await runtime.handleBindingCalled("renderer", client, {
-    name: "__codexPersonalHostAction",
-    payload: JSON.stringify({
-      token: "surface-token",
-      featureId: "images",
-      requestId: "foreign-path-surface-request",
-      action: "load-surface",
-      payload: {
-        frameName: "minecodex-surface-images",
-        surfaceUrl: "http://127.0.0.1:47831/admin?surface=editor",
-      },
-    }),
-  });
-  assert.equal(documentHtml, "");
-});
-
-test("derives editor documents from the canonical Surface URL instead of the blank transport frame", () => {
-  const source = createInjectionSource([{
-    id: "notes",
-    label: "Notes",
-    surfaceUrl: "http://127.0.0.1:47832/?surface=summary",
-    entry: { kind: "conversation-toolbar" },
-    hostActions: ["open-editor-modal"],
-    detailTabs: [],
-  }]);
-
-  assert.match(source, /const editorUrl = new URL\(sourceRecord\.surfaceUrl\)/);
-  assert.doesNotMatch(source, /const editorUrl = new URL\(sourceRecord\.frame\.src\)/);
-});
-
-test("reports path insertion truthfully when a native attachment chip is not observed", async () => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "codex-runtime-attach-fallback-"));
-  const filePath = path.join(directory, "handoff.md");
-  await writeFile(filePath, "handoff");
-  try {
-    const runtime = new CodexRuntime({
-      features: [],
-      profileDir: "/tmp/codex-runtime-test-profile",
-    });
-    let asyncAttachmentChecks = 0;
-    let fallbackInsertions = 0;
-    const client = {
-      async send(method, params = {}) {
-        if (method === "DOM.getDocument") return { root: { nodeId: 1 } };
-        if (method === "DOM.querySelector") return { nodeId: 2 };
-        if (method === "DOM.setFileInputFiles") return {};
-        if (method !== "Runtime.evaluate") return {};
-        if (params.expression?.includes("Native attachment chip was not observed")) {
-          asyncAttachmentChecks += 1;
-          return { result: { value: { attached: false, reason: "Native attachment chip was not observed" } } };
-        }
-        if (params.expression?.includes("window.__codexPersonalRuntime?.insertText")) {
-          fallbackInsertions += 1;
-          return { result: { value: { mode: "inserted", fallback: false } } };
-        }
-        return { result: { value: true } };
-      },
-    };
-
-    const result = await runtime.attachFileToComposer(client, filePath, "request-fallback");
-    assert.deepEqual(result, { mode: "insert-path", path: filePath, fallback: true });
-    assert.equal(asyncAttachmentChecks, 1);
-    assert.equal(fallbackInsertions, 1);
-  } finally {
-    await rm(directory, { recursive: true, force: true });
-  }
 });
 
 test("serializes refresh work so polling cannot overlap injection", async () => {

@@ -1,16 +1,15 @@
 # Codex Runtime Host
 
-本机个人 Codex 功能的统一运行宿主。它是统一 Injector 与生命周期宿主，负责：
+MineCodex 增强功能在 Codex 桌面端的注入与生命周期宿主，负责：
 
-- 连接或启动支持 loopback CDP 的隔离 Codex 桌面实例；
-- 从功能 manifest 发现并组装声明的 Renderer / Surface 接入；
-- 挂载 full-page、Pinned Summary，并把 Detail iframe Surface 优先注册为 Codex 原生右侧 Task Tab；
-- 把 Codex 当前 resolved Theme Tokens 同步给每个 Surface；
-- 执行经过 manifest allowlist、Surface 身份和 renderer token 校验的 Host actions；
-- 维护共享 CDP、注入与可信通信；插件专有的 Codex 协议由各功能 Adapter 维护。
+- 连接支持 loopback CDP 的 Codex 桌面实例，向每个 Renderer 注入同一份 Runtime；
+- 从功能 manifest 发现 `page-script` 与 `composer-model-selector` 入口，并启动声明了服务的功能进程；
+- 把 Codex 当前主题 token 同步到根节点的 `--mcx-*` 变量，供页面脚本与共享 UI 使用；
+- 执行经过 manifest allowlist 与 Renderer binding token 校验的 host action；
+- 汇总每个窗口的注入自检结果；插件专有的 Codex 协议由各功能 Adapter 维护。
 
-各功能项目继续拥有自己的数据、HTTP API 与页面。宿主不读取业务数据库；单个
-功能服务失效不会阻止 Codex 或其他功能运行。
+各功能继续拥有自己的数据与服务。宿主不读取业务数据库；单个功能服务失效不会阻止
+Codex 或其他功能运行。
 
 ## 隔离启动与验证
 
@@ -33,86 +32,47 @@ npm run check
 
 ## 发现、资源与服务身份
 
-当前 manifest 字段、入口类型和可用 host action 以 `src/feature-registry.mjs` 及实际功能 manifest 为准。page-script、模型选择器与 iframe Surface 保留各自加载方式；旧 Sidebar / Conversation toolbar 能力仍有独立契约，但历史 Notes 的 Summary / Todo 示例不代表当前 Prompt 入口。
+当前 manifest 字段、入口类型和可用 host action 以 `src/feature-registry.mjs` 及实际功能 manifest 为准。入口只有 `page-script` 与 `composer-model-selector` 两类，缺少或使用其他 `entry.kind` 的 manifest 直接报错。`HOST_ACTIONS` 只登记有功能声明且 `CodexRuntime` 已实现的动作；功能停用某个动作时同时删除登记与处理器。
 
 资源、图标与源码工厂限制在所属功能目录。源码工厂显式组装序列化依赖，资源由宿主读取后传入；业务规则不在宿主复制。协议 ID 保持语言无关，可见标签使用 locale map 或现有字符串分支。
 
-HTTP 服务健康必须同时匹配功能身份、协议版本和本次宿主传入的 instanceId。仅可达或返回 2xx 不能证明是所属进程，避免复用其他实例或过期服务。检查失败按已声明 command 启动并验证所属服务；page-script 不虚构 HTTP 健康状态。
+带本机服务的功能（当前为 Notes）在 manifest 声明 `surfaceUrl`、`healthUrl` 与 `command`：`surfaceUrl` 只作为服务基址，决定是否启动进程，并经 `pageScriptServiceOrigin` 得出页面脚本可经宿主访问的 loopback 源。HTTP 服务健康必须同时匹配功能身份、协议版本和本次宿主传入的 instanceId。仅可达或返回 2xx 不能证明是所属进程，避免复用其他实例或过期服务。检查失败按已声明 command 启动并验证所属服务；page-script 不虚构 HTTP 健康状态。
 
-旧 Conversation toolbar Surface 的入口属于原生中间功能组，不扩宽最右侧面板按钮组；克隆按钮时根据真实关闭、hover 与打开状态更新表现，避免固化模板的激活样式。
+## Host action 通道
 
-## Surface 协议
+page-script 通过 `config.requestHostAction(action, payload)`、Model Selector 通过安装时传入的 `requestAction` 发起请求。Renderer 先核对该功能 manifest 的 `hostActions`，再经 CDP `Runtime.addBinding` 带上本窗口随机 binding token 交给宿主；宿主再次核对 token 与 allowlist，按 target 串行执行，并用 `resolveHostAction` 回送结果。页面请求 10 秒超时，Runtime 卸载时拒绝所有未完成请求。
 
-Surface 发给 Host：
+当前动作与实现位置：
 
-- `codex-personal:ready`
-- `codex-personal:close`
-- `codex-personal:open-thread`
-- `codex-personal:host-action`
-- `codex-personal:surface-metrics`
+| 动作 | 功能 | 宿主实现 |
+| --- | --- | --- |
+| `sites` | Sites | `features/sites/src/backend/sites-service.mjs` |
+| `model-favorites` | Model Slider | `features/model-slider/src/backend/favorites.mjs` |
+| `quick-prompts` | Notes | 仅转发到声明服务源中 `assertPromptsRequest` 允许的路由 |
+| `local-image-source` | Images | `features/images/src/backend/local-image-source.mjs` |
 
-Host 发给 Surface：
+Session Status 的 `refresh-session-status` 是宿主内建通知，不经 allowlist，只触发当前 target 的状态推送。功能页面只有收到明确成功结果后才能更新“最近调用”等产品状态。
 
-- `codex-personal:theme`
-- `codex-personal:host-result`
-- `codex-personal:surface-active`（`active: true | false`）
-
-`codex-personal:theme` 同时携带标准化后的 `locale`（当前为 `en` 或 `zh-CN`），
-Surface 可用它同步自身可见文案与辅助功能标签。
-Page Surface 每次显示或隐藏时都会收到 `codex-personal:surface-active`；iframe 重新加载后，
-Host 会再次发送当前状态。功能页面可据此暂停隐藏状态下的轮询或其他后台工作。
-
-每个 iframe 消息同时校验 `event.origin` 与准确的 `contentWindow`。Host action
-还必须在对应 feature 的 allowlist 中；需要 Node/CDP 的原生动作使用每个 Renderer
-独立的随机 binding token，并按 target 串行执行。功能页面只有收到明确成功结果后
-才能更新“最近调用”等产品状态。
-
-当前 Host actions：
-
-- `insert-text`：替换已保存的 Composer selection/caret；无法恢复时另起一行追加。
-- `attach-file`：用 CDP 填充临时 file input，再把真实 `File` drop 给 Composer；只有
-  观察到原生附件 chip/preview 才报告 `attach`，否则明确返回 `insert-path`。
-- `open-detail-tab`：动态发现当前 Codex React right-panel controller 与当前 Task scope，
-  传入包含 `Component`、`isAvailable`、`kind` 和 `dropDestinations` 的标签描述对象，
-  用稳定的 `featureId-detailId` 聚焦或创建唯一原生 Tab；capability 不可用时返回明确错误。
-- `resolve-file-paths`：通过 Codex preload 暴露的 Electron file bridge 解析 Finder
-  drop 的真实 `File` 对象。
+Runtime 另向页面脚本暴露 `window.__codexPersonalRuntime.insertText(text, editable)`：恢复已保存的 Composer selection/caret，无法恢复时另起一行追加；Notes 快捷提示词通过它填入 Composer。
 
 ## Adapter 生命周期与故障边界
 
-- 只在 top frame 安装 Runtime，绝不向业务 iframe 注入 binding token。
+- 只在 top frame 安装 Runtime。
 - Watch / refresh 串行；已连接 Renderer 不重复连接，关闭 target 会清理状态。
 - 当前 Codex document 始终直接注入或替换 Runtime，绝不通过 CDP reload Codex 页面。
-  本地 Surface 不直接导航到 loopback URL：Host 先创建 `about:blank` iframe，再校验
-  manifest URL、health service/protocol/instance，抓取 HTML 并用 `Page.setDocumentContent`
-  写入目标 frame。Images/Notes 只向精确的 `app://-` Origin 开放 CORS。
-- CDP 重连时同步轮换后的 binding token；保留已就绪的 Surface 和编辑草稿，
-  使用新 token 重试未就绪页面，避免弹窗停留在空白 iframe。
-- 入口由 Renderer 内的 MutationObserver 幂等挂载，React 重绘不会产生重复入口。
-- Summary 根据对话主区域宽度连续派生 `overlay / shift / gutter`：小于 1096px
-  使用临时 Popover；1096–1535px 预留 316px 并把对话内容左移 158px；更宽时
-  放入右侧 gutter 而不移动对话。
-- Popover 与 inline Summary 只占可见矩形，不使用透明全屏 overlay；原生 Portal
-  可以保持更高层级。Surface 上报自然高度，Host 再按窗口可用高度截断，内容组件
-  自己拥有唯一的纵向 scroller。
-- Host 把当前 Codex Summary 的 section title、row type、icon color/size、radius、
-  border、dropdown background 和 elevation tokens 发送给 Surface。
-- 新客户端会话默认关闭；Thread 切换关闭 Pinned Summary 并清除旧 Composer Range。
-- Detail Tab 使用 Codex 当前 `local-thread` scope，因此标签状态跟随 Task；React panel
-  中的 iframe 继续注册同一套可信 Host origin、`contentWindow`、Theme 与 Host-action bridge。
-- Surface 以 `ready` handshake 标记可用。若第一次加载发生在服务离线期间，下一次
-  打开只重新请求 Host 加载这个未 ready 的 frame；已经 ready 的 Surface 不重载、不打断草稿。
+  同版本、同 session 的重复注入只更新 binding 并重新 ensure；session 变化时先卸载旧 Runtime。
+- CDP 重连时同步轮换后的 binding token，页面脚本保留原有状态，后续请求使用新 token。
+- Renderer 内的 MutationObserver 把 DOM 变化合并到下一帧调用 Model Selector 的 ensure；
+  主题相关属性变化时重新同步根节点 `--mcx-*` 变量。
+- 单个 page-script 安装失败只标记该功能自检失败，不影响其他功能。
 
 ## 当前接口分类
 
 | 路径 | 分类 | 说明 |
 | --- | --- | --- |
-| loopback HTTP、manifest、Surface message schema | 项目自有稳定接口 | 可由测试直接覆盖 |
-| `window.electronBridge.getPathForFile` | 当前稳定 internal/preload | 仅用于 Finder `File` 路径解析 |
-| React right-panel `openTab`、Task scope、JSX runtime | private internal capability | 通过共享 Codex Adapter 定位模块并做能力检测；失败时返回明确的不可用错误 |
-| toolbar、summary、tabs、Composer selectors | DOM inference | 共享 Surface 接入归宿主；功能专有协议归所属 Adapter |
-| `Runtime.addBinding`、`DOM.setFileInputFiles`、注入脚本 | high-risk CDP | 必须使用隔离 profile 验收 |
-| `togglePinnedSummary`、`composer.addFiles` 字符串 | 探索证据 | 当前实现不把它们当契约 |
+| loopback HTTP、manifest、host action 请求与结果 | 项目自有稳定接口 | 可由测试直接覆盖 |
+| Composer selectors、主题 token 名称 | DOM inference | 共享注入与 Composer 插入归宿主；功能专有协议归所属 Adapter |
+| `Runtime.addBinding`、`Page.addScriptToEvaluateOnNewDocument`、注入脚本 | high-risk CDP | 必须使用隔离 profile 验收 |
 
 这是非官方 CDP / DOM Adapter，不是公开的 Codex Contribution API。Codex 更新后按协议所有者修复：共享注入和生命周期归宿主，专有原生组件与 API 归对应插件 Adapter；领域规则与 Web UI不应直接跟随外部协议重写。
 

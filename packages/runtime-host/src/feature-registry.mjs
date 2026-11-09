@@ -6,24 +6,15 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 const MANIFEST_NAME = "codex-feature.json";
+// 每项都必须有功能在 codex-feature.json 中声明，并由 CodexRuntime 实现。
 const HOST_ACTIONS = new Set([
   "sites",
   "model-favorites",
   "quick-prompts",
-  "insert-text",
-  "attach-file",
-  "open-detail-tab",
-  "open-editor-modal",
-  "open-sidebar",
-  "resolve-file-paths",
-  "import-generated-image",
-  "list-cloud-images",
   "local-image-source",
-  "import-cloud-image",
-  "create-image-edit-thread",
 ]);
 
-const PAGE_SCRIPT_ENTRY_KINDS = new Set(["page-script"]);
+const ENTRY_KINDS = new Set(["page-script", "composer-model-selector"]);
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]"]);
 
 export const FEATURE_PROTOCOL_VERSION = 1;
@@ -172,9 +163,9 @@ async function normalizeModelSelector(modelSelector, projectDir) {
 }
 
 async function normalizePageScript(manifest, projectDir) {
-  const resource = manifest.entry?.script ?? manifest.pageScript?.resource ?? manifest.script;
+  const resource = manifest.entry?.script;
   if (!resource) {
-    throw new Error("page-script entries require entry.script or script.resource");
+    throw new Error("page-script entries require entry.script");
   }
   const scriptPath = path.resolve(projectDir, resource);
   const relative = path.relative(projectDir, scriptPath);
@@ -218,69 +209,15 @@ async function normalizeFeature(manifest, projectDir, env) {
   }
 
   const label = normalizeLocalizedText(manifest.label, "label");
-  const entryKind = manifest.entry?.kind ?? "sidebar";
-  if (!new Set(["sidebar", "conversation-toolbar", "composer-model-selector", ...PAGE_SCRIPT_ENTRY_KINDS]).has(entryKind)) {
-    throw new Error("entry.kind must be sidebar, conversation-toolbar, composer-model-selector, or page-script");
-  }
-  const isModelSelector = entryKind === "composer-model-selector";
-  const isPageScript = PAGE_SCRIPT_ENTRY_KINDS.has(entryKind);
-  if (!isModelSelector && !isPageScript && !manifest.surfaceUrl) {
-    throw new Error("surfaceUrl is required for rendered features");
-  }
-  if (entryKind === "conversation-toolbar" && !manifest.entry?.ariaLabel) {
-    throw new Error("conversation-toolbar entries require entry.ariaLabel");
-  }
-  if (entryKind === "conversation-toolbar" && !manifest.pinnedSummary?.surfaceUrl) {
-    throw new Error("conversation-toolbar entries require pinnedSummary.surfaceUrl");
-  }
-  const summaryPresentation = manifest.pinnedSummary?.presentation ?? "responsive-summary";
-  if (summaryPresentation !== "responsive-summary") {
-    throw new Error("pinnedSummary.presentation must be responsive-summary");
-  }
-
-  const detailTabs = await Promise.all((manifest.detailTabs ?? []).map(async (detail) => {
-    if (!detail.id || !detail.label || !detail.surfaceUrl) {
-      throw new Error("each detailTabs entry requires id, label, and surfaceUrl");
-    }
-    const detailLabel = normalizeLocalizedText(detail.label, `detailTabs.${detail.id}.label`);
-    return {
-      id: String(detail.id),
-      label: detailLabel.value,
-      labels: detailLabel.locales,
-      surfaceUrl: normalizeUrl(detail.surfaceUrl, `detailTabs.${detail.id}.surfaceUrl`),
-      icon: await normalizeIcon(detail.icon, projectDir),
-    };
-  }));
-  if (new Set(detailTabs.map((detail) => detail.id)).size !== detailTabs.length) {
-    throw new Error("detailTabs ids must be unique");
+  const entryKind = manifest.entry?.kind;
+  if (!ENTRY_KINDS.has(entryKind)) {
+    throw new Error("entry.kind must be page-script or composer-model-selector");
   }
   const hostActions = (manifest.hostActions ?? []).map(String);
   if (hostActions.some((action) => !HOST_ACTIONS.has(action))) {
     throw new Error("hostActions contains an unsupported action");
   }
-
-  const pageScript = manifest.pageScript
-    ? await normalizePageScript({ ...manifest, entry: { ...(manifest.entry ?? {}), script: manifest.pageScript.resource } }, projectDir)
-    : null;
-
   const { surfaceUrl, healthUrl } = normalizeRuntimeUrls(manifest, env);
-  const entryLabel = normalizeLocalizedText(manifest.entry?.ariaLabel ?? manifest.label, "entry.ariaLabel");
-  const summaryLabel = manifest.pinnedSummary
-    ? normalizeLocalizedText(manifest.pinnedSummary.label ?? manifest.label, "pinnedSummary.label")
-    : null;
-  const overlayLabel = manifest.pinnedSummary
-    ? normalizeLocalizedText(manifest.pinnedSummary.overlayLabel ?? manifest.label, "pinnedSummary.overlayLabel")
-    : null;
-  const pinnedLabel = manifest.pinnedSummary
-    ? normalizeLocalizedText(
-      manifest.pinnedSummary.pinnedLabel
-        ?? manifest.entry?.ariaLabel
-        ?? (typeof manifest.label === "string"
-          ? `Toggle pinned ${manifest.label.toLowerCase()}`
-          : manifest.label),
-      "pinnedSummary.pinnedLabel",
-    )
-    : null;
 
   return {
     id: String(manifest.id),
@@ -288,30 +225,13 @@ async function normalizeFeature(manifest, projectDir, env) {
     labels: label.locales,
     surfaceUrl,
     healthUrl,
-    icon: await normalizeIcon(manifest.icon, projectDir),
-    entry: {
-      kind: entryKind,
-      ariaLabel: entryLabel.value,
-      ariaLabels: entryLabel.locales,
-    },
-    pinnedSummary: manifest.pinnedSummary ? {
-      label: summaryLabel.value,
-      labels: summaryLabel.locales,
-      surfaceUrl: normalizeUrl(manifest.pinnedSummary.surfaceUrl, "pinnedSummary.surfaceUrl"),
-      presentation: summaryPresentation,
-      overlayLabel: overlayLabel.value,
-      overlayLabels: overlayLabel.locales,
-      pinnedLabel: pinnedLabel.value,
-      pinnedLabels: pinnedLabel.locales,
-    } : null,
-    detailTabs,
+    entry: { kind: entryKind },
     hostActions,
-    modelSelector: isModelSelector
+    modelSelector: entryKind === "composer-model-selector"
       ? await normalizeModelSelector(manifest.modelSelector, projectDir)
       : null,
-    pageScript: isPageScript ? await normalizePageScript(manifest, projectDir) : pageScript,
+    pageScript: entryKind === "page-script" ? await normalizePageScript(manifest, projectDir) : null,
     placement: {
-      after: manifest.placement?.after ?? "sites",
       order: Number(manifest.placement?.order ?? 100),
     },
     command: Array.isArray(manifest.command) ? manifest.command.map(String) : null,

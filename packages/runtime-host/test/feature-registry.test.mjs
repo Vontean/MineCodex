@@ -87,8 +87,7 @@ test("does not hide missing resources behind manifest discovery", async () => {
       schemaVersion: 1,
       id: "broken",
       label: "Broken",
-      surfaceUrl: "http://127.0.0.1:47839",
-      icon: { resource: "assets/missing.svg" },
+      entry: { kind: "page-script", script: "src/missing.mjs" },
     }));
     await assert.rejects(discoverFeatures(root), /Invalid Broken\/codex-feature\.json.*ENOENT/);
   } finally {
@@ -102,19 +101,21 @@ test("discovers sibling Codex features and orders them by placement", async () =
     await mkdir(path.join(root, "Notes"));
     await mkdir(path.join(root, "Images"));
     await mkdir(path.join(root, "Unrelated"));
+    for (const name of ["Notes", "Images"]) await writeFile(path.join(root, name, "entry.mjs"), "return () => {};\n");
     await writeFile(path.join(root, "Notes", "codex-feature.json"), JSON.stringify({
       schemaVersion: 1,
       id: "notes",
       label: { en: "Notes", "zh-CN": "笔记" },
-      surfaceUrl: "http://127.0.0.1:47832",
-      placement: { after: "sites", order: 20 },
+      entry: { kind: "page-script", script: "entry.mjs" },
+      placement: { order: 20 },
     }));
     await writeFile(path.join(root, "Images", "codex-feature.json"), JSON.stringify({
       schemaVersion: 1,
       id: "images",
       label: "Images",
+      entry: { kind: "page-script", script: "entry.mjs" },
       surfaceUrl: "http://127.0.0.1:47831",
-      placement: { after: "sites", order: 10 },
+      placement: { order: 10 },
       command: ["node", "src/main.mjs"],
     }));
 
@@ -133,10 +134,12 @@ test("derives loopback feature URLs from the declared runtime port environment",
   try {
     const project = path.join(root, "Images");
     await mkdir(project);
+    await writeFile(path.join(project, "entry.mjs"), "return () => {};\n");
     await writeFile(path.join(project, "codex-feature.json"), JSON.stringify({
       schemaVersion: 1,
       id: "images",
       label: "Images",
+      entry: { kind: "page-script", script: "entry.mjs" },
       surfaceUrl: "http://127.0.0.1:47831/",
       healthUrl: "http://127.0.0.1:47831/api/health",
       runtimePortEnvironment: "CODEX_IMAGE_HOST_PORT",
@@ -150,6 +153,7 @@ test("derives loopback feature URLs from the declared runtime port environment",
       schemaVersion: 1,
       id: "images",
       label: "Images",
+      entry: { kind: "page-script", script: "entry.mjs" },
       surfaceUrl: "https://example.test/",
       healthUrl: "https://example.test/api/health",
       runtimePortEnvironment: "CODEX_IMAGE_HOST_PORT",
@@ -202,85 +206,28 @@ test("rejects a page-script feature without a script resource", async () => {
     }));
     await assert.rejects(
       discoverFeatures(root),
-      /page-script entries require entry\.script or script\.resource/,
+      /page-script entries require entry\.script/,
     );
   } finally {
     await rm(root, { recursive: true, force: true });
   }
 });
 
-test("normalizes a conversation toolbar feature, local SVG resource, and registered Host actions", async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), "codex-runtime-toolbar-feature-"));
+test("rejects manifests without a supported entry kind", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "codex-runtime-entry-kind-"));
   try {
-    const project = path.join(root, "Notes");
-    const iconDirectory = path.join(project, "icons");
-    await mkdir(iconDirectory, { recursive: true });
-    await writeFile(
-      path.join(iconDirectory, "notebook-tabs.svg"),
-      '<svg viewBox="0 0 32 32"><path d="M4 4h24v24H4z" /></svg>',
-    );
-    await writeFile(
-      path.join(iconDirectory, "list-todo.svg"),
-      '<svg viewBox="0 0 24 24"><path d="M13 5h8" /></svg>',
-    );
-    await writeFile(path.join(project, "codex-feature.json"), JSON.stringify({
-      schemaVersion: 1,
-      id: "notes",
-      label: { en: "Notes", "zh-CN": "笔记" },
-      surfaceUrl: "http://127.0.0.1:47832/?surface=summary",
-      healthUrl: "http://127.0.0.1:47832/api/health",
-      entry: {
-        kind: "conversation-toolbar",
-        ariaLabel: { en: "Toggle pinned notes", "zh-CN": "切换固定笔记" },
-      },
-      pinnedSummary: {
-        label: { en: "Pinned Notes", "zh-CN": "固定笔记" },
-        surfaceUrl: "http://127.0.0.1:47832/?surface=summary",
-        presentation: "responsive-summary",
-        overlayLabel: { en: "Toggle notes", "zh-CN": "切换笔记" },
-        pinnedLabel: { en: "Toggle pinned notes", "zh-CN": "切换固定笔记" },
-      },
-      detailTabs: [
-        {
-          id: "todo",
-          label: { en: "Todo", "zh-CN": "待办" },
-          surfaceUrl: "http://127.0.0.1:47832/?surface=todo",
-          icon: { resource: "icons/list-todo.svg" },
-        },
-        { id: "notes", label: "Notes", surfaceUrl: "http://127.0.0.1:47832/?surface=notes" },
-        { id: "files", label: "Files", surfaceUrl: "http://127.0.0.1:47832/?surface=files" },
-      ],
-      hostActions: ["insert-text", "attach-file", "open-detail-tab", "open-editor-modal", "resolve-file-paths"],
-      icon: { resource: "icons/notebook-tabs.svg" },
-    }));
-
-    const [feature] = await discoverFeatures(root);
-    assert.equal(feature.entry.kind, "conversation-toolbar");
-    assert.equal(feature.entry.ariaLabel, "Toggle pinned notes");
-    assert.equal(feature.entry.ariaLabels["zh-CN"], "切换固定笔记");
-    assert.equal(feature.label, "Notes");
-    assert.equal(feature.labels["zh-CN"], "笔记");
-    assert.equal(feature.pinnedSummary.label, "Pinned Notes");
-    assert.equal(feature.pinnedSummary.labels["zh-CN"], "固定笔记");
-    assert.equal(feature.pinnedSummary.presentation, "responsive-summary");
-    assert.equal(feature.pinnedSummary.overlayLabel, "Toggle notes");
-    assert.equal(feature.pinnedSummary.overlayLabels["zh-CN"], "切换笔记");
-    assert.equal(feature.pinnedSummary.pinnedLabel, "Toggle pinned notes");
-    assert.equal(feature.pinnedSummary.pinnedLabels["zh-CN"], "切换固定笔记");
-    assert.deepEqual(feature.detailTabs.map((detail) => detail.id), ["todo", "notes", "files"]);
-    assert.equal(feature.detailTabs[0].icon.viewBox, "0 0 24 24");
-    assert.equal(feature.detailTabs[0].labels["zh-CN"], "待办");
-    assert.match(feature.detailTabs[0].icon.markup, /<path d="M13 5h8" \/>/);
-    assert.equal(feature.detailTabs[1].icon, null);
-    assert.deepEqual(feature.hostActions, [
-      "insert-text",
-      "attach-file",
-      "open-detail-tab",
-      "open-editor-modal",
-      "resolve-file-paths",
-    ]);
-    assert.equal(feature.icon.viewBox, "0 0 32 32");
-    assert.match(feature.icon.markup, /<path d="M4 4h24v24H4z" \/>/);
+    const project = path.join(root, "Legacy");
+    await mkdir(project);
+    for (const entry of [undefined, { kind: "sidebar" }, { kind: "conversation-toolbar" }]) {
+      await writeFile(path.join(project, "codex-feature.json"), JSON.stringify({
+        schemaVersion: 1,
+        id: "legacy",
+        label: "Legacy",
+        surfaceUrl: "http://127.0.0.1:47832/",
+        ...(entry ? { entry } : {}),
+      }));
+      await assert.rejects(discoverFeatures(root), /entry\.kind must be page-script or composer-model-selector/);
+    }
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -398,34 +345,11 @@ test("rejects unregistered Host capabilities during feature discovery", async ()
       schemaVersion: 1,
       id: "notes",
       label: "Notes",
-      surfaceUrl: "http://127.0.0.1:47832/",
-      hostActions: ["send-message"],
+      entry: { kind: "page-script", script: "entry.mjs" },
+      hostActions: ["attach-file"],
     }));
 
     await assert.rejects(discoverFeatures(root), /unsupported action/);
-  } finally {
-    await rm(root, { recursive: true, force: true });
-  }
-});
-
-test("rejects non-native pinned Summary presentation contracts", async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), "codex-runtime-invalid-summary-"));
-  try {
-    const project = path.join(root, "Notes");
-    await mkdir(project);
-    await writeFile(path.join(project, "codex-feature.json"), JSON.stringify({
-      schemaVersion: 1,
-      id: "notes",
-      label: "Notes",
-      surfaceUrl: "http://127.0.0.1:47832/",
-      entry: { kind: "conversation-toolbar", ariaLabel: "Toggle pinned notes" },
-      pinnedSummary: {
-        surfaceUrl: "http://127.0.0.1:47832/?surface=summary",
-        presentation: "legacy-fixed",
-      },
-    }));
-
-    await assert.rejects(discoverFeatures(root), /must be responsive-summary/);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

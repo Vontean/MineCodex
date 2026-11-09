@@ -98,14 +98,12 @@ test("Quick Prompts reuses saved prompts and exposes no Todo, Files, or old page
   );
 });
 
-test("Quick Prompts manifest retires toolbar surfaces and script compiles as an installer", async () => {
+test("Quick Prompts manifest declares a page-script installer", async () => {
   const manifest = JSON.parse(
     await readFile(new URL("../codex-feature.json", import.meta.url), "utf8"),
   );
   assert.equal(manifest.entry.kind, "page-script");
   assert.equal(manifest.label.en, "Prompt Library");
-  assert.equal(manifest.pinnedSummary, undefined);
-  assert.equal(manifest.detailTabs, undefined);
   assert.deepEqual(manifest.hostActions, ["quick-prompts"]);
   const source = await readFile(
     new URL("../src/frontend/entry.mjs", import.meta.url),

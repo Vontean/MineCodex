@@ -73,7 +73,6 @@ featureProcesses = await startFeatureProcesses(features, {
 
 runtime = new CodexRuntime({
   features,
-  featureInstanceId,
   codexBuild:process.env.MINECODEX_CODEX_BUILD || null,
   profileDir,
   cdpPort,
