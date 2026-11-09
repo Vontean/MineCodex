@@ -186,8 +186,9 @@ test('entry batches preserve ordering within 1200ms and do not replace native an
 test('complete grouped diagrams do not ship a navigation switch or drilldown functions', async () => {
   const {script,markup}=await buildQvTemplate();
   assert.ok(!script.includes('cfg.navigation'));
-  assert.ok(!/function (navigateScope|setNavigationMode|mermaidScopeView)\(/.test(script));
-  assert.ok(!markup.includes('<nav class="scope-nav"'));
+  assert.ok(!/function (navigateScope|setNavigationMode)\(/.test(script));
+  assert.ok(markup.includes('<nav class="scope-nav"'),'state renderer still needs its shared navigation container');
+  assert.ok(script.includes('function mermaidScopeView('),'state navigation retains the shared projection');
   assert.ok(!script.includes('Element.prototype.animate'));
 });
 test('group direction comparison uses the reading maximum and preserves explicit connection faces', async () => {

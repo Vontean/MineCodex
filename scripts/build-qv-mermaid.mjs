@@ -112,17 +112,24 @@ export function readingQvScript(script, name) {
   for (const [start, end, value] of edits.sort((a,b) => b[0]-a[0])) script = script.slice(0,start)+value+script.slice(end);
   return script;
 }
+// 状态图仍使用共享分组投影；只去掉流程图专用的布局与下钻控制。
+function stateQvNavigation(script) {
+  const tree=parse(script,{ecmaVersion:'latest'});
+  const functions=tree.body.filter(n=>n.type==='FunctionDeclaration'&&n.id.name==='mermaidScopeView');
+  if(functions.length!==1)throw new Error('状态图分组投影函数缺失或不唯一');
+  return script.slice(functions[0].start,functions[0].end);
+}
 export async function buildQvTemplate({ motion = true } = {}) {
   let template = await readFile(new URL('mermaid.html', source), 'utf8');
   for (const match of [...template.matchAll(/\{\{([A-Z0-9_]+)_JS\}\}/g)]) {
     const name = match[1] === 'CHART_PRESETS' ? 'chart-presets.js' : `mermaid-${match[1].toLowerCase().replaceAll('_', '-')}.js`;
     const original = await readFile(new URL(name, source), 'utf8');
-    const code = name === 'mermaid-viewport.js' ? createMermaidViewport.toString() : name === 'mermaid-navigation.js' ? '' : readingQvScript(original, name);
+    const code = name === 'mermaid-viewport.js' ? createMermaidViewport.toString() : name === 'mermaid-navigation.js' ? stateQvNavigation(original) : readingQvScript(original, name);
     template = template.replace(match[0], () => code);
   }
   template = template.replaceAll('{{ROOT_ID}}', 'mcx-qv-root').replaceAll('{{TITLE}}', '').replaceAll('{{TITLE_HIDDEN}}', 'hidden')
     .replaceAll('{{CONFIG_JSON}}', 'JSON.stringify(window.__mcxDiagramConfig)');
-  template = replaceQv(template, '<nav class="scope-nav" aria-label="架构层级" hidden></nav><span class="scope-status sr-only" aria-live="polite"></span>', '');
+  template = replaceQv(template, '<span class="scope-status sr-only" aria-live="polite"></span>', '');
   const polish = await readFile(new URL('../features/mermaid-diagrams/src/mermaid/qv-polish.css', import.meta.url), 'utf8');
   // 预设渲染器会替换 root.innerHTML，共享表面样式必须放在其外。
   template += '<style>' + polish + '</style>';
