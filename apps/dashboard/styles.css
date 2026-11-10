@@ -98,6 +98,7 @@ button:focus-visible, input:focus-visible + .switch-track {
 .page-header { position: relative; isolation: isolate; flex-direction: column; margin: 16px 0 56px; padding: 32px 0 8px; text-align: center; }
 h1, h2, h3, p { margin: 0; }
 .hero-grid {
+  pointer-events: none;
   position: absolute; z-index: -1; top: -56px; bottom: -24px; left: 50%; width: 100vw; transform: translateX(-50%);
   background-image: linear-gradient(var(--border) 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px);
   background-size: 32px 32px; background-position: center top;

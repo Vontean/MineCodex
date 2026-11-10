@@ -14,6 +14,7 @@
 - 标签胶囊在最上方：20px SVG 标识与“Codex 增强工具箱 · N 项”／“Enhancements for Codex · N”，N 取实际功能数，数据未到时只显示前半句。13px、999px 圆角、描边。
 - 巨型像素字标为唯一主视觉：Silkscreen Bold，字号 clamp(40px, 12.8vw, 152px)，单行；1px 以上描边与按 em 等比的四级阶梯描边加一级深度阴影（0.016em 步进），颜色取本地黑白／灰品牌 token。
 - 字标后方铺 32px 像素网格，线色为 `--border`，以椭圆径向遮罩向四周淡出；网格横跨视口宽度，内容面裁切横向溢出，不产生横向滚动。
+- 像素网格为纯装饰，不接收指针事件；向上延伸到工具区时仍须让语言与主题按钮正常接收点击。
 - Slogan 30px／600（窄屏22px），说明16px（窄屏15px）。文案为“让 Codex 更顺手。”与“按需开启交互增强，让日常使用更高效。”；英文分别为“Make Codex work better for you.”和“Enable the enhancements you need for a smoother daily workflow.”。
 - 间距：标签到字标24px，字标到 Slogan 32px（窄屏24px），Slogan 到说明12px；品牌区下方56px（窄屏40px）。
 
