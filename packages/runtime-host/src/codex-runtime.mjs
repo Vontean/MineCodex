@@ -615,7 +615,7 @@ export class CodexRuntime {
     this.notifyStatusChange();
   }
 
-  async checkTarget(targetId, { force = false } = {}) {
+  async checkTarget(targetId, { force = false, checkType = "startup" } = {}) {
     const client=this.clients.get(targetId);
     if (!client || this.stopping) return false;
     const sessionId=this.runtimeSessionId;
@@ -637,11 +637,11 @@ export class CodexRuntime {
       const snapshot=response.result?.value;
       if (!snapshot) return false;
       if (snapshot.sessionId !== sessionId || !Array.isArray(snapshot.plugins)) throw new Error("Invalid self-check snapshot");
-      this.targetChecks.set(targetId,snapshot);
+      this.targetChecks.set(targetId,{...snapshot,checkType});
       return true;
     } catch {
       // 无法读到当前证据时立即撤销旧成功，不把临时 CDP 故障解释为插件不兼容。
-      this.targetChecks.set(targetId,{sessionId:this.runtimeSessionId,checkedAt:null,plugins:[],tokens:[],reason:"self-check-unavailable"});
+      this.targetChecks.set(targetId,{sessionId:this.runtimeSessionId,checkedAt:null,plugins:[],tokens:[],reason:"self-check-unavailable",checkType});
       return true;
     }
   }
@@ -656,7 +656,7 @@ export class CodexRuntime {
         this.targetCheckDeadlines.delete(id);
         return;
       }
-      const present=await this.checkTarget(id, { force: true });
+      const present=await this.checkTarget(id, { force: true, checkType: "manual" });
       if (!present && !this.clients.has(id)) {
         this.rendererTargetIds.delete(id);
         this.targetChecks.delete(id);
