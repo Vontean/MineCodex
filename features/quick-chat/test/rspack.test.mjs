@@ -61,7 +61,7 @@ test('floating icon follows the native QuickChatWindow lazy declaration when its
       throw new Error('Native module contract changed: Quick Chat floating surface');
     },
     lazy:async(entry,name,options)=>{assert.equal(entry,loader);lazyName=name;lazyOptions=options;ready=true;},
-    initialize:async()=>{},
+    initialize:async()=>{throw new Error('Floating surface factory must not execute');},
     binding:()=>icon,
   };
   assert.equal(await loadRspackQuickChatIcon(registry),icon);

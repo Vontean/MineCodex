@@ -55,7 +55,6 @@ export async function loadRspackQuickChatIcon(registry) {
     await registry.lazy(loader,'QuickChatWindow',{initialize:false});
     entry=registry.module(source=>/"data-floating-chat-surface":/.test(source)&&/minimizedIcon:/.test(source),'Quick Chat floating surface');
   }
-  await registry.initialize(entry);
   const local=entry.source.match(/minimizedIcon:([\w$]+)/)?.[1];
   const escaped=local?.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
   const reference=escaped&&entry.source.match(new RegExp(`children:${escaped}\\?\\?\\(0,[\\w$]+\\.jsx\\)\\(([\\w$]+\\.[\\w$]+),\\{\\}\\)`))?.[1];
