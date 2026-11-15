@@ -618,6 +618,7 @@ export class CodexRuntime {
   async checkTarget(targetId, { force = false } = {}) {
     const client=this.clients.get(targetId);
     if (!client || this.stopping) return false;
+    const sessionId=this.runtimeSessionId;
     const previous = this.targetChecks.get(targetId);
     const needsRetry = !previous?.checkedAt || previous.plugins.some(plugin =>
       ["unknown", "unavailable", "degraded"].includes(plugin.state));
@@ -626,13 +627,16 @@ export class CodexRuntime {
     if (!this.targetCheckDeadlines.has(targetId)) this.targetCheckDeadlines.set(targetId, Date.now() + 30_000);
     try {
       const response=await client.send("Runtime.evaluate", {
-        expression:`(() => { const runtime=window.__codexPersonalRuntime; return runtime?.version === ${RUNTIME_VERSION} && runtime.sessionId === ${JSON.stringify(this.runtimeSessionId)} ? runtime.selfCheck() : null; })()`,
+        expression:`(() => { const runtime=window.__codexPersonalRuntime; return runtime?.version === ${RUNTIME_VERSION} && runtime.sessionId === ${JSON.stringify(sessionId)} ? runtime.selfCheck() : null; })()`,
         returnByValue:true,
       }, {timeoutMs:3_000});
-      if (this.clients.get(targetId) !== client || this.stopping) return false;
+      if (this.clients.get(targetId) !== client || this.runtimeSessionId !== sessionId || this.stopping) {
+        this.targetChecks.delete(targetId);
+        return false;
+      }
       const snapshot=response.result?.value;
       if (!snapshot) return false;
-      if (snapshot.sessionId !== this.runtimeSessionId || !Array.isArray(snapshot.plugins)) throw new Error("Invalid self-check snapshot");
+      if (snapshot.sessionId !== sessionId || !Array.isArray(snapshot.plugins)) throw new Error("Invalid self-check snapshot");
       this.targetChecks.set(targetId,snapshot);
       return true;
     } catch {
@@ -645,7 +649,20 @@ export class CodexRuntime {
   // 只读地重新读取当前 Renderer 证据；启动检查仍遵守有限重试策略。
   async refreshSelfChecks(targetId = null) {
     const targets = targetId ? [targetId] : [...this.clients.keys()];
-    await Promise.all(targets.map((id) => this.checkTarget(id, { force: true })));
+    await Promise.all(targets.map(async (id) => {
+      if (!this.clients.has(id)) {
+        this.rendererTargetIds.delete(id);
+        this.targetChecks.delete(id);
+        this.targetCheckDeadlines.delete(id);
+        return;
+      }
+      const present=await this.checkTarget(id, { force: true });
+      if (!present && !this.clients.has(id)) {
+        this.rendererTargetIds.delete(id);
+        this.targetChecks.delete(id);
+        this.targetCheckDeadlines.delete(id);
+      }
+    }));
     this.notifyStatusChange();
     return this.getRendererStatus();
   }

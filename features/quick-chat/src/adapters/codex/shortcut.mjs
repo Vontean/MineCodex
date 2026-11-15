@@ -146,11 +146,11 @@ export function installQuickChatShortcut(signal, codex, discover = null) {
     const registry=await codexModuleRegistry({signal:loading.signal,waitForEntry:true,read:async url=>(await fetch(url,{signal:loading.signal})).text()});
     if (registry) {
       try {
-        const bindings=loadRspackQuickChatBindings(registry,quickChatNativeCommand);
+        const bindings=await loadRspackQuickChatBindings(registry,quickChatNativeCommand);
         if (!bindings.native && !bindings.close) codex.report('quick-chat-close',false,'quick-chat-close-contract-unavailable');
         return bindings;
       } catch (error) {
-        if (!/native-module-(?:not-loaded|export-unavailable)|native-module-registry-unavailable|quick-chat-command-catalog-unavailable/.test(error?.message ?? '')) throw error;
+        if (!/native-module-(?:not-loaded|export-unavailable|initialization-unavailable)|native-module-registry-unavailable|quick-chat-command-catalog-unavailable/.test(error?.message ?? '')) throw error;
         return loadLegacy();
       }
     }

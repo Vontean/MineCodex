@@ -1547,3 +1547,45 @@ test("runtime manager requests IPC cleanup before terminating a connected runtim
   assert.equal(await manager.waitForExactExit(child, "SIGTERM", 1000), true);
   assert.deepEqual(message, { type: "minecodex:shutdown" });
 });
+
+test("diagnostics refresh normalizes raw renderer IPC results and clears timed out requests", async () => {
+  const child = new EventEmitter();
+  child.pid = 9101;
+  child.connected = true;
+  child.exitCode = null;
+  child.signalCode = null;
+  child.send = (message) => {
+    queueMicrotask(() => child.emit("message", {
+      type: "minecodex:diagnostics-result",
+      requestId: message.requestId,
+      status: { runtimeSessionId: "session-1", targets: [{ targetId: "window-1", sessionId: "session-1", checkedAt: 42, plugins: [] }] },
+    }));
+  };
+  const manager = new RuntimeManager({ paths: {}, diagnosticTimeoutMs: 20 });
+  manager.child = child;
+  manager.ready = { runtimeSessionId: "session-1", features: [], plugins: [], renderer: null };
+  child.on("message", (message) => manager.handleDiagnosticMessage(child, message));
+  const result = await manager.refreshDiagnostics("window-1");
+  assert.equal(result.renderer.targets[0].targetId, "window-1");
+  assert.equal(manager.diagnosticRequests.size, 0);
+
+  child.send = () => {};
+  await assert.rejects(manager.refreshDiagnostics("window-1"), /timed out/);
+  assert.equal(manager.diagnosticRequests.size, 0);
+});
+
+test("diagnostics refresh rejects when its RuntimeHost exits", async () => {
+  const child = new EventEmitter();
+  child.pid = 9102;
+  child.connected = true;
+  child.exitCode = null;
+  child.signalCode = null;
+  child.send = () => {};
+  const manager = new RuntimeManager({ paths: {}, diagnosticTimeoutMs: 5000 });
+  manager.child = child;
+  child.once("exit", () => manager.rejectDiagnosticRequests(child, new Error("RuntimeHost exited before diagnostics completed")));
+  const request = manager.refreshDiagnostics("window-1");
+  queueMicrotask(() => { child.exitCode = 1; child.emit("exit", 1, null); });
+  await assert.rejects(request, /no longer available|exited/);
+  assert.equal(manager.diagnosticRequests.size, 0);
+});

@@ -1,9 +1,10 @@
 // 从已注册的原生模块与导出表解析角色，不执行模块工厂或依赖压缩名称。
-export function loadRspackQuickChatBindings(registry, commandCatalog) {
+export async function loadRspackQuickChatBindings(registry, commandCatalog) {
   const catalog=registry.module(source=>/\{id:[`"']temporaryChat[`"'],titleIntlId:/.test(source),'Quick Chat command catalog');
   const native=commandCatalog(catalog.source);
   if (native) return {native};
   const entry=registry.module(source=>/has-opened-quick-chat-v1/.test(source)&&/chatgpt\.quick-chat/.test(source),'Quick Chat lifecycle');
+  await registry.initialize(entry);
   const exported=local=>{
     if (!local) throw new Error('quick-chat-lifecycle-contract-unavailable');
     const escaped=local.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
@@ -38,8 +39,9 @@ export function loadRspackQuickChatBindings(registry, commandCatalog) {
   return bindings;
 }
 
-export function loadRspackQuickChatIcon(registry) {
+export async function loadRspackQuickChatIcon(registry) {
   const entry=registry.module(source=>/"data-floating-chat-surface":/.test(source)&&/minimizedIcon:/.test(source),'Quick Chat floating surface');
+  await registry.initialize(entry);
   const local=entry.source.match(/minimizedIcon:([\w$]+)/)?.[1];
   const escaped=local?.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
   const reference=escaped&&entry.source.match(new RegExp(`children:${escaped}\\?\\?\\(0,[\\w$]+\\.jsx\\)\\(([\\w$]+\\.[\\w$]+),\\{\\}\\)`))?.[1];

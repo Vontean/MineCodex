@@ -70,8 +70,11 @@ Codex / ChatGPT `26.1029.61003`（build 24614）使用数字 chunk 与 Rspack �
 任意原生模块工厂。`npm run check:native` 同时检查图标和快捷键加载链路；业务动作
 仍在独立 profile 验收。
 
-冷启动时注册表可能已经可见，但 Quick Chat 生命周期模块仍未进入原生缓存。快捷键
-Adapter 遇到这类未就绪错误时不执行工厂，也不永久保留失败结果；它沿已声明的
-`app-initial` 入口回退到原生 ESM import，让原生初始化完成后再读取打开角色。该回退
-只发生在注册表缓存/目录尚未就绪的明确错误，协议真实变化仍报告不可用。回归见
-`features/quick-chat/test/shortcut.test.mjs` 的冷启动注册表样例。
+冷启动时注册表可能已经可见，但 Quick Chat 生命周期或浮层模块仍未完成原生异步初始化。
+Adapter 先通过注册表入口的异步初始化协议等待对应缓存，再读取打开角色和图标依赖；快捷键
+与侧栏图标共享同一就绪点，不把一次未就绪结果永久缓存，也不猜测替代图标。初始化协议
+缺失或真实变化时保留明确错误码并停止补偿。回归见 `packages/codex-adapter/test/module-registry.test.mjs`
+与 `features/quick-chat/test/rspack.test.mjs` 的冷启动注册表样例。
+
+该初始化能力只允许由已通过 Quick Chat 生命周期或浮层图标角色匹配的入口调用；不能对
+未知业务模块进行通用执行。注册表缓存中的 Promise 导出也必须先解析，再交给角色解析器。

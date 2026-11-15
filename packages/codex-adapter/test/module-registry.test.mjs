@@ -46,6 +46,31 @@ test('lazy loading follows only the native declaration for the requested named c
   assert.equal(result.id,'dialog');assert.deepEqual(loaded,[37]);
 });
 
+test('initializes an async registry entry before reading its cached exports',async context=>{
+  const f=fixture(context), entry={id:'owner',source:'function owner(e,t,r){return r.a(e,async()=>({default:true}))}'};
+  let initialized=0;
+  f.runtime.c.owner=undefined;
+  const runtime=id=>{
+    assert.equal(id,'owner'); initialized+=1;
+    return Promise.resolve().then(()=>{f.runtime.c.owner={exports:{ready:true}};return f.runtime.c.owner.exports;});
+  };
+  Object.assign(runtime,f.runtime);
+  const registry=await codexModuleRegistry({...f.options,load:async()=>({__webpack_require__:runtime})});
+  registry.entries.splice(0,registry.entries.length,entry);
+  await registry.initialize(entry);
+  assert.equal(initialized,1);
+  assert.deepEqual(registry.exports(entry),{ready:true});
+});
+
+test('resolves a promise already stored in an async registry cache',async context=>{
+  const f=fixture(context), entry={id:'owner',source:'function owner(){return Promise.resolve()}'};
+  f.runtime.c.owner={exports:Promise.resolve({ready:true})};
+  const registry=await codexModuleRegistry(f.options);
+  registry.entries.splice(0,registry.entries.length,entry);
+  assert.deepEqual(await registry.initialize(entry),{ready:true});
+  assert.deepEqual(registry.exports(entry),{ready:true});
+});
+
 test('startup waits through early chunks until the registry script mounts and abort releases observation',async t=>{
   const previousDocument=globalThis.document,previousObserver=globalThis.MutationObserver;
   t.after(()=>{globalThis.document=previousDocument;globalThis.MutationObserver=previousObserver;});

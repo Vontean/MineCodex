@@ -104,6 +104,25 @@ test("explicit diagnostics refresh rereads the current renderer without restorin
   assert.equal(reads, 3);
 });
 
+test("explicit refresh drops stale evidence when a renderer closes during the read", async () => {
+  const runtime = new CodexRuntime({ features: [], profileDir: "/tmp/mcx-explicit-refresh-race", runtimeSessionId: "session" });
+  let release;
+  const read = new Promise(resolve => { release = resolve; });
+  const client = { async send() {
+    await read;
+    return { result: { value: { sessionId: "session", checkedAt: 1, plugins: [{ featureId: "a", state: "available" }] } } };
+  } };
+  runtime.clients.set("closing", client);
+  runtime.rendererTargetIds.add("closing");
+  runtime.targetChecks.set("closing", { sessionId: "session", checkedAt: 1, plugins: [{ featureId: "a", state: "available" }] });
+  const refresh = runtime.refreshSelfChecks("closing");
+  runtime.clients.delete("closing");
+  release();
+  const status = await refresh;
+  assert.equal(status.targets.some(target => target.targetId === "closing"), false);
+  assert.equal(runtime.targetChecks.has("closing"), false);
+});
+
 test("target discovery does not repeat probes; document reload invalidates the startup result", async () => {
   const handlers=new Map();let checks=0;
   const client={socket:{readyState:1,close(){}},on(name,handler){handlers.set(name,handler);},async send(method,params){
