@@ -84,7 +84,7 @@ profile / CDP 窗口冷启动后执行 `Page.reload`。复核结果为 `entry=1`
 `quick-chat-shortcut=true`；点击打开后观察到一个浮层及原生 History 按钮，展开 History
 后可见原生 Close。关闭后再次点击侧栏入口，得到新的原生 Quick Chat session，且
 `hasConversation=false`。对已显示浮层观察到原生 `isMinimized=true` 和 Restore 按钮；
-Restore 点击后的最终状态仍需主 agent 完成最后读回。本次未覆盖发送、键盘快捷键或真实
+点击 Restore 后已读回原生 `isMinimized=false`。本次未覆盖发送、键盘快捷键或真实
 对话内容，不将这些动作标记为已验收。
 
 浮层图标冷启动使用原生已注册父模块的 `QuickChatWindow` 具名 lazy import 声明；只有在
