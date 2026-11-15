@@ -75,3 +75,6 @@ Adapter 先通过注册表入口的异步初始化协议等待对应缓存，再
 与侧栏图标共享同一就绪点，不把一次未就绪结果永久缓存，也不猜测替代图标。初始化协议
 缺失或真实变化时保留明确错误码并停止补偿。回归见 `packages/codex-adapter/test/module-registry.test.mjs`
 与 `features/quick-chat/test/rspack.test.mjs` 的冷启动注册表样例。
+
+该初始化能力只允许由已通过 Quick Chat 生命周期或浮层图标角色匹配的入口调用；不能对
+未知业务模块进行通用执行。注册表缓存中的 Promise 导出也必须先解析，再交给角色解析器。

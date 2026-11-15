@@ -62,6 +62,15 @@ test('initializes an async registry entry before reading its cached exports',asy
   assert.deepEqual(registry.exports(entry),{ready:true});
 });
 
+test('resolves a promise already stored in an async registry cache',async context=>{
+  const f=fixture(context), entry={id:'owner',source:'function owner(){return Promise.resolve()}'};
+  f.runtime.c.owner={exports:Promise.resolve({ready:true})};
+  const registry=await codexModuleRegistry(f.options);
+  registry.entries.splice(0,registry.entries.length,entry);
+  assert.deepEqual(await registry.initialize(entry),{ready:true});
+  assert.deepEqual(registry.exports(entry),{ready:true});
+});
+
 test('startup waits through early chunks until the registry script mounts and abort releases observation',async t=>{
   const previousDocument=globalThis.document,previousObserver=globalThis.MutationObserver;
   t.after(()=>{globalThis.document=previousDocument;globalThis.MutationObserver=previousObserver;});
