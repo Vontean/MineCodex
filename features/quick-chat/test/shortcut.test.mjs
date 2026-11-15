@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp,writeFile,rm} from 'node:fs/promises';
+import {mkdtemp,writeFile,readFile,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {pathToFileURL} from 'node:url';
+import {fileURLToPath,pathToFileURL} from 'node:url';
 import {quickChatOpenExport,quickChatLifecycleExports,quickChatNativeCommand,installQuickChatShortcut} from '../src/adapters/codex/shortcut.mjs';
 import {createPageScriptSource} from '../src/injection-source.mjs';
 
@@ -21,7 +21,7 @@ test('command definitions remain discoverable before lazy catalog initialization
   assert.equal(quickChatNativeCommand(definitions+';other={id:`quickChat`}'),false);
   assert.throws(()=>quickChatNativeCommand(definitions.replace('temporaryChat','other')),/command-catalog/);
 });
-function fixture({platform='MacIntel',mode='codex',workModeAccess=null,native=false,scopeAvailable=true,minimized=false,active=false,hidden=false,visible=true,open=true,assetUrl=null,assetReady=true,unifiedDocking=true,currentDocking=false,pickerVisible=true,pickerMounted=true,stableAnchor=false}={}) {
+function fixture({platform='MacIntel',mode='codex',workModeAccess=null,native=false,scopeAvailable=true,minimized=false,active=false,hidden=false,visible=true,open=true,assetUrl=null,assetReady=true,extraScripts=[],unifiedDocking=true,currentDocking=false,pickerVisible=true,pickerMounted=true,stableAnchor=false}={}) {
   const previousNavigator=Object.getOwnPropertyDescriptor(globalThis,'navigator');
   Object.defineProperty(globalThis,'navigator',{configurable:true,value:{platform}});
   const previous=globalThis.document,listeners=new Set(),calls=[];
@@ -36,7 +36,7 @@ function fixture({platform='MacIntel',mode='codex',workModeAccess=null,native=fa
   const restoreProps={size:'composer',uniform:true,onClick:()=>{},onKeyDown:()=>{},onPointerDown:()=>{},onPointerEnter:()=>{}};
   const scope={get:()=>{},set:()=>{},scope:{__scopeBrand:'AppScope'}};
   const fiber={memoizedState:{memoizedState:{current:scopeAvailable?scope:null}}};
-  globalThis.document={documentElement:{},querySelectorAll:selector=>(selector==='link[rel="modulepreload"],script[src]'||selector==='script[src]')?(assetReady?[{src:assetUrl}]:[]):selector==='button'?(minimized?[restoreButton]:[]):selector==='[data-floating-chat-surface]'?(active?[surface]:[]):selector==='button[aria-haspopup="menu"]'?(pickerMounted?[button]:[]):stableAnchor?[surface]:[],addEventListener:(name,fn)=>listeners.add(fn),removeEventListener:(name,fn)=>listeners.delete(fn)};
+  globalThis.document={documentElement:{},querySelectorAll:selector=>(selector==='link[rel="modulepreload"],script[src]'||selector==='script[src]')?(assetReady?[{src:assetUrl},...extraScripts]:[]):selector==='button'?(minimized?[restoreButton]:[]):selector==='[data-floating-chat-surface]'?(active?[surface]:[]):selector==='button[aria-haspopup="menu"]'?(pickerMounted?[button]:[]):stableAnchor?[surface]:[],addEventListener:(name,fn)=>listeners.add(fn),removeEventListener:(name,fn)=>listeners.delete(fn)};
   const controller=new AbortController();
   const codex={props:(node,predicate)=>node===surface?[{...floating,isMinimized:minimized},{session:{conversationId:surfaceSession}}].find(predicate):node===restoreButton?[restoreProps,floating].find(predicate):({mode,workModeAccess,onModeSelect:()=>{}}),currentFiber:()=>fiber,report:(...args)=>reports.push(args)};
   const shortcut=installQuickChatShortcut(controller.signal,codex,assetUrl?null:async()=>({native,open:value=>calls.push(value),create:value=>{created.push(value);opened=true},isOpen:()=>opened,mode:()=>mode}));
@@ -62,6 +62,21 @@ test('default loader initializes with lazy catalog and cold or warm native state
     assert.equal(typeof (await import(pathToFileURL(path).href)).opened,'object');
   }finally{f?.restore();globalThis.fetch=previousFetch;globalThis.MutationObserver=previousObserver;await rm(dir,{recursive:true,force:true});}
  }
+});
+
+test('cold rspack registry falls back to the native entry import until lifecycle cache is ready',async()=>{
+  const dir=await mkdtemp(join(tmpdir(),'mcx-shortcut-rspack-cold-'));
+  const previousFetch=globalThis.fetch,previousObserver=globalThis.MutationObserver;
+  globalThis.MutationObserver=class {constructor(){} observe(){} disconnect(){}};
+  const runtimeUrl=pathToFileURL(join(dir,'runtime-123.js')).href;
+  const entryUrl=pathToFileURL(join(dir,'app-initial-123.js')).href;
+  const runtimeSource=`const catalog=function catalog(){/* {id:"temporaryChat",titleIntlId: */};const lifecycle=function lifecycle(){/* has-opened-quick-chat-v1 chatgpt.quick-chat */};const runtime=()=>{};runtime.m={catalog,lifecycle};runtime.c={};export{runtime as __webpack_require__};`;
+  const entrySource='const opened={};function opener(s,opts={}){if(!s.get(cap,{name:`chatgpt.quick-chat`}).isCapable)return;let current=s.get(session),page=s.get(pageSession);if(page!=null)return;if(current==null){newChat(s,opts);return}s.get(opened)||(restore(s))}function newChat(){}export{opener as opener,newChat as creator,opened as opened};';
+  await writeFile(join(dir,'runtime-123.js'),runtimeSource);await writeFile(join(dir,'app-initial-123.js'),entrySource+'"./app-shared-123.js"');await writeFile(join(dir,'app-shared-123.js'),'const commands=[{id:`newTask`,titleIntlId:`codex.command.newThread`},{id:`temporaryChat`,titleIntlId:`codex.command.temporaryChat`}];');
+  globalThis.fetch=async resource=>({text:async()=>readFile(fileURLToPath(resource),'utf8'),ok:true});
+  const f=fixture({assetUrl:runtimeUrl,extraScripts:[{src:entryUrl}]});
+  try { await f.shortcut.ready; assert.deepEqual(f.reports.at(-1),['quick-chat-shortcut',true]); assert.equal(f.shortcut.available(),true); }
+  finally { f.restore(); globalThis.fetch=previousFetch; globalThis.MutationObserver=previousObserver; await rm(dir,{recursive:true,force:true}); }
 });
 
 test('Windows Ctrl Alt N opens Quick Chat and rejects Meta, extra modifiers and invalid input states',async()=>{

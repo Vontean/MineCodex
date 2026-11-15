@@ -288,6 +288,7 @@ export function createNativeImageSource(codex, { requestHostAction, libraryApi, 
       const [markup,setMarkup]=React.useState(false);
       const [manualZoomPercent,setManualZoomPercent]=React.useState(null);
       const [submitting,setSubmitting]=React.useState(false);
+      const [editPrompt,setEditPrompt]=React.useState("");
       const [composerHeight,setComposerHeight]=React.useState(0);
       const measureComposer=React.useCallback(node=>{
         const element=node?.querySelector("[data-codex-composer-root]");
@@ -308,6 +309,7 @@ export function createNativeImageSource(codex, { requestHostAction, libraryApi, 
         if(!attachment.current)attachment.current=(async()=>{
           const file=await reference(image,"upload-file");assertCurrent();
           const uploaded=await native.upload(context.scope,uploadFile(file),{storeInLibrary:false,beforeRequest:assertCurrent,signal:abort.signal});
+          assertCurrent();
           return {...uploaded,width:image.width,height:image.height,imageReference:true};
         })().catch(error=>{attachment.current=null;throw error;});
         return attachment.current;
@@ -315,7 +317,8 @@ export function createNativeImageSource(codex, { requestHostAction, libraryApi, 
       if(!home)return null;
       const props=home.composerProps;
       const accepted=(...args)=>{submissionAccepted.current=true;close();props.onSubmitAccepted?.(...args);};
-      const requestClose=()=>{if(markup&&editorRef.current)editorRef.current.requestClose();else close();};
+      const cancelAndClose=()=>{if(!submissionAccepted.current)abort.abort();close();};
+      const requestClose=()=>{if(markup&&editorRef.current)editorRef.current.requestClose();else cancelAndClose();};
       const submitEdit=async request=>{
         if(submitting)return false;
         const editor=markup?editorRef.current:null;
@@ -357,17 +360,27 @@ export function createNativeImageSource(codex, { requestHostAction, libraryApi, 
         onLocalFirstTurnAccepted:()=>{submissionAccepted.current=true;},
         onLocalConversationCreated:(conversationId,state)=>{submissionAccepted.current=true;close();navigate(native.localThreadRoute(conversationId),{state});},
       })));
+      const imageEditComposer=native.ImageEditComposer
+        ? h(native.ImageEditComposer,{submitLabel:message("images.history.sendEdit","Send image edit"),canSubmit:editPrompt.trim().length>0,canCancel:!submitting,generating:submitting,onCancel:requestClose,onSubmit:()=>void submitEdit({prompt:editPrompt.trim()}),children:h("input",{name:"image-edit-prompt",type:"text",value:editPrompt,disabled:submitting,"aria-label":message("images.history.editPrompt","Describe edits"),placeholder:message("images.history.editPrompt","Describe edits"),onChange:event=>setEditPrompt(event.currentTarget.value)})})
+        : composer;
       const dataUrl=resolved.dataUrl??resolved.previewSrc;
       const canvas=h(native.Canvas,{
         alt:image.name,title:image.name,src:dataUrl??image.sourcePath,downloadSrc:dataUrl??image.sourcePath,downloadFilename:image.name,
         attachmentId:`image-playground:${image.imageGenerationItemId}`,attachmentSrc:image.sourcePath,
         chatGptConversationId:props.conversationId,
         imageSource:"generated",imageSourceContext:{conversationId:image.threadId,hostId:"local"},
-        readOnly:false,presentation:"overlay",standalone:true,showViewerHeader:true,onClose:requestClose,
+        imageEditAttribution:{imageSource:"generated",editEntryPoint:"images"},
+        // 保留 viewer 的 overlay presentation；原生 Canvas 在
+        // editInOverlay 未启用时负责包裹 composerOnly 浮动面板。
+        readOnly:false,presentation:"overlay",standalone:true,onClose:requestClose,
         markupMode:{active:markup,onActiveChange:setMarkup,editorRef,isSubmitting:submitting,standaloneComposer:true},
+        onImageEditSubmitted:()=>{submissionAccepted.current=true;},
+        onImageEditSubmitStatusChange:status=>setSubmitting(status === "pending" || status === "submitting"),
         onImageEditSubmit:submitEdit,
         zoom:{manualZoomPercent,onZoomPercentChange:setManualZoomPercent,onZoomToFit:()=>setManualZoomPercent(null)},
-        renderComposer:visible=>h(React.Activity,{mode:visible?"visible":"hidden",children:composer}),
+        // Canvas 自己提供原生浮动面板；renderComposer 只返回原生 inline
+        // composer，避免 Activity/额外容器把它降级成整窗底部条。
+        renderComposer:visible=>visible?imageEditComposer:null,
         renderHeaderMenuActions:({renderMenu})=>renderMenu(h(native.Menu.Item,{leftIcon:promptIcon,onSelect:()=>onPrompt(image),children:message("minecodex.images.viewPrompts","View prompts")})),
       });
       // 原生 overlay 的 118px 下限属于旧输入框；画布和拖拽边界跟随实际高度。
@@ -426,13 +439,13 @@ export function createNativeImageSource(codex, { requestHostAction, libraryApi, 
         {id:"view-prompts", icon:promptIcon, text:context.intl.formatMessage({id:"minecodex.images.viewPrompts",defaultMessage:"View prompts"}),onSelect:() => {void open(image).then(opened=>{if(opened&&isCurrent())onPrompt(image);}).catch(operationError);}},
         {id:"favorite",icon:native.favoriteIcon(saved),text:saved
           ? message("library.favorites.remove","Remove from Favorites")
-          : message("minecodex.images.addToCloudFavorites",(context.intl.locale?.startsWith("zh") ? "加入收藏（上传至 Library）" : "Add to Favorites (uploads to Library)")),onSelect:() => {void perform(async () => {
+          : message("minecodex.images.addToCloudFavorites",(context.intl.locale?.startsWith("zh") ? "加入收藏" : "Add to Favorites")),onSelect:() => {void perform(async () => {
             favoriteRevision.current++;
             const value=await cloud.favorite(image);
             if(active.current&&isCurrent()){favoriteRevision.current++;setSaved(value);}
           });}},
         action("download-a-copy", native.downloadIcon, {id:"libraryNext.actions.download", defaultMessage:"Download"}),
-        {id:"folder",icon:native.folderIcon,text:message("minecodex.images.addToCloudFolder",(context.intl.locale?.startsWith("zh") ? "加入文件夹（上传至 Library）" : "Add to folder (uploads to Library)")),onSelect:() => {void perform(() => folder(image));}},
+        {id:"folder",icon:native.folderIcon,text:message("minecodex.images.addToCloudFolder",(context.intl.locale?.startsWith("zh") ? "加入文件夹" : "Add to folder")),onSelect:() => {void perform(() => folder(image));}},
         {id:"delete",icon:native.deleteIcon,tone:"danger",text:message("libraryNext.actions.delete","Delete"),onSelect:()=>confirmRemove([image])},
       ].filter(Boolean);
       const dropdown = h(native.Dropdown, {

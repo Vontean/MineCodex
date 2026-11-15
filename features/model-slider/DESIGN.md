@@ -22,7 +22,7 @@ Composer 触发器区分两种状态：占位态（"Select model" / "Select effo
 - **多输入框同步：** 主 chat 与 side chat 的可见任务输入框分别维护模型标签和宽度测量；只有对应替换标签存在时才隐藏原生名称，节点重建期间保留原生名称。菜单操作继续跟随当前打开的原生按钮。
 - **Composer Trigger:** 占位态恢复原生 160px Content 宽度；真实模型态 HUG 完整名称，头部保留原生可点击 chevron。
 - **打开顺序：** 先切换到占位文案和最终入口宽度，再在居中位置连续两帧稳定后显示面板；首次显示前隐藏原生中间态。居中修正不播放 transform 过渡，保留 opacity / filter 过渡；Popper 后续改写位置时在绘制前重新居中，坐标换算考虑 CSS zoom。原生 Measurement 保留 openLabel，不改成模型名。
-- **Slider Header:** 模型名最多两行，容器高度随内容自然撑开；effort 与 chevron 不收缩。无 Fast 时移除原生 12px 预留占位，让按钮与面板严格居中。
+- **Slider Header:** 复用当前原生头部 DOM、布局属性和快捷按钮槽，不重新定义模型名与档位的排列。Codex 26.1111.21308（build 27194）的 explicit model 分支将 Fast 放左侧、重置放右侧，中间上方显示档位、下方显示模型与 chevron。实际分支由原生属性决定；模型格式化和菜单增强不改变这一层级。
 - **Model List:** 保持 264px 原生宽度、Provider 副文本、收藏与最多六项可视高度；收藏与未收藏之间保留分隔线，弹窗内容四周保留约 6px 内边距；模型弹窗与原生 Slider 一致地水平居中于触发器。列表打开期间，Composer 占位文案从 `Select effort` 切为原生语义 `Select model`，关闭后恢复。
   占位文案只更新所属 Composer 的真实文本节点，支持原生嵌套 span；保留 React 节点，重渲染后仍跟随当前面板状态。
 - 收藏和未收藏各自排序，保留两组分隔线。组内 OpenAI 优先；GPT 先按 Astra > Sol > Terra > Luna 排列，再按数字版本逐段降序（如 6.10 > 6.1 > 6 > 5.6 > 5.5），无命名档次的 GPT 放在四档之后。第三方按模型自身的厂商及现有品牌配置分组（不按接入 provider），同厂商内数字版本新的在上；点号及连字符版本使用同一比较规则，版本相同保留原顺序。

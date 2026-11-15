@@ -13,7 +13,7 @@ async function fixture(t) {
   const functionOf=name=>Function(`return (${source.match(new RegExp('function '+name+'\\([^]*?(?=function |}$)'))[0]})`)();
   const runtime=()=>{throw Error('Must not execute native factories')};
   runtime.m={life:factory,catalog:()=>{},surface:Function('return function surface(e,t,r){var glyph=r("icons");return {"data-floating-chat-surface":true,minimizedIcon:custom,children:custom??(0,jsx.jsx)(glyph.bubble,{})}}')(),mode:Function('return function mode(){const conversationDetailMode="";return true?"work":"codex"}')()};
-  runtime.c={life:{exports:{aa:functionOf('launch'),bb:()=>calls.push(['create']),cc:opened,dd:session,ee:()=>calls.push(['close']),discard:functionOf('discard')}},drafts:{exports:{save:(_,value)=>calls.push(['draft',value])}},text:{exports:{clear:(_,id,text)=>calls.push(['text',id,text]),files}},icons:{exports:{bubble:icon}},mode:{exports:{renamed:product}}};
+  runtime.c={life:{exports:{aa:functionOf('launch'),bb:()=>calls.push(['create']),cc:opened,dd:session,ee:()=>calls.push(['close']),discard:functionOf('discard')}},drafts:{exports:{save:(_,value)=>calls.push(['draft',value])}},text:{exports:{clear:(_,id,text)=>calls.push(['text',id,text]),files}},icons:{exports:{bubble:icon}},surface:{exports:{}},mode:{exports:{renamed:product}}};
   runtime.m.catalog=Function('return function catalog(){return [{id:"newTask",titleIntlId:"codex.command.newThread"},{id:"temporaryChat",titleIntlId:"codex.command.temporaryChat"}]}')();
   const registry=await codexModuleRegistry({read:async()=> 'export{r as __webpack_require__}',load:async()=>({__webpack_require__:runtime})});
   const writes=[],current={conversationId:'current',hasConversation:true};
@@ -22,27 +22,49 @@ async function fixture(t) {
 }
 
 test('Rspack discovers renamed lifecycle roles and closes only the matching draft without destroying the session',async t=>{
-  const f=await fixture(t),b=loadRspackQuickChatBindings(f.registry,quickChatNativeCommand);
+  const f=await fixture(t),b=await loadRspackQuickChatBindings(f.registry,quickChatNativeCommand);
   assert.equal(b.native,false);assert.equal(b.isOpen(f.scope),true);assert.equal(b.mode(f.scope),'codex');
   b.create(f.scope);assert.equal(b.close(f.scope,'other'),false);assert.equal(b.close(f.scope,'current'),true);
   assert.deepEqual(f.calls,[['create'],['draft',{draftKey:'current',content:null}],['text','current',''],['close']]);
   assert.deepEqual(f.writes,[[f.files,'current',[]]]);
-  assert.equal(loadRspackQuickChatIcon(f.registry),f.icon);
+  assert.equal(await loadRspackQuickChatIcon(f.registry),f.icon);
 });
 
 test('official command restoration yields before lifecycle discovery; malformed and ambiguous catalogs fail',async t=>{
   const f=await fixture(t);
   const native={...f.registry,module:()=>({source:'{id:"newTask",titleIntlId:"codex.command.newThread"},{id:"temporaryChat",titleIntlId:"codex.command.temporaryChat"},{id:"quickChat",titleIntlId:"codex.command.quickChat"}'})};
-  assert.deepEqual(loadRspackQuickChatBindings(native,quickChatNativeCommand),{native:true});
-  assert.throws(()=>loadRspackQuickChatBindings({...native,module:()=>({source:'unrelated'})},quickChatNativeCommand),/catalog/);
+  assert.deepEqual(await loadRspackQuickChatBindings(native,quickChatNativeCommand),{native:true});
+  await assert.rejects(loadRspackQuickChatBindings({...native,module:()=>({source:'unrelated'})},quickChatNativeCommand),/catalog/);
   f.registry.entries.push({...f.registry.entries.find(e=>e.id==='catalog'),id:'duplicate'});
-  assert.throws(()=>loadRspackQuickChatBindings(f.registry,quickChatNativeCommand),/contract changed/);
+  await assert.rejects(loadRspackQuickChatBindings(f.registry,quickChatNativeCommand),/contract changed/);
 });
 
 test('missing close and hidden-sidebar mode roles do not disable opening; changed icon never substitutes a guessed glyph',async t=>{
   const f=await fixture(t);delete f.runtime.c.life.exports.discard;f.registry.entries.splice(f.registry.entries.findIndex(e=>e.id==='mode'),1);
-  const b=loadRspackQuickChatBindings(f.registry,quickChatNativeCommand);
+  const b=await loadRspackQuickChatBindings(f.registry,quickChatNativeCommand);
   assert.equal(typeof b.create,'function');assert.equal(b.close,undefined);assert.equal(b.mode,undefined);
   f.registry.entries.find(e=>e.id==='surface').source='"data-floating-chat-surface":true,minimizedIcon:custom,children:changed';
-  assert.throws(()=>loadRspackQuickChatIcon(f.registry),/icon-contract/);
+  await assert.rejects(loadRspackQuickChatIcon(f.registry),/icon-contract/);
+});
+
+test('floating icon follows the native QuickChatWindow lazy declaration when its chunk is cold',async()=>{
+  const icon={createElement(){}};
+  const surface={id:'surface',source:'"data-floating-chat-surface":true,minimizedIcon:custom,children:custom??(0,jsx.jsx)(glyph.bubble,{})'};
+  const loader={id:'loader',source:'function loader(){return Promise.all([n.e(355084)]).then(n.bind(n,"parent")).then(n=>({default:n.QuickChatWindow}))}'};
+  let calls=0,lazyName=null,lazyOptions=null,ready=false;
+  const registry={
+    module(predicate){
+      calls+=1;
+      if (calls===1) throw new Error('Native module contract changed: Quick Chat floating surface');
+      if (calls===2) return loader;
+      if (ready && predicate(surface.source,surface)) return surface;
+      throw new Error('Native module contract changed: Quick Chat floating surface');
+    },
+    lazy:async(entry,name,options)=>{assert.equal(entry,loader);lazyName=name;lazyOptions=options;ready=true;},
+    initialize:async()=>{throw new Error('Floating surface factory must not execute');},
+    binding:()=>icon,
+  };
+  assert.equal(await loadRspackQuickChatIcon(registry),icon);
+  assert.equal(lazyName,'QuickChatWindow');
+  assert.deepEqual(lazyOptions,{initialize:false});
 });

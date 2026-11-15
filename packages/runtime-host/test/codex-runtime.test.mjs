@@ -573,7 +573,9 @@ test("keeps Model Slider available when persisted Fast icons cannot be read", as
   for (const scenario of scenarios) {
     const result = await executeModelSliderInjection(scenario.options);
     assert.equal(result.runtimeInstalled, true, scenario.name);
-    assert.ok(result.fetchCalls > 0, scenario.name);
+    // 本地缓存读取失败不应阻断 Renderer 安装。是否能从当前原生 bundle
+    // 取得图标由 native adapter 决定，fixture 不伪造该私有能力。
+    assert.ok(Array.isArray(result.probe?.states), scenario.name);
   }
 });
 
@@ -685,7 +687,7 @@ test("emits a fail-closed native Composer model selector Adapter", () => {
   assert.match(source, /overflow: hidden; text-overflow: ellipsis/);
   assert.match(source, /data-codex-model-slider-selecting-effort/);
   assert.match(source, /function nativeCssModuleClass\(tokenName, root = document\)/);
-  for (const tokenName of ["ViewControls", "ViewToggleContent", "ViewToggleIcon", "SimpleView"]) {
+  for (const tokenName of ["ViewControls", "ViewToggleModelLabel", "ViewToggleEffortLabel", "SimpleView"]) {
     assert.match(source, new RegExp(`"${tokenName}"`));
   }
   assert.match(source, /nativeCssModuleClass\(tokenName, parentMenu\)/);
@@ -1037,15 +1039,6 @@ test("normalizes Composer trigger effort-label alignment under Model Slider", ()
   );
 });
 
-test("keeps the model-panel chevron beside the model name", () => {
-  const source = createInjectionSource([modelSliderFeatureFixture()]);
-  assert.match(source, /effortText\.style\.gridColumn = "2";/);
-  assert.match(source, /effortText\.style\.gridRow = "1";/);
-  assert.match(source, /modelRow\.append\(buttonLabel\);/);
-  assert.match(source, /modelRow\.append\(nativeChevron\);/);
-  assert.match(source, /buttonContent\.append\(effortRow, modelRow\);/);
-});
-
 test("rebuilds the upgraded native slider from the selected model capabilities", () => {
   const source = createInjectionSource([modelSliderFeatureFixture()]);
 
@@ -1098,8 +1091,8 @@ test("distinguishes placeholder from real model label, hugging real names", () =
     source,
     /\[class\*="_ModelPickerTriggerModelLabel_"\]:not\(\[data-codex-model-slider-trigger-label\]\) \{/,
   );
-  // 复用原生显式模型布局，不再用自定义单行居中样式覆盖原生结构。
-  assert.match(source, /viewControls\.setAttribute\("data-explicit-model", "true"\)/);
+  // 头部保留原生节点和布局分支，不由增强层强制指定排列。
+  assert.match(source, /nativeControls\.cloneNode\(true\)/);
   assert.match(source, /data-codex-model-slider-reset/);
   assert.match(source, /data-codex-model-slider-controller-menu[\s\S]*?transform: translateX\(-50%\) !important;/);
   assert.doesNotMatch(
@@ -1111,7 +1104,6 @@ test("distinguishes placeholder from real model label, hugging real names", () =
   // 只解析原生语义类名；稳定 data 属性承载蓝色与 Ultra 紫色状态。
   assert.match(source, /"ViewToggleModelLabel",\s*"ViewToggleEffortLabel"/);
   assert.match(source, /buttonLabel\.setAttribute\("data-codex-model-slider-model-label", ""\)/);
-  assert.match(source, /effortText\.setAttribute\("data-accent", "true"\)/);
   assert.match(source, /effortText\.setAttribute\("data-maximum", String\(selectedEffort === "ultra"\)\)/);
   assert.doesNotMatch(source, /_ViewToggleEffortLabel_[a-z0-9]+_/i);
 });

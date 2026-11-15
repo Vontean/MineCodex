@@ -28,8 +28,8 @@ export function createRendererSelfCheck(features, sessionId, theme) {
       tokens:theme.diagnostics(),
       plugins:[...records.values()].map(record => {
         const base = { featureId:record.featureId, installation:record.installation };
-        if (record.installation === "failed") return {...base,state:"failed",reason:"installation-failed",checks:[]};
-        if (record.installation !== "installed" || !record.probe) return {...base,state:"unknown",reason:"self-check-pending",checks:[]};
+        if (record.installation === "failed") return {...base,scope:[],state:"failed",reason:"installation-failed",checks:[]};
+        if (record.installation !== "installed" || !record.probe) return {...base,scope:[],state:"unknown",reason:"self-check-pending",checks:[]};
         try {
           const result = record.probe();
           const states = ["available","not-applicable","unavailable","unknown"];
@@ -44,7 +44,8 @@ export function createRendererSelfCheck(features, sessionId, theme) {
             }));
           const missingTokens = tokens.some(token => token.required && (!token.available || (token.projectName && (!token.projectValue || token.scopeMatches === false))));
           // 不导出异常文本、原生对象、凭据或用户内容。
-          return {...base,state:result.state === "available" && missingTokens ? "degraded" : result.state,
+          const scope=[...new Set(scopes.map(item => typeof item.name === "string" ? item.name : null).filter(Boolean))];
+          return {...base,scope,state:result.state === "available" && missingTokens ? "degraded" : result.state,
             reason:result.state === "available" && missingTokens ? "design-token-unavailable" : result.reason ?? null,tokens,
             checks:(result.checks ?? []).map(check => ({
             name:check.name,available:check.available === true,reason:check.reason ?? null,

@@ -1,5 +1,5 @@
-import { findCodexModule } from '../../../../../packages/codex-adapter/src/renderer/modules.mjs';
-export function createModelControllerAdapter(codex,comparableModelLabel) {
+import { codexModuleRegistry } from '../../../../../packages/codex-adapter/src/renderer/modules.mjs';
+export function createModelControllerAdapter(codex,comparableModelLabel,nativeRegistry=null) {
 function controllerView(props) {const view=Object.fromEntries(["models","model","reasoningEffort","powerSelections","selectedPowerSelection","fallbackPowerSelection","serviceTierOptions","selectedServiceTier","onSelectModel","onSelectReasoningEffort","onSelectPower","onCommitPower","onSelectServiceTier"].map(key=>[key,props[key]]));codex.report('model-controller',true);return view;}
 function nativeComposerTriggers() {
     const native = Array.from(document.querySelectorAll("[data-codex-intelligence-trigger]"));
@@ -133,18 +133,43 @@ function invokeNativeMenuItemSelect(item) {
     }
     return false;
   }
-  function extractFastIconPath(source, prefix) {
-    const match = String(source).match(new RegExp(`d:\`(${prefix}[^\`]*)\``));
-    return match?.[1] ?? null;
-  }
-
   async function fastIcons(signal) {
-    const sourceUrl=await findCodexModule('app-primary',{signal}) ?? await findCodexModule('app-initial',{signal});
-    if (!sourceUrl) {codex.report("fast-icons",false,"bundle-unavailable");return null;}
-    const source=await (await fetch(sourceUrl,{signal})).text();
-    const active=extractFastIconPath(source,"M11\\.9125 21\\.4125"),inactive=extractFastIconPath(source,"M9\\.80999 17\\.8302");
+    const registry = nativeRegistry ? await nativeRegistry({signal, waitForEntry:true}) : null;
+    if (!registry) {codex.report("fast-icons",false,"native-module-registry-unavailable");return null;}
+    const definition = name => {
+      for (const entry of registry.entries) {
+        if (!entry.source.includes(name)) continue;
+        const value = Object.values(registry.exports(entry)).find(item => item?.name === name
+          && item.canvas?.viewBox && typeof item.body === 'string');
+        if (value) return value;
+      }
+      return null;
+    };
+    const activeDefinition = definition('bolt-fill-light-16');
+    const inactiveDefinition = definition('bolt-light-16');
+    if (activeDefinition && inactiveDefinition) {
+      codex.report("fast-icons",true,null);
+      return {
+        active: { markup: activeDefinition.body, viewBox: activeDefinition.canvas.viewBox,
+          width: activeDefinition.canvas.width, height: activeDefinition.canvas.height },
+        inactive: { markup: inactiveDefinition.body, viewBox: inactiveDefinition.canvas.viewBox,
+          width: inactiveDefinition.canvas.width, height: inactiveDefinition.canvas.height },
+      };
+    }
+    // 旧版 Codex 仍以内联路径导出，保留其兼容路径直到该协议不再出现。
+    const source = registry.entries.map(entry => entry.source)
+      .find(value => /FastModeToggle|fast.mode|fastMode/i.test(value)
+        && /M(?:11\.9125 21\.4125|9\.80999 17\.8302)/.test(value));
+    const extract = (prefix) => {
+      const escaped = prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const match = String(source ?? '').match(new RegExp(`d:\`(${escaped}[^\`]*)\``));
+      return match?.[1] ?? null;
+    };
+    const active=extract("M11.9125 21.4125"),inactive=extract("M9.80999 17.8302");
     codex.report("fast-icons",Boolean(active && inactive),active && inactive ? null : "icon-resource-contract-changed");
-    return {active:{path:active,viewBox:"0 0 24 24"},inactive:{path:inactive,viewBox:"0 0 20 20"}};
+    return active && inactive
+      ? {active:{path:active,viewBox:"0 0 24 24",width:24,height:24},inactive:{path:inactive,viewBox:"0 0 20 20",width:20,height:20}}
+      : null;
   }
 function selfCheck() {
   const trigger=nativeComposerTrigger();

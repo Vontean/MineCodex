@@ -108,7 +108,26 @@ export async function codexModuleRegistry({read = async url => (await fetch(url)
         if (result == null) throw new Error('native-module-export-unavailable');
         return result;
       };
-      const lazy = async (entry, name) => {
+      const initialize = async entry => {
+        const existing = runtime.c[entry.id];
+        if (existing && !existing.error) {
+          const exports = existing.exports && typeof existing.exports.then === 'function'
+            ? await existing.exports
+            : existing.exports;
+          resolvedExports.set(entry.id, exports);
+          return exports;
+        }
+        const result = runtime(entry.id);
+        if (result && typeof result.then === 'function') await result;
+        const cached = runtime.c[entry.id];
+        if (!cached || cached.error) throw new Error('native-module-initialization-unavailable');
+        const exports = cached.exports && typeof cached.exports.then === 'function'
+          ? await cached.exports
+          : cached.exports;
+        resolvedExports.set(entry.id, exports);
+        return exports;
+      };
+      const lazy = async (entry, name, {initialize = true} = {}) => {
         const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const match = entry.source.match(new RegExp(`[\\w$]+\\.e\\((\\d+)\\)\\.then\\([\\w$]+\\.bind\\([\\w$]+,"([^"\\n]+)"\\)\\)\\.then\\([\\w$]+=>\\(\\{default:[\\w$]+\\.${escaped}\\}\\)\\)`));
         let id;
@@ -122,13 +141,15 @@ export async function codexModuleRegistry({read = async url => (await fetch(url)
           await Promise.all([...group[1].matchAll(/\.e\((\d+)\)/g)].map(item=>runtime.e(Number(item[1]))));
           id=group[2];
         }
-        const exports = await runtime(id);
-        if (exports[name] == null) throw new Error('native-module-lazy-export-unavailable');
-        resolvedExports.set(id,exports);
+        if (initialize) {
+          const exports = await runtime(id);
+          if (exports[name] == null) throw new Error('native-module-lazy-export-unavailable');
+          resolvedExports.set(id,exports);
+        }
         entries.splice(0,entries.length,...Object.entries(runtime.m).map(([id,factory])=>({id,source:sourceOf(factory)})));
         return {id, source:sourceOf(runtime.m[id])};
       };
-      return {entries, module, value, binding, lazy, exports:exportsOf, sourceOf};
+      return {entries, module, value, binding, initialize, lazy, exports:exportsOf, sourceOf};
     }
     if (!waitForEntry || scripts().some(script=>/\/(?:index|app-(?:main|initial))-[^/]+\.js(?:$|\?)/.test(script.src))) return null;
     // HTML 仍在逐个挂载入口脚本时，首个 chunk 不一定拥有注册表。

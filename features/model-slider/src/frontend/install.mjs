@@ -149,9 +149,6 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
       visibility: hidden !important;
     }
     [data-codex-model-slider-generic] { box-sizing: border-box; width: 100%; }
-    [data-codex-model-slider-fast] { border: 0; background: transparent; cursor: pointer; }
-    [data-codex-model-slider-fast]:not(:hover) [data-codex-model-slider-fast-content] { background: transparent; }
-    [data-codex-model-slider-fast]:focus-visible { outline: 2px solid var(--mcx-color-border-focus); outline-offset: 1px; }
     [data-codex-model-slider-rail][data-codex-model-slider-fallback] { position: relative; height: 38px; margin: 1px 8px 0; outline: none; cursor: pointer; }
     [data-codex-model-slider-track] { position: absolute; top: 12px; right: 0; left: 0; height: 16px; border-radius: 999px; background: var(--mcx-color-background-control); }
     [data-codex-model-slider-range] { position: absolute; top: 0; bottom: 0; left: 0; width: var(--codex-model-slider-progress); border-radius: inherit; background: var(--mcx-color-text-accent); }
@@ -173,7 +170,7 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
     }
   `;
 
-  const nativeModel=createModelControllerAdapter(codex,comparableModelLabel);
+  const nativeModel=createModelControllerAdapter(codex,comparableModelLabel,codexModuleRegistry);
   const nativeComposerTrigger=nativeModel.trigger, nativeComposerModelController=nativeModel.read, nativeModelDescriptorForItem=nativeModel.descriptor, setReactControlledMenuOpen=nativeModel.setOpen, invokeNativeMenuItemSelect=nativeModel.selectItem;
 
   function createModelSelectorIcon(definition, { brand = false } = {}) {
@@ -274,16 +271,16 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
         const definition=definitions[state];
         if (modelSelectorNativeFastIcons[state]) return;
         const path = definition?.path;
-        if (!path) return;
+        if (!path && !definition?.markup) return;
         const svg = createModelSelectorIcon({
           viewBox: definition.viewBox,
-          markup: definition.transform
+          markup: definition.markup ?? (definition.transform
             ? `<g transform="${definition.transform}"><path d="${path}" fill="currentColor" /></g>`
-            : `<path d="${path}" fill="currentColor" />`,
+            : `<path d="${path}" fill="currentColor" />`),
         }, { brand: true });
         if (!svg) return;
-        svg.setAttribute("width", "20");
-        svg.setAttribute("height", "20");
+        svg.setAttribute("width", String(definition.width ?? 20));
+        svg.setAttribute("height", String(definition.height ?? 20));
         modelSelectorNativeFastIcons[state] = svg;
         gained = true;
       };
@@ -1468,6 +1465,7 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
     rail?.setAttribute("data-max", value);
     effortText?.setAttribute("data-maximum", value);
     fastButton?.setAttribute("data-max-power-selection", value);
+    fastButton?.parentElement?.setAttribute("data-max-power-selection", value);
     const maxEffects = rail?.querySelector(':is([class*="_MaxEffects_"], [class*="MaxEffects-"])');
     if (maxEffects) {
       maxEffects.style.opacity = maximum ? "1" : "0";
@@ -1564,7 +1562,7 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
     button.setAttribute("data-fast-mode-enabled", String(enabled));
     syncGenericMaximumVisual(
       rail,
-      shell.querySelector("[data-codex-model-slider-effort-row] [data-maximum]"),
+      shell.querySelector("[data-maximum]"),
       button,
       maxPowerSelection,
     );
@@ -1573,6 +1571,7 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
       : (locale === "zh-CN" ? "开启 Fast 模式" : "Enable Fast mode"));
     const icon = createNativeFastIcon(enabled);
     const content = button.querySelector("[data-codex-model-slider-fast-content]");
+    content?.setAttribute("data-fast-mode-enabled", String(enabled));
     if (icon && content) content.replaceChildren(icon);
     rail.setAttribute("data-fast-mode", String(enabled));
     rail.setAttribute("data-fast-mode-dot-transition", animate ? (enabled ? "entering" : "exiting") : (enabled ? "active" : "inactive"));
@@ -1734,8 +1733,6 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
     const classes = Object.fromEntries([
       "Menu",
       "ViewToggle",
-      "ViewToggleContent",
-      "ViewToggleIcon",
       "ViewToggleModelLabel",
       "ViewToggleEffortLabel",
       "ViewControls",
@@ -1754,71 +1751,33 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
     shell.setAttribute("data-model-picker-view", "simple");
     shell.setAttribute("data-reduced-motion", String(matchMedia("(prefers-reduced-motion: reduce)").matches));
     shell.setAttribute("data-transitions-ready", "false");
-    const nativeRow = nativeModelPickerRow(parentMenu);
     const controller = nativeComposerModelController();
     const fastOption = controller?.serviceTierOptions?.find((option) => option?.value === "priority") ?? null;
-    const nativeModel = nativeCatalogModelFor(identity);
     const supportsFast = Boolean(fastOption && typeof controller.onSelectServiceTier === "function");
     shell.setAttribute("data-codex-model-slider-has-fast", String(supportsFast));
-    const modelButton = document.createElement("div");
-    modelButton.className = classes.ViewToggle;
+    // 保留当前原生头部的布局属性、快捷按钮槽和文字层级，只重接增强动作。
+    const nativeControls = parentMenu.querySelector(`.${CSS.escape(classes.ViewControls)}`);
+    if (!nativeControls) return null;
+    const viewControls = nativeControls.cloneNode(true);
+    for (const element of [viewControls, ...viewControls.querySelectorAll("*")]) {
+      for (const attribute of ["id", "aria-describedby", "data-radix-collection-item"]) element.removeAttribute(attribute);
+    }
+    const modelButton = viewControls.querySelector(`.${CSS.escape(classes.ViewToggle)}`);
+    const buttonLabel = modelButton?.querySelector(`.${CSS.escape(classes.ViewToggleModelLabel)}`);
+    const effortText = modelButton?.querySelector(`.${CSS.escape(classes.ViewToggleEffortLabel)}`);
+    if (!modelButton || !buttonLabel) return null;
     modelButton.setAttribute("role", "button");
     modelButton.setAttribute("tabindex", "0");
     modelButton.setAttribute("data-codex-model-slider-model-button", "");
     modelButton.setAttribute("aria-label", `Model ${modelDisplayLabel(identity, selector)}`);
     modelButton.setAttribute("aria-haspopup", "menu");
     modelButton.setAttribute("aria-expanded", "false");
-    const buttonContent = document.createElement("span");
-    buttonContent.className = classes.ViewToggleContent;
-    // 上下两行独立计算宽度，长模型名不能撑开强度与箭头。
-    buttonContent.style.display = "flex";
-    buttonContent.style.flexDirection = "column";
-    buttonContent.style.gap = "0";
-    const effortRow = document.createElement("span");
-    effortRow.setAttribute("data-codex-model-slider-effort-row", "");
-    effortRow.style.display = "grid";
-    effortRow.style.gridTemplateColumns = "calc(var(--mcx-spacing) * 4) auto calc(var(--mcx-spacing) * 4)";
-    effortRow.style.alignItems = "center";
-    const buttonLabel = document.createElement("span");
-    buttonLabel.className = classes.ViewToggleModelLabel;
     buttonLabel.setAttribute("data-codex-model-slider-model-label", "");
     buttonLabel.textContent = modelDisplayLabel(identity, selector);
-    const modelRow = document.createElement("span");
-    modelRow.setAttribute("data-codex-model-slider-model-row", "");
-    modelRow.style.display = "inline-flex";
-    modelRow.style.alignItems = "center";
-    modelRow.style.justifyContent = "center";
-    modelRow.style.gap = "calc(var(--mcx-spacing) / 2)";
-    modelRow.style.minWidth = "0";
-    modelRow.style.maxWidth = "100%";
-    modelRow.append(buttonLabel);
-    const effortText = selectedEffortVisible ? document.createElement("span") : null;
     if (effortText) {
-      effortText.className = classes.ViewToggleEffortLabel;
-      // 原生标签会跨满整行；收回中列，使上下两行各自居中。
-      effortText.style.gridColumn = "2";
-      effortText.style.gridRow = "1";
-      effortText.textContent = effortLabel(selectedEffort);
-      effortText.setAttribute("data-accent", "true");
-      effortText.setAttribute("data-effort-only", "false");
+      effortText.textContent = selectedEffortVisible ? effortLabel(selectedEffort) : "";
       effortText.setAttribute("data-maximum", String(selectedEffort === "ultra"));
     }
-    // 0.152.1 起原生头行 aria-label 为 "Select model"，nativeModelPickerRow
-    // 不再命中；优先从 view-toggle 行取 chevron，旧结构走原路径兜底。
-    const nativeChevron = (
-      parentMenu?.querySelector("[data-model-picker-view-toggle] svg")
-      ?? nativeRow?.querySelector("svg")
-    )?.cloneNode(true);
-    if (nativeChevron) {
-      nativeChevron.classList.add(classes.ViewToggleIcon);
-      nativeChevron.style.gridArea = "auto";
-      nativeChevron.style.flexShrink = "0";
-      nativeChevron.setAttribute("aria-hidden", "true");
-      modelRow.append(nativeChevron);
-    }
-    if (effortText) effortRow.append(effortText);
-    buttonContent.append(effortRow, modelRow);
-    modelButton.append(buttonContent);
     const openModels = () => openControllerModelMenu(parentMenu, modelButton, selector);
     modelButton.addEventListener("click", openModels);
     modelButton.addEventListener("keydown", (event) => {
@@ -1826,22 +1785,17 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
       event.preventDefault();
       openModels();
     });
-
-    const viewControls = document.createElement("div");
-    viewControls.className = classes.ViewControls;
-    // 沿用原生显式模型布局：上方档位，下方模型，两侧放置能力控件。
-    viewControls.setAttribute("data-explicit-model", "true");
-    viewControls.setAttribute("data-ultra-warning-visible", "false");
     const fastEnabled = Boolean(
       supportsFast && (
         controller.selectedServiceTier?.id === (fastOption.tier?.id ?? "priority")
         || controller.selectedServiceTier === fastOption.value
       ),
     );
-    if (supportsFast) {
-      const fastButton = document.createElement("button");
-      fastButton.type = "button";
-      fastButton.className = classes.FastModeToggle;
+    const fastButton = viewControls.querySelector(`.${CSS.escape(classes.FastModeToggle)}`);
+    if (supportsFast && fastButton) {
+      fastButton.setAttribute("role", "button");
+      fastButton.setAttribute("tabindex", "0");
+      fastButton.removeAttribute("aria-checked");
       fastButton.setAttribute("data-codex-model-slider-fast", "");
       fastButton.setAttribute("aria-pressed", String(fastEnabled));
       fastButton.setAttribute("data-fast-mode-enabled", String(fastEnabled));
@@ -1850,12 +1804,8 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
       fastButton.setAttribute("aria-label", fastEnabled
         ? (locale === "zh-CN" ? "关闭 Fast 模式" : "Disable Fast mode")
         : (locale === "zh-CN" ? "开启 Fast 模式" : "Enable Fast mode"));
-      const fastIcon = createNativeFastIcon(fastEnabled);
-      const fastContent = document.createElement("span");
-      fastContent.className = classes.FastModeToggleContent;
-      fastContent.setAttribute("data-codex-model-slider-fast-content", "");
-      if (fastIcon) fastContent.append(fastIcon);
-      fastButton.append(fastContent);
+      const fastContent = fastButton.querySelector(`.${CSS.escape(classes.FastModeToggleContent)}`);
+      fastContent?.setAttribute("data-codex-model-slider-fast-content", "");
       fastButton.addEventListener("click", () => {
         const nextEnabled = fastButton.getAttribute("aria-pressed") !== "true";
         const currentIndex = Number(shell.querySelector("[data-codex-model-slider-rail]")?.getAttribute("aria-valuenow"));
@@ -1863,21 +1813,22 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
         controller.onSelectServiceTier?.(nextEnabled ? fastOption.value : null);
         queueEnsure();
       });
-      viewControls.append(modelButton, fastButton);
+      fastButton.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        fastButton.click();
+      });
     } else {
-      viewControls.append(modelButton);
+      fastButton?.remove();
     }
-
-    const nativeReset = parentMenu.firstElementChild?.querySelector(':is([class*="_ResetToDefault_"], [class*="ResetToDefault-"])');
-    if (nativeReset) {
-      const reset = nativeReset.cloneNode(true);
+    const resetSelector = ':is([class*="_ResetToDefault_"], [class*="ResetToDefault-"])';
+    const reset = viewControls.querySelector(resetSelector);
+    if (reset) {
       reset.setAttribute("role", "button");
       reset.setAttribute("tabindex", "0");
       reset.setAttribute("data-codex-model-slider-reset", "");
-      reset.removeAttribute("data-radix-collection-item");
       reset.addEventListener("click", () => {
-        const currentReset = parentMenu.firstElementChild?.querySelector(':is([class*="_ResetToDefault_"], [class*="ResetToDefault-"])');
-        invokeNativeMenuItemSelect(currentReset);
+        invokeNativeMenuItemSelect(parentMenu.firstElementChild?.querySelector(resetSelector));
         queueEnsure();
       });
       reset.addEventListener("keydown", (event) => {
@@ -1885,7 +1836,6 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
         event.preventDefault();
         reset.click();
       });
-      viewControls.append(reset);
     }
 
     if (efforts.length < 2) {

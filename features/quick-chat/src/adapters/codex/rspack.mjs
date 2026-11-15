@@ -1,9 +1,10 @@
 // 从已注册的原生模块与导出表解析角色，不执行模块工厂或依赖压缩名称。
-export function loadRspackQuickChatBindings(registry, commandCatalog) {
+export async function loadRspackQuickChatBindings(registry, commandCatalog) {
   const catalog=registry.module(source=>/\{id:[`"']temporaryChat[`"'],titleIntlId:/.test(source),'Quick Chat command catalog');
   const native=commandCatalog(catalog.source);
   if (native) return {native};
   const entry=registry.module(source=>/has-opened-quick-chat-v1/.test(source)&&/chatgpt\.quick-chat/.test(source),'Quick Chat lifecycle');
+  await registry.initialize(entry);
   const exported=local=>{
     if (!local) throw new Error('quick-chat-lifecycle-contract-unavailable');
     const escaped=local.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
@@ -38,8 +39,22 @@ export function loadRspackQuickChatBindings(registry, commandCatalog) {
   return bindings;
 }
 
-export function loadRspackQuickChatIcon(registry) {
-  const entry=registry.module(source=>/"data-floating-chat-surface":/.test(source)&&/minimizedIcon:/.test(source),'Quick Chat floating surface');
+export async function loadRspackQuickChatIcon(registry) {
+  let entry;
+  try {
+    entry=registry.module(source=>/"data-floating-chat-surface":/.test(source)&&/minimizedIcon:/.test(source),'Quick Chat floating surface');
+  } catch (error) {
+    if (!/contract changed/.test(error?.message ?? '')) throw error;
+    // The floating surface is behind the native QuickChatWindow lazy import.
+    // Load the declared parent component first; its Promise.all list owns the
+    // floating-surface chunk and remains valid when chunk IDs change.
+    const loader=registry.module(source=>/QuickChatWindow/.test(source)&&/Promise\.all\(\[/.test(source)&&/\.then\([^)]*\.bind\([^,]+,"[^"\n]+"\)\)\)\.QuickChatWindow/.test(source),'Quick Chat floating surface loader');
+    // The parent lazy component has a broad dependency graph. Loading its
+    // declared chunks is sufficient to register the floating surface; running
+    // the parent factory here can race another async Rspack dependency.
+    await registry.lazy(loader,'QuickChatWindow',{initialize:false});
+    entry=registry.module(source=>/"data-floating-chat-surface":/.test(source)&&/minimizedIcon:/.test(source),'Quick Chat floating surface');
+  }
   const local=entry.source.match(/minimizedIcon:([\w$]+)/)?.[1];
   const escaped=local?.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
   const reference=escaped&&entry.source.match(new RegExp(`children:${escaped}\\?\\?\\(0,[\\w$]+\\.jsx\\)\\(([\\w$]+\\.[\\w$]+),\\{\\}\\)`))?.[1];

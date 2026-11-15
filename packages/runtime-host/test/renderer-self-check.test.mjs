@@ -15,6 +15,7 @@ test("self-check separates installation, anchor disappearance, scope tokens and 
   assert.deepEqual(check.snapshot().plugins.map(item=>item.state),["available","failed"]);
   token=false;
   assert.equal(check.snapshot().plugins[0].state,"degraded");
+  assert.deepEqual(check.snapshot().plugins[0].scope,["composer"]);
   assert.equal(check.snapshot().plugins[0].tokens[0].scope,"composer");
   anchor=false;
   assert.equal(check.snapshot().plugins[0].state,"unavailable");
@@ -82,6 +83,62 @@ test("self-check runs once per document and rechecks after evidence is invalidat
   assert.equal(runtime.targetChecks.get("target").plugins.length,1);
   runtime.targetChecks.delete("target");present=false;
   assert.equal(await runtime.checkTarget("target"),false);
+});
+
+test("explicit diagnostics refresh rereads the current renderer without restoring polling", async () => {
+  const runtime = new CodexRuntime({ features: [], profileDir: "/tmp/mcx-explicit-refresh", runtimeSessionId: "session" });
+  let reads = 0;
+  runtime.clients.set("current", { async send() {
+    reads += 1;
+    return { result: { value: { sessionId: "session", checkedAt: reads, plugins: [{ featureId: "a", state: reads > 1 ? "available" : "unknown" }] } } };
+  } });
+  runtime.rendererTargetIds.add("current");
+  assert.equal(await runtime.checkTarget("current"), true);
+  assert.equal(reads, 1);
+  const status = await runtime.refreshSelfChecks();
+  assert.equal(reads, 2);
+  assert.equal(status.targets[0].targetId, "current");
+  assert.equal(status.targets[0].plugins[0].state, "available");
+  assert.equal(status.targets[0].checkType, "manual");
+  await runtime.refreshSelfChecks();
+  assert.equal(reads, 3);
+  assert.equal((await runtime.refreshSelfChecks("closed-window")).targets.length, 1);
+  assert.equal(reads, 3);
+});
+
+test("explicit refresh drops stale evidence when a renderer closes during the read", async () => {
+  const runtime = new CodexRuntime({ features: [], profileDir: "/tmp/mcx-explicit-refresh-race", runtimeSessionId: "session" });
+  let release;
+  const read = new Promise(resolve => { release = resolve; });
+  const client = { async send() {
+    await read;
+    return { result: { value: { sessionId: "session", checkedAt: 1, plugins: [{ featureId: "a", state: "available" }] } } };
+  } };
+  runtime.clients.set("closing", client);
+  runtime.rendererTargetIds.add("closing");
+  runtime.targetChecks.set("closing", { sessionId: "session", checkedAt: 1, plugins: [{ featureId: "a", state: "available" }] });
+  const refresh = runtime.refreshSelfChecks("closing");
+  runtime.clients.delete("closing");
+  release();
+  const status = await refresh;
+  assert.equal(status.targets.some(target => target.targetId === "closing"), false);
+  assert.equal(runtime.targetChecks.has("closing"), false);
+});
+
+test("window scopes stay isolated and an old session cannot reuse them", async () => {
+  const runtime = new CodexRuntime({ features: [], profileDir: "/tmp/mcx-scope-isolation", runtimeSessionId: "session-1" });
+  for (const [targetId, scope] of [["images-window", "image-viewer"], ["files-window", "file-navigation"]]) {
+    runtime.clients.set(targetId, { async send() {
+      return { result: { value: { sessionId: "session-1", checkedAt: 1, plugins: [{ featureId: "images", scope: [scope], state: "available" }] } } };
+    } });
+    runtime.rendererTargetIds.add(targetId);
+    assert.equal(await runtime.checkTarget(targetId), true);
+  }
+  assert.deepEqual(runtime.getRendererStatus().targets.map(target => target.plugins[0].scope).sort(), [["file-navigation"], ["image-viewer"]]);
+  runtime.runtimeSessionId = "session-2";
+  await runtime.checkTarget("images-window", { force: true });
+  assert.deepEqual(runtime.targetChecks.get("images-window").plugins, []);
+  assert.equal(runtime.targetChecks.get("images-window").scope, undefined);
 });
 
 test("target discovery does not repeat probes; document reload invalidates the startup result", async () => {

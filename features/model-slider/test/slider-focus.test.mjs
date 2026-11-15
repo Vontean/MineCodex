@@ -19,3 +19,10 @@ test('shell replacement restores only the focused slider in a connected menu',()
 test('focus helper is included in the serialized renderer closure',()=>{
   assert.doesNotThrow(()=>new Function(`return (${createModelSliderInstallerSource()})`)());
 });
+test('serialized Fast icon installer consumes native markup and dimensions',()=>{
+  const source=createModelSliderInstallerSource();
+  assert.match(source,/if \(!path && !definition\?\.markup\) return/);
+  assert.match(source,/definition\.markup \?\?/);
+  assert.match(source,/definition\.width \?\? 20/);
+  assert.match(source,/definition\.height \?\? 20/);
+});

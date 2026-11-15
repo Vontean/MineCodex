@@ -56,7 +56,14 @@ export async function createRspackImageModules(registry) {
         React, ReactDOM,
         Masonry:fn(masonry, source => /\{items:/.test(source) && /animate:/.test(source), 'masonry'),
         Skeleton:fn(masonry, source => source.includes('square:') && source.includes('Loading library'), 'skeleton'),
-        Card:fn(layout, source => source.includes('actionIndicator:') && source.includes('documentHeader:'), 'card'),
+        // The card module exports a small memoized wrapper around the internal
+        // card renderer. Its export function therefore does not repeat the
+        // renderer's prop destructuring (the old predicate inspected the
+        // module source indirectly and failed on the current Rspack export).
+        // Identify the public wrapper by its semantic folder-placeholder
+        // handling and spread of the card props, then keep the module role
+        // anchored by the entry-level card markers above.
+        Card:discoverImageCardComponent(registry.exports(layout)),
         useImage:fn(sourceImage, source => source.includes('shouldLoadFileDataUrl:'), 'image resolver'),
         imageMenu:registry.exports(menu).getGeneratedImageContextMenuItems,
         openImage:registry.exports(openModule).openImagePreview,
@@ -99,16 +106,40 @@ export async function createRspackImageModules(registry) {
     const canvasModule = module(source => /attachmentSrc:[\w$]+,chatGptConversationId:[\w$]+,contextMenuEnabled:/.test(source) && source.includes('onImageEditSubmit:'), 'image canvas');
     const layout = module(source => source.includes('reserveImageComposerSpace:') && source.includes('contentOwnsHeader:') && /composerPresentation:[\w$]+,contentOwnsHeader:/.test(source), 'preview layout');
     const edit = module(source => source.includes('requireDispatchAcceptance:') && source.includes('sourceAttachment:') && source.includes('imageVariant'), 'image edit');
-    const portalModule = module(source => source.includes('__DOM_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE=') && /\.createPortal=function/.test(source), 'React portal');
-    const createPortal = registry.exports(portalModule).createPortal;
+    const inlineComposerEntry = registry.entries.find(entry =>
+      entry.source.includes('submitLabel:')
+      && entry.source.includes('onBlurOutside:')
+      && entry.source.includes('input-')
+      && entry.source.includes('onCancel:'));
+    const ImageEditComposer = inlineComposerEntry
+      ? registry.value(inlineComposerEntry, (value, source) => typeof value === 'function'
+        && source.includes('submitLabel:') && source.includes('onBlurOutside:')
+        && source.includes('onCancel:'), 'image edit composer')
+      : null;
+    // React 19 no longer exposes the old internal marker in every build. Prefer
+    // the registry-owned ReactDOM runtime already used by the gallery, then fall
+    // back to the legacy portal module when it is explicitly registered.
+    const portalEntry = registry.entries.find(entry =>
+      entry.source.includes('__DOM_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE=')
+      && /\.createPortal=function/.test(entry.source));
+    const createPortal = portalEntry ? registry.exports(portalEntry).createPortal : ReactDOM.createPortal;
     if (typeof createPortal !== 'function' || !composer.composerRouteScope?.parent) throw new Error('Native Images canvas contract changed');
-    return {...composer, createPortal,
+    return {...composer, createPortal, ImageEditComposer,
       Canvas:fn(canvasModule, source => /attachmentSrc:[\w$]+,chatGptConversationId:[\w$]+,contextMenuEnabled:/.test(source), 'image canvas'),
       CanvasLayout:fn(layout, source => source.includes('reserveImageComposerSpace:') && source.includes('contentOwnsHeader:'), 'preview layout'),
       editImage:fn(edit, source => source.includes('requireDispatchAcceptance:') && source.includes('sourceAttachment:'), 'image edit'),
     };
   }
   return {navigation:async()=>({React,ReactDOM}),gallery,canvas};
+}
+
+// 图片卡片由外层 memo wrapper 透传 props，再按 folderPlaceholder 包装；只依赖该调用语义。
+export function discoverImageCardComponent(exports) {
+  const matches = Object.values(exports).filter(value => typeof value === 'function'
+    && String(value).includes('folderPlaceholder')
+    && /\.jsx\)\([\w$]+,\{\.\.\.[\w$]+\}\)/.test(String(value)));
+  if (matches.length !== 1) throw new Error('Native Images contract changed: card');
+  return matches[0];
 }
 
 // 按导出声明识别模块，排除只调用该导出的消费方。rspack 具名导出有两种登记形式：

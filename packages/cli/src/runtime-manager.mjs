@@ -127,6 +127,7 @@ export class RuntimeManager {
     waitForReady: readyWaiter = waitForReady,
     sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
     stopTimeoutMs = 5_000,
+    diagnosticTimeoutMs = 5_000,
     manualLaunchPollMs = 150,
     cdpPort = Number(process.env.CODEX_RUNTIME_CDP_PORT ?? 9231),
     launchCoordinator = null,
@@ -139,6 +140,7 @@ export class RuntimeManager {
     this.waitForReady = readyWaiter;
     this.sleep = sleep;
     this.stopTimeoutMs = stopTimeoutMs;
+    this.diagnosticTimeoutMs = diagnosticTimeoutMs;
     this.manualLaunchPollMs = manualLaunchPollMs;
     this.cdpPort = cdpPort;
     this.fileSystem = fileSystem;
@@ -156,6 +158,7 @@ export class RuntimeManager {
     this.manualLaunchBaselinePids = new Set();
     this.manualLaunchArmed = false;
     this.manualLaunchSuppressionDepth = 0;
+    this.diagnosticRequests = new Map();
     this.enhancedCodex = null;
     this.enhancementFailure = null;
     this.launchCoordinator = launchCoordinator ?? new ChatGPTLaunchCoordinator({
@@ -204,11 +207,13 @@ export class RuntimeManager {
       stdio: ["inherit", "inherit", "inherit", "ipc"],
     });
     this.child = child;
+    child.on?.("message", (message) => this.handleDiagnosticMessage(child, message));
     if (hasExited(child)) {
       this.clearChildState();
       throw new Error(`RuntimeHost exited immediately (${child.signalCode ?? child.exitCode})`);
     }
     child.once("exit", (code, signal) => {
+      this.rejectDiagnosticRequests(child, new Error("RuntimeHost exited before diagnostics completed"));
       if (this.child === child) this.clearChildState();
       if (!this.stopping && (code !== 0 || signal !== null)) {
         this.logger.error(`MineCodex RuntimeHost exited (${signal ?? code ?? "unknown"})`);
@@ -250,10 +255,36 @@ export class RuntimeManager {
   }
 
   clearChildState() {
+    this.rejectDiagnosticRequests(this.child, new Error("RuntimeHost is no longer available"));
     this.child = null;
     this.ready = null;
     this.appliedFeatures = [];
     this.plugins = [];
+  }
+
+  rejectDiagnosticRequests(child, error) {
+    for (const [requestId, pending] of this.diagnosticRequests) {
+      if (child && pending.child !== child) continue;
+      this.diagnosticRequests.delete(requestId);
+      clearTimeout(pending.timer);
+      pending.reject(error);
+    }
+  }
+
+  handleDiagnosticMessage(child, message) {
+    if (message?.type !== "minecodex:diagnostics-result") return;
+    const pending = this.diagnosticRequests.get(message.requestId);
+    if (!pending || pending.child !== child) return;
+    this.diagnosticRequests.delete(message.requestId);
+    clearTimeout(pending.timer);
+    const expectedSession = this.ready?.runtimeSessionId ?? null;
+    const actualSession = message.status?.runtimeSessionId ?? null;
+    if (!expectedSession || !actualSession || expectedSession !== actualSession) {
+      pending.reject(new Error("Runtime diagnostics result belongs to an expired session"));
+      return;
+    }
+    if (message.error) pending.reject(new Error(message.error));
+    else pending.resolve({ ...this.status(), renderer: message.status, runtimeSessionId: message.status?.runtimeSessionId ?? this.ready?.runtimeSessionId ?? null });
   }
 
   start() {
@@ -525,7 +556,7 @@ export class RuntimeManager {
       const ready = normalizeRuntimeReady(JSON.parse(await readFile(this.paths.runtimeReadyPath, "utf8")));
       const expectedSession = this.ready?.runtimeSessionId ?? null;
       const currentSession = ready.runtimeSessionId ?? null;
-      if (!isReadyPayload(ready, child) || (expectedSession && currentSession !== expectedSession)) {
+      if (!isReadyPayload(ready, child) || !expectedSession || !currentSession || currentSession !== expectedSession) {
         this.ready = rendererUnavailableReady(this.ready ?? ready);
       } else {
         this.ready = ready;
@@ -541,6 +572,39 @@ export class RuntimeManager {
       this.plugins = [...this.ready.plugins];
     }
     return this.status();
+  }
+
+  async refreshDiagnostics(targetId = null) {
+    const child = this.child;
+    if (!child || hasExited(child) || !child.connected || typeof child.send !== "function") {
+      return this.status();
+    }
+    const requestId = `${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const result = new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.diagnosticRequests.delete(requestId);
+        reject(new Error("Runtime diagnostics refresh timed out"));
+      }, this.diagnosticTimeoutMs);
+      this.diagnosticRequests.set(requestId, { resolve, reject, child, timer });
+    });
+    try {
+      child.send({ type: "minecodex:refresh-diagnostics", requestId, targetId }, (error) => {
+        if (!error) return;
+        const pending = this.diagnosticRequests.get(requestId);
+        if (!pending) return;
+        this.diagnosticRequests.delete(requestId);
+        clearTimeout(pending.timer);
+        pending.reject(error);
+      });
+      return await result;
+    } catch (error) {
+      const pending = this.diagnosticRequests.get(requestId);
+      if (pending) {
+        this.diagnosticRequests.delete(requestId);
+        clearTimeout(pending.timer);
+      }
+      throw error;
+    }
   }
 
   restart() {
