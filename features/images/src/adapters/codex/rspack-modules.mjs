@@ -99,8 +99,13 @@ export async function createRspackImageModules(registry) {
     const canvasModule = module(source => /attachmentSrc:[\w$]+,chatGptConversationId:[\w$]+,contextMenuEnabled:/.test(source) && source.includes('onImageEditSubmit:'), 'image canvas');
     const layout = module(source => source.includes('reserveImageComposerSpace:') && source.includes('contentOwnsHeader:') && /composerPresentation:[\w$]+,contentOwnsHeader:/.test(source), 'preview layout');
     const edit = module(source => source.includes('requireDispatchAcceptance:') && source.includes('sourceAttachment:') && source.includes('imageVariant'), 'image edit');
-    const portalModule = module(source => source.includes('__DOM_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE=') && /\.createPortal=function/.test(source), 'React portal');
-    const createPortal = registry.exports(portalModule).createPortal;
+    // React 19 no longer exposes the old internal marker in every build. Prefer
+    // the registry-owned ReactDOM runtime already used by the gallery, then fall
+    // back to the legacy portal module when it is explicitly registered.
+    const portalEntry = registry.entries.find(entry =>
+      entry.source.includes('__DOM_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE=')
+      && /\.createPortal=function/.test(entry.source));
+    const createPortal = portalEntry ? registry.exports(portalEntry).createPortal : ReactDOM.createPortal;
     if (typeof createPortal !== 'function' || !composer.composerRouteScope?.parent) throw new Error('Native Images canvas contract changed');
     return {...composer, createPortal,
       Canvas:fn(canvasModule, source => /attachmentSrc:[\w$]+,chatGptConversationId:[\w$]+,contextMenuEnabled:/.test(source), 'image canvas'),
