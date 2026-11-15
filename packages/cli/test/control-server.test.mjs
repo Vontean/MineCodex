@@ -217,7 +217,7 @@ test("status consumes exact RuntimeHost plugin and renderer state, including fai
     assert.equal(status.renderer.active, true);
     assert.equal(status.runtime.renderer.active, true);
     assert.equal(status.runtime.runtimeSessionId, "runtime-session-1");
-    assert.deepEqual(status.diagnosticsCheck, { checkedAt: 1234, targetId: "window-1", sessionId: "runtime-session-1" });
+    assert.deepEqual(status.diagnosticsCheck, { checkedAt: 1234, checkType: "startup", pageScope: "renderer", targetId: "window-1", sessionId: "runtime-session-1" });
     assert.equal(status.features.find((feature) => feature.id === "model-slider").state, "injected");
     assert.equal(status.features.find((feature) => feature.id === "images").state, "healthy");
     assert.equal(status.features.find((feature) => feature.id === "notes").state, "failed");
@@ -258,6 +258,8 @@ test("diagnostics refresh accepts the raw RuntimeHost renderer status", async ()
     const result = await response.json();
     assert.equal(result.targetId, "window-raw");
     assert.equal(result.sessionId, "session-raw");
+    assert.equal(result.checkType, "manual");
+    assert.equal(result.pageScope, "renderer");
   } finally {
     await server.close();
   }
