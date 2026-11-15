@@ -112,8 +112,19 @@ async function canvasFixture(context,{reference=async()=>({base64:"AP9B",name:"i
   const surface=portal.props.children[1].props.children[0].props.children[0].props.children[0];
   const layout=surface.type(surface.props).props.children[0];
   const composer=layout.props.children.props.renderComposer(true).props.children.props.children[0].props.children[0];
-  return {...f,composer:composer.props,files,removed};
+  return {...f,composer:composer.props,canvasProps:layout.props.children.props,files,removed};
 }
+
+test("ImageGen canvas uses the current native edit attribution and overlay contract", async context=>{
+  const f=await canvasFixture(context);
+  assert.deepEqual(f.canvasProps.imageEditAttribution,{imageSource:"generated",editEntryPoint:"conversation"});
+  assert.equal(f.canvasProps.editInOverlay,true);
+  assert.equal(f.canvasProps.showViewerHeader,undefined);
+  assert.equal(typeof f.canvasProps.renderHeaderActions,"function");
+  assert.equal(typeof f.canvasProps.onImageEditSubmitted,"function");
+  assert.equal(typeof f.canvasProps.onImageEditSubmitStatusChange,"function");
+  f.view.dispose();
+});
 
 test("current file composer prepares exact local image bytes and preserves existing attachments",async context=>{
   const f=await canvasFixture(context);
