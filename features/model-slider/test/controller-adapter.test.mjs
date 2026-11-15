@@ -68,3 +68,18 @@ test('Fast icon discovery reports an unavailable contract without inventing an i
   const adapter = fixture({}, { nativeRegistry: async () => ({ entries: [{ source: 'FastModeToggle' }] }) });
   assert.equal(await adapter.fastIcons(), null);
 });
+
+test('Fast icon discovery reads the current registered icon definitions', async () => {
+  const definitions = [
+    { name: 'bolt-fill-light-16', canvas: { viewBox: '0 0 16 16', width: 16, height: 16 }, body: '<path d="filled"/>' },
+    { name: 'bolt-light-16', canvas: { viewBox: '0 0 16 16', width: 16, height: 16 }, body: '<path d="outline"/>' },
+  ];
+  const adapter = fixture({}, { nativeRegistry: async () => ({
+    entries: definitions.map((value, index) => ({ id: String(index), source: `name:"${value.name}"` })),
+    exports: entry => ({ icon: definitions[Number(entry.id)] }),
+  }) });
+  assert.deepEqual(await adapter.fastIcons(), {
+    active: { markup: '<path d="filled"/>', viewBox: '0 0 16 16', width: 16, height: 16 },
+    inactive: { markup: '<path d="outline"/>', viewBox: '0 0 16 16', width: 16, height: 16 },
+  });
+});
