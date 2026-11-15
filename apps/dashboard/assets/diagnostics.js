@@ -7,6 +7,7 @@ export function diagnosticReport(state) {
     verification:"runtime-observation-only",
     targets:(state?.renderer?.targets ?? []).map(target => ({
       targetId:target.targetId,checkedAt:target.checkedAt,reason:target.reason ?? null,
+      scope:target.scope ?? null,
       tokens:target.tokens,capabilities:target.capabilities,
       plugins:(target.plugins ?? []).map(plugin => ({
         featureId:plugin.featureId,installation:plugin.installation,state:plugin.state,reason:plugin.reason,
