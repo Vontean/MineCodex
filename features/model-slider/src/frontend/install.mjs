@@ -173,7 +173,7 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
     }
   `;
 
-  const nativeModel=createModelControllerAdapter(codex,comparableModelLabel);
+  const nativeModel=createModelControllerAdapter(codex,comparableModelLabel,codexModuleRegistry);
   const nativeComposerTrigger=nativeModel.trigger, nativeComposerModelController=nativeModel.read, nativeModelDescriptorForItem=nativeModel.descriptor, setReactControlledMenuOpen=nativeModel.setOpen, invokeNativeMenuItemSelect=nativeModel.selectItem;
 
   function createModelSelectorIcon(definition, { brand = false } = {}) {

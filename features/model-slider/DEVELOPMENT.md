@@ -13,6 +13,7 @@ Codex Composer 原生模型选择器的轻量增强功能。它通过同级
 - 所有模型共用 Slider，动态读取模型支持的思考档位；
 - 同时兼容旧版 reasoning 回调与新版 power selection 控制器契约；
 - 沿用原生面板的间距、重置入口；仅实际支持 Fast 时显示闪电按钮；
+- Fast 图标通过 `codexModuleRegistry` 读取当前已注册的原生 `FastModeToggle` 模块，按资源角色提取开/关路径；不依赖 bundle 文件名、路径前缀或构建哈希。注册表或资源契约不可用时保持原生控件，不伪造图标。
 - Chat／Temporary Chat 完全使用原生模型选择器，不注入增强面板或拦截模型菜单。
 
 ## 验证
@@ -25,3 +26,5 @@ npm test
 
 这是非官方 CDP / DOM Adapter 的功能声明。Codex 私有 DOM 的适配实现统一留在
 对应功能的 `src/adapters/codex/`。
+
+最近隔离验证：代码与契约测试覆盖注册表资源发现、缺失资源降级及序列化入口；当前变更尚未在真实 Codex 窗口完成浅/深色、缩放和键盘操作截图验收，需按 Runtime Host 隔离流程补做。

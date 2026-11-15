@@ -1,5 +1,5 @@
-import { findCodexModule } from '../../../../../packages/codex-adapter/src/renderer/modules.mjs';
-export function createModelControllerAdapter(codex,comparableModelLabel) {
+import { codexModuleRegistry } from '../../../../../packages/codex-adapter/src/renderer/modules.mjs';
+export function createModelControllerAdapter(codex,comparableModelLabel,nativeRegistry=null) {
 function controllerView(props) {const view=Object.fromEntries(["models","model","reasoningEffort","powerSelections","selectedPowerSelection","fallbackPowerSelection","serviceTierOptions","selectedServiceTier","onSelectModel","onSelectReasoningEffort","onSelectPower","onCommitPower","onSelectServiceTier"].map(key=>[key,props[key]]));codex.report('model-controller',true);return view;}
 function nativeComposerTriggers() {
     const native = Array.from(document.querySelectorAll("[data-codex-intelligence-trigger]"));
@@ -133,18 +133,22 @@ function invokeNativeMenuItemSelect(item) {
     }
     return false;
   }
-  function extractFastIconPath(source, prefix) {
-    const match = String(source).match(new RegExp(`d:\`(${prefix}[^\`]*)\``));
-    return match?.[1] ?? null;
-  }
-
   async function fastIcons(signal) {
-    const sourceUrl=await findCodexModule('app-primary',{signal}) ?? await findCodexModule('app-initial',{signal});
-    if (!sourceUrl) {codex.report("fast-icons",false,"bundle-unavailable");return null;}
-    const source=await (await fetch(sourceUrl,{signal})).text();
-    const active=extractFastIconPath(source,"M11\\.9125 21\\.4125"),inactive=extractFastIconPath(source,"M9\\.80999 17\\.8302");
+    const registry = nativeRegistry ? await nativeRegistry({signal, waitForEntry:true}) : null;
+    if (!registry) {codex.report("fast-icons",false,"native-module-registry-unavailable");return null;}
+    const source = registry.entries.map(entry => entry.source)
+      .find(value => /FastModeToggle|fast.mode|fastMode/i.test(value)
+        && /M(?:11\.9125 21\.4125|9\.80999 17\.8302)/.test(value));
+    const extract = (prefix) => {
+      const escaped = prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const match = String(source ?? '').match(new RegExp(`d:\`(${escaped}[^\`]*)\``));
+      return match?.[1] ?? null;
+    };
+    const active=extract("M11.9125 21.4125"),inactive=extract("M9.80999 17.8302");
     codex.report("fast-icons",Boolean(active && inactive),active && inactive ? null : "icon-resource-contract-changed");
-    return {active:{path:active,viewBox:"0 0 24 24"},inactive:{path:inactive,viewBox:"0 0 20 20"}};
+    return active && inactive
+      ? {active:{path:active,viewBox:"0 0 24 24"},inactive:{path:inactive,viewBox:"0 0 20 20"}}
+      : null;
   }
 function selfCheck() {
   const trigger=nativeComposerTrigger();
