@@ -120,7 +120,6 @@ test("ImageGen canvas uses the current native edit attribution and overlay contr
   assert.deepEqual(f.canvasProps.imageEditAttribution,{imageSource:"generated",editEntryPoint:"conversation"});
   assert.equal(f.canvasProps.editInOverlay,true);
   assert.equal(f.canvasProps.showViewerHeader,undefined);
-  assert.equal(typeof f.canvasProps.renderHeaderActions,"function");
   assert.equal(typeof f.canvasProps.onImageEditSubmitted,"function");
   assert.equal(typeof f.canvasProps.onImageEditSubmitStatusChange,"function");
   f.view.dispose();

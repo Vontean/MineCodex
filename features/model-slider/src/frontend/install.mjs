@@ -149,7 +149,9 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
       visibility: hidden !important;
     }
     [data-codex-model-slider-generic] { box-sizing: border-box; width: 100%; }
-    [data-codex-model-slider-fast] { border: 0; background: transparent; cursor: pointer; }
+    [data-codex-model-slider-fast] { width: 32px; min-height: 32px; border: 0; background: transparent; cursor: pointer; display: flex; flex-shrink: 0; flex-direction: column; justify-content: center; align-items: center; margin: 0; padding: 0; }
+    [data-codex-model-slider-fast-content] { width: 26px; height: 26px; margin-inline: auto; display: flex; justify-content: center; align-items: center; border-radius: 7px; }
+    [data-codex-model-slider-fast-content] > svg { display: block; flex: none; }
     [data-codex-model-slider-fast]:not(:hover) [data-codex-model-slider-fast-content] { background: transparent; }
     [data-codex-model-slider-fast]:focus-visible { outline: 2px solid var(--mcx-color-border-focus); outline-offset: 1px; }
     [data-codex-model-slider-rail][data-codex-model-slider-fallback] { position: relative; height: 38px; margin: 1px 8px 0; outline: none; cursor: pointer; }
@@ -173,7 +175,7 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
     }
   `;
 
-  const nativeModel=createModelControllerAdapter(codex,comparableModelLabel);
+  const nativeModel=createModelControllerAdapter(codex,comparableModelLabel,codexModuleRegistry);
   const nativeComposerTrigger=nativeModel.trigger, nativeComposerModelController=nativeModel.read, nativeModelDescriptorForItem=nativeModel.descriptor, setReactControlledMenuOpen=nativeModel.setOpen, invokeNativeMenuItemSelect=nativeModel.selectItem;
 
   function createModelSelectorIcon(definition, { brand = false } = {}) {
@@ -282,8 +284,8 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
             : `<path d="${path}" fill="currentColor" />`,
         }, { brand: true });
         if (!svg) return;
-        svg.setAttribute("width", "20");
-        svg.setAttribute("height", "20");
+        svg.setAttribute("width", String(definition.width ?? 20));
+        svg.setAttribute("height", String(definition.height ?? 20));
         modelSelectorNativeFastIcons[state] = svg;
         gained = true;
       };

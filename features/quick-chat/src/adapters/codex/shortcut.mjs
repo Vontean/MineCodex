@@ -100,50 +100,61 @@ export function installQuickChatShortcut(signal, codex, discover = null) {
   }
   async function load() {
     codex.report('quick-chat-shortcut', false, 'quick-chat-module-pending');
+    // Rspack 的注册表可能先于 Quick Chat 自身完成初始化。此时不能执行
+    // 未初始化的原生工厂；回退到入口模块的既有 ESM 合约，交给原生 import
+    // 完成初始化，避免冷启动时一次失败就永久丢失侧栏入口。
+    const loadLegacy = async () => {
+      const url=await findCodexModule('app-initial',{signal:loading.signal,waitForEntry:true});
+      if (!url) throw new Error('quick-chat-module-unavailable');
+      const source = await (await fetch(url, {signal:loading.signal})).text();
+      const module = await import(url);
+      let native;
+      try { native=quickChatNativeCommand(source); }
+      catch (error) {
+        if (error.message !== 'quick-chat-command-catalog-unavailable') throw error;
+        // 新版命令目录移入共享模块；打开动作仍由入口模块导出。
+        const file=source.match(/["'`]\.\/(app-shared-[\w-]+\.js)["'`]/)?.[1];
+        if (!file) throw error;
+        const response=await fetch(new URL(file,url).href,{signal:loading.signal});
+        if (!response.ok) throw error;
+        native=quickChatNativeCommand(await response.text());
+      }
+      const bindings={native};
+      if (!native) {
+        const roles = quickChatLifecycleExports(source);
+        if (!module[roles.openState] && typeof module[roles.initialize] === 'function') module[roles.initialize]();
+        const open = module[roles.open], create = module[roles.create], openState = module[roles.openState];
+        if (typeof open !== 'function' || typeof create !== 'function' || !openState) throw new Error('quick-chat-open-action-unavailable');
+        Object.assign(bindings,{open,create,isOpen:scope=>scope.get(openState)});
+      }
+      try {
+        const actions=quickChatLifecycleActions(source);
+        if (actions.mode && module[actions.mode]) bindings.mode=scope=>scope.get(module[actions.mode]);
+        if (['close','draft','text'].every(key=>typeof module[actions[key]]==='function') && module[actions.session] && module[actions.attachments]) {
+          bindings.close=(scope,id)=>{
+            if (scope.get(module[actions.session])?.conversationId!==id) return false;
+            module[actions.draft](scope,{draftKey:id,content:null});
+            module[actions.text](scope,id,'');
+            scope.set(module[actions.attachments],id,[]);
+            module[actions.close](scope);
+            return true;
+          };
+        }
+      } catch { codex.report('quick-chat-close',false,'quick-chat-close-contract-unavailable'); }
+      return bindings;
+    };
     const registry=await codexModuleRegistry({signal:loading.signal,waitForEntry:true,read:async url=>(await fetch(url,{signal:loading.signal})).text()});
     if (registry) {
-      const bindings=loadRspackQuickChatBindings(registry,quickChatNativeCommand);
-      if (!bindings.native && !bindings.close) codex.report('quick-chat-close',false,'quick-chat-close-contract-unavailable');
-      return bindings;
-    }
-    const url=await findCodexModule('app-initial',{signal:loading.signal,waitForEntry:true});
-    if (!url) throw new Error('quick-chat-module-unavailable');
-    const source = await (await fetch(url, {signal:loading.signal})).text();
-    const module = await import(url);
-    let native;
-    try { native=quickChatNativeCommand(source); }
-    catch (error) {
-      if (error.message !== 'quick-chat-command-catalog-unavailable') throw error;
-      // 新版命令目录移入共享模块；打开动作仍由入口模块导出。
-      const file=source.match(/["'`]\.\/(app-shared-[\w-]+\.js)["'`]/)?.[1];
-      if (!file) throw error;
-      const response=await fetch(new URL(file,url).href,{signal:loading.signal});
-      if (!response.ok) throw error;
-      native=quickChatNativeCommand(await response.text());
-    }
-    const bindings={native};
-    if (!native) {
-      const roles = quickChatLifecycleExports(source);
-      if (!module[roles.openState] && typeof module[roles.initialize] === 'function') module[roles.initialize]();
-      const open = module[roles.open], create = module[roles.create], openState = module[roles.openState];
-      if (typeof open !== 'function' || typeof create !== 'function' || !openState) throw new Error('quick-chat-open-action-unavailable');
-      Object.assign(bindings,{open,create,isOpen:scope=>scope.get(openState)});
-    }
-    try {
-      const actions=quickChatLifecycleActions(source);
-      if (actions.mode && module[actions.mode]) bindings.mode=scope=>scope.get(module[actions.mode]);
-      if (['close','draft','text'].every(key=>typeof module[actions[key]]==='function') && module[actions.session] && module[actions.attachments]) {
-        bindings.close=(scope,id)=>{
-          if (scope.get(module[actions.session])?.conversationId!==id) return false;
-          module[actions.draft](scope,{draftKey:id,content:null});
-          module[actions.text](scope,id,'');
-          scope.set(module[actions.attachments],id,[]);
-          module[actions.close](scope);
-          return true;
-        };
+      try {
+        const bindings=loadRspackQuickChatBindings(registry,quickChatNativeCommand);
+        if (!bindings.native && !bindings.close) codex.report('quick-chat-close',false,'quick-chat-close-contract-unavailable');
+        return bindings;
+      } catch (error) {
+        if (!/native-module-(?:not-loaded|export-unavailable)|native-module-registry-unavailable|quick-chat-command-catalog-unavailable/.test(error?.message ?? '')) throw error;
+        return loadLegacy();
       }
-    } catch { codex.report('quick-chat-close',false,'quick-chat-close-contract-unavailable'); }
-    return bindings;
+    }
+    return loadLegacy();
   }
   const ready = (discover ?? load)().then(value => {
     if (disposed || signal.aborted) return;
