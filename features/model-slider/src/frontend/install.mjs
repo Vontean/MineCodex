@@ -276,7 +276,7 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
         const definition=definitions[state];
         if (modelSelectorNativeFastIcons[state]) return;
         const path = definition?.path;
-        if (!path) return;
+        if (!path && !definition?.markup) return;
         const svg = createModelSelectorIcon({
           viewBox: definition.viewBox,
           markup: definition.markup ?? (definition.transform

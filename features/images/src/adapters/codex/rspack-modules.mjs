@@ -111,7 +111,11 @@ export async function createRspackImageModules(registry) {
       && entry.source.includes('onBlurOutside:')
       && entry.source.includes('input-')
       && entry.source.includes('onCancel:'));
-    const ImageEditComposer = inlineComposerEntry ? registry.exports(inlineComposerEntry).Ay : null;
+    const ImageEditComposer = inlineComposerEntry
+      ? registry.value(inlineComposerEntry, (value, source) => typeof value === 'function'
+        && source.includes('submitLabel:') && source.includes('onBlurOutside:')
+        && source.includes('onCancel:'), 'image edit composer')
+      : null;
     // React 19 no longer exposes the old internal marker in every build. Prefer
     // the registry-owned ReactDOM runtime already used by the gallery, then fall
     // back to the legacy portal module when it is explicitly registered.

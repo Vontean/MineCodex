@@ -24,3 +24,11 @@ test('Fast control keeps the native 32px button and 26px centered icon slot',()=
   assert.match(source,/\[data-codex-model-slider-fast\].*width: 32px/);
   assert.match(source,/\[data-codex-model-slider-fast-content\].*width: 26px; height: 26px/);
 });
+
+test('serialized Fast icon installer consumes native markup and dimensions',()=>{
+  const source=createModelSliderInstallerSource();
+  assert.match(source,/if \(!path && !definition\?\.markup\) return/);
+  assert.match(source,/definition\.markup \?\?/);
+  assert.match(source,/definition\.width \?\? 20/);
+  assert.match(source,/definition\.height \?\? 20/);
+});
