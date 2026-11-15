@@ -187,6 +187,7 @@ test("status consumes exact RuntimeHost plugin and renderer state, including fai
     dashboardDir: path.join(PACKAGE_ROOT, "apps", "dashboard"),
   };
   await writeConfig(paths.configPath, { schemaVersion: 1, features: {} });
+  let checkType = "startup";
   const runtimeManager = {
     status: () => ({
       running: true,
@@ -198,8 +199,9 @@ test("status consumes exact RuntimeHost plugin and renderer state, including fai
         { featureId: "images", state: "injected", owned: true, health: { service: "images", protocolVersion: 1, instanceId: "images-instance-1", ok: true }, failure: null },
       ],
       renderer: { discovered: true, injectedTargets: 3, active: true, runtimeSessionId: "runtime-session-1",
-        targets: [{ targetId: "window-1", sessionId: "runtime-session-1", checkedAt: 1234, plugins: [] }] },
+        targets: [{ targetId: "window-1", sessionId: "runtime-session-1", checkedAt: 1234, checkType, plugins: [] }] },
     }),
+    refreshDiagnostics: async () => { checkType = "manual"; return runtimeManager.status(); },
   };
   const server = await createControlServer({ paths, token: "status-secret", runtimeManager, port: 0, logger: { error() {} } });
   try {
@@ -218,6 +220,12 @@ test("status consumes exact RuntimeHost plugin and renderer state, including fai
     assert.equal(status.runtime.renderer.active, true);
     assert.equal(status.runtime.runtimeSessionId, "runtime-session-1");
     assert.deepEqual(status.diagnosticsCheck, { checkedAt: 1234, checkType: "startup", pageScope: "renderer", targetId: "window-1", sessionId: "runtime-session-1" });
+    const refreshed = await fetch(`${server.url}/api/diagnostics/refresh`, {
+      method: "POST", headers: { Cookie: cookie, Origin: server.url, "Content-Type": "application/json" }, body: JSON.stringify({ targetId: "window-1" }),
+    });
+    assert.equal((await refreshed.json()).checkType, "manual");
+    const afterRefresh = await (await fetch(`${server.url}/api/status`, { headers: { Cookie: cookie } })).json();
+    assert.equal(afterRefresh.diagnosticsCheck.checkType, "manual");
     assert.equal(status.features.find((feature) => feature.id === "model-slider").state, "injected");
     assert.equal(status.features.find((feature) => feature.id === "images").state, "healthy");
     assert.equal(status.features.find((feature) => feature.id === "notes").state, "failed");
