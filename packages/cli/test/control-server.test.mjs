@@ -197,7 +197,8 @@ test("status consumes exact RuntimeHost plugin and renderer state, including fai
         { featureId: "notes", state: "failed", owned: true, health: null, failure: { code: "HEALTH_TIMEOUT", message: "Notes health timed out", phase: "health" } },
         { featureId: "images", state: "injected", owned: true, health: { service: "images", protocolVersion: 1, instanceId: "images-instance-1", ok: true }, failure: null },
       ],
-      renderer: { discovered: true, injectedTargets: 3, active: true, runtimeSessionId: "runtime-session-1" },
+      renderer: { discovered: true, injectedTargets: 3, active: true, runtimeSessionId: "runtime-session-1",
+        targets: [{ targetId: "window-1", sessionId: "runtime-session-1", checkedAt: 1234, plugins: [] }] },
     }),
   };
   const server = await createControlServer({ paths, token: "status-secret", runtimeManager, port: 0, logger: { error() {} } });
@@ -216,10 +217,47 @@ test("status consumes exact RuntimeHost plugin and renderer state, including fai
     assert.equal(status.renderer.active, true);
     assert.equal(status.runtime.renderer.active, true);
     assert.equal(status.runtime.runtimeSessionId, "runtime-session-1");
+    assert.deepEqual(status.diagnosticsCheck, { checkedAt: 1234, targetId: "window-1", sessionId: "runtime-session-1" });
     assert.equal(status.features.find((feature) => feature.id === "model-slider").state, "injected");
     assert.equal(status.features.find((feature) => feature.id === "images").state, "healthy");
     assert.equal(status.features.find((feature) => feature.id === "notes").state, "failed");
     assert.equal(status.features.find((feature) => feature.id === "notes").failure.code, "HEALTH_TIMEOUT");
+  } finally {
+    await server.close();
+  }
+});
+
+test("diagnostics refresh accepts the raw RuntimeHost renderer status", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "minecodex-control-diagnostics-raw-"));
+  const paths = {
+    packageRoot: PACKAGE_ROOT,
+    configPath: path.join(root, "config.json"),
+    featuresRoot: path.join(PACKAGE_ROOT, "features"),
+    dashboardDir: path.join(PACKAGE_ROOT, "apps", "dashboard"),
+  };
+  await writeConfig(paths.configPath, { schemaVersion: 1, features: {} });
+  const runtimeManager = {
+    refreshDiagnostics: async () => ({
+      runtimeSessionId: "session-raw",
+      targets: [{ targetId: "window-raw", sessionId: "session-raw", checkedAt: 123, plugins: [] }],
+    }),
+    status: () => ({ running: true, runtimeSessionId: "session-raw", renderer: { targets: [] } }),
+  };
+  const server = await createControlServer({ paths, token: "diagnostics-raw-secret", runtimeManager, port: 0, logger: { error() {} } });
+  try {
+    const exchange = await fetch(`${server.url}/api/auth/exchange`, {
+      method: "POST", headers: { Authorization: "Bearer diagnostics-raw-secret", Origin: server.url, "Content-Type": "application/json" }, body: "{}",
+    });
+    const { exchange: value } = await exchange.json();
+    const auth = await fetch(`${server.url}/auth?exchange=${encodeURIComponent(value)}`, { redirect: "manual" });
+    const cookie = auth.headers.get("set-cookie").split(";", 1)[0];
+    const response = await fetch(`${server.url}/api/diagnostics/refresh`, {
+      method: "POST", headers: { Cookie: cookie, Origin: server.url, "Content-Type": "application/json" }, body: JSON.stringify({ targetId: "window-raw" }),
+    });
+    assert.equal(response.status, 200);
+    const result = await response.json();
+    assert.equal(result.targetId, "window-raw");
+    assert.equal(result.sessionId, "session-raw");
   } finally {
     await server.close();
   }

@@ -299,7 +299,14 @@ function renderRuntime() {
   if (targets.some((target) => target.targetId === previous)) elements.diagnosticsTargetSelect.value = previous;
   elements.diagnosticsTargetSelect.disabled = targets.length === 0;
   elements.refreshDiagnosticsButton.disabled = targets.length === 0;
-  const check = state?.diagnosticsCheck;
+  const startupCheck = targets
+    .filter((target) => Number.isFinite(target.checkedAt))
+    .sort((left, right) => right.checkedAt - left.checkedAt)[0];
+  const check = state?.diagnosticsCheck ?? (startupCheck && {
+    checkedAt: startupCheck.checkedAt,
+    targetId: startupCheck.targetId,
+    sessionId: startupCheck.sessionId ?? state?.runtimeSessionId ?? null,
+  });
   elements.diagnosticsStatus.textContent = check?.checkedAt
     ? `${locale === "zh-CN" ? "检查" : "Checked"}: ${new Date(check.checkedAt).toLocaleString()} · ${check.targetId}`
     : "";
@@ -342,6 +349,12 @@ async function load() {
     const fresh = await response.json();
     if (pendingFeatureIds.size && state) fresh.features = fresh.features.map(feature =>
       pendingFeatureIds.has(feature.id) ? state.features.find(previous=>previous.id === feature.id) ?? feature : feature);
+    const previousCheck = state?.diagnosticsCheck;
+    const freshTargets = fresh.renderer?.targets ?? fresh.runtime?.renderer?.targets ?? [];
+    if (previousCheck && (!previousCheck.sessionId || previousCheck.sessionId === (fresh.runtimeSessionId ?? fresh.runtime?.runtimeSessionId))
+      && freshTargets.some(target => target.targetId === previousCheck.targetId)) {
+      fresh.diagnosticsCheck = previousCheck;
+    }
     state = fresh;
     elements.pluginList.hidden = false;
     render();

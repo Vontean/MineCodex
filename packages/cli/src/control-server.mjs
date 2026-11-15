@@ -305,13 +305,17 @@ export async function createControlServer({
         const targetId = typeof body.targetId === "string" && body.targetId.trim() ? body.targetId.trim() : null;
         if (!targetId) throw Object.assign(new Error("A renderer target is required"), { statusCode: 400 });
         const runtime = await (runtimeManager.refreshDiagnostics?.(targetId) ?? runtimeManager.refreshStatus());
-        const target = runtime.renderer?.targets?.find((candidate) => candidate.targetId === targetId);
+        // RuntimeHost IPC 返回 getRendererStatus() 的 raw renderer shape；旧版
+        // RuntimeManager 则返回 status() 的嵌套 shape。两者都是公开边界，统一
+        // 在控制层解包，避免对 raw 结果误判为窗口已消失。
+        const renderer = runtime.renderer?.targets ? runtime.renderer : runtime;
+        const target = renderer.targets?.find((candidate) => candidate.targetId === targetId);
         if (!target) throw Object.assign(new Error("Renderer target is no longer available"), { statusCode: 409 });
         json(response, 200, {
           checkedAt: Date.now(),
           scope: "current-renderer-window",
           targetId,
-          sessionId: target.sessionId ?? runtime.runtimeSessionId ?? null,
+          sessionId: target.sessionId ?? renderer.runtimeSessionId ?? runtime.runtimeSessionId ?? null,
           renderer: { ...target, targetId },
         });
         return;
@@ -319,6 +323,9 @@ export async function createControlServer({
       if (request.method === "GET" && url.pathname === "/api/status") {
         const runtime = await (runtimeManager.refreshStatus?.() ?? runtimeManager.status());
         const features = await featureStatuses(paths, runtimeManager, locale, runtime);
+        const renderer = runtime.renderer ?? null;
+        const startupTarget = renderer?.targets?.filter((target) => Number.isFinite(target.checkedAt))
+          .sort((left, right) => right.checkedAt - left.checkedAt)[0] ?? null;
         json(response, 200, {
           version: packageMetadata.version,
           service: { running: true },
@@ -335,6 +342,11 @@ export async function createControlServer({
           },
           runtimeSessionId: runtime.runtimeSessionId ?? null,
           renderer: runtime.renderer ?? null,
+          diagnosticsCheck: startupTarget ? {
+            checkedAt: startupTarget.checkedAt,
+            targetId: startupTarget.targetId,
+            sessionId: startupTarget.sessionId ?? renderer.runtimeSessionId ?? runtime.runtimeSessionId ?? null,
+          } : null,
           pendingRestart: features.some((feature) => feature.state === "restart-required"),
           features,
         });
