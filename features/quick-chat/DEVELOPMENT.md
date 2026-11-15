@@ -69,3 +69,9 @@ Codex / ChatGPT `26.1029.61003`（build 24614）使用数字 chunk 与 Rspack �
 判定为旧版并永久等待 app-initial。检查注册工厂源码、已加载导出及其引用，不执行
 任意原生模块工厂。`npm run check:native` 同时检查图标和快捷键加载链路；业务动作
 仍在独立 profile 验收。
+
+冷启动时注册表可能已经可见，但 Quick Chat 生命周期模块仍未进入原生缓存。快捷键
+Adapter 遇到这类未就绪错误时不执行工厂，也不永久保留失败结果；它沿已声明的
+`app-initial` 入口回退到原生 ESM import，让原生初始化完成后再读取打开角色。该回退
+只发生在注册表缓存/目录尚未就绪的明确错误，协议真实变化仍报告不可用。回归见
+`features/quick-chat/test/shortcut.test.mjs` 的冷启动注册表样例。
