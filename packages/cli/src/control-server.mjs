@@ -299,6 +299,16 @@ export async function createControlServer({
         return;
       }
       const locale = String(request.headers["accept-language"] ?? "").toLowerCase().startsWith("zh") ? "zh-CN" : "en";
+      if (request.method === "POST" && url.pathname === "/api/diagnostics/refresh") {
+        requireMutationOrigin(request, host, boundPort);
+        const runtime = await (runtimeManager.refreshDiagnostics?.() ?? runtimeManager.refreshStatus());
+        json(response, 200, {
+          checkedAt: Date.now(),
+          scope: "current-renderer-windows",
+          renderer: runtime.renderer ?? null,
+        });
+        return;
+      }
       if (request.method === "GET" && url.pathname === "/api/status") {
         const runtime = await (runtimeManager.refreshStatus?.() ?? runtimeManager.status());
         const features = await featureStatuses(paths, runtimeManager, locale, runtime);

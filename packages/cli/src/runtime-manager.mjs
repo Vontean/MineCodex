@@ -156,6 +156,7 @@ export class RuntimeManager {
     this.manualLaunchBaselinePids = new Set();
     this.manualLaunchArmed = false;
     this.manualLaunchSuppressionDepth = 0;
+    this.diagnosticRequests = new Map();
     this.enhancedCodex = null;
     this.enhancementFailure = null;
     this.launchCoordinator = launchCoordinator ?? new ChatGPTLaunchCoordinator({
@@ -204,6 +205,14 @@ export class RuntimeManager {
       stdio: ["inherit", "inherit", "inherit", "ipc"],
     });
     this.child = child;
+    child.on?.("message", (message) => {
+      if (message?.type !== "minecodex:diagnostics-result") return;
+      const pending = this.diagnosticRequests.get(message.requestId);
+      if (!pending) return;
+      this.diagnosticRequests.delete(message.requestId);
+      if (message.error) pending.reject(new Error(message.error));
+      else pending.resolve(message.status);
+    });
     if (hasExited(child)) {
       this.clearChildState();
       throw new Error(`RuntimeHost exited immediately (${child.signalCode ?? child.exitCode})`);
@@ -541,6 +550,24 @@ export class RuntimeManager {
       this.plugins = [...this.ready.plugins];
     }
     return this.status();
+  }
+
+  async refreshDiagnostics() {
+    const child = this.child;
+    if (!child || hasExited(child) || !child.connected || typeof child.send !== "function") {
+      return this.status();
+    }
+    const requestId = `${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const result = new Promise((resolve, reject) => {
+      this.diagnosticRequests.set(requestId, { resolve, reject });
+    });
+    try {
+      child.send({ type: "minecodex:refresh-diagnostics", requestId });
+      return await result;
+    } catch (error) {
+      this.diagnosticRequests.delete(requestId);
+      throw error;
+    }
   }
 
   restart() {
