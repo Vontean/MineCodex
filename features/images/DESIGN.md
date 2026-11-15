@@ -20,11 +20,11 @@ hover sidebars and the native full-page shell remain owned by Codex.
 
 加载使用原生 Library Skeleton，排布使用原生 Masonry，悬浮效果使用原生 Library Card，菜单使用原生 Dropdown、Button 与 Menu。图库本地文件通过原生生成图片 resolver 读取；浏览时 Backend 提供索引中的来源路径，图片由原生 resolver 读取；显式云端登记才读取该索引 ID 对应的完整字节并校验内容指纹，不接受 Renderer 任意路径读取，不维护第二套图库加载协议。
 
-点击图片进入原生 Library 主内容 viewport 内的图片画布，保留 navbar、Space 二级侧栏和窗口栏；不打开 side panel，也不使用覆盖整窗的 Dialog。画布、缩放、下载、打开、Markup、Comment、Remove BG、Erase、Resize 和底部 “Ask about this file” 输入框复用原生组件。底部直接使用画布的原生 `renderComposer` / overlay 承载，沿用底部留白、居中、避让和工具状态显隐；不得另建 absolute 底部输入框。进入 Comment 时隐藏大输入框，退出时恢复；原生拖拽工具栏保留位置记忆及 Home 居中重置。初始缩放与每张图的 Zoom to fit 使用原生 `zoom` 契约，`manualZoomPercent` 初始为 `null`，不自算比例，也不继承上一张图的手动缩放。关闭回到原列表并恢复交互，标注中的关闭交由原生编辑器处理。
+点击图片进入原生 Library 主内容 viewport 内的图片画布，保留 navbar、Space 二级侧栏和窗口栏；不打开 side panel，也不使用覆盖整窗的 Dialog。画布、缩放、下载、打开、Markup、Comment、Remove BG、Erase、Resize 和编辑输入复用原生组件。编辑输入使用原生 Inline Composer，并由 Canvas 的 `composerOnly` 浮动 wrapper 承载；不能另建 absolute 底部输入框，也不能把该输入框默认描述为居中宽 48rem。旧 File Composer 仅作为原生 Inline Composer 不可用时的兼容分支。进入 Comment 时隐藏编辑输入，退出时恢复；原生拖拽工具栏保留其自身行为。初始缩放与每张图的 Zoom to fit 使用原生 `zoom` 契约，`manualZoomPercent` 初始为 `null`，不自算比例，也不继承上一张图的手动缩放。关闭回到原列表并恢复交互，标注中的关闭交由原生编辑器处理。
 
-底部复用当前 File Composer 的本地任务分支，宽度 `min(48rem, calc(100vw - 2rem))`、`auto-single-line`、`surfaceVariant:"inline"`、隐藏 utility bar 和运行位置控件，输入布局、模型控件、权限、语音及发送按钮均由原生组件决定，不再固定旧 Chat 的单行组件。画布在主内容 viewport 内，因此只在此画布范围内去掉原生 overlay header 容器的窗口交通灯左右避让，保留原生 header 自身 8px inset。背景、缩放、Open、下载、关闭、菜单及编辑状态使用原生 Canvas；按当前产品要求保留黑色编辑行动条。底部预留区通过 ResizeObserver 读取实际 File Composer 高度，加原生 `spacing × 4` 底部 inset；不沿用原生旧输入框的 118px 最小预留。行动条默认位置与拖拽下边界共用此画布尺寸，输入框展开、收起或隐藏时同步更新；默认紧凑输入框 44px 时预留为 60px，行动条与输入框间距为 16px。
+画布保留 `presentation:"overlay"` 与 CanvasLayout 的原生背景和 viewport 契约；不传 `editInOverlay`，使原生 Canvas 自己决定 `composerOnly` 浮动包装。画布在主内容 viewport 内，因此只在此画布范围内去掉原生 overlay header 容器的窗口交通灯左右避让，保留原生 header 自身 inset。背景、缩放、Open、下载、关闭、菜单及编辑状态使用原生 Canvas；黑色编辑行动条仅记录为已接入原生组件，拖拽和编辑提交仍需单独验收。
 
-本地来源以真实路径、来源 thread 和生成项 ID 接入；底部输入框首次发送时通过原生文件服务准备本地临时附件，不上传云端、不伪造 Library 身份。关闭或切换账号后晚到的附件会释放；提交接受后沿用原生本地会话导航。黑色行动条的生成编辑仍在明确提交编辑时通过原生上传准备临时附件，同一画布复用编辑附件，查看不上传到 Library。附件使用原生返回的 `id`；不得把本地 ID 伪装为 cloud file ID。生成编辑调用原生提交能力，接受后沿用原生会话导航。View prompts 通过原生菜单扩展进入已有的 File info 风格面板。
+本地来源以真实路径、来源 thread 和生成项 ID 接入；编辑输入首次发送时通过原生文件服务准备本地临时附件，不上传云端、不伪造 Library 身份。关闭或切换账号后晚到的附件会释放；提交接受后沿用原生本地会话导航。黑色行动条的生成编辑仍在明确提交编辑时通过原生上传准备临时附件，同一画布复用编辑附件，查看不上传到 Library。附件使用原生返回的 `id`；不得把本地 ID 伪装为 cloud file ID。生成编辑调用原生提交能力，接受后沿用原生会话导航。View prompts 通过原生菜单扩展进入已有的 File info 风格面板。
 
 发送准备只在用户点击发送后进行，不在开始输入时预准备；本地字节转换直接填充 typed array，避免大图片经字符串迭代器生成中间数组。该优化只减少本地准备成本，不代表上传或原生提交网络等待已经缩短。
 
