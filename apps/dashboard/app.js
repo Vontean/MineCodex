@@ -354,7 +354,8 @@ async function load() {
       pendingFeatureIds.has(feature.id) ? state.features.find(previous=>previous.id === feature.id) ?? feature : feature);
     const previousCheck = state?.diagnosticsCheck;
     const freshTargets = fresh.renderer?.targets ?? fresh.runtime?.renderer?.targets ?? [];
-    if (previousCheck && (!previousCheck.sessionId || previousCheck.sessionId === (fresh.runtimeSessionId ?? fresh.runtime?.runtimeSessionId))
+    const freshSessionId = fresh.runtimeSessionId ?? fresh.runtime?.runtimeSessionId;
+    if (previousCheck?.sessionId && freshSessionId && previousCheck.sessionId === freshSessionId
       && freshTargets.some(target => target.targetId === previousCheck.targetId)) {
       fresh.diagnosticsCheck = previousCheck;
     }

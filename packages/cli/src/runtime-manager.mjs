@@ -279,7 +279,7 @@ export class RuntimeManager {
     clearTimeout(pending.timer);
     const expectedSession = this.ready?.runtimeSessionId ?? null;
     const actualSession = message.status?.runtimeSessionId ?? null;
-    if (expectedSession && actualSession && expectedSession !== actualSession) {
+    if (!expectedSession || !actualSession || expectedSession !== actualSession) {
       pending.reject(new Error("Runtime diagnostics result belongs to an expired session"));
       return;
     }
@@ -556,7 +556,7 @@ export class RuntimeManager {
       const ready = normalizeRuntimeReady(JSON.parse(await readFile(this.paths.runtimeReadyPath, "utf8")));
       const expectedSession = this.ready?.runtimeSessionId ?? null;
       const currentSession = ready.runtimeSessionId ?? null;
-      if (!isReadyPayload(ready, child) || (expectedSession && currentSession !== expectedSession)) {
+      if (!isReadyPayload(ready, child) || !expectedSession || !currentSession || currentSession !== expectedSession) {
         this.ready = rendererUnavailableReady(this.ready ?? ready);
       } else {
         this.ready = ready;
