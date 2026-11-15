@@ -1589,3 +1589,24 @@ test("diagnostics refresh rejects when its RuntimeHost exits", async () => {
   await assert.rejects(request, /no longer available|exited/);
   assert.equal(manager.diagnosticRequests.size, 0);
 });
+
+test("diagnostics refresh rejects evidence without an explicit current session", async () => {
+  const child = new EventEmitter();
+  child.pid = 9103;
+  child.connected = true;
+  child.exitCode = null;
+  child.signalCode = null;
+  child.send = (message) => {
+    queueMicrotask(() => child.emit("message", {
+      type: "minecodex:diagnostics-result",
+      requestId: message.requestId,
+      status: { targets: [{ targetId: "window-1", checkedAt: 43, plugins: [] }] },
+    }));
+  };
+  const manager = new RuntimeManager({ paths: {}, diagnosticTimeoutMs: 20 });
+  manager.child = child;
+  manager.ready = { runtimeSessionId: "session-1", features: [], plugins: [], renderer: null };
+  child.on("message", (message) => manager.handleDiagnosticMessage(child, message));
+  await assert.rejects(manager.refreshDiagnostics("window-1"), /expired session/);
+  assert.equal(manager.diagnosticRequests.size, 0);
+});
