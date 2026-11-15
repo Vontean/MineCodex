@@ -127,7 +127,7 @@ export async function codexModuleRegistry({read = async url => (await fetch(url)
         resolvedExports.set(entry.id, exports);
         return exports;
       };
-      const lazy = async (entry, name) => {
+      const lazy = async (entry, name, {initialize = true} = {}) => {
         const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const match = entry.source.match(new RegExp(`[\\w$]+\\.e\\((\\d+)\\)\\.then\\([\\w$]+\\.bind\\([\\w$]+,"([^"\\n]+)"\\)\\)\\.then\\([\\w$]+=>\\(\\{default:[\\w$]+\\.${escaped}\\}\\)\\)`));
         let id;
@@ -141,9 +141,11 @@ export async function codexModuleRegistry({read = async url => (await fetch(url)
           await Promise.all([...group[1].matchAll(/\.e\((\d+)\)/g)].map(item=>runtime.e(Number(item[1]))));
           id=group[2];
         }
-        const exports = await runtime(id);
-        if (exports[name] == null) throw new Error('native-module-lazy-export-unavailable');
-        resolvedExports.set(id,exports);
+        if (initialize) {
+          const exports = await runtime(id);
+          if (exports[name] == null) throw new Error('native-module-lazy-export-unavailable');
+          resolvedExports.set(id,exports);
+        }
         entries.splice(0,entries.length,...Object.entries(runtime.m).map(([id,factory])=>({id,source:sourceOf(factory)})));
         return {id, source:sourceOf(runtime.m[id])};
       };

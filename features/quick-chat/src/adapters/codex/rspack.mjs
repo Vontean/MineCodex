@@ -49,7 +49,10 @@ export async function loadRspackQuickChatIcon(registry) {
     // Load the declared parent component first; its Promise.all list owns the
     // floating-surface chunk and remains valid when chunk IDs change.
     const loader=registry.module(source=>/QuickChatWindow/.test(source)&&/Promise\.all\(\[/.test(source)&&/\.then\([^)]*\.bind\([^,]+,"[^"\n]+"\)\)\)\.QuickChatWindow/.test(source),'Quick Chat floating surface loader');
-    await registry.lazy(loader,'QuickChatWindow');
+    // The parent lazy component has a broad dependency graph. Loading its
+    // declared chunks is sufficient to register the floating surface; running
+    // the parent factory here can race another async Rspack dependency.
+    await registry.lazy(loader,'QuickChatWindow',{initialize:false});
     entry=registry.module(source=>/"data-floating-chat-surface":/.test(source)&&/minimizedIcon:/.test(source),'Quick Chat floating surface');
   }
   await registry.initialize(entry);
