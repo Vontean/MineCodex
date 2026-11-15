@@ -109,12 +109,21 @@ export async function codexModuleRegistry({read = async url => (await fetch(url)
         return result;
       };
       const initialize = async entry => {
-        if (runtime.c[entry.id] && !runtime.c[entry.id].error) return runtime.c[entry.id].exports;
+        const existing = runtime.c[entry.id];
+        if (existing && !existing.error) {
+          const exports = existing.exports && typeof existing.exports.then === 'function'
+            ? await existing.exports
+            : existing.exports;
+          resolvedExports.set(entry.id, exports);
+          return exports;
+        }
         const result = runtime(entry.id);
         if (result && typeof result.then === 'function') await result;
         const cached = runtime.c[entry.id];
         if (!cached || cached.error) throw new Error('native-module-initialization-unavailable');
-        const exports = cached.exports;
+        const exports = cached.exports && typeof cached.exports.then === 'function'
+          ? await cached.exports
+          : cached.exports;
         resolvedExports.set(entry.id, exports);
         return exports;
       };
