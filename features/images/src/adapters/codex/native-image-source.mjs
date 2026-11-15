@@ -361,7 +361,7 @@ export function createNativeImageSource(codex, { requestHostAction, libraryApi, 
         onLocalConversationCreated:(conversationId,state)=>{submissionAccepted.current=true;close();navigate(native.localThreadRoute(conversationId),{state});},
       })));
       const imageEditComposer=native.ImageEditComposer
-        ? h(native.ImageEditComposer,{submitLabel:message("images.history.sendEdit","Send image edit"),canSubmit:editPrompt.trim().length>0,canCancel:!submitting,generating:submitting,onCancel:()=>setEditPrompt(""),onSubmit:()=>void submitEdit({prompt:editPrompt.trim()}),children:h("input",{name:"image-edit-prompt",type:"text",value:editPrompt,disabled:submitting,"aria-label":message("images.history.editPrompt","Describe edits"),placeholder:message("images.history.editPrompt","Describe edits"),onChange:event=>setEditPrompt(event.currentTarget.value)})})
+        ? h(native.ImageEditComposer,{submitLabel:message("images.history.sendEdit","Send image edit"),canSubmit:editPrompt.trim().length>0,canCancel:!submitting,generating:submitting,onCancel:requestClose,onSubmit:()=>void submitEdit({prompt:editPrompt.trim()}),children:h("input",{name:"image-edit-prompt",type:"text",value:editPrompt,disabled:submitting,"aria-label":message("images.history.editPrompt","Describe edits"),placeholder:message("images.history.editPrompt","Describe edits"),onChange:event=>setEditPrompt(event.currentTarget.value)})})
         : composer;
       const dataUrl=resolved.dataUrl??resolved.previewSrc;
       const canvas=h(native.Canvas,{
@@ -376,7 +376,6 @@ export function createNativeImageSource(codex, { requestHostAction, libraryApi, 
         markupMode:{active:markup,onActiveChange:setMarkup,editorRef,isSubmitting:submitting,standaloneComposer:true},
         onImageEditSubmitted:()=>{submissionAccepted.current=true;},
         onImageEditSubmitStatusChange:status=>setSubmitting(status === "pending" || status === "submitting"),
-        onEditToolSelected:()=>{},
         onImageEditSubmit:submitEdit,
         zoom:{manualZoomPercent,onZoomPercentChange:setManualZoomPercent,onZoomToFit:()=>setManualZoomPercent(null)},
         // Canvas 自己提供原生浮动面板；renderComposer 只返回原生 inline
