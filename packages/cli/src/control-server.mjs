@@ -346,7 +346,7 @@ export async function createControlServer({
           renderer: runtime.renderer ?? null,
           diagnosticsCheck: startupTarget ? {
             checkedAt: startupTarget.checkedAt,
-            checkType: "startup",
+            checkType: startupTarget.checkType ?? "startup",
             pageScope: [...new Set((startupTarget.plugins ?? []).flatMap(plugin => Array.isArray(plugin.scope) ? plugin.scope : []))].join(", ") || "renderer",
             targetId: startupTarget.targetId,
             sessionId: startupTarget.sessionId ?? renderer.runtimeSessionId ?? runtime.runtimeSessionId ?? null,

@@ -305,7 +305,7 @@ function renderRuntime() {
     .sort((left, right) => right.checkedAt - left.checkedAt)[0];
   const check = state?.diagnosticsCheck ?? (startupCheck && {
     checkedAt: startupCheck.checkedAt,
-    checkType: "startup",
+    checkType: startupCheck.checkType ?? "startup",
     pageScope: targetScope(startupCheck),
     targetId: startupCheck.targetId,
     sessionId: startupCheck.sessionId ?? state?.runtimeSessionId ?? null,

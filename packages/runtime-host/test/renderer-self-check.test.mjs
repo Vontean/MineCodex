@@ -99,6 +99,7 @@ test("explicit diagnostics refresh rereads the current renderer without restorin
   assert.equal(reads, 2);
   assert.equal(status.targets[0].targetId, "current");
   assert.equal(status.targets[0].plugins[0].state, "available");
+  assert.equal(status.targets[0].checkType, "manual");
   await runtime.refreshSelfChecks();
   assert.equal(reads, 3);
   assert.equal((await runtime.refreshSelfChecks("closed-window")).targets.length, 1);
