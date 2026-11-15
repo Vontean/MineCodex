@@ -56,7 +56,14 @@ export async function createRspackImageModules(registry) {
         React, ReactDOM,
         Masonry:fn(masonry, source => /\{items:/.test(source) && /animate:/.test(source), 'masonry'),
         Skeleton:fn(masonry, source => source.includes('square:') && source.includes('Loading library'), 'skeleton'),
-        Card:fn(layout, source => source.includes('actionIndicator:') && source.includes('documentHeader:'), 'card'),
+        // The card module exports a small memoized wrapper around the internal
+        // card renderer. Its export function therefore does not repeat the
+        // renderer's prop destructuring (the old predicate inspected the
+        // module source indirectly and failed on the current Rspack export).
+        // Identify the public wrapper by its semantic folder-placeholder
+        // handling and spread of the card props, then keep the module role
+        // anchored by the entry-level card markers above.
+        Card:fn(layout, source => source.includes('folderPlaceholder') && source.includes('(0,r.jsx)(j,{...e}'), 'card'),
         useImage:fn(sourceImage, source => source.includes('shouldLoadFileDataUrl:'), 'image resolver'),
         imageMenu:registry.exports(menu).getGeneratedImageContextMenuItems,
         openImage:registry.exports(openModule).openImagePreview,
