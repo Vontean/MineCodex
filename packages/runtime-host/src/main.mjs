@@ -113,5 +113,11 @@ for (const signal of ["SIGINT", "SIGTERM"]) {
 }
 process.on("message", (message) => {
   if (message?.type === "minecodex:shutdown") void requestShutdown();
+  if (message?.type === "minecodex:refresh-diagnostics" && runtime) {
+    void runtime.refreshSelfChecks(message.targetId ?? null)
+      .then((status) => writeReadyFile().then(() => status))
+      .then((status) => process.send?.({ type: "minecodex:diagnostics-result", requestId: message.requestId, targetId: message.targetId ?? null, status }))
+      .catch((error) => process.send?.({ type: "minecodex:diagnostics-result", requestId: message.requestId, error: error.message }));
+  }
 });
 if (process.connected) process.once("disconnect", requestShutdown);

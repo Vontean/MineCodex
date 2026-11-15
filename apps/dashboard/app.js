@@ -42,6 +42,10 @@ const messages = {
     copyDiagnostics: "Copy diagnostics",
     diagnosticsCopied: "Diagnostics copied",
     diagnosticsFailed: "Couldn’t copy diagnostics. Please try again.",
+    refreshDiagnostics: "Refresh selected window",
+    refreshingDiagnostics: "Refreshing…",
+    diagnosticsRefreshed: "Selected window checked",
+    diagnosticsRefreshFailed: "Couldn’t refresh the current window.",
     checkUpdates: "Check for updates",
     checkingUpdates: "Checking…",
     current: "You’re up to date.",
@@ -84,6 +88,10 @@ const messages = {
     copyDiagnostics: "复制诊断信息",
     diagnosticsCopied: "诊断信息已复制",
     diagnosticsFailed: "暂时无法复制诊断信息，请重试。",
+    refreshDiagnostics: "复查选中窗口",
+    refreshingDiagnostics: "正在复查…",
+    diagnosticsRefreshed: "已复查选中窗口",
+    diagnosticsRefreshFailed: "暂时无法复查当前窗口。",
     checkUpdates: "检查更新",
     checkingUpdates: "正在检查…",
     current: "当前已是最新版本。",
@@ -116,6 +124,10 @@ const elements = {
   updateResult: document.querySelector("#update-result"),
   updateButton: document.querySelector("#update-button"),
   diagnosticsButton: document.querySelector("#diagnostics-button"),
+  refreshDiagnosticsButton: document.querySelector("#refresh-diagnostics-button"),
+  diagnosticsTargetSelect: document.querySelector("#diagnostics-target-select"),
+  diagnosticsTargetLabel: document.querySelector("#diagnostics-target-label"),
+  diagnosticsStatus: document.querySelector("#diagnostics-status"),
   toast: document.querySelector("#toast"),
 };
 
@@ -145,6 +157,8 @@ function applyStaticCopy() {
   elements.retryButton.textContent = copy.retry;
   elements.versionLabel.textContent = copy.version;
   elements.diagnosticsButton.textContent = copy.copyDiagnostics;
+  elements.refreshDiagnosticsButton.textContent = copy.refreshDiagnostics;
+  elements.diagnosticsTargetLabel.textContent = locale === "zh-CN" ? "窗口" : "Window";
   elements.updateButton.querySelector(".button-label").textContent = copy.checkUpdates;
 }
 
@@ -274,6 +288,21 @@ function renderEyebrow() {
 function renderRuntime() {
   elements.versionValue.textContent = state?.version ?? "—";
   elements.restartNotice.hidden = !state?.pendingRestart;
+  const targets = state?.renderer?.targets ?? state?.runtime?.renderer?.targets ?? [];
+  const previous = elements.diagnosticsTargetSelect.value;
+  elements.diagnosticsTargetSelect.replaceChildren(...targets.map((target) => {
+    const option = document.createElement("option");
+    option.value = target.targetId;
+    option.textContent = target.targetId;
+    return option;
+  }));
+  if (targets.some((target) => target.targetId === previous)) elements.diagnosticsTargetSelect.value = previous;
+  elements.diagnosticsTargetSelect.disabled = targets.length === 0;
+  elements.refreshDiagnosticsButton.disabled = targets.length === 0;
+  const check = state?.diagnosticsCheck;
+  elements.diagnosticsStatus.textContent = check?.checkedAt
+    ? `${locale === "zh-CN" ? "检查" : "Checked"}: ${new Date(check.checkedAt).toLocaleString()} · ${check.targetId}`
+    : "";
 }
 
 function render() {
@@ -390,6 +419,25 @@ elements.diagnosticsButton.addEventListener("click", async () => {
     await navigator.clipboard.writeText(JSON.stringify(diagnosticReport(state),null,2));
     showToast(copy.diagnosticsCopied);
   } catch { showToast(copy.diagnosticsFailed); }
+});
+elements.refreshDiagnosticsButton.addEventListener("click", async () => {
+  const targetId = elements.diagnosticsTargetSelect.value;
+  if (!targetId) return;
+  elements.refreshDiagnosticsButton.disabled = true;
+  elements.refreshDiagnosticsButton.textContent = copy.refreshingDiagnostics;
+  try {
+    const response = await dashboardFetch("/api/diagnostics/refresh", { method: "POST", headers: { "Content-Type": "application/json", "Accept-Language": locale }, body: JSON.stringify({ targetId }) });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const result = await response.json();
+    state.diagnosticsCheck = result;
+    await load();
+    showToast(copy.diagnosticsRefreshed);
+  } catch {
+    showToast(copy.diagnosticsRefreshFailed);
+  } finally {
+    elements.refreshDiagnosticsButton.disabled = false;
+    elements.refreshDiagnosticsButton.textContent = copy.refreshDiagnostics;
+  }
 });
 
 // 页面可见时更新自检结果；保留正在保存的卡片和键盘焦点。
