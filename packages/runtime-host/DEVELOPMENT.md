@@ -133,7 +133,7 @@ CLI 继续通过一次性 browser exchange 打开控制台。macOS 默认 Safari
 
 ## 更新后的注入自检
 
-Renderer 的 `selfCheck()` 按功能返回安装结果、必要原生锚点与设计 token 证据。插件通过 `config.registerSelfCheck(probe)` 注册同步只读检查；Model Slider 由所属控制器 Adapter 提供检查。没有检查或未取得当前证据时保持 unknown，不按全局接入标记所有功能成功。
+Renderer 的 `selfCheck()` 按功能返回安装结果、必要原生锚点与设计 token 证据。插件通过 `config.registerSelfCheck(probe)` 注册同步只读检查；Model Slider 由所属控制器 Adapter 提供检查。没有检查或未取得当前证据时保持 unknown，不按全局接入标记所有功能成功。启动快照的 `checkedAt` 只代表采集时所在的 Renderer 文档和 `runtimeSessionId`；控制台要求选择一个当前 `targetId`，通过认证的 `POST /api/diagnostics/refresh` 只重新采集该窗口，响应标明 `scope: current-renderer-window`、target 与 session，不会恢复后台轮询。窗口断开、文档重载或 session 改变时旧 targets 证据会清除，复查结果只接受当前 session。
 
 Runtime Host 在每个窗口完成注入后读取一次 snapshot，若结果未确认、锚点不可用或 token 降级，在最多 30 秒启动窗口内借用发现周期重试；恢复正常或超过期限后保存结果，不再周期读取锚点和 token。读取失败也在此窗口内重试，超时保留真实异常。新窗口、页面重载、重新连接或 session 变化后重新检查一次；窗口退出时撤销证据，检查读取失败保持未确认。现有窗口发现与连接维护周期保留，但不重复执行自检。结果只代表检查时所在页面，后续页面切换或外观变化不会自动更新该记录；页面缺少适用场景与能力失效分别报告。就绪文件保留窗口范围，CLI 与 Dashboard 显示 checking / partial / degraded / unavailable / not-applicable 等汇总状态。后台服务管理只报告后台状态。
 
