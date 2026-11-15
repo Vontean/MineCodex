@@ -108,6 +108,16 @@ export async function codexModuleRegistry({read = async url => (await fetch(url)
         if (result == null) throw new Error('native-module-export-unavailable');
         return result;
       };
+      const initialize = async entry => {
+        if (runtime.c[entry.id] && !runtime.c[entry.id].error) return runtime.c[entry.id].exports;
+        const result = runtime(entry.id);
+        if (result && typeof result.then === 'function') await result;
+        const cached = runtime.c[entry.id];
+        if (!cached || cached.error) throw new Error('native-module-initialization-unavailable');
+        const exports = cached.exports;
+        resolvedExports.set(entry.id, exports);
+        return exports;
+      };
       const lazy = async (entry, name) => {
         const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const match = entry.source.match(new RegExp(`[\\w$]+\\.e\\((\\d+)\\)\\.then\\([\\w$]+\\.bind\\([\\w$]+,"([^"\\n]+)"\\)\\)\\.then\\([\\w$]+=>\\(\\{default:[\\w$]+\\.${escaped}\\}\\)\\)`));
@@ -128,7 +138,7 @@ export async function codexModuleRegistry({read = async url => (await fetch(url)
         entries.splice(0,entries.length,...Object.entries(runtime.m).map(([id,factory])=>({id,source:sourceOf(factory)})));
         return {id, source:sourceOf(runtime.m[id])};
       };
-      return {entries, module, value, binding, lazy, exports:exportsOf, sourceOf};
+      return {entries, module, value, binding, initialize, lazy, exports:exportsOf, sourceOf};
     }
     if (!waitForEntry || scripts().some(script=>/\/(?:index|app-(?:main|initial))-[^/]+\.js(?:$|\?)/.test(script.src))) return null;
     // HTML 仍在逐个挂载入口脚本时，首个 chunk 不一定拥有注册表。
