@@ -40,7 +40,18 @@ export async function loadRspackQuickChatBindings(registry, commandCatalog) {
 }
 
 export async function loadRspackQuickChatIcon(registry) {
-  const entry=registry.module(source=>/"data-floating-chat-surface":/.test(source)&&/minimizedIcon:/.test(source),'Quick Chat floating surface');
+  let entry;
+  try {
+    entry=registry.module(source=>/"data-floating-chat-surface":/.test(source)&&/minimizedIcon:/.test(source),'Quick Chat floating surface');
+  } catch (error) {
+    if (!/contract changed/.test(error?.message ?? '')) throw error;
+    // The floating surface is behind the native QuickChatWindow lazy import.
+    // Load the declared parent component first; its Promise.all list owns the
+    // floating-surface chunk and remains valid when chunk IDs change.
+    const loader=registry.module(source=>/QuickChatWindow/.test(source)&&/Promise\.all\(\[/.test(source)&&/\.then\([^)]*\.bind\([^,]+,"[^"\n]+"\)\)\)\.QuickChatWindow/.test(source),'Quick Chat floating surface loader');
+    await registry.lazy(loader,'QuickChatWindow');
+    entry=registry.module(source=>/"data-floating-chat-surface":/.test(source)&&/minimizedIcon:/.test(source),'Quick Chat floating surface');
+  }
   await registry.initialize(entry);
   const local=entry.source.match(/minimizedIcon:([\w$]+)/)?.[1];
   const escaped=local?.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');

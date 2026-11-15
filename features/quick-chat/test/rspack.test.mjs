@@ -46,3 +46,24 @@ test('missing close and hidden-sidebar mode roles do not disable opening; change
   f.registry.entries.find(e=>e.id==='surface').source='"data-floating-chat-surface":true,minimizedIcon:custom,children:changed';
   await assert.rejects(loadRspackQuickChatIcon(f.registry),/icon-contract/);
 });
+
+test('floating icon follows the native QuickChatWindow lazy declaration when its chunk is cold',async()=>{
+  const icon={createElement(){}};
+  const surface={id:'surface',source:'"data-floating-chat-surface":true,minimizedIcon:custom,children:custom??(0,jsx.jsx)(glyph.bubble,{})'};
+  const loader={id:'loader',source:'function loader(){return Promise.all([n.e(355084)]).then(n.bind(n,"parent")).then(n=>({default:n.QuickChatWindow}))}'};
+  let calls=0,lazyName=null,ready=false;
+  const registry={
+    module(predicate){
+      calls+=1;
+      if (calls===1) throw new Error('Native module contract changed: Quick Chat floating surface');
+      if (calls===2) return loader;
+      if (ready && predicate(surface.source,surface)) return surface;
+      throw new Error('Native module contract changed: Quick Chat floating surface');
+    },
+    lazy:async(entry,name)=>{assert.equal(entry,loader);lazyName=name;ready=true;},
+    initialize:async()=>{},
+    binding:()=>icon,
+  };
+  assert.equal(await loadRspackQuickChatIcon(registry),icon);
+  assert.equal(lazyName,'QuickChatWindow');
+});
