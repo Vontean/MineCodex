@@ -37,6 +37,6 @@ test('generic model header preserves the native inline model contract',()=>{
   const source=createModelSliderInstallerSource();
   assert.match(source,/viewControls\.setAttribute\("data-inline-model", "true"\)/);
   assert.doesNotMatch(source,/viewControls\.setAttribute\("data-explicit-model"/);
-  assert.match(source,/buttonContent\.append\(effortText\)/);
   assert.match(source,/buttonContent\.append\(modelRow\)/);
+  assert.match(source,/buttonContent\.append\(modelRow\);\s*if \(effortText\) buttonContent\.append\(effortText\)/);
 });

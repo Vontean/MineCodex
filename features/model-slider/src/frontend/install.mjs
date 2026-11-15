@@ -1803,8 +1803,8 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
       nativeChevron.setAttribute("aria-hidden", "true");
       modelRow.append(nativeChevron);
     }
-    if (effortText) buttonContent.append(effortText);
     buttonContent.append(modelRow);
+    if (effortText) buttonContent.append(effortText);
     modelButton.append(buttonContent);
     const openModels = () => openControllerModelMenu(parentMenu, modelButton, selector);
     modelButton.addEventListener("click", openModels);
