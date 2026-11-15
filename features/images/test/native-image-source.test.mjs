@@ -118,12 +118,24 @@ async function canvasFixture(context,{reference=async()=>({base64:"AP9B",name:"i
 
 test("ImageGen canvas uses the current native edit attribution and overlay contract", async context=>{
   const f=await canvasFixture(context);
-  assert.deepEqual(f.canvasProps.imageEditAttribution,{imageSource:"generated",editEntryPoint:"conversation"});
+  assert.deepEqual(f.canvasProps.imageEditAttribution,{imageSource:"generated",editEntryPoint:"images"});
   assert.equal(f.canvasProps.presentation,"overlay");
   assert.equal(f.canvasProps.editInOverlay,undefined);
   assert.equal(f.canvasProps.showViewerHeader,undefined);
   assert.equal(typeof f.canvasProps.onImageEditSubmitted,"function");
   assert.equal(typeof f.canvasProps.onImageEditSubmitStatusChange,"function");
+  f.view.dispose();
+});
+
+test("closing the image canvas aborts pending attachments and rejects late results",async context=>{
+  const pending=deferred();const f=await canvasFixture(context,{create:()=>pending.promise});
+  const preparing=f.composer.prepareLocalConversationAttachments({fileAttachments:[],hostId:"local"});
+  await settle();assert.equal(f.files.length,1);
+  f.canvasProps.onClose();
+  f.canvasProps.onClose();
+  pending.resolve({path:"/temporary/image",fsPath:"/temporary/image"});
+  await assert.rejects(preparing,/Library action is no longer current|aborted/);
+  assert.deepEqual(f.removed,[{hostId:"local",path:"/temporary/image"}]);
   f.view.dispose();
 });
 
