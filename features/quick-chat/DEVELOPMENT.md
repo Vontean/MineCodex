@@ -66,8 +66,8 @@ Codex / ChatGPT `26.1029.61003`（build 24614）使用数字 chunk 与 Rspack �
 
 注册表发现要覆盖入口脚本逐个挂载：前几个 chunk 可能不导出 runtime，等待后续声明，
 直到找到真实注册表、发现旧版语义入口或被 AbortSignal 取消。不能在首个 chunk 上
-判定为旧版并永久等待 app-initial。检查注册工厂源码、已加载导出及其引用，不执行
-任意原生模块工厂。`npm run check:native` 同时检查图标和快捷键加载链路；业务动作
+判定为旧版并永久等待 app-initial。检查注册工厂源码、已加载导出及其引用；仅对已匹配
+Quick Chat 生命周期或浮层角色的原生异步入口执行初始化。`npm run check:native` 同时检查图标和快捷键加载链路；业务动作
 仍在独立 profile 验收。
 
 冷启动时注册表可能已经可见，但 Quick Chat 生命周期或浮层模块仍未完成原生异步初始化。
@@ -78,3 +78,15 @@ Adapter 先通过注册表入口的异步初始化协议等待对应缓存，再
 
 该初始化能力只允许由已通过 Quick Chat 生命周期或浮层图标角色匹配的入口调用；不能对
 未知业务模块进行通用执行。注册表缓存中的 Promise 导出也必须先解析，再交给角色解析器。
+
+最近一次隔离 Renderer 验收使用 Codex build `27194`（安装版本 `26.1111.21308`），在独立
+profile / CDP 窗口冷启动后执行 `Page.reload`。复核结果为 `entry=1`、
+`quick-chat-shortcut=true`；点击打开后观察到一个浮层及原生 History 按钮，展开 History
+后可见原生 Close。关闭后再次点击侧栏入口，得到新的原生 Quick Chat session，且
+`hasConversation=false`。对已显示浮层观察到原生 `isMinimized=true` 和 Restore 按钮；
+Restore 点击后的最终状态仍需主 agent 完成最后读回。本次未覆盖发送、键盘快捷键或真实
+对话内容，不将这些动作标记为已验收。
+
+浮层图标冷启动使用原生已注册父模块的 `QuickChatWindow` 具名 lazy import 声明；只有在
+该声明完成后才重新发现浮层模块。旧版不提供 Rspack 注册表时仍保留既有 ESM 兼容路径，
+不把兼容路径用于新版注册表的未就绪重试。
