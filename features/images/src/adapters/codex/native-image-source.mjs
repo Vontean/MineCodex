@@ -309,6 +309,7 @@ export function createNativeImageSource(codex, { requestHostAction, libraryApi, 
         if(!attachment.current)attachment.current=(async()=>{
           const file=await reference(image,"upload-file");assertCurrent();
           const uploaded=await native.upload(context.scope,uploadFile(file),{storeInLibrary:false,beforeRequest:assertCurrent,signal:abort.signal});
+          assertCurrent();
           return {...uploaded,width:image.width,height:image.height,imageReference:true};
         })().catch(error=>{attachment.current=null;throw error;});
         return attachment.current;
@@ -316,7 +317,8 @@ export function createNativeImageSource(codex, { requestHostAction, libraryApi, 
       if(!home)return null;
       const props=home.composerProps;
       const accepted=(...args)=>{submissionAccepted.current=true;close();props.onSubmitAccepted?.(...args);};
-      const requestClose=()=>{if(markup&&editorRef.current)editorRef.current.requestClose();else close();};
+      const cancelAndClose=()=>{if(!submissionAccepted.current)abort.abort();close();};
+      const requestClose=()=>{if(markup&&editorRef.current)editorRef.current.requestClose();else cancelAndClose();};
       const submitEdit=async request=>{
         if(submitting)return false;
         const editor=markup?editorRef.current:null;
@@ -367,7 +369,7 @@ export function createNativeImageSource(codex, { requestHostAction, libraryApi, 
         attachmentId:`image-playground:${image.imageGenerationItemId}`,attachmentSrc:image.sourcePath,
         chatGptConversationId:props.conversationId,
         imageSource:"generated",imageSourceContext:{conversationId:image.threadId,hostId:"local"},
-        imageEditAttribution:{imageSource:"generated",editEntryPoint:"conversation"},
+        imageEditAttribution:{imageSource:"generated",editEntryPoint:"images"},
         // 保留 viewer 的 overlay presentation；原生 Canvas 在
         // editInOverlay 未启用时负责包裹 composerOnly 浮动面板。
         readOnly:false,presentation:"overlay",standalone:true,onClose:requestClose,
