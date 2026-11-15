@@ -46,6 +46,19 @@ test('lazy loading follows only the native declaration for the requested named c
   assert.equal(result.id,'dialog');assert.deepEqual(loaded,[37]);
 });
 
+test('lazy chunk registration can skip executing a parent async component factory',async context=>{
+  const f=fixture(context),loaded=[];
+  f.runtime.m.owner=Function('return function owner(e,t,r){return r.e(37).then(r.bind(r,"dialog")).then(e=>({default:e.NamedDialog}));}')();
+  f.runtime.e=async id=>loaded.push(id);
+  const runtime=id=>{throw new Error(`Parent factory ${id} must not execute`);};
+  Object.assign(runtime,f.runtime);
+  const registry=await codexModuleRegistry({...f.options,load:async()=>({__webpack_require__:runtime})});
+  const owner=registry.module(source=>source.includes('NamedDialog'),'dialog owner');
+  const result=await registry.lazy(owner,'NamedDialog',{initialize:false});
+  assert.equal(result.id,'dialog');
+  assert.deepEqual(loaded,[37]);
+});
+
 test('initializes an async registry entry before reading its cached exports',async context=>{
   const f=fixture(context), entry={id:'owner',source:'function owner(e,t,r){return r.a(e,async()=>({default:true}))}'};
   let initialized=0;

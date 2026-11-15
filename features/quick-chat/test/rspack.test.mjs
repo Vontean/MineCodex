@@ -51,7 +51,7 @@ test('floating icon follows the native QuickChatWindow lazy declaration when its
   const icon={createElement(){}};
   const surface={id:'surface',source:'"data-floating-chat-surface":true,minimizedIcon:custom,children:custom??(0,jsx.jsx)(glyph.bubble,{})'};
   const loader={id:'loader',source:'function loader(){return Promise.all([n.e(355084)]).then(n.bind(n,"parent")).then(n=>({default:n.QuickChatWindow}))}'};
-  let calls=0,lazyName=null,ready=false;
+  let calls=0,lazyName=null,lazyOptions=null,ready=false;
   const registry={
     module(predicate){
       calls+=1;
@@ -60,10 +60,11 @@ test('floating icon follows the native QuickChatWindow lazy declaration when its
       if (ready && predicate(surface.source,surface)) return surface;
       throw new Error('Native module contract changed: Quick Chat floating surface');
     },
-    lazy:async(entry,name)=>{assert.equal(entry,loader);lazyName=name;ready=true;},
+    lazy:async(entry,name,options)=>{assert.equal(entry,loader);lazyName=name;lazyOptions=options;ready=true;},
     initialize:async()=>{},
     binding:()=>icon,
   };
   assert.equal(await loadRspackQuickChatIcon(registry),icon);
   assert.equal(lazyName,'QuickChatWindow');
+  assert.deepEqual(lazyOptions,{initialize:false});
 });
