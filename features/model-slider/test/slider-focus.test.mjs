@@ -32,3 +32,11 @@ test('serialized Fast icon installer consumes native markup and dimensions',()=>
   assert.match(source,/definition\.width \?\? 20/);
   assert.match(source,/definition\.height \?\? 20/);
 });
+
+test('generic model header preserves the native inline model contract',()=>{
+  const source=createModelSliderInstallerSource();
+  assert.match(source,/viewControls\.setAttribute\("data-inline-model", "true"\)/);
+  assert.doesNotMatch(source,/viewControls\.setAttribute\("data-explicit-model"/);
+  assert.match(source,/buttonContent\.append\(effortText\)/);
+  assert.match(source,/buttonContent\.append\(modelRow\)/);
+});

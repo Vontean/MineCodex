@@ -1566,7 +1566,7 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
     button.setAttribute("data-fast-mode-enabled", String(enabled));
     syncGenericMaximumVisual(
       rail,
-      shell.querySelector("[data-codex-model-slider-effort-row] [data-maximum]"),
+      shell.querySelector("[data-maximum]"),
       button,
       maxPowerSelection,
     );
@@ -1772,34 +1772,19 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
     modelButton.setAttribute("aria-expanded", "false");
     const buttonContent = document.createElement("span");
     buttonContent.className = classes.ViewToggleContent;
-    // 上下两行独立计算宽度，长模型名不能撑开强度与箭头。
-    buttonContent.style.display = "flex";
-    buttonContent.style.flexDirection = "column";
-    buttonContent.style.gap = "0";
-    const effortRow = document.createElement("span");
-    effortRow.setAttribute("data-codex-model-slider-effort-row", "");
-    effortRow.style.display = "grid";
-    effortRow.style.gridTemplateColumns = "calc(var(--mcx-spacing) * 4) auto calc(var(--mcx-spacing) * 4)";
-    effortRow.style.alignItems = "center";
+    // 当前原生 ViewToggleContent 的契约是横向 inline model；不要把模型名
+    // 和档位拆成两行，否则会触发原生的 explicit-model 双行布局。
     const buttonLabel = document.createElement("span");
     buttonLabel.className = classes.ViewToggleModelLabel;
     buttonLabel.setAttribute("data-codex-model-slider-model-label", "");
     buttonLabel.textContent = modelDisplayLabel(identity, selector);
     const modelRow = document.createElement("span");
     modelRow.setAttribute("data-codex-model-slider-model-row", "");
-    modelRow.style.display = "inline-flex";
-    modelRow.style.alignItems = "center";
-    modelRow.style.justifyContent = "center";
-    modelRow.style.gap = "calc(var(--mcx-spacing) / 2)";
-    modelRow.style.minWidth = "0";
-    modelRow.style.maxWidth = "100%";
+    modelRow.style.display = "contents";
     modelRow.append(buttonLabel);
     const effortText = selectedEffortVisible ? document.createElement("span") : null;
     if (effortText) {
       effortText.className = classes.ViewToggleEffortLabel;
-      // 原生标签会跨满整行；收回中列，使上下两行各自居中。
-      effortText.style.gridColumn = "2";
-      effortText.style.gridRow = "1";
       effortText.textContent = effortLabel(selectedEffort);
       effortText.setAttribute("data-accent", "true");
       effortText.setAttribute("data-effort-only", "false");
@@ -1818,8 +1803,8 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
       nativeChevron.setAttribute("aria-hidden", "true");
       modelRow.append(nativeChevron);
     }
-    if (effortText) effortRow.append(effortText);
-    buttonContent.append(effortRow, modelRow);
+    if (effortText) buttonContent.append(effortText);
+    buttonContent.append(modelRow);
     modelButton.append(buttonContent);
     const openModels = () => openControllerModelMenu(parentMenu, modelButton, selector);
     modelButton.addEventListener("click", openModels);
@@ -1831,8 +1816,8 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
 
     const viewControls = document.createElement("div");
     viewControls.className = classes.ViewControls;
-    // 沿用原生显式模型布局：上方档位，下方模型，两侧放置能力控件。
-    viewControls.setAttribute("data-explicit-model", "true");
+    // 沿用原生 inline model 布局：模型名、档位和 chevron 同排。
+    viewControls.setAttribute("data-inline-model", "true");
     viewControls.setAttribute("data-ultra-warning-visible", "false");
     const fastEnabled = Boolean(
       supportsFast && (
