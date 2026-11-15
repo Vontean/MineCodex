@@ -13,10 +13,12 @@ style.textContent = `
   /* footer 底部对齐；编辑器与按钮共用高度，避免文字中线偏高。 */
   [data-mcx-quick-chat] [data-composer-input][data-composer-layout="single-line"]:has(>[data-composer-input-layout="single-line"]){--composer-editor-single-line-height:var(--spacing-token-button-composer,calc(var(--spacing,4px)*9));margin-block:0}
   /* 保留原生横条总高度，移除不对称留白，让整组内容在 wrapper 内居中。 */
-  [data-mcx-quick-chat] [data-composer-rows="inline"][data-composer-layout="single-line"]:not([data-dictation-view]):has([data-composer-input-layout="single-line"]){height:auto;min-block-size:calc(var(--composer-editor-single-line-height,calc(var(--spacing,4px)*9)) + var(--padding-composer-single-line-footer-block,0px) + var(--spacing-composer-footer-bottom,0px));padding-block:0;margin-block:0;align-items:center}
+  [data-mcx-quick-chat] [data-composer-rows="inline"][data-composer-layout="single-line"]:not([data-dictation-view]):has([data-composer-input-layout="single-line"]){height:auto;min-block-size:calc(var(--composer-editor-single-line-height,calc(var(--spacing,4px)*9)) + var(--padding-composer-single-line-footer-block,0px) + var(--spacing-composer-footer-bottom,0px));padding-block:0;margin-block:0;align-items:center;align-content:center}
   @media (width>=40rem){
-    [data-mcx-quick-chat] [data-composer-rows="responsive"][data-composer-layout="single-line"]:not([data-dictation-view]):has([data-composer-input-layout="single-line"]){height:auto;min-block-size:calc(var(--composer-editor-single-line-height,calc(var(--spacing,4px)*9)) + var(--padding-composer-single-line-footer-block,0px) + var(--spacing-composer-footer-bottom,0px));padding-block:0;margin-block:0;align-items:center}
+    [data-mcx-quick-chat] [data-composer-rows="responsive"][data-composer-layout="single-line"]:not([data-dictation-view]):has([data-composer-input-layout="single-line"]){height:auto;min-block-size:calc(var(--composer-editor-single-line-height,calc(var(--spacing,4px)*9)) + var(--padding-composer-single-line-footer-block,0px) + var(--spacing-composer-footer-bottom,0px));padding-block:0;margin-block:0;align-items:center;align-content:center}
   }
+  /* 新包装层为 display:contents；补上继承链，让背景沿用 frame 的圆角。 */
+  [role="dialog"]:has([data-mcx-quick-chat]) > :has(>[data-mcx-ui-surface="floating-panel"]){border-radius:inherit;corner-shape:inherit}
   [data-mcx-quick-chat-project-rail]{display:none!important}
   /* 隐藏唯一的项目栏时，一并收起原生 rail 的圆角留白与负 margin。 */
   [data-composer-rail]:has(>[data-mcx-quick-chat-project-rail]):not(:has(>:not([data-mcx-quick-chat-project-rail]):not(:empty))){display:none!important}

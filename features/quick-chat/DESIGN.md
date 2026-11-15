@@ -32,8 +32,8 @@ Codex 模式下，New chat 行右侧在 hover / focus-within 时显示 Quick Cha
 
 关闭动作复用原生丢弃链路中的关闭和草稿清理，不执行会话销毁（依据 Codex `26.1021.31345` 安装源码）。
 
-展开态 Close 放在 header 右侧 Drag 手柄左侧，Minimize 留在原位。经典 Quick Chat 的紧凑态与展开态共用单行输入对齐补偿：将输入局部的 `--composer-editor-single-line-height` 绑定到原生 `--spacing-token-button-composer`，保留原生行高、内部 padding 和 footer 底部对齐。原因是原生 footer 的 align-items 为 end，编辑器默认高 36px、按钮高 28px，文字中线高出 4px；两者使用同一高度后中线一致。同时将 inline footer 的上下 padding 与底部 margin 合并进由原生 token 计算的最小高度，并在该 wrapper 内居中整组内容，消除不对称留白造成的整体偏移；保留横条总高度（48px 横条中按钮上下各留 10px）。不设置固定平移，不重排编辑器 DOM。responsive footer 只在原生 40rem 横排断点以上采用此规则，stacked 和正在听写的布局不接入。规则仅在 Adapter 确认经典 Quick Chat 后生效，并要求外层输入与内部编辑器都为 single-line；多行、Work 和主页面 composer 不接入。关闭增强时移除作用域标记与样式，官方修复后可整段撤回。
+展开态 Close 放在 header 右侧 Drag 手柄左侧，Minimize 留在原位。经典 Quick Chat 的紧凑态与展开态共用单行输入对齐补偿：将输入局部的 `--composer-editor-single-line-height` 绑定到原生 `--spacing-token-button-composer`，保留原生行高、内部 padding 和 footer 底部对齐。原因是原生 footer 的 align-items 为 end，编辑器默认高 36px、按钮高 28px，文字中线高出 4px；两者使用同一高度后中线一致。同时将 inline footer 的上下 padding 与底部 margin 合并进由原生 token 计算的最小高度，并在该 wrapper 内居中整组内容。当前 responsive footer 使用 Grid，其 align-content 也必须居中；只设置 align-items 仍会让 28px 内容行贴着 48px 容器底部，偏离中线 10px；保留横条总高度（48px 横条中按钮上下各留 10px）。不设置固定平移，不重排编辑器 DOM。responsive footer 只在原生 40rem 横排断点以上采用此规则，stacked 和正在听写的布局不接入。规则仅在 Adapter 确认经典 Quick Chat 后生效，并要求外层输入与内部编辑器都为 single-line；多行、Work 和主页面 composer 不接入。关闭增强时移除作用域标记与样式，官方修复后可整段撤回。
 
 ## 验证
 
-最近隔离验证：macOS Codex / ChatGPT `26.1029.61003`（rspack 注册模块），独立 profile / CDP。已覆盖侧栏入口、⌘⌥N、新建与聚焦、首轮和续轮真实发送后展开、历史选择、最小化恢复、关闭清理未发送文字、隐藏侧栏后打开、重复入口不新建、卸载增强后原生会话保留，以及 RuntimeHost 先启动、宿主后启动的冷启动。未覆盖：Windows 真实按键、物理输入法、附件上传、后台生成中关闭。
+最近隔离验证：macOS Codex 26.1111.21308（build 27194），独立 profile / CDP / 增强数据。已覆盖冷加载侧栏入口、新建、最小化恢复、关闭后新会话，以及 Codex 模式下 MCX 启用的经典 Chat 输入条。紧凑态和历史展开态中，文字区与添加、选项、麦克风、语音按钮相对 48px 容器的中线偏差均为 0px；三行未发送草稿转为 multiline，60px 编辑区不裁切且不应用单行居中规则。历史背景沿用 frame 的 22px 圆角。未覆盖发送、附件上传、Windows 真实按键和物理输入法；不能沿用旧构建的发送验收作为本次证据。

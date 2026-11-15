@@ -36,7 +36,7 @@ Windows Codex `26.1016.8120.0` 将浮层资源从 `quick-chat-floating-surface` 
 
 侧栏入口调用 activate() 保持恢复／聚焦；键盘调用 activate({minimize:true}) 让已显示浮层最小化。两者共享新建会话和启动就绪逻辑，侧栏重复点击不最小化。
 
-历史背景平面取自浮层所属 dialog 中带 `asChild`、`unstyled` 的原生包装层。Codex `26.1103.60933`（macOS）起该包装层为 `display:contents`，自身没有盒子，材质画不出来；包装层没有 client rect 时改用其第一个子元素作为平面。不按类名判断，回归见 `test/renderer.test.mjs`。
+历史背景平面取自浮层所属 dialog 中带 `asChild`、`unstyled` 的原生包装层。Codex `26.1103.60933`（macOS）起该包装层为 `display:contents`，自身没有盒子，材质画不出来；包装层没有 client rect 时改用其第一个子元素作为平面。该包装层仍须继承 dialog frame 的 border-radius / corner-shape，才能让子平面的 rounded-inherit 生效；只移动材质会得到方形背景。不按类名判断，回归见 `test/renderer.test.mjs`。
 
 ## 关闭动作与侧栏无关的上下文
 
@@ -70,13 +70,13 @@ Codex / ChatGPT `26.1029.61003`（build 24614）使用数字 chunk 与 Rspack �
 Quick Chat 生命周期或浮层角色的原生异步入口执行初始化。`npm run check:native` 同时检查图标和快捷键加载链路；业务动作
 仍在独立 profile 验收。
 
-冷启动时注册表可能已经可见，但 Quick Chat 生命周期或浮层模块仍未完成原生异步初始化。
-Adapter 先通过注册表入口的异步初始化协议等待对应缓存，再读取打开角色和图标依赖；快捷键
+冷启动时注册表可能已经可见，但 Quick Chat 生命周期仍未完成原生异步初始化，浮层 chunk 也可能尚未注册。
+Adapter 先等待生命周期入口的异步导出，再读取打开角色；图标沿具名 lazy 声明只加载 chunk，不执行父组件或浮层工厂，只按其真实 import 绑定解析图标。快捷键
 与侧栏图标共享同一就绪点，不把一次未就绪结果永久缓存，也不猜测替代图标。初始化协议
 缺失或真实变化时保留明确错误码并停止补偿。回归见 `packages/codex-adapter/test/module-registry.test.mjs`
 与 `features/quick-chat/test/rspack.test.mjs` 的冷启动注册表样例。
 
-该初始化能力只允许由已通过 Quick Chat 生命周期或浮层图标角色匹配的入口调用；不能对
+该初始化能力只允许由已通过 Quick Chat 生命周期角色匹配的入口调用；不能对
 未知业务模块进行通用执行。注册表缓存中的 Promise 导出也必须先解析，再交给角色解析器。
 
 最近一次隔离 Renderer 验收使用 Codex build `27194`（安装版本 `26.1111.21308`），在独立
