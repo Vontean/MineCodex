@@ -84,6 +84,26 @@ test("self-check runs once per document and rechecks after evidence is invalidat
   assert.equal(await runtime.checkTarget("target"),false);
 });
 
+test("explicit diagnostics refresh rereads the current renderer without restoring polling", async () => {
+  const runtime = new CodexRuntime({ features: [], profileDir: "/tmp/mcx-explicit-refresh", runtimeSessionId: "session" });
+  let reads = 0;
+  runtime.clients.set("current", { async send() {
+    reads += 1;
+    return { result: { value: { sessionId: "session", checkedAt: reads, plugins: [{ featureId: "a", state: reads > 1 ? "available" : "unknown" }] } } };
+  } });
+  runtime.rendererTargetIds.add("current");
+  assert.equal(await runtime.checkTarget("current"), true);
+  assert.equal(reads, 1);
+  const status = await runtime.refreshSelfChecks();
+  assert.equal(reads, 2);
+  assert.equal(status.targets[0].targetId, "current");
+  assert.equal(status.targets[0].plugins[0].state, "available");
+  await runtime.refreshSelfChecks();
+  assert.equal(reads, 3);
+  assert.equal((await runtime.refreshSelfChecks("closed-window")).targets.length, 1);
+  assert.equal(reads, 3);
+});
+
 test("target discovery does not repeat probes; document reload invalidates the startup result", async () => {
   const handlers=new Map();let checks=0;
   const client={socket:{readyState:1,close(){}},on(name,handler){handlers.set(name,handler);},async send(method,params){
