@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createModelControllerAdapter } from '../src/adapters/codex/controller.mjs';
 
-function fixture(props, { depth = 41, legacy = false } = {}) {
+function fixture(props, { depth = 41, legacy = false, nativeRegistry } = {}) {
   const trigger = { checkVisibility: () => true, getAttribute: () => 'closed' };
   let fiber = { memoizedProps: props, return: null };
   for (let index = 0; index < depth; index++) fiber = { memoizedProps: {}, return: fiber };
@@ -11,7 +11,7 @@ function fixture(props, { depth = 41, legacy = false } = {}) {
   ) };
   // 工厂在 Renderer 中序列化；用独立 DOM 作用域验证新旧协议，不依赖真实窗口。
   const create = new Function('document', `return (${createModelControllerAdapter});`)(document);
-  return create({ currentFiber: () => fiber, report() {} }, value => value);
+  return create({ currentFiber: () => fiber, report() {} }, value => value, nativeRegistry);
 }
 
 test('rspack controller maps options and selects current-model power through native callback', () => {
@@ -51,4 +51,20 @@ test('legacy controller keeps original reasoning callback and trigger', () => {
 test('Chat controller and incomplete model-list contracts remain unavailable', () => {
   assert.equal(fixture({ selectedModel: 'chat', onModelChange() {} }).read(), null);
   assert.equal(fixture({ modelListConfig: { options: [{ id: 'missing-callback', selected: true }] } }).read(), null);
+});
+
+test('Fast icons come from the registered native toggle module contract', async () => {
+  const reports = [];
+  const source = 'FastModeToggle d:`M11.9125 21.4125 active` d:`M9.80999 17.8302 inactive`';
+  const adapter = fixture({}, { nativeRegistry: async () => ({ entries: [{ source }] }) });
+  const result = await adapter.fastIcons();
+  assert.deepEqual(result, {
+    active: { path: 'M11.9125 21.4125 active', viewBox: '0 0 24 24', width: 24, height: 24 },
+    inactive: { path: 'M9.80999 17.8302 inactive', viewBox: '0 0 20 20', width: 20, height: 20 },
+  });
+});
+
+test('Fast icon discovery reports an unavailable contract without inventing an icon', async () => {
+  const adapter = fixture({}, { nativeRegistry: async () => ({ entries: [{ source: 'FastModeToggle' }] }) });
+  assert.equal(await adapter.fastIcons(), null);
 });
