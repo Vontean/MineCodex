@@ -59,8 +59,8 @@ test('Fast icons come from the registered native toggle module contract', async 
   const adapter = fixture({}, { nativeRegistry: async () => ({ entries: [{ source }] }) });
   const result = await adapter.fastIcons();
   assert.deepEqual(result, {
-    active: { path: 'M11.9125 21.4125 active', viewBox: '0 0 24 24' },
-    inactive: { path: 'M9.80999 17.8302 inactive', viewBox: '0 0 20 20' },
+    active: { path: 'M11.9125 21.4125 active', viewBox: '0 0 24 24', width: 24, height: 24 },
+    inactive: { path: 'M9.80999 17.8302 inactive', viewBox: '0 0 20 20', width: 20, height: 20 },
   });
 });
 

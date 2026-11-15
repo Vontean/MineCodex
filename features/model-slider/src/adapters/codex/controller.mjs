@@ -147,7 +147,7 @@ function invokeNativeMenuItemSelect(item) {
     const active=extract("M11.9125 21.4125"),inactive=extract("M9.80999 17.8302");
     codex.report("fast-icons",Boolean(active && inactive),active && inactive ? null : "icon-resource-contract-changed");
     return active && inactive
-      ? {active:{path:active,viewBox:"0 0 24 24"},inactive:{path:inactive,viewBox:"0 0 20 20"}}
+      ? {active:{path:active,viewBox:"0 0 24 24",width:24,height:24},inactive:{path:inactive,viewBox:"0 0 20 20",width:20,height:20}}
       : null;
   }
 function selfCheck() {

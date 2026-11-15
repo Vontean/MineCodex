@@ -19,3 +19,8 @@ test('shell replacement restores only the focused slider in a connected menu',()
 test('focus helper is included in the serialized renderer closure',()=>{
   assert.doesNotThrow(()=>new Function(`return (${createModelSliderInstallerSource()})`)());
 });
+test('Fast control keeps the native 32px button and 26px centered icon slot',()=>{
+  const source=createModelSliderInstallerSource();
+  assert.match(source,/\[data-codex-model-slider-fast\].*width: 32px/);
+  assert.match(source,/\[data-codex-model-slider-fast-content\].*width: 26px; height: 26px/);
+});
