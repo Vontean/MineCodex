@@ -288,6 +288,7 @@ export function createNativeImageSource(codex, { requestHostAction, libraryApi, 
       const [markup,setMarkup]=React.useState(false);
       const [manualZoomPercent,setManualZoomPercent]=React.useState(null);
       const [submitting,setSubmitting]=React.useState(false);
+      const [editPrompt,setEditPrompt]=React.useState("");
       const [composerHeight,setComposerHeight]=React.useState(0);
       const measureComposer=React.useCallback(node=>{
         const element=node?.querySelector("[data-codex-composer-root]");
@@ -357,6 +358,9 @@ export function createNativeImageSource(codex, { requestHostAction, libraryApi, 
         onLocalFirstTurnAccepted:()=>{submissionAccepted.current=true;},
         onLocalConversationCreated:(conversationId,state)=>{submissionAccepted.current=true;close();navigate(native.localThreadRoute(conversationId),{state});},
       })));
+      const imageEditComposer=native.ImageEditComposer
+        ? h(native.ImageEditComposer,{submitLabel:message("images.history.sendEdit","Send image edit"),canSubmit:editPrompt.trim().length>0,canCancel:!submitting,generating:submitting,onCancel:()=>setEditPrompt(""),onSubmit:()=>void submitEdit({prompt:editPrompt.trim()}),children:h("input",{name:"image-edit-prompt",type:"text",value:editPrompt,disabled:submitting,"aria-label":message("images.history.editPrompt","Describe edits"),placeholder:message("images.history.editPrompt","Describe edits"),onChange:event=>setEditPrompt(event.currentTarget.value)})})
+        : composer;
       const dataUrl=resolved.dataUrl??resolved.previewSrc;
       const canvas=h(native.Canvas,{
         alt:image.name,title:image.name,src:dataUrl??image.sourcePath,downloadSrc:dataUrl??image.sourcePath,downloadFilename:image.name,
@@ -371,7 +375,7 @@ export function createNativeImageSource(codex, { requestHostAction, libraryApi, 
         onEditToolSelected:()=>{},
         onImageEditSubmit:submitEdit,
         zoom:{manualZoomPercent,onZoomPercentChange:setManualZoomPercent,onZoomToFit:()=>setManualZoomPercent(null)},
-        renderComposer:visible=>h(React.Activity,{mode:visible?"visible":"hidden",children:composer}),
+        renderComposer:visible=>h(React.Activity,{mode:visible?"visible":"hidden",children:imageEditComposer}),
         renderHeaderMenuActions:({renderMenu})=>renderMenu(h(native.Menu.Item,{leftIcon:promptIcon,onSelect:()=>onPrompt(image),children:message("minecodex.images.viewPrompts","View prompts")})),
       });
       // 原生 overlay 的 118px 下限属于旧输入框；画布和拖拽边界跟随实际高度。
