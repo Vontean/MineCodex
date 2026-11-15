@@ -94,14 +94,16 @@ test("favorite status arriving after menu close and unmount cannot update the ol
 });
 
 
-async function canvasFixture(context,{reference=async()=>({base64:"AP9B",name:"image.png"}),create=async()=>({path:"/temporary/image",fsPath:"/temporary/image",label:"image.png"})}={}){
+async function canvasFixture(context,{reference=async()=>({base64:"AP9B",name:"image.png"}),create=async()=>({path:"/temporary/image",fsPath:"/temporary/image",label:"image.png"}),upload=async()=>({id:"file_1",size:1}),imageEditComposer=false}={}){
   const files=[],removed=[];
   const bindings={
     Canvas:"Canvas",CanvasLayout:"CanvasLayout",FileComposer:"FileComposer",ComposerSurface:"ComposerSurface",
+    ...(imageEditComposer?{ImageEditComposer:"ImageEditComposer"}:{}),
     ScopeProvider:"ScopeProvider",composerRouteScope:{parent:{}},composerScope:{},createComposerValue:()=>({}),
     createPortal:tree=>tree,useComposerController:()=>({}),useHomeComposer:()=>({composerProps:{conversationId:"chat"}}),
     useFileNavigate:()=>()=>{},fileComposerAvailability:{isLocalAvailable:true},
     localThreadRoute:id=>`/local/${id}`,
+    upload,
     localAttachmentService:(_,hostId)=>({createFileAttachment:async file=>{files.push({hostId,...file});return create();}}),
     deleteLocalAttachment:(_,hostId,path)=>removed.push({hostId,path}),
   };
@@ -113,7 +115,7 @@ async function canvasFixture(context,{reference=async()=>({base64:"AP9B",name:"i
   const layout=surface.type(surface.props).props.children[0];
   const renderedComposer=layout.props.children.props.renderComposer(true);
   const composer=renderedComposer?.props?.children?.[0]?.props?.children?.[0]?.props??renderedComposer?.props??{};
-  return {...f,composer,canvasProps:layout.props.children.props,files,removed};
+  return {...f,composer,renderedComposer,canvasProps:layout.props.children.props,files,removed};
 }
 
 test("ImageGen canvas uses the current native edit attribution and overlay contract", async context=>{
@@ -124,6 +126,7 @@ test("ImageGen canvas uses the current native edit attribution and overlay contr
   assert.equal(f.canvasProps.showViewerHeader,undefined);
   assert.equal(typeof f.canvasProps.onImageEditSubmitted,"function");
   assert.equal(typeof f.canvasProps.onImageEditSubmitStatusChange,"function");
+  assert.equal(f.canvasProps.onEditToolSelected,undefined);
   f.view.dispose();
 });
 
@@ -136,6 +139,17 @@ test("closing the image canvas aborts pending attachments and rejects late resul
   pending.resolve({path:"/temporary/image",fsPath:"/temporary/image"});
   await assert.rejects(preparing,/Library action is no longer current|aborted/);
   assert.deepEqual(f.removed,[{hostId:"local",path:"/temporary/image"}]);
+  f.view.dispose();
+});
+
+test("native inline composer cancel closes the current canvas and aborts its edit",async context=>{
+  const pending=deferred();const f=await canvasFixture(context,{upload:()=>pending.promise,imageEditComposer:true});
+  const submitting=f.canvasProps.onImageEditSubmit({prompt:"edit"});
+  await settle();
+  assert.equal(f.renderedComposer.type,"ImageEditComposer");
+  f.renderedComposer.props.onCancel();
+  pending.resolve({id:"file_1",size:1});
+  assert.equal(await submitting,false);
   f.view.dispose();
 });
 
