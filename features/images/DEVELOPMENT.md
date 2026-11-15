@@ -42,4 +42,4 @@ rspack 分支按模块的导出声明识别图片菜单（`getGeneratedImageCont
 node --test features/images/test/*.test.mjs
 ```
 
-最近隔离验证：macOS Codex `26.1103.60933`，独立 profile / CDP，宿主只加载 `images`。已覆盖：自检由 `native-image-mount-unavailable` 恢复为 `available`；Plus Library 在 Images 后追加唯一 Image Gen；真实本地图片首屏与缩略图；点击卡片打开原生详情；勾选后显示原生多选动作栏并可清除；卡片 More actions 菜单；经 View prompts 打开原生详情与提示词面板，有记录的图片显示生成提示词，无记录的显示空状态说明。未覆盖：上传、云端收藏／文件夹写入、多选批量动作执行、图片编辑提交、随消息提交图片与 Windows；模块加载不代表这些动作已验收。
+最近隔离验证：macOS Codex 26.1111.21308（build 27194），独立 profile / CDP / 业务数据。实际对象为 Library → Image Gen，原生 Images 仅取组件基线。目标页 navigation/gallery/canvas 均 available；两张测试图可打开预览，同一基线图片覆盖浅／深色；原生浮动 ImageEditComposer、Markup 工具／选中和禁用态、focus、取消、编辑草稿与 Escape、100%／Zoom to fit、More 菜单和 Delete 确认的 Cancel 已复核。编辑草稿重开为空，未发送。菜单名称使用 Add to Favorites / Add to folder，不附加冗长上传说明。未实际执行上传、云端收藏／文件夹写入、多选批量动作、图片编辑提交或 Windows；相关 IO 接受、取消及清理由针对性测试覆盖，不把模块加载或按钮可见视为这些写入动作已验收。
