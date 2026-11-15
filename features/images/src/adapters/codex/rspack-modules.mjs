@@ -63,7 +63,7 @@ export async function createRspackImageModules(registry) {
         // Identify the public wrapper by its semantic folder-placeholder
         // handling and spread of the card props, then keep the module role
         // anchored by the entry-level card markers above.
-        Card:fn(layout, source => source.includes('folderPlaceholder') && source.includes('(0,r.jsx)(j,{...e}'), 'card'),
+        Card:discoverImageCardComponent(registry.exports(layout)),
         useImage:fn(sourceImage, source => source.includes('shouldLoadFileDataUrl:'), 'image resolver'),
         imageMenu:registry.exports(menu).getGeneratedImageContextMenuItems,
         openImage:registry.exports(openModule).openImagePreview,
@@ -131,6 +131,15 @@ export async function createRspackImageModules(registry) {
     };
   }
   return {navigation:async()=>({React,ReactDOM}),gallery,canvas};
+}
+
+// 图片卡片由外层 memo wrapper 透传 props，再按 folderPlaceholder 包装；只依赖该调用语义。
+export function discoverImageCardComponent(exports) {
+  const matches = Object.values(exports).filter(value => typeof value === 'function'
+    && String(value).includes('folderPlaceholder')
+    && /\.jsx\)\([\w$]+,\{\.\.\.[\w$]+\}\)/.test(String(value)));
+  if (matches.length !== 1) throw new Error('Native Images contract changed: card');
+  return matches[0];
 }
 
 // 按导出声明识别模块，排除只调用该导出的消费方。rspack 具名导出有两种登记形式：
