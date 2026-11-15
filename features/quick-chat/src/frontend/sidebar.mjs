@@ -52,7 +52,9 @@ export function installQuickChatSidebar(signal, config, action, loadIcon = loadQ
   }
   const observer = new MutationObserver(schedule);
   observer.observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['class','style','hidden','inert','aria-hidden','lang']});
-  void Promise.all([action.ready,loadIcon(signal)]).then(([,value]) => {
+  // Quick Chat 的生命周期初始化会触发原生浮层依赖加载；图标必须在该就绪点
+  // 之后创建新的注册表快照，避免冷启动时读取到尚未注册的浮层模块。
+  void action.ready.then(() => loadIcon(signal)).then(value => {
     if (disposed || signal.aborted) return;
     icon = value;
     sync();

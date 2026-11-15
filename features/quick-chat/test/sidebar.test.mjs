@@ -5,6 +5,26 @@ import os from 'node:os';
 import path from 'node:path';
 import {fileURLToPath,pathToFileURL} from 'node:url';
 import {createQuickChatSidebarAdapter,loadQuickChatSidebarIcon} from '../src/adapters/codex/sidebar.mjs';
+import {installQuickChatSidebar} from '../src/frontend/sidebar.mjs';
+
+test('sidebar waits for Quick Chat readiness before loading a fresh native icon registry',async t=>{
+  const previousDocument=globalThis.document,previousObserver=globalThis.MutationObserver;
+  t.after(()=>{globalThis.document=previousDocument;globalThis.MutationObserver=previousObserver;});
+  globalThis.document={head:{append(){}},documentElement:{},querySelectorAll:()=>[],createElement:()=>({style:{},remove(){}})};
+  globalThis.MutationObserver=class {observe(){}disconnect(){}};
+  globalThis.createQuickChatSidebarAdapter=()=>({read:()=>null});
+  t.after(()=>{delete globalThis.createQuickChatSidebarAdapter;});
+  let resolveReady,loads=0;
+  const ready=new Promise(resolve=>{resolveReady=resolve;});
+  const controller=new AbortController();
+  const installed=installQuickChatSidebar(controller.signal,{codex:{props(){return null},report(){} }},{ready,available:()=>true,activate(){}},async()=>{loads+=1;return {createElement(){}}});
+  await Promise.resolve();
+  assert.equal(loads,0);
+  resolveReady();
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(loads,1);
+  installed.dispose();controller.abort();
+});
 
 test('sidebar entry belongs only to the visible native Codex New chat row',t=>{
   const previous=globalThis.document;
