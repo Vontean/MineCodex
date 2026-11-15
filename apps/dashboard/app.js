@@ -290,10 +290,11 @@ function renderRuntime() {
   elements.restartNotice.hidden = !state?.pendingRestart;
   const targets = state?.renderer?.targets ?? state?.runtime?.renderer?.targets ?? [];
   const previous = elements.diagnosticsTargetSelect.value;
-  elements.diagnosticsTargetSelect.replaceChildren(...targets.map((target) => {
+  const targetScope = (target) => [...new Set((target.plugins ?? []).flatMap(plugin => Array.isArray(plugin.scope) ? plugin.scope : []))].join(", ") || "renderer";
+  elements.diagnosticsTargetSelect.replaceChildren(...targets.map((target, index) => {
     const option = document.createElement("option");
     option.value = target.targetId;
-    option.textContent = target.targetId;
+    option.textContent = `${locale === "zh-CN" ? "窗口" : "Window"} ${index + 1} · ${targetScope(target)}`;
     return option;
   }));
   if (targets.some((target) => target.targetId === previous)) elements.diagnosticsTargetSelect.value = previous;
@@ -304,11 +305,13 @@ function renderRuntime() {
     .sort((left, right) => right.checkedAt - left.checkedAt)[0];
   const check = state?.diagnosticsCheck ?? (startupCheck && {
     checkedAt: startupCheck.checkedAt,
+    checkType: "startup",
+    pageScope: targetScope(startupCheck),
     targetId: startupCheck.targetId,
     sessionId: startupCheck.sessionId ?? state?.runtimeSessionId ?? null,
   });
   elements.diagnosticsStatus.textContent = check?.checkedAt
-    ? `${locale === "zh-CN" ? "检查" : "Checked"}: ${new Date(check.checkedAt).toLocaleString()} · ${check.targetId}`
+    ? `${check.checkType === "manual" ? (locale === "zh-CN" ? "手动复查" : "Manual check") : (locale === "zh-CN" ? "启动检查" : "Startup check")} · ${locale === "zh-CN" ? "页面/范围" : "Page/scope"}: ${check.pageScope ?? "renderer"} · ${new Date(check.checkedAt).toLocaleString()}`
     : "";
 }
 

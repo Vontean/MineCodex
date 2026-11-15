@@ -313,7 +313,9 @@ export async function createControlServer({
         if (!target) throw Object.assign(new Error("Renderer target is no longer available"), { statusCode: 409 });
         json(response, 200, {
           checkedAt: Date.now(),
+          checkType: "manual",
           scope: "current-renderer-window",
+          pageScope: [...new Set((target.plugins ?? []).flatMap(plugin => Array.isArray(plugin.scope) ? plugin.scope : []))].join(", ") || "renderer",
           targetId,
           sessionId: target.sessionId ?? renderer.runtimeSessionId ?? runtime.runtimeSessionId ?? null,
           renderer: { ...target, targetId },
@@ -344,6 +346,8 @@ export async function createControlServer({
           renderer: runtime.renderer ?? null,
           diagnosticsCheck: startupTarget ? {
             checkedAt: startupTarget.checkedAt,
+            checkType: "startup",
+            pageScope: [...new Set((startupTarget.plugins ?? []).flatMap(plugin => Array.isArray(plugin.scope) ? plugin.scope : []))].join(", ") || "renderer",
             targetId: startupTarget.targetId,
             sessionId: startupTarget.sessionId ?? renderer.runtimeSessionId ?? runtime.runtimeSessionId ?? null,
           } : null,

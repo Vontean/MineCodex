@@ -15,6 +15,7 @@ test("self-check separates installation, anchor disappearance, scope tokens and 
   assert.deepEqual(check.snapshot().plugins.map(item=>item.state),["available","failed"]);
   token=false;
   assert.equal(check.snapshot().plugins[0].state,"degraded");
+  assert.deepEqual(check.snapshot().plugins[0].scope,["composer"]);
   assert.equal(check.snapshot().plugins[0].tokens[0].scope,"composer");
   anchor=false;
   assert.equal(check.snapshot().plugins[0].state,"unavailable");
@@ -121,6 +122,22 @@ test("explicit refresh drops stale evidence when a renderer closes during the re
   const status = await refresh;
   assert.equal(status.targets.some(target => target.targetId === "closing"), false);
   assert.equal(runtime.targetChecks.has("closing"), false);
+});
+
+test("window scopes stay isolated and an old session cannot reuse them", async () => {
+  const runtime = new CodexRuntime({ features: [], profileDir: "/tmp/mcx-scope-isolation", runtimeSessionId: "session-1" });
+  for (const [targetId, scope] of [["images-window", "image-viewer"], ["files-window", "file-navigation"]]) {
+    runtime.clients.set(targetId, { async send() {
+      return { result: { value: { sessionId: "session-1", checkedAt: 1, plugins: [{ featureId: "images", scope: [scope], state: "available" }] } } };
+    } });
+    runtime.rendererTargetIds.add(targetId);
+    assert.equal(await runtime.checkTarget(targetId), true);
+  }
+  assert.deepEqual(runtime.getRendererStatus().targets.map(target => target.plugins[0].scope).sort(), [["file-navigation"], ["image-viewer"]]);
+  runtime.runtimeSessionId = "session-2";
+  await runtime.checkTarget("images-window", { force: true });
+  assert.deepEqual(runtime.targetChecks.get("images-window").plugins, []);
+  assert.equal(runtime.targetChecks.get("images-window").scope, undefined);
 });
 
 test("target discovery does not repeat probes; document reload invalidates the startup result", async () => {

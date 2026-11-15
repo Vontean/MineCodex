@@ -573,7 +573,9 @@ test("keeps Model Slider available when persisted Fast icons cannot be read", as
   for (const scenario of scenarios) {
     const result = await executeModelSliderInjection(scenario.options);
     assert.equal(result.runtimeInstalled, true, scenario.name);
-    assert.ok(result.fetchCalls > 0, scenario.name);
+    // 本地缓存读取失败不应阻断 Renderer 安装。是否能从当前原生 bundle
+    // 取得图标由 native adapter 决定，fixture 不伪造该私有能力。
+    assert.ok(Array.isArray(result.probe?.states), scenario.name);
   }
 });
 
@@ -1039,11 +1041,11 @@ test("normalizes Composer trigger effort-label alignment under Model Slider", ()
 
 test("keeps the model-panel chevron beside the model name", () => {
   const source = createInjectionSource([modelSliderFeatureFixture()]);
-  assert.match(source, /effortText\.style\.gridColumn = "2";/);
-  assert.match(source, /effortText\.style\.gridRow = "1";/);
   assert.match(source, /modelRow\.append\(buttonLabel\);/);
   assert.match(source, /modelRow\.append\(nativeChevron\);/);
-  assert.match(source, /buttonContent\.append\(effortRow, modelRow\);/);
+  assert.match(source, /buttonContent\.append\(modelRow\);\s*if \(effortText\) buttonContent\.append\(effortText\);/);
+  assert.match(source, /viewControls\.setAttribute\("data-inline-model", "true"\)/);
+  assert.doesNotMatch(source, /viewControls\.setAttribute\("data-explicit-model"/);
 });
 
 test("rebuilds the upgraded native slider from the selected model capabilities", () => {
@@ -1098,8 +1100,9 @@ test("distinguishes placeholder from real model label, hugging real names", () =
     source,
     /\[class\*="_ModelPickerTriggerModelLabel_"\]:not\(\[data-codex-model-slider-trigger-label\]\) \{/,
   );
-  // 复用原生显式模型布局，不再用自定义单行居中样式覆盖原生结构。
-  assert.match(source, /viewControls\.setAttribute\("data-explicit-model", "true"\)/);
+  // 复用原生 inline model 布局，不再用自定义双行样式覆盖原生结构。
+  assert.match(source, /viewControls\.setAttribute\("data-inline-model", "true"\)/);
+  assert.doesNotMatch(source, /viewControls\.setAttribute\("data-explicit-model"/);
   assert.match(source, /data-codex-model-slider-reset/);
   assert.match(source, /data-codex-model-slider-controller-menu[\s\S]*?transform: translateX\(-50%\) !important;/);
   assert.doesNotMatch(
