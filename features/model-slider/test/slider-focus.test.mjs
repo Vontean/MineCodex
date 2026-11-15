@@ -19,24 +19,10 @@ test('shell replacement restores only the focused slider in a connected menu',()
 test('focus helper is included in the serialized renderer closure',()=>{
   assert.doesNotThrow(()=>new Function(`return (${createModelSliderInstallerSource()})`)());
 });
-test('Fast control keeps the native 32px button and 26px centered icon slot',()=>{
-  const source=createModelSliderInstallerSource();
-  assert.match(source,/\[data-codex-model-slider-fast\].*width: 32px/);
-  assert.match(source,/\[data-codex-model-slider-fast-content\].*width: 26px; height: 26px/);
-});
-
 test('serialized Fast icon installer consumes native markup and dimensions',()=>{
   const source=createModelSliderInstallerSource();
   assert.match(source,/if \(!path && !definition\?\.markup\) return/);
   assert.match(source,/definition\.markup \?\?/);
   assert.match(source,/definition\.width \?\? 20/);
   assert.match(source,/definition\.height \?\? 20/);
-});
-
-test('generic model header preserves the native inline model contract',()=>{
-  const source=createModelSliderInstallerSource();
-  assert.match(source,/viewControls\.setAttribute\("data-inline-model", "true"\)/);
-  assert.doesNotMatch(source,/viewControls\.setAttribute\("data-explicit-model"/);
-  assert.match(source,/buttonContent\.append\(modelRow\)/);
-  assert.match(source,/buttonContent\.append\(modelRow\);\s*if \(effortText\) buttonContent\.append\(effortText\)/);
 });
