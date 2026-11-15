@@ -279,9 +279,9 @@ export function installModelSlider(signal, { feature, ui, createIcon, requestRef
         if (!path) return;
         const svg = createModelSelectorIcon({
           viewBox: definition.viewBox,
-          markup: definition.transform
+          markup: definition.markup ?? (definition.transform
             ? `<g transform="${definition.transform}"><path d="${path}" fill="currentColor" /></g>`
-            : `<path d="${path}" fill="currentColor" />`,
+            : `<path d="${path}" fill="currentColor" />`),
         }, { brand: true });
         if (!svg) return;
         svg.setAttribute("width", String(definition.width ?? 20));

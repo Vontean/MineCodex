@@ -136,6 +136,27 @@ function invokeNativeMenuItemSelect(item) {
   async function fastIcons(signal) {
     const registry = nativeRegistry ? await nativeRegistry({signal, waitForEntry:true}) : null;
     if (!registry) {codex.report("fast-icons",false,"native-module-registry-unavailable");return null;}
+    const definition = name => {
+      for (const entry of registry.entries) {
+        if (!entry.source.includes(name)) continue;
+        const value = Object.values(registry.exports(entry)).find(item => item?.name === name
+          && item.canvas?.viewBox && typeof item.body === 'string');
+        if (value) return value;
+      }
+      return null;
+    };
+    const activeDefinition = definition('bolt-fill-light-16');
+    const inactiveDefinition = definition('bolt-light-16');
+    if (activeDefinition && inactiveDefinition) {
+      codex.report("fast-icons",true,null);
+      return {
+        active: { markup: activeDefinition.body, viewBox: activeDefinition.canvas.viewBox,
+          width: activeDefinition.canvas.width, height: activeDefinition.canvas.height },
+        inactive: { markup: inactiveDefinition.body, viewBox: inactiveDefinition.canvas.viewBox,
+          width: inactiveDefinition.canvas.width, height: inactiveDefinition.canvas.height },
+      };
+    }
+    // 旧版 Codex 仍以内联路径导出，保留其兼容路径直到该协议不再出现。
     const source = registry.entries.map(entry => entry.source)
       .find(value => /FastModeToggle|fast.mode|fastMode/i.test(value)
         && /M(?:11\.9125 21\.4125|9\.80999 17\.8302)/.test(value));
