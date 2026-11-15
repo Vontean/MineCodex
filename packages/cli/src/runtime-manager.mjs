@@ -552,7 +552,7 @@ export class RuntimeManager {
     return this.status();
   }
 
-  async refreshDiagnostics() {
+  async refreshDiagnostics(targetId = null) {
     const child = this.child;
     if (!child || hasExited(child) || !child.connected || typeof child.send !== "function") {
       return this.status();
@@ -562,7 +562,7 @@ export class RuntimeManager {
       this.diagnosticRequests.set(requestId, { resolve, reject });
     });
     try {
-      child.send({ type: "minecodex:refresh-diagnostics", requestId });
+      child.send({ type: "minecodex:refresh-diagnostics", requestId, targetId });
       return await result;
     } catch (error) {
       this.diagnosticRequests.delete(requestId);

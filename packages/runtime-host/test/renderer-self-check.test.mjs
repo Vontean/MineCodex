@@ -100,6 +100,8 @@ test("explicit diagnostics refresh rereads the current renderer without restorin
   assert.equal(status.targets[0].plugins[0].state, "available");
   await runtime.refreshSelfChecks();
   assert.equal(reads, 3);
+  assert.equal((await runtime.refreshSelfChecks("closed-window")).targets.length, 1);
+  assert.equal(reads, 3);
 });
 
 test("target discovery does not repeat probes; document reload invalidates the startup result", async () => {

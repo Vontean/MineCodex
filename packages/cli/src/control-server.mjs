@@ -301,11 +301,18 @@ export async function createControlServer({
       const locale = String(request.headers["accept-language"] ?? "").toLowerCase().startsWith("zh") ? "zh-CN" : "en";
       if (request.method === "POST" && url.pathname === "/api/diagnostics/refresh") {
         requireMutationOrigin(request, host, boundPort);
-        const runtime = await (runtimeManager.refreshDiagnostics?.() ?? runtimeManager.refreshStatus());
+        const body = await readJson(request);
+        const targetId = typeof body.targetId === "string" && body.targetId.trim() ? body.targetId.trim() : null;
+        if (!targetId) throw Object.assign(new Error("A renderer target is required"), { statusCode: 400 });
+        const runtime = await (runtimeManager.refreshDiagnostics?.(targetId) ?? runtimeManager.refreshStatus());
+        const target = runtime.renderer?.targets?.find((candidate) => candidate.targetId === targetId);
+        if (!target) throw Object.assign(new Error("Renderer target is no longer available"), { statusCode: 409 });
         json(response, 200, {
           checkedAt: Date.now(),
-          scope: "current-renderer-windows",
-          renderer: runtime.renderer ?? null,
+          scope: "current-renderer-window",
+          targetId,
+          sessionId: target.sessionId ?? runtime.runtimeSessionId ?? null,
+          renderer: { ...target, targetId },
         });
         return;
       }
